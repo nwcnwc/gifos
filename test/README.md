@@ -766,6 +766,18 @@ Roughly three families in one directory:
   `e2e-fullscreen-lock` (capabilities.fullscreen, the same three legs over its
   TWO hatches — the fullscreen permissions policy and the
   allow-orientation-lock sandbox token),
+  `e2e-fullscreen-modal` (the app bar's OWN full screen, and what it must not
+  cost: every system popup stays reachable while an app fills the glass. The
+  bar used to fullscreen #apppane itself, which moves the pane into the
+  browser's TOP LAYER and paints an opaque ::backdrop over everything outside
+  its subtree — so Help, Abilities, Settings, Share and all twelve page-level
+  modals, which live outside the pane as page modals must, went invisible and
+  unclickable until you left full screen. THE ASSERTION IS A HIT TEST, and
+  deliberately: display, visibility and z-index all read "shown" throughout the
+  bug — .perm-modal already carries z-index 2147483000 and the top layer beats
+  it — so the suite asks elementFromPoint the question the finger asks. It
+  sweeps EVERY .name-modal rather than the two the report named, so a modal
+  added tomorrow is covered without anyone coming back here),
   `e2e-screen-share` (sharing a screen in a meeting, and the far more
   interesting half: that an app-pinned meeting NEVER NEEDS IT. It drives the
   REAL getDisplayMedia — headless Chromium answers it only under

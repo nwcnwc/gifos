@@ -17,6 +17,16 @@
 //     whole bug class here.
 //   - a version number never enters into it: site/browser-support.json is the
 //     only place cutoffs live (CLAUDE.md, "Browser support is DATA").
+//   - NO BAR EVER FULLSCREENS A PANE. An element other than the root that takes
+//     fullscreen moves into the TOP LAYER, and the UA paints an opaque
+//     ::backdrop over everything outside its subtree — so run.html's app bar
+//     full-screening #apppane buried every modal on the page (Help, Abilities,
+//     Settings, Share, the perms gate all live outside the pane, as page-level
+//     modals must). No z-index answers that; .perm-modal already carries
+//     2147483000. So the ROOT takes the screen and opts.fill hands the page a
+//     body class to give the pane the glass in CSS.
+//     test/browser/e2e-fullscreen-modal.js proves the consequence with a hit
+//     test; this pins the mechanism, cheaply, on every run.
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
@@ -56,6 +66,34 @@ for (const b of bars) {
       ? /GifOS\.fullscreen\.attach\(document\.getElementById\('appfull'\)/.test(html)
       : /GifOS\.fullscreen\.attach\(document\.getElementById\('fs-btn'\)/.test(
           fs.readFileSync(path.join(SITE, 'js', 'desktop.js'), 'utf8')));
+  // THE TARGET IS THE ROOT. Every attach() on the site, wherever it is written,
+  // must hand the module document.documentElement — a pane in the top layer is
+  // what buried the popups, and it is one word to write it back.
+  const wiring = b.page === 'run.html' ? html : fs.readFileSync(path.join(SITE, 'js', 'desktop.js'), 'utf8');
+  const calls = wiring.match(/GifOS\.fullscreen\.attach\([^;]*\)/g) || [];
+  check(b.page + ': …asking for the DOCUMENT, never a pane',
+    calls.length > 0 && calls.every((c) => /document\.documentElement/.test(c)),
+    calls.join(' | ').slice(0, 160));
+}
+// The app pane's picture is the page's, in CSS, keyed off the class the module
+// hangs — and the pane must be COVERING the page (ordinary stacking), not
+// banished from it. If the class stops being styled the button goes silent.
+{
+  const run = fs.readFileSync(path.join(SITE, 'run.html'), 'utf8');
+  const fill = (/\{\s*fill:\s*'([a-z-]+)'\s*\}/.exec(run) || [])[1];
+  check('run.html names a fill class for the module to hang', !!fill, fill);
+  const rule = fill && new RegExp('body\\.' + fill + '\\s+#apppane\\s*\\{([^}]*)\\}').exec(run);
+  check('…and styles it: the pane fills the viewport by position, not by fullscreen',
+    !!(rule && /position:\s*fixed/.test(rule[1]) && /inset:\s*0/.test(rule[1])),
+    rule ? rule[1].trim() : 'no body.' + fill + ' #apppane rule');
+  // Everything that must be able to sit OVER a full app does so by the z-index
+  // it always had. The pane's own number has to stay under the lowest of them
+  // (#appwait / #chatpanel at 30) or the cure re-creates the disease.
+  const z = rule && /z-index:\s*(\d+)/.exec(rule[1]);
+  check('…under every overlay tier this page has (#appwait/#chatpanel at 30)',
+    !!(z && Number(z[1]) < 30), z ? 'z-index ' + z[1] : 'no z-index');
+  check('…and #apppane no longer carries a :fullscreen rule to dress a state it never enters',
+    !/#apppane:(-webkit-)?full/.test(run));
 }
 // Every page that ships the desktop ships the toggle — the same "no page gets
 // forgotten" scan e2e-icon-lock.js runs for the arrange bar.
@@ -99,6 +137,11 @@ function fakeDoc(opts) {
     return e;
   };
   doc.documentElement = el('root');
+  // A body with a real class set — opts.fill's landing pad.
+  doc.body = { klass: new Set(), classList: {
+    toggle(c, on) { if (on) doc.body.klass.add(c); else doc.body.klass.delete(c); },
+    contains(c) { return doc.body.klass.has(c); },
+  } };
   doc.listeners = listeners;
   doc.el = el;
   return doc;
@@ -142,6 +185,43 @@ function loadModule(doc) {
   doc.fullscreenElement = null;
   doc.fire('fullscreenchange');
   check('Esc (no click at all) still puts the button back', btn.attrs['aria-pressed'] === 'false' && btn.innerHTML === before);
+}
+// (d) opts.fill: the page's half of the picture, painted from the DOCUMENT
+// This is the pane-in-the-top-layer fix in miniature. The class must go on and
+// come off with document.fullscreenElement and nothing else — a boolean of ours
+// would strand the page filled-but-not-fullscreen the first time a request was
+// refused, and would not come off for Esc at all.
+{
+  const doc = fakeDoc({ enabled: true });
+  const F = loadModule(doc);
+  const btn = doc.el('btn');
+  const clicks = [];
+  btn.addEventListener = (t, fn) => { if (t === 'click') clicks.push(fn); };
+  F.attach(btn, doc.documentElement, { fill: 'app-full' });
+  check('before anything happens the page is not marked filled', !doc.body.classList.contains('app-full'));
+  clicks[0]({ preventDefault() {} });
+  doc.fire('fullscreenchange');
+  check('taking the screen marks the page, for its CSS to fill the pane',
+    doc.body.classList.contains('app-full') && doc.calls.join(',') === 'enter:root', doc.calls.join(','));
+  doc.fullscreenElement = null;
+  doc.fire('fullscreenchange');
+  check('…and Esc — no click at all — takes the mark off with it',
+    !doc.body.classList.contains('app-full'));
+  // A refused request never fires fullscreenchange, so the mark never lands:
+  // no popup-burying pane, and no pane stuck over the page either.
+  doc.fullscreenElement = doc.el('someone-else');
+  doc.fire('fullscreenchange');
+  check('another element owning the screen is not this pane being filled',
+    !doc.body.classList.contains('app-full'));
+}
+// …and a bar that asks for no fill (the Home Screen) touches the body at all.
+{
+  const doc = fakeDoc({ enabled: true });
+  const F = loadModule(doc);
+  F.attach(doc.el('btn'), doc.documentElement);
+  doc.fullscreenElement = doc.documentElement;
+  doc.fire('fullscreenchange');
+  check('no opts.fill, no class — the option is opt-in', doc.body.klass.size === 0);
 }
 // (c) toggling while ANOTHER element owns the screen is a switch, not a leave
 {
