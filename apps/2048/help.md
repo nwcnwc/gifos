@@ -18,7 +18,7 @@ After a move that actually changed the board, a new 2 or 4 appears in a random e
 
 ## Score
 
-You score the value of every new merged tile. The current score and your best sit at the top.
+You score the value of every new merged tile. The current score and your best sit at the top — in a race the strip takes over and the pair steps aside.
 
 Reach 2048 and **Keep going** lets you chase 4096 and beyond. **New Game** deals a fresh board — it does **not** throw away the one you were on. That game moves into **Your games**, where you can pick it back up.
 
@@ -40,7 +40,7 @@ A race is not part of this. **Play a friend** rounds are never filed here, and p
 
 This is a **race**, not a shared board. Press **Play a friend**, then **Invite** in the bar above the app and send the link.
 
-You both start from the **same two tiles**. Same moves give the same board; different moves, the boards diverge. Live scores sit in a strip above the grid.
+You both start from the **same two tiles**. Same moves give the same board; different moves, the boards diverge. Every live score sits in one strip above the grid — yours, theirs, each with its highest tile — and the line beside it tells you the gap, never a score over again.
 
 - First to a 2048 tile wins.
 - If a board fills first, that player is out. The others keep going.

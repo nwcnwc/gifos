@@ -170,7 +170,9 @@
     players.forEach(function (p) {
       var mine = p.id === me.id;
       var max = p.max || 0;
-      var tag = p.won ? '2048' : p.over ? 'out' : '';
+      // No '2048' tag: reaching it freezes the board, so the chip beside it
+      // already reads 2048 and the row is already lit by .win.
+      var tag = !p.won && p.over ? 'out' : '';
       html += '<li class="' + (mine ? 'me' : '') + (p.won ? ' win' : '') + '">' +
         '<span class="name">' + (mine ? 'You' : esc(p.name || 'Player')) + '</span>' +
         '<span class="score">' + fmt(p.score || 0) + '</span>' +
@@ -180,19 +182,27 @@
     });
     scores.innerHTML = html;
 
+    // The list above is the ONLY place a score is printed. This line says what
+    // the list cannot — what to do next, who is out, why a round ended — and
+    // never repeats a number sitting an inch to its left.
+    var mineRow = players.filter(function (p) { return p.id === me.id; })[0];
     var others = players.filter(function (p) { return p.id !== me.id; });
     if (v) {
       roundOver = true;
       root.G2048.frozen = true;
       if (v.kind === 'tie') {
-        status.textContent = 'Tie at ' + fmt(v.a.score || 0) + '.';
+        status.textContent = 'Tie — nobody reached 2048.';
         overlay('Tie!', false);
       } else {
         var mineWin = v.winner.id === me.id;
-        var who = mineWin ? 'You' : (v.winner.name || 'They');
-        var why = v.kind === '2048' ? ' reached 2048' : ' wins on score';
-        status.textContent = who + why + ' (' + fmt(v.winner.score || 0) + ').';
-        overlay(mineWin ? 'You win!' : (v.winner.name || 'They') + ' wins!', mineWin);
+        var nm = mineWin ? '' : v.winner.name;
+        var who = mineWin ? 'You' : (nm || 'They');
+        // 'You' and the 'They' fallback take a plural verb; a name does not.
+        var wins = (mineWin || !nm) ? ' win' : ' wins';
+        status.textContent = v.kind === '2048'
+          ? who + ' reached 2048 first.'
+          : who + wins + ' on score.';
+        overlay(who + wins + '!', mineWin);
       }
       again.hidden = false;
     } else {
@@ -202,14 +212,19 @@
       if (!others.length) {
         status.innerHTML = 'Press <b>Invite</b> to send the link. Same tiles — first to 2048.';
       } else if (g && g.over && !g.won) {
-        status.textContent = 'You’re out. Highest score wins if nobody reaches 2048.';
+        // The overlay across the board already says you're out.
+        status.textContent = 'Highest score wins if nobody reaches 2048.';
         overlay('You’re out', false);
       } else if (g && g.won) {
         status.textContent = 'You reached 2048.';
+      } else if (others.length === 1) {
+        // A gap is the one thing two printed scores do not tell you.
+        var lead = ((mineRow ? mineRow.score : g ? g.score : 0) || 0) - (others[0].score || 0);
+        status.textContent = lead > 0 ? 'You’re ' + fmt(lead) + ' ahead.'
+          : lead < 0 ? 'You’re ' + fmt(-lead) + ' behind.'
+          : 'Dead even.';
       } else {
-        status.textContent = others.length === 1
-          ? (others[0].name || 'Friend') + ' is on ' + fmt(others[0].score || 0) + '.'
-          : others.length + ' playing. First to 2048.';
+        status.textContent = others.length + ' playing. First to 2048.';
       }
     }
   }

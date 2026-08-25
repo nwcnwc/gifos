@@ -101,6 +101,58 @@ function playMoves(game, n) {
   return made;
 }
 
+// ---- boot mp.js against a paper DOM -------------------------------------
+// The race bar is pure string-building off a room snapshot, so it needs no
+// browser — only the six ids it reaches for and a room whose subscribe()
+// callback we can pull. show() sets the local board, feeds a snapshot, and
+// hands back what the bar now reads.
+function bootMp() {
+  const node = () => ({
+    textContent: '', innerHTML: '', hidden: false,
+    classList: { add() {}, remove() {} },
+    addEventListener() {}, getElementsByTagName: () => [{ textContent: '' }],
+  });
+  const nodes = {};
+  for (const id of ['friend-status', 'friend-scores', 'againBtn', 'friend-bar', 'friendBtn', 'leaveBtn']) {
+    nodes[id] = node();
+  }
+  const game = {
+    score: 0, won: false, over: false, grid: { eachCell() {} },
+    resetBoard() {}, setup() {}, actuator: { continueGame() {} },
+  };
+  let feed = null;
+  const sandbox = {
+    console, Math, Object, Array, JSON, Date, String, Number, Boolean, Promise,
+    setInterval: () => 0, clearInterval() {},
+    document: {
+      getElementById: (id) => nodes[id],
+      querySelector: () => node(),
+      body: { classList: { add() {}, remove() {} } },
+    },
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  sandbox.G2048 = { game };
+  sandbox.gifos = {
+    db: () => ({ put: () => Promise.resolve(), delete: () => Promise.resolve(), subscribe: (fn) => { feed = fn; } }),
+    me: () => Promise.resolve({ id: 'aaa', name: 'You' }),
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(read('mp.js'), sandbox, { filename: 'mp.js' });
+  sandbox.G2048.Mp.enter();
+  return {
+    ready: () => new Promise((r) => setTimeout(r, 0)),
+    show(board, list) {
+      Object.assign(game, board);
+      feed(list);
+      return {
+        status: nodes['friend-status'].textContent || nodes['friend-status'].innerHTML,
+        scores: nodes['friend-scores'].innerHTML,
+      };
+    },
+  };
+}
+
 function gameRows(db) {
   return [...db.rows.values()].filter((r) => r.kind === 'game');
 }
@@ -339,6 +391,79 @@ function gameRows(db) {
       hist.count() === 1 && hist.currentId() !== id);
   }
 
+  // ---- one score, printed once -------------------------------------------
+  // The race bar is the scoreboard: every live score, ranked, with its highest
+  // tile. The status line beside it exists to say what the list CANNOT — press
+  // Invite, you are out, why the round ended — and the heading's Score/Best
+  // pair stands down. It shipped saying "Kim is on 1,000." beside a chip that
+  // already read 1,000, and tagging a 2048 winner "2048" next to a chip that
+  // said 2048. Every state below is checked for a number said twice.
+  {
+    const mp = bootMp();
+    await mp.ready();   // enter() subscribes only after me() resolves
+    const t = Date.now();
+    const row = (o) => Object.assign(
+      { seed: 1, round: 1, score: 0, hash: 'x', max: 0, won: false, over: false, at: t }, o);
+    const you = (o) => row(Object.assign({ id: 'aaa', name: 'Me' }, o));
+    const kim = (o) => row(Object.assign({ id: 'bbb', name: 'Kim' }, o));
+    const anon = (o) => row(Object.assign({ id: 'ccc', name: '' }, o));
+
+    // Scores chosen so no gap COINCIDES with a printed score — otherwise
+    // "You’re 1,000 ahead." beside Kim's 1,000 would read as a repeat.
+    const states = [
+      ['alone', { score: 0 }, [you({})]],
+      ['ahead', { score: 1240 }, [you({ score: 1240, max: 64 }), kim({ score: 1000, max: 32 })]],
+      ['behind', { score: 900 }, [you({ score: 900 }), kim({ score: 1030 })]],
+      ['level', { score: 1000 }, [you({ score: 1000 }), kim({ score: 1000 })]],
+      ['a crowd', { score: 10 }, [you({ score: 10 }), kim({ score: 5 }), anon({ score: 1 })]],
+      ['you out, they play on', { score: 900, over: true },
+        [you({ score: 900, over: true }), kim({ score: 1030 })]],
+      ['they reached 2048', { score: 900 },
+        [you({ score: 900 }), kim({ score: 2400, max: 2048, won: true })]],
+      ['you reached 2048', { score: 2400, won: true },
+        [you({ score: 2400, max: 2048, won: true }), kim({ score: 900 })]],
+      ['a nameless winner', { score: 900 },
+        [you({ score: 900 }), anon({ score: 2400, max: 2048, won: true })]],
+      ['you win on score', { score: 2000, over: true },
+        [you({ score: 2000, over: true, max: 512 }), kim({ score: 940, over: true, max: 256 })]],
+      ['they win on score', { score: 800, over: true },
+        [you({ score: 800, over: true }), kim({ score: 1900, over: true, max: 256 })]],
+      ['a tie', { score: 900, over: true },
+        [you({ score: 900, over: true }), kim({ score: 900, over: true })]],
+    ];
+
+    const said = [];
+    for (const [name, game, list] of states) {
+      const { status, scores } = mp.show(game, list);
+      const printed = [...scores.matchAll(/class="score">([^<]+)</g)].map((m) => m[1]);
+      // Whole numbers only — the "0" in a score of 0 is not a repeat of the
+      // "0" inside "first to 2048".
+      const dupes = printed.filter((n) =>
+        new RegExp('(^|[^\\d,])' + n + '([^\\d,]|$)').test(status));
+      check('a score is printed once — ' + name, dupes.length === 0, { status, dupes });
+      check('the bar still says something — ' + name, status.trim().length > 3, status);
+      said.push([name, status]);
+    }
+
+    const byName = Object.fromEntries(said);
+    check('the winner takes the verb its name asks for — never "They wins"',
+      byName['they reached 2048'] === 'Kim reached 2048 first.' &&
+      byName['a nameless winner'] === 'They reached 2048 first.' &&
+      byName['you win on score'] === 'You win on score.' &&
+      byName['they win on score'] === 'Kim wins on score.', byName);
+    check('the gap is what the line adds — the one thing two scores do not say',
+      byName['ahead'] === 'You’re 240 ahead.' &&
+      byName['behind'] === 'You’re 130 behind.' &&
+      byName['level'] === 'Dead even.', byName);
+    check('the overlay across the board says you are out, so the bar does not too',
+      !/out/i.test(byName['you out, they play on']), byName['you out, they play on']);
+
+    const wonList = mp.show({ score: 2400, won: true },
+      [you({ score: 2400, max: 2048, won: true }), kim({ score: 900 })]).scores;
+    check('a 2048 winner is not tagged "2048" beside a chip that reads 2048',
+      /chip-2048">2048</.test(wonList) && !/tag">2048</.test(wonList), wonList);
+  }
+
   // ---- the wiring a vm cannot click --------------------------------------
   {
     const html = read('index.html');
@@ -373,6 +498,8 @@ function gameRows(db) {
     check('✕ is close, never delete', /id="hist-close"/.test(html) && !/row-del[^>]*&#10005;/.test(html));
     check('the panel escapes ids and names it prints', /function esc\(/.test(ui) && /esc\(row\.id\)/.test(ui));
     check('friend-mode hides the Games button', /body\.friend[\s\S]{0,80}\.hist-button/.test(css));
+    check('friend-mode stands the heading Score/Best pair down — the bar has both',
+      /body\.friend \.scores-container\s*\{[^}]*display:\s*none/.test(css));
 
     // A preview whose tile colours lose to the empty-cell rule paints every
     // board as blank — which is exactly what shipped for one build, because
