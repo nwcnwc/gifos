@@ -32,6 +32,7 @@ header {
   font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent);
   white-space: nowrap;
 }
+#stage { flex: 1; min-height: 0; position: relative; display: flex; }
 #board {
   flex: 1; min-height: 0;
   display: flex; align-items: center; justify-content: center;
@@ -45,6 +46,24 @@ header {
 /* Phaser stamps touch-action:none INLINE on its canvas at boot; the canvas is
    where every pinch actually starts, so this must out-rank an inline style. */
 #board canvas { display: block; max-width: 100%; max-height: 100%; touch-action: pinch-zoom !important; }
+/* Your round has ended: the board stops taking taps (boot.js `done()`) so a
+   tap cannot start a private chase mid-race. pointer-events, NOT touch-action
+   — the pinch must survive. */
+#stage.done #board { pointer-events: none; opacity: .82; }
+#flash {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  max-width: 88%; padding: .65rem .95rem; text-align: center;
+  background: rgba(11, 16, 32, .93); border: 1px solid var(--border);
+  border-radius: .8rem; font-weight: 700; line-height: 1.3;
+  pointer-events: none; animation: flash-in .2s ease-out;
+}
+#flash.win { color: var(--ok); border-color: var(--ok); }
+#flash.lose { color: var(--danger); border-color: var(--danger); }
+#flash[hidden] { display: none; }
+@keyframes flash-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(.9); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
 #roster {
   margin: .35rem 0 .45rem; padding: .45rem .6rem;
   background: var(--surface); border: 1px solid var(--border); border-radius: .7rem;
@@ -52,14 +71,28 @@ header {
   max-height: 6.4rem; overflow: auto;
 }
 #roster[hidden] { display: none; }
-#roster .row {
-  display: flex; justify-content: space-between; gap: .6rem;
-  padding: .18rem 0;
+#roster .wait { padding: .18rem 0; }
+#roster .row, #roster .head {
+  display: grid; grid-template-columns: 1fr auto auto;
+  align-items: baseline; gap: .55rem; padding: .18rem 0;
 }
+#roster .head {
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+  border-bottom: 1px solid var(--border); padding-bottom: .3rem; margin-bottom: .22rem;
+}
+#roster .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #roster .row.me { color: var(--text); font-weight: 650; }
 #roster .win { color: var(--ok); }
 #roster .lose { color: var(--danger); }
-#roster .lead { color: var(--accent); }
+#roster .taps { min-width: 4.7rem; text-align: right; font-variant-numeric: tabular-nums; }
+#roster .wins {
+  min-width: 1.5rem; text-align: right; font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+#roster .wins.zero { color: var(--muted); font-weight: 400; }
+#roster .head .wins, #roster .head .taps { color: var(--muted); font-weight: 600; }
+#roster .crown { color: var(--accent); margin-right: .3rem; }
+#roster .streak { margin-left: .35rem; font-weight: 400; }
 #bar {
   display: flex; gap: .55rem;
   padding-top: .35rem;
@@ -73,3 +106,13 @@ header {
 }
 #bar button:active { transform: scale(.98); }
 #again { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+/* The round is scored and everyone is waiting on a new board. */
+#again.ready { animation: nudge 1.6s ease-in-out infinite; }
+@keyframes nudge {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 176, 90, .55); }
+  50% { box-shadow: 0 0 0 .38rem rgba(232, 176, 90, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #again.ready { animation: none; }
+  #flash { animation: none; }
+}
