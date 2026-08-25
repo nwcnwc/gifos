@@ -36,11 +36,16 @@
   var M = Math.cos, N = Math.sin, P = Math.hypot, T = Math.atan2;
   var x, y, a, hp, ammo, score, seed, seedI;
   var enemies, keys, running, paused, raf, ready;
-  var mflash, flashId, kick, pain, pumpT, bob, hurtT;
+  var mflash, flashId, kick, pain, painFrom, pumpT, bob, graceT;
   var lookGain = 0.0022;
   var remotes = [], remotePhase = {};
   var lastT = 0, STEP = 16;
   var HALL = 7, R = 0.26;
+  /* You wake up, and for two seconds nothing can touch you. Without it the
+     opening is not a game: a phone review of the previous build died at 7.4
+     seconds on six runs out of six, to the tick, having pressed nothing —
+     both starting things were 2.5 metres away and simply walked in. */
+  var GRACE = 2000;
 
   /* ---- the level ------------------------------------------------------- */
 
@@ -87,10 +92,11 @@
     seed = opts.seed != null ? opts.seed : Math.random() * 100;
     seedI = (seed * 4096) | 0;
     x = 4; y = 4; a = 0; hp = 100; ammo = 25; score = 0;
-    mflash = 0; flashId = 0; kick = 0; pain = 0; pumpT = -1; bob = 0; hurtT = 0;
+    mflash = 0; flashId = 0; kick = 0; pain = 0; painFrom = 0; pumpT = -1; bob = 0;
+    graceT = GRACE;
     enemies = [
-      { x: 6.5, y: 4, h: 100, phase: 0, hurt: 0, dying: null, cool: 0, size: 1.06 },
-      { x: 4, y: 6.5, h: 100, phase: 3, hurt: 0, dying: null, cool: 0, size: 0.94 }
+      { x: 7.2, y: 4, h: 100, phase: 0, hurt: 0, dying: null, cool: 0, size: 1.06 },
+      { x: 4, y: 7.2, h: 100, phase: 3, hurt: 0, dying: null, cool: 0, size: 0.94 }
     ];
     keys = keys || {};
     keys._jx = 0; keys._jy = 0;
@@ -170,6 +176,9 @@
       var o = best.o;
       o.h = Math.max(0, (o.h == null ? 100 : o.h) - dmg);
       o.hurt = 1;
+      /* a solid hit staggers it: the shotgun has to BUY you space, or a crowd
+         is unfightable no matter how much damage it does */
+      if (!best.id) o.cool = Math.max(o.cool, 260);
       if (best.id) {
         if (hits.indexOf(best.id) < 0) hits.push(best.id);
         if (o.h <= 0) best.spent = 1;
@@ -183,10 +192,11 @@
     return { hits: hits };
   }
 
-  function hurt(n) {
+  function hurt(n, from) {
     if (!running || paused) return;
     hp -= n | 0;
     pain = 1;
+    if (from != null) painFrom = from;
   }
 
   function look(dx) {
@@ -316,10 +326,14 @@
         o.phase += sp * 5.2;
       }
       o.cool -= dt;
-      if (di < 0.80 && o.cool <= 0) {
-        o.cool = 850;
-        hp -= 7;
+      if (di < 0.80 && o.cool <= 0 && graceT <= 0) {
+        o.cool = 950;
+        hp -= 6;
         pain = 1;
+        /* WHERE it came from. A non-directional red vignette tells you that
+           you are being eaten and nothing about by what — you spend the rest
+           of your short life spinning. */
+        painFrom = angDiff(a, T(o.y - y, o.x - x));
       }
     }
     /* Keep them out of each other. Without this they converge on the player's
@@ -361,6 +375,7 @@
     mflash = Math.max(0, mflash - 0.30 * frames);
     pain = Math.max(0, pain - 0.10 * frames);
     if (pumpT >= 0) { pumpT += dt; if (pumpT > 460) pumpT = -1; }
+    if (graceT > 0) graceT -= dt;
     var moving = applyInput(frames);
     tickEnemies(moving, frames, dt);
     if (hp <= 0) {
@@ -394,7 +409,8 @@
       x: x, y: y, a: a,
       pitch: -kick * 0.055 + N(bob * 2) * 0.006,
       bob: bob, kick: kick, pump: pump,
-      flash: mflash, flashId: flashId, pain: pain,
+      flash: mflash, flashId: flashId, pain: pain, painFrom: painFrom,
+      grace: graceT > 0,
       sprites: list, cell: cell, light: light
     };
   }

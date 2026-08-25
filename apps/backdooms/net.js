@@ -47,7 +47,12 @@
       hits = r.hits || [];
       if (seq && seq !== lastShot[r.id] && hits.indexOf(me.id) >= 0) {
         lastShot[r.id] = seq;
-        if (root.Backdooms && root.Backdooms.hurt) root.Backdooms.hurt(34);
+        if (root.Backdooms && root.Backdooms.hurt) {
+          /* which way the shot came from, so the damage arc points at them */
+          var mine = root.Backdooms.state();
+          var bear = Math.atan2(r.y - mine.y, r.x - mine.x) - mine.a;
+          root.Backdooms.hurt(34, Math.atan2(Math.sin(bear), Math.cos(bear)));
+        }
       } else if (seq) {
         lastShot[r.id] = seq;
       }

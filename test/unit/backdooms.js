@@ -195,20 +195,47 @@ check('lost pointer lock pauses and offers click to look',
 check('html says Click to look', html.includes('Click to look'));
 check('Back backs out of a run, then lets the OS close',
   boot.includes('onBack') && boot.includes('toGate') && boot.includes('return false'));
-check('look-side tap fires (pointerup on t-look)',
-  /el\.look\.addEventListener\('pointerup'[\s\S]{0,400}shoot\(/.test(touch));
+// The claim is "a still tap on the look surface fires". Pinning the literal
+// shape `addEventListener('pointerup', <inline fn with shoot()>)` broke the
+// moment the handler was hoisted to a named function to be shared with
+// pointercancel — FIXED THE TEST to assert the contract instead of the
+// formatting: pointerup is bound, and the tap path calls shoot.
+check('look-side tap fires', /el\.look\.addEventListener\('pointerup'/.test(touch) &&
+  /wasTap[\s\S]{0,200}shoot\(/.test(touch));
+
+
 check('prefs live in gifos.db', boot.includes("db('prefs')"));
 check('the room shares a maze seed', net.includes('sharedSeed') && net.includes('seed:'));
 check('a shot at a friend is published', net.includes('onShot') && net.includes('hits'));
 // The claim is a MINIMUM, so read the number and compare it. Pinning the
 // literal '76px' turned a floor into an exact-match, and the honest fix that
 // made FIRE bigger read as a regression.
+const cssPxCalc = (sel, prop) => {
+  const m = new RegExp(sel.replace('.', '\\.') + '\\s*\\{[^}]*' + prop + ':\\s*calc\\(env\\([a-z-]+\\)\\s*\\+\\s*(\\d+)px').exec(css);
+  return m ? +m[1] : -1;
+};
 const cssPx = (sel, prop) => {
   const m = new RegExp(sel + '[^}]*' + prop + ':\\s*(\\d+)px').exec(css);
   return m ? +m[1] : 0;
 };
 check('phone pad is at least 76px', cssPx('#t-fire', 'width') >= 76 && cssPx('#t-move', 'width') >= 120,
   { fire: cssPx('#t-fire', 'width'), move: cssPx('#t-move', 'width') });
+
+// --- what a phone review of 1.2 bought, so it cannot rot back ------------
+// The whole left side of the screen used to be dead: the look surface began
+// at 40% and the stick was a fixed pad in the corner, so a drag anywhere else
+// on the left half did nothing at all.
+check('the look surface is the WHOLE screen', /#t-look\s*\{[^}]*inset:\s*0/.test(css));
+check('the stick floats under the thumb and never eats a pointer',
+  /#t-move\s*\{[^}]*pointer-events:\s*none/.test(css) && /placeStick/.test(touch));
+check('FIRE repeats while held', /setInterval\([\s\S]{0,80}shoot\(/.test(touch));
+// max(14px, env(...)) lands the HUD exactly ON the home indicator; the margin
+// has to be added to the inset, not compared with it.
+check('safe-area insets are added to, not maxed with',
+  !/max\(\s*\d+px,\s*env\(safe-area/.test(css) && /calc\(env\(safe-area-inset-bottom\)\s*\+/.test(css));
+check('FIRE clears the shells readout',
+  cssPxCalc('#t-fire', 'bottom') > cssPxCalc('.pod', 'bottom') + 40,
+  { fire: cssPxCalc('#t-fire', 'bottom'), pod: cssPxCalc('.pod', 'bottom') });
 check('help covers keyboard, phone, save, friends',
   /WASD/.test(help) && /FIRE/.test(help) && /best score/i.test(help) && /Invite/.test(help));
 check('listing leads with the GIF / no server',

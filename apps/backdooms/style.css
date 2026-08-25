@@ -38,12 +38,12 @@ body.play #c { cursor: none; }
 #cross i:nth-child(4) { top: 10px; right: 0; height: 2px; width: 7px; }
 
 .pod {
-  position: absolute; bottom: max(14px, env(safe-area-inset-bottom));
+  position: absolute; bottom: calc(env(safe-area-inset-bottom) + 16px);
   padding: 0 4px;
   text-shadow: 0 2px 6px rgba(0, 0, 0, .9);
 }
-.pod-l { left: max(16px, env(safe-area-inset-left)); }
-.pod-r { right: max(16px, env(safe-area-inset-right)); text-align: right; }
+.pod-l { left: calc(env(safe-area-inset-left) + 18px); }
+.pod-r { right: calc(env(safe-area-inset-right) + 18px); text-align: right; }
 .pod-k {
   display: block;
   font: 700 10px/1 system-ui, sans-serif; letter-spacing: .22em;
@@ -77,7 +77,7 @@ body.lowhp .pod-l .pod-v { color: #ff6a52; animation: throb .7s steps(2) infinit
 .shells i.spent { opacity: .18; }
 
 #score-pod {
-  position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%;
+  position: absolute; top: calc(env(safe-area-inset-top) + 14px); left: 50%;
   transform: translateX(-50%); text-align: center;
   text-shadow: 0 2px 6px rgba(0, 0, 0, .9);
 }
@@ -85,8 +85,8 @@ body.lowhp .pod-l .pod-v { color: #ff6a52; animation: throb .7s steps(2) infinit
 #best-val { display: block; font: 600 10px/1.6 system-ui, sans-serif; letter-spacing: .16em; color: #8d7c50; }
 
 #tally {
-  position: absolute; top: max(12px, env(safe-area-inset-top));
-  right: max(16px, env(safe-area-inset-right));
+  position: absolute; top: calc(env(safe-area-inset-top) + 14px);
+  right: calc(env(safe-area-inset-right) + 18px);
   font: 700 11px/1 system-ui, sans-serif; letter-spacing: .12em;
   color: #9fd8ff; text-shadow: 0 2px 6px rgba(0, 0, 0, .9);
 }
@@ -114,6 +114,21 @@ body.play #vig { display: block; }
   background: radial-gradient(ellipse 92% 88% at 50% 50%, transparent 30%, rgba(190, 22, 14, .78) 100%);
 }
 body.hurt #pain { opacity: 1; transition: opacity .05s; }
+
+/* The direction it came from. A vignette that glows evenly all round says
+   only that you are being eaten; this says by what, and where. */
+#painarc {
+  position: absolute; inset: 0; z-index: 7; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .45s ease-out;
+}
+#painarc i {
+  display: block; width: 160%; height: 160%;
+  transform: rotate(var(--pain-dir, 0deg));
+  background: radial-gradient(ellipse 42% 20% at 50% 6%,
+    rgba(255, 70, 40, .85), rgba(210, 26, 14, .45) 45%, transparent 72%);
+}
+body.hurt #painarc { opacity: 1; transition: opacity .04s; }
 
 /* ---- gate / over / resume --------------------------------------------- */
 
@@ -181,10 +196,14 @@ body.phone #gate-keys-phone { display: block; }
 
 #touch { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
 #touch[hidden] { display: none; }
+/* A FLOATING stick: touch.js moves it under your thumb and only then shows
+   it. It is decoration — the full-screen #t-look surface owns every pointer,
+   so this must never take one. */
 #t-move {
-  position: absolute; left: max(12px, env(safe-area-inset-left));
-  bottom: max(84px, calc(env(safe-area-inset-bottom) + 84px));
-  width: 120px; height: 120px; pointer-events: auto;
+  position: absolute; left: 16px;
+  bottom: calc(env(safe-area-inset-bottom) + 96px);
+  width: 120px; height: 120px; pointer-events: none;
+  opacity: .38; transition: opacity .12s;
 }
 .t-stick {
   border-radius: 50%;
@@ -198,14 +217,14 @@ body.phone #gate-keys-phone { display: block; }
   position: absolute; left: 50%; top: 50%;
   transform: translate(-50%, -50%);
 }
-#t-look {
-  position: absolute; top: 0; right: 0; bottom: 0; left: 40%;
-  pointer-events: auto;
-}
+/* THE WHOLE SCREEN. It used to start at 40%, which left the entire left side
+   of a phone dead to both looking and moving. */
+#t-look { position: absolute; inset: 0; pointer-events: auto; }
 #t-fire {
-  position: absolute; right: max(16px, env(safe-area-inset-right));
-  bottom: max(84px, calc(env(safe-area-inset-bottom) + 84px));
-  width: 84px; height: 84px; border-radius: 50%;
+  position: absolute; right: calc(env(safe-area-inset-right) + 18px);
+  /* clear of the SHELLS readout, which used to sit flush under it */
+  bottom: calc(env(safe-area-inset-bottom) + 104px);
+  width: 88px; height: 88px; border-radius: 50%;
   border: 2px solid rgba(255, 190, 120, .35); pointer-events: auto;
   background: radial-gradient(circle at 38% 32%, #d8452c, #7a1508);
   color: #fff; font: 800 13px/1 system-ui, sans-serif; letter-spacing: .1em;
