@@ -152,6 +152,15 @@ hardware FACTS, not identities — keep writing those. Run `node
 test/unit/no-topology.js` before pushing a comment that says where a
 measurement came from; it only checks names on a box that has the hosts file.
 
+The same rule covers COMMIT MESSAGES — GitHub renders them on the open web, and
+unlike a file, a pushed message can only be fixed by rewriting history. So there
+is a hook, and it is worth the one command per clone:
+`git config core.hooksPath scripts/hooks` (`--unset` to remove, `--no-verify` to
+bypass once). The gate checks messages too, but only from a baseline forward:
+70 commits between 2026-07-16 and 2026-08-24 already carry names, and that
+backlog is a force-push decision for the repo owner, not something a suite can
+fix — `no-topology.js` prints the count on every run so it stays visible.
+
 The harnesses already exist — `test/swarm/meet.js` for meetings/topology, and
 `test/tools/approom-host.js` + `test/tools/approom-join.js` for app-room join
 latency (the latter prints a per-leg `TRACE snap@… ask@… app-frame@… mounted@…`
