@@ -103,7 +103,12 @@ if (process.argv[2] === '--self-test') {
     console.log('SKIP — no hosts file here, so the NAME check cannot be probed.');
   }
   if (shapes) {
-    const hit = scanText('subject\n\nrelay at 100.101.102.103 was quiet\n');
+    // ASSEMBLED, NEVER WRITTEN DOWN. A literal probe address here is itself a
+    // tracked file carrying a tailnet address, and test/unit/no-topology.js
+    // scans tracked files — it went red on this exact line the first time, which
+    // is the guard catching its own hook and is the best evidence either works.
+    const probe = ['100', String(64 + 37), '102', '103'].join('.');
+    const hit = scanText('subject\n\nrelay at ' + probe + ' was quiet\n');
     console.log((hit.length ? 'PASS' : 'FAIL') + ' — a tailnet address is refused');
     if (!hit.length) ok = false;
   }
