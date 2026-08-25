@@ -61,6 +61,15 @@
 
   var HEX_CLIP = 'polygon(50% 0%, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%)';
 
+  // Which way each of upstream's six hex directions POINTS on an unspun board,
+  // in screen degrees (y down). Needed because the cat is a billboard: it is
+  // counter-rotated to stay on its feet, so once the board is spun its FACING
+  // no longer follows its travel. A cat walking board-left across a board
+  // turned a quarter turn walks UP the screen — and with the raw direction it
+  // would do that in profile, side-on, sliding like a sticker. So the sprite is
+  // chosen by where the step goes ON SCREEN, not by where it goes on the board.
+  var DIR_ANGLE = [180, 240, 300, 0, 60, 120];
+
   var stage = null, scene = null, plate = null, cellsEl = null, catsEl = null;
   var W = 11, H = 11, r = 16;
   var cells = [];             // [i][j] -> { el, cap, hit }
@@ -71,6 +80,7 @@
   var view = { tilt: TILT_DEF, spin: 0, zoom: 1, panX: 0, panY: 0 };
   var raf = 0;
   var reduce = false;
+  var homeSpin = 0;
 
   function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
@@ -112,7 +122,7 @@
   }
 
   function resetView(animate) {
-    setView({ tilt: reduce ? 0 : TILT_DEF, spin: 0, zoom: 1, panX: 0, panY: 0 }, animate);
+    setView({ tilt: reduce ? 0 : TILT_DEF, spin: homeSpin, zoom: 1, panX: 0, panY: 0 }, animate);
   }
 
   // Straight down on the table — upstream's view, one button away. Keeps
@@ -128,14 +138,35 @@
   // Pick a dot radius that fits the stage with the DEFAULT tilt, then leave
   // zoom alone — the player drives it from there. Height allows for the cats,
   // which stand up off the board and so are taller than any dot.
+  // Pick a dot radius that fits the stage, and pick the ORIENTATION that gives
+  // the biggest one. The honeycomb is 23r across and 19.3r down, so on a
+  // portrait phone the width always binds and a quarter turn is worth about a
+  // fifth more dot — which is the difference between squinting and not. On a
+  // wide screen the quarter turn loses, so it is not taken. Either way the
+  // player can turn it anywhere they like from there; this only chooses where
+  // "reset view" puts it.
+  function fitFor(spin, availW, availH, ct) {
+    var acr = 2 * W + 1, dwn = (H - 1) * SQRT3 + 2;
+    var wide = spin ? dwn : acr;
+    var tall = spin ? acr : dwn;
+    return Math.min(availW / wide, availH / (tall * ct + 3.2));
+  }
+
   function layout() {
     var availW = Math.max(120, stage.clientWidth - 10);
     var availH = Math.max(120, stage.clientHeight - 10);
     var ct = Math.cos((reduce ? 0 : TILT_DEF) * Math.PI / 180);
-    var byW = availW / (2 * W + 1);
-    var byH = availH / (((H - 1) * SQRT3 + 2) * ct + 3.2);
-    var next = clamp(Math.floor(Math.min(byW, byH)), 8, 46);
-    if (next === r && cells.length) return;
+    var flat = fitFor(0, availW, availH, ct);
+    var turned = fitFor(90, availW, availH, ct);
+    var wantSpin = turned > flat * 1.08 ? 90 : 0;
+    if (wantSpin !== homeSpin) {
+      // Carry a view the player has already turned along with the change (a
+      // phone rotating in the hand), rather than yanking the board flat.
+      view.spin = ((view.spin + (wantSpin - homeSpin)) % 360 + 360) % 360;
+      homeSpin = wantSpin;
+    }
+    var next = clamp(Math.floor(Math.max(flat, turned)), 8, 46);
+    if (next === r && cells.length) { apply(); return; }
     r = next;
     build();
   }
@@ -204,8 +235,18 @@
   }
 
   // ------------------------------------------------------------------ cats
+  function screenDir(dir) {
+    var want = ((DIR_ANGLE[dir] + view.spin) % 360 + 360) % 360;
+    var best = dir, bestD = 1e9;
+    for (var k = 0; k < DIR_ANGLE.length; k++) {
+      var d = Math.abs(((DIR_ANGLE[k] - want) % 360 + 540) % 360 - 180);
+      if (d < bestD) { bestD = d; best = k; }
+    }
+    return best;
+  }
+
   function frameFor(dir, n) {
-    var d = art.dirs[dir] || art.dirs[0];
+    var d = art.dirs[screenDir(dir)] || art.dirs[0];
     return { f: art.frames[d.name + '_' + n], flip: d.flip };
   }
 
@@ -495,6 +536,7 @@
     scene.style.perspective = PERSPECTIVE + 'px';
     view.tilt = reduce ? 0 : TILT_DEF;
     layout();
+    view.spin = homeSpin;
     apply();
     stage.addEventListener('pointerdown', down);
     stage.addEventListener('pointermove', move);
