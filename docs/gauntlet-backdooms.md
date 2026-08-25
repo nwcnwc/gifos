@@ -118,9 +118,25 @@ eye-glow texels.
 | longest fully-walled corridor, before / after | 6 tiles / 10 tiles |
 | passive run (no input at all) | dead at 10.2 s |
 | skilled play, before the balance work | 13 s, 1 kill |
-| skilled play, after | 35 s, 31 kills |
+| skilled play, after | survives a 180 s cap, 23 kills, ends on 0 shells |
 | frame rate on a phone viewport | 59.8 fps portrait, 59.2 landscape |
 | App GIF size | ~257 KB |
+
+## Round 3 — the thing a bot found that no critic did
+
+Left a competent bot in a room for three minutes after the level rewrite: it
+finished on 100 health, UNTOUCHED, with everything hunting it pressed against
+a wall four metres away. Walking straight at the player is fine on the open
+plain upstream generated and useless in a building — at an inside corner both
+axes are blocked and a thing stands there for good. Making solid mass the
+commonest block had quietly re-created the bug this whole run opened with:
+things that cannot reach you. A blocked thing now picks a side and slides
+along the wall. Score on the same bot went 3 to 23, and its health finally
+moved.
+
+Worth writing down as a method note: two harsh critics with fresh context
+missed this, because it does not show up in a screenshot and it does not show
+up in twenty seconds of play. It took leaving something running.
 
 ## Still open
 
@@ -133,3 +149,8 @@ eye-glow texels.
 - Portrait keeps a sane horizontal field of view now, but pays for it in
   ceiling. The start card says to turn the phone; a letterboxed portrait
   layout with the controls below the view would be better.
+- You can outrun everything. The player moves 6.25 units a second and the
+  things about 1.9, so a player who only retreats is never caught — the run
+  ends when the shells do, not when they reach you. Spawning happens behind a
+  moving player, which is the pressure that stops it being free, but the
+  honest answer is level geometry: somewhere to be cornered.
