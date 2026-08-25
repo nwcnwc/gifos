@@ -207,6 +207,27 @@ async function closeFleet(boxes) {
     try { if (b.browser) await b.browser.close(); } catch (e) {}
     try { if (b.child) b.child.kill('SIGKILL'); } catch (e) {}
   }
+  // WAIT FOR THE BOXES TO ACTUALLY GO QUIET. Killing the local ssh child does
+  // not kill the remote launcher and its Chromium at once — they linger for
+  // seconds on an ARM box — and a suite's NEXT leg calls needFleet right
+  // away, which then refuses those boxes as NOT FREE with the suite's own
+  // browsers (e2e-anyroad-mp leg 2, 0.9.12: 10 and 9 processes, all ours).
+  // Bounded: a box that will not go quiet is reported by needFleet anyway.
+  const hosts = [];
+  for (const b of boxes || []) { const h = b.host || b.h; if (h && h.ssh && !hosts.some((x) => x.ssh === h.ssh)) hosts.push(h); }
+  const deadline = Date.now() + 20000;
+  for (const h of hosts) {
+    for (;;) {
+      const n = await new Promise((resolve) => {
+        const c = spawn('ssh', ['-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', h.ssh, 'pkill -f "[n]ode -e const fs" ; pgrep -fc "[c]hrome-linux|[c]hrome/chrome" || echo 0'], { stdio: ['ignore', 'pipe', 'ignore'] });
+        let out = ''; c.stdout.on('data', (d) => { out += d; });
+        c.on('close', () => resolve(parseInt(out, 10) || 0));
+        c.on('error', () => resolve(0));
+      });
+      if (n === 0 || Date.now() > deadline) break;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
 }
 
 module.exports = { openFleet, closeFleet, LOCAL_PW };
