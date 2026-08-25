@@ -1,0 +1,1188 @@
+/* app.js — the plan, the scenarios, and the words that go around the charts.
+ *
+ * Two ideas run through this file.
+ *
+ * ONE: the answer arrives before you finish typing. A full sweep of history is
+ * ~1,500 simulated retirements, and the two solved numbers at the top are
+ * hundreds of sweeps each. So the work is split: the picture and the verdict
+ * are computed on a short debounce, the solved numbers follow on an idle tick
+ * with their tiles visibly pending, and a slider being DRAGGED samples every
+ * fourth cycle so the chart moves under your thumb. Nothing is ever left
+ * showing a number that belongs to a plan you have already changed.
+ *
+ * TWO: a plan is a saved, named thing. Scenarios live in gifos.db, which means
+ * they live inside the app's own GIF: the file IS the save. Sharing the GIF
+ * shares the plans, and one Invite link puts two people in the same set of
+ * scenarios at once, with nothing uploaded anywhere.
+ */
+(function () {
+  'use strict';
+
+  var S = window.RetireSim, C = window.Charts;
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---- defaults --------------------------------------------------------------
+  //
+  // Chosen so the app says something true and useful the second it opens, to
+  // somebody who has typed nothing. Every one of them is visible and editable —
+  // a default you cannot see is an assumption made on your behalf.
+
+  function defaults() {
+    return {
+      currentAge: 40,
+      retireAge: 65,
+      endAge: 95,
+      portfolio: 150000,
+      annualSavings: 15000,
+      annualSpend: 60000,
+      stocks: 0.75,
+      glidepath: null,
+      fees: 0.001,
+      strategy: 'constant',
+      percentRate: 0.04,
+      incomes: [{ label: 'Social Security', amount: 24000, from: 67, to: null, cola: true }],
+      events: [],
+      mode: 'history',
+      target: 0.95
+    };
+  }
+
+  var state = {
+    plan: defaults(),
+    scenarios: [],
+    activeId: null,
+    compareId: null,
+    comparing: false,
+    span: 'all',
+    dirty: false,
+    result: null,
+    compareResult: null,
+    db: null, prefsDb: null,
+    ready: false
+  };
+
+  // ---- number helpers --------------------------------------------------------
+
+  // Accepts what people actually type: 1200, $1,200, 1.2k, 1.2m, 60000.
+  function parseMoney(s) {
+    if (typeof s === 'number') return s;
+    var t = String(s).trim().toLowerCase().replace(/[$,\s]/g, '');
+    if (!t) return 0;
+    var neg = /^-/.test(t) || /^\(.*\)$/.test(t);
+    t = t.replace(/^[-(]/, '').replace(/\)$/, '');
+    var mult = 1;
+    if (/k$/.test(t)) { mult = 1e3; t = t.slice(0, -1); }
+    else if (/m$/.test(t)) { mult = 1e6; t = t.slice(0, -1); }
+    var v = parseFloat(t);
+    if (!isFinite(v)) return 0;
+    return (neg ? -v : v) * mult;
+  }
+  function fmtMoneyInput(n) {
+    return (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+  }
+  var money = C.money, compact = C.compact;
+
+  function num(v, dflt) { var x = parseFloat(v); return isFinite(x) ? x : dflt; }
+  function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
+  function esc(s) { return String(s === null || s === undefined ? '' : s); }
+
+  // ---- reading and writing the form -----------------------------------------
+
+  function readForm() {
+    var p = state.plan;
+    p.currentAge = clamp(Math.round(num($('fAge').value, 40)), 18, 100);
+    p.retireAge = clamp(Math.round(num($('fRetire').value, 65)), p.currentAge, 100);
+    p.endAge = clamp(Math.round(num($('fEnd').value, 95)), p.retireAge + 1, 120);
+    p.portfolio = Math.max(0, parseMoney($('fPot').value));
+    p.annualSavings = Math.max(0, parseMoney($('fSave').value));
+    p.annualSpend = Math.max(0, parseMoney($('fSpend').value));
+    p.stocks = clamp(num($('fStocks').value, 75) / 100, 0, 1);
+    p.fees = clamp(num($('fFees').value, 10) / 10000, 0, 0.02);
+    p.glidepath = $('fGlide').checked
+      ? { to: clamp(num($('fGlideTo').value, 40) / 100, 0, 1), byAge: clamp(Math.round(num($('fGlideBy').value, 70)), p.currentAge + 1, 110) }
+      : null;
+    p.percentRate = clamp(num($('fRate').value, 40) / 1000, 0.005, 0.15);
+    p.target = clamp(num($('fTarget').value, 95) / 100, 0.5, 1);
+    return p;
+  }
+
+  function writeForm() {
+    var p = state.plan;
+    $('fAge').value = p.currentAge;
+    $('fRetire').value = p.retireAge;
+    $('fRetireR').value = p.retireAge;
+    $('fEnd').value = p.endAge;
+    $('fPot').value = fmtMoneyInput(p.portfolio);
+    $('fSave').value = fmtMoneyInput(p.annualSavings);
+    $('fSpend').value = fmtMoneyInput(p.annualSpend);
+    $('fSpendR').value = clamp(p.annualSpend, 10000, 250000);
+    $('fStocks').value = Math.round(p.stocks * 100);
+    $('fFees').value = Math.round(p.fees * 10000);
+    $('fGlide').checked = !!p.glidepath;
+    $('glideRow').hidden = !p.glidepath;
+    if (p.glidepath) {
+      $('fGlideTo').value = Math.round(p.glidepath.to * 100);
+      $('fGlideBy').value = p.glidepath.byAge;
+    }
+    $('fRate').value = Math.round(p.percentRate * 1000);
+    $('fTarget').value = Math.round(p.target * 100);
+    renderStrategyPicker();
+    renderModePicker();
+    renderIncomes();
+    renderEvents();
+    syncLabels();
+  }
+
+  // The little numbers beside every slider, plus the one-line summary on each
+  // closed section — so a collapsed panel still tells you what is inside it.
+  function syncLabels() {
+    var p = state.plan;
+    $('outStocks').textContent = Math.round(p.stocks * 100) + '%';
+    $('outFees').textContent = (p.fees * 100).toFixed(2) + '%';
+    $('outRate').textContent = (p.percentRate * 100).toFixed(1) + '%';
+    $('outTarget').textContent = Math.round(p.target * 100) + '%';
+    if (p.glidepath) $('outGlideTo').textContent = Math.round(p.glidepath.to * 100) + '%';
+
+    var mix = Math.round(p.stocks * 100) + '/' + Math.round((1 - p.stocks) * 100);
+    $('sumPortfolio').textContent = mix + ' shares and bonds · ' + (p.fees * 100).toFixed(2) + '% fees';
+    $('hintMix').textContent = mixNote(p.stocks);
+    $('hintFees').textContent = feeNote(p);
+
+    var inc = p.incomes.filter(function (i) { return i.amount; });
+    $('sumIncome').textContent = inc.length
+      ? inc.map(function (i) { return money(i.amount) + ' from ' + i.from; }).join(' · ')
+      : 'none';
+    var ev = p.events.filter(function (e) { return e.amount; });
+    $('sumEvents').textContent = ev.length ? ev.length + (ev.length === 1 ? ' event' : ' events') : 'none';
+
+    var st = S.STRATEGIES[p.strategy] || S.STRATEGIES.constant;
+    $('sumStrategy').textContent = st.label;
+    $('hintStrategy').textContent = st.blurb;
+    var needsRate = p.strategy === 'percent' || p.strategy === 'dynamic';
+    $('rateRow').hidden = !needsRate;
+
+    $('sumTest').textContent = (p.mode === 'bootstrap' ? 'History reshuffled' : 'Real history')
+      + ' · safe at ' + Math.round(p.target * 100) + '%';
+    $('hintMode').textContent = p.mode === 'bootstrap'
+      ? 'Real months of history, drawn five years at a time and stapled into 1,000 new '
+        + 'lifetimes. Crashes and recoveries survive inside each block; only the order of '
+        + 'the decades is new. Use it when you want more than the century we happened to get.'
+      : 'Every stretch of real history long enough to hold your plan, start to finish, '
+        + 'in the order it actually happened.';
+
+    var years = p.endAge - p.currentAge;
+    $('hintEnd').textContent = 'A ' + years + '-year plan. '
+      + (p.endAge < 90 ? 'Planning past 90 is the safer habit — a healthy 65-year-old has a real chance of getting there.' : '');
+  }
+
+  function mixNote(s) {
+    var b = Math.round((1 - s) * 100);
+    if (s >= 0.95) return 'All shares. The most growth and the most terrifying years — history says that has been worth it over long retirements.';
+    if (s >= 0.6) return b + '% bonds to steady it. This is the range most of the research lands in.';
+    if (s >= 0.4) return 'A cautious mix. Calmer year to year, and it has struggled to outrun a long retirement.';
+    return 'Mostly bonds. Safe-feeling and historically the most likely to run out over 30 years — the calm is the risk.';
+  }
+  function feeNote(p) {
+    var years = p.endAge - p.currentAge;
+    var drag = 1 - Math.pow(1 - p.fees, years);
+    if (p.fees <= 0.0005) return 'About what a plain index fund costs.';
+    return 'Over ' + years + ' years that is roughly ' + Math.round(drag * 100)
+      + '% of the pot, gone to fees.';
+  }
+
+  // ---- income and event rows -------------------------------------------------
+
+  var TRASH = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.6 9a1 1 0 0 0 1 1h4.8a1 1 0 0 0 1-1L12 4M6.5 7v4M9.5 7v4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  function rowShell(onDelete) {
+    var d = document.createElement('div');
+    d.className = 'row-item';
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'row-del';
+    del.title = 'Remove';
+    del.setAttribute('aria-label', 'Remove');
+    del.innerHTML = TRASH;
+    del.addEventListener('click', onDelete);
+    d.appendChild(del);
+    return d;
+  }
+  function labelled(text, input) {
+    var l = document.createElement('label');
+    var s = document.createElement('span');
+    s.textContent = text;
+    l.appendChild(s);
+    l.appendChild(input);
+    return l;
+  }
+  function mkInput(type, value, cls) {
+    var i = document.createElement('input');
+    i.type = type;
+    if (type === 'number') i.inputMode = 'numeric';
+    if (cls) i.className = cls;
+    i.value = value;
+    return i;
+  }
+
+  function renderIncomes() {
+    var host = $('incomeList');
+    host.textContent = '';
+    state.plan.incomes.forEach(function (inc, i) {
+      var d = rowShell(function () {
+        state.plan.incomes.splice(i, 1);
+        renderIncomes(); touched();
+      });
+      var name = mkInput('text', esc(inc.label), 'r-name');
+      name.placeholder = 'What is it?';
+      name.addEventListener('input', function () { inc.label = name.value; touched(); });
+      d.appendChild(name);
+
+      var grid = document.createElement('div');
+      grid.className = 'r-grid';
+      var amt = mkInput('text', fmtMoneyInput(inc.amount), 'money');
+      amt.inputMode = 'numeric';
+      amt.addEventListener('input', function () { inc.amount = parseMoney(amt.value); touched(); });
+      amt.addEventListener('blur', function () { amt.value = fmtMoneyInput(inc.amount); });
+      grid.appendChild(labelled('A year', amt));
+
+      var from = mkInput('number', inc.from, '');
+      from.min = 18; from.max = 110;
+      from.addEventListener('input', function () { inc.from = clamp(num(from.value, 67), 0, 120); touched(); });
+      grid.appendChild(labelled('From age', from));
+
+      var to = mkInput('number', inc.to === null || inc.to === undefined ? '' : inc.to, '');
+      to.min = 18; to.max = 120; to.placeholder = 'ever';
+      to.addEventListener('input', function () {
+        var v = to.value.trim();
+        inc.to = v === '' ? null : clamp(num(v, 120), 0, 130);
+        touched();
+      });
+      grid.appendChild(labelled('Until age', to));
+
+      var chk = document.createElement('div');
+      chk.className = 'r-check';
+      var cb = mkInput('checkbox', '', '');
+      cb.checked = inc.cola !== false;
+      cb.id = 'cola' + i;
+      cb.addEventListener('change', function () { inc.cola = cb.checked; touched(); });
+      var cl = document.createElement('label');
+      cl.htmlFor = cb.id;
+      cl.textContent = 'Rises with inflation';
+      chk.appendChild(cb); chk.appendChild(cl);
+      grid.appendChild(chk);
+
+      d.appendChild(grid);
+      host.appendChild(d);
+    });
+  }
+
+  function renderEvents() {
+    var host = $('eventList');
+    host.textContent = '';
+    state.plan.events.forEach(function (ev, i) {
+      var d = rowShell(function () {
+        state.plan.events.splice(i, 1);
+        renderEvents(); touched();
+      });
+      var name = mkInput('text', esc(ev.label), 'r-name');
+      name.placeholder = 'What happens?';
+      name.addEventListener('input', function () { ev.label = name.value; touched(); });
+      d.appendChild(name);
+
+      var grid = document.createElement('div');
+      grid.className = 'r-grid';
+      var amt = mkInput('text', fmtMoneyInput(ev.amount), 'money');
+      amt.addEventListener('input', function () { ev.amount = parseMoney(amt.value); touched(); });
+      amt.addEventListener('blur', function () { amt.value = fmtMoneyInput(ev.amount); });
+      grid.appendChild(labelled('Amount', amt));
+
+      var at = mkInput('number', ev.at, '');
+      at.min = 18; at.max = 120;
+      at.addEventListener('input', function () { ev.at = clamp(num(at.value, 65), 0, 130); touched(); });
+      grid.appendChild(labelled('At age', at));
+
+      d.appendChild(grid);
+      host.appendChild(d);
+    });
+  }
+
+  function renderStrategyPicker() {
+    var host = $('stratPick');
+    host.textContent = '';
+    Object.keys(S.STRATEGIES).forEach(function (k) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('data-v', k);
+      b.setAttribute('aria-checked', state.plan.strategy === k ? 'true' : 'false');
+      b.textContent = S.STRATEGIES[k].label;
+      b.addEventListener('click', function () {
+        state.plan.strategy = k;
+        renderStrategyPicker(); syncLabels(); touched();
+      });
+      host.appendChild(b);
+    });
+  }
+  function renderModePicker() {
+    var btns = $('modePick').querySelectorAll('button');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].setAttribute('aria-checked', btns[i].getAttribute('data-v') === state.plan.mode ? 'true' : 'false');
+    }
+  }
+
+  // ---- the compute cycle -----------------------------------------------------
+
+  var mainTimer = null, extrasTimer = null, dragging = false;
+
+  function touched() {
+    state.dirty = true;
+    $('dirty').hidden = !state.activeId || !state.dirty;
+    readForm();
+    syncLabels();
+    schedule();
+    saveDraft();
+  }
+
+  function schedule() {
+    if (mainTimer) clearTimeout(mainTimer);
+    if (extrasTimer) { clearTimeout(extrasTimer); extrasTimer = null; }
+    markPending();
+    mainTimer = setTimeout(computeMain, dragging ? 16 : 70);
+  }
+
+  function markPending() {
+    $('statRetire').classList.add('pending');
+    $('statSpend').classList.add('pending');
+  }
+
+  function computeMain() {
+    mainTimer = null;
+    var p = state.plan;
+    if (S.cycleStarts(p) < 3 && p.mode !== 'bootstrap') {
+      renderTooShort();
+      return;
+    }
+    var opts = { mode: p.mode, step: dragging ? 4 : 1 };
+    state.result = p.mode === 'bootstrap'
+      ? S.bootstrap(p, { paths: dragging ? 300 : 1000 })
+      : S.runAll(p, opts);
+    state.sched = S.schedule(p);
+
+    if (state.comparing && state.compareId) {
+      var other = byId(state.compareId);
+      state.compareResult = other
+        ? (other.plan.mode === 'bootstrap' ? S.bootstrap(other.plan, { paths: 500 }) : S.runAll(other.plan, { step: 2 }))
+        : null;
+    } else {
+      state.compareResult = null;
+    }
+
+    renderAll();
+    if (!dragging) extrasTimer = setTimeout(computeExtras, 30);
+  }
+
+  // The two solved numbers. Hundreds of sweeps each, so they run after the
+  // picture is already on screen and their tiles say so while they think.
+  function computeExtras() {
+    extrasTimer = null;
+    var p = state.plan;
+    var opts = { mode: p.mode, sched: state.sched, step: 2, iters: 15, paths: 400 };
+
+    var spend = S.solveSpend(p, p.target, opts);
+    $('vSpend').textContent = compact(Math.round(spend / 100) * 100);
+    $('statSpend').classList.remove('pending');
+    $('statSpend').title = 'The most you could spend every year and still clear '
+      + Math.round(p.target * 100) + '% of the runs.';
+    state.solvedSpend = spend;
+
+    setTimeout(function () {
+      var age = S.solveRetireAge(p, p.target, opts);
+      $('vRetire').textContent = age === null ? 'not yet' : age;
+      $('statRetire').classList.remove('pending');
+      $('statRetire').title = age === null
+        ? 'On these numbers no retirement age up to ' + (p.endAge - 1) + ' clears the bar.'
+        : 'The earliest age that clears ' + Math.round(p.target * 100) + '% of the runs.';
+      state.solvedAge = age;
+      renderCurve();
+    }, 0);
+  }
+
+  function renderTooShort() {
+    $('vDot').className = 'v-dot warn';
+    $('vHead').textContent = 'Not enough history for a plan this long.';
+    $('vSub').textContent = 'A ' + (state.plan.endAge - state.plan.currentAge)
+      + '-year plan needs a ' + (state.plan.endAge - state.plan.currentAge)
+      + '-year run of record, and there are only ' + Math.floor(MARKET.months / 12)
+      + ' years of it. Shorten the plan, or switch to History reshuffled.';
+    $('vRetire').textContent = '—';
+    $('vSpend').textContent = '—';
+    $('statRetire').classList.remove('pending');
+    $('statSpend').classList.remove('pending');
+  }
+
+  // ---- rendering the answer --------------------------------------------------
+
+  function renderAll() {
+    renderVerdict();
+    renderFan();
+    renderStack();
+    renderWorst();
+    renderCurve();
+  }
+
+  function renderVerdict() {
+    var r = state.result, p = state.plan;
+    if (!r || !r.cycles) return renderTooShort();
+    var st = S.STRATEGIES[p.strategy] || S.STRATEGIES.constant;
+    var rate = r.successRate;
+    var dot = rate >= p.target ? 'good' : rate >= p.target - 0.15 ? 'warn' : 'bad';
+    $('vDot').className = 'v-dot ' + dot;
+
+    var runsWord = r.kind === 'bootstrap'
+      ? r.cycles.toLocaleString() + ' reshuffled lifetimes'
+      : r.cycles.toLocaleString() + ' real retirements';
+
+    if (st.selfLimiting) {
+      // A method that cannot run out is not measured by whether it ran out.
+      var lean = leanestYear(r);
+      $('vHead').textContent = 'This never runs out — the paycheck moves instead.';
+      $('vSub').textContent = 'Across ' + runsWord + ', the leanest year paid '
+        + money(lean.p5) + ' and the typical year ' + money(lean.median)
+        + ', against the ' + money(p.annualSpend) + ' you asked for.';
+    } else if (rate >= 0.999) {
+      $('vHead').textContent = 'Your money lasted every single time.';
+      $('vSub').textContent = 'All ' + runsWord + ' got you to ' + p.endAge
+        + ' with money left — the worst of them ended with ' + money(r.worst.final) + '.';
+    } else if (rate >= p.target) {
+      $('vHead').textContent = 'Your money lasts.';
+      $('vSub').textContent = pctWord(rate) + ' of ' + runsWord + ' got you to ' + p.endAge
+        + '. The ' + (r.failures === 1 ? 'one that did not' : r.failures + ' that did not')
+        + ' ran dry at ' + Math.floor(r.worst.failAge) + '.';
+    } else if (rate >= 0.5) {
+      $('vHead').textContent = 'This is tighter than it looks.';
+      $('vSub').textContent = pctWord(rate) + ' of ' + runsWord + ' made it, against the '
+        + Math.round(p.target * 100) + '% you asked for. The rest ran out — the earliest at '
+        + Math.floor(r.worst.failAge) + '.';
+    } else {
+      $('vHead').textContent = 'On this plan, the money usually runs out.';
+      $('vSub').textContent = 'Only ' + pctWord(rate) + ' of ' + runsWord
+        + ' lasted. The worst ran dry at ' + Math.floor(r.worst.failAge) + '.';
+    }
+  }
+
+  function pctWord(x) {
+    if (x >= 0.999) return '100%';
+    if (x <= 0.001) return 'none';
+    var v = x * 100;
+    return (v >= 99.5 ? v.toFixed(1) : Math.round(v)) + '%';
+  }
+
+  function leanestYear(r) {
+    var lows = [], meds = [];
+    for (var i = 0; i < r.runs.length; i++) {
+      var sp = r.runs[i].spends, lo = Infinity, seen = false;
+      for (var y = r.retireYear; y < sp.length; y++) { seen = true; if (sp[y] < lo) lo = sp[y]; }
+      if (seen) lows.push(lo);
+    }
+    lows.sort(function (a, b) { return a - b; });
+    for (i = 0; i < r.runs.length; i++) {
+      var s2 = r.runs[i].spends, t = 0, n = 0;
+      for (y = r.retireYear; y < s2.length; y++) { t += s2[y]; n++; }
+      if (n) meds.push(t / n);
+    }
+    meds.sort(function (a, b) { return a - b; });
+    return { p5: S.percentile(lows, 0.05), median: S.percentile(meds, 0.5) };
+  }
+
+  var COL = {
+    s1: '#3987e5', s2: '#d95926', s3: '#199e70', s4: '#c98500', s5: '#d55181',
+    critical: '#d03b3b'
+  };
+
+  function renderFan() {
+    var r = state.result, p = state.plan;
+    if (!r || !r.cycles) return;
+    var cmp = state.compareResult;
+    // Accumulation and retirement live on wildly different scales — forty years
+    // of compounding can squash the years that actually decide the plan into a
+    // few pixels above the axis. So the reader can cut to the part they came
+    // for, and the y-axis re-fits to it.
+    var from = state.span === 'retire' ? r.retireYear : 0;
+    var bands = from ? r.bands.slice(from) : r.bands;
+    var wname = retiredIn(r.worst);
+    C.fan($('chartFan'), {
+      height: window.innerWidth >= 1180 ? 300 : 240,
+      bands: bands,
+      startAge: p.currentAge + from,
+      retireAge: from ? undefined : p.retireAge,
+      retireLabel: 'retire at ' + p.retireAge,
+      worst: r.worst ? (from ? r.worst.balances.slice(from) : r.worst.balances) : null,
+      worstLabel: wname || 'Worst run',
+      compare: cmp && cmp.bands ? cmp.bands.slice(Math.min(from, cmp.bands.length - 1)).map(function (b) { return b[2]; }) : null,
+      colours: { median: COL.s1, worst: COL.critical }
+    });
+
+    var items = [
+      { label: 'Typical outcome', colour: COL.s1, line: true },
+      { label: 'The middle half of runs', colour: COL.s1 },
+      { label: wname ? 'Worst: retiring ' + wname : 'Worst run', colour: COL.critical, line: true }
+    ];
+    if (cmp) items.push({ label: cmpName(), colour: COL.s2, line: true });
+    C.legend($('legFan'), items);
+
+    $('fanSub').textContent = r.kind === 'bootstrap'
+      ? '1,000 lifetimes built from real five-year blocks of history.'
+      : 'Every ' + (p.endAge - p.currentAge) + '-year run since 1871 — '
+        + r.cycles.toLocaleString() + ' of them — laid on top of each other.';
+
+    var read = $('fanRead');
+    read.textContent = '';
+    var typical = r.bands[r.bands.length - 1][2];
+    add(read, 'At ' + p.endAge + ' the typical run leaves ');
+    addB(read, money(typical));
+    add(read, '. A quarter of runs end above ');
+    addB(read, money(r.bands[r.bands.length - 1][3]));
+    add(read, ', a quarter below ');
+    addB(read, money(r.bands[r.bands.length - 1][1]));
+    add(read, '. Everything here is in today’s money, so these are numbers you can feel.');
+
+    var rows = [], step = Math.max(1, Math.round((r.bands.length - 1) / 12));
+    for (var y = from; y < r.bands.length; y += step) {
+      rows.push([String(p.currentAge + y), money(r.bands[y][0]), money(r.bands[y][2]), money(r.bands[y][4])]);
+    }
+    C.table($('tblFan'), ['Age', 'Worst 5%', 'Typical', 'Best 5%'], rows);
+  }
+
+  function add(el, t) { el.appendChild(document.createTextNode(t)); }
+  function addB(el, t, cls) {
+    var b = document.createElement('b');
+    if (cls) b.className = cls;
+    b.textContent = t;
+    el.appendChild(b);
+  }
+
+  function renderCurve() {
+    var p = state.plan, r = state.result;
+    if (!r || !r.cycles) return;
+    var st = S.STRATEGIES[p.strategy] || S.STRATEGIES.constant;
+    if (st.selfLimiting) {
+      $('cardCurve').hidden = true;
+      return;
+    }
+    $('cardCurve').hidden = false;
+    var max = Math.max(p.annualSpend * 1.8, (state.solvedSpend || p.annualSpend) * 1.5, 20000);
+    var pts = S.spendCurve(p, { mode: p.mode, sched: state.sched, step: 3, points: 22, max: max });
+    C.curve($('chartCurve'), {
+      height: 210, points: pts, at: p.annualSpend, target: p.target,
+      colours: { median: COL.s1 }
+    });
+
+    var read = $('curveRead');
+    read.textContent = '';
+    if (state.solvedSpend) {
+      var diff = state.solvedSpend - p.annualSpend;
+      add(read, 'At ' + Math.round(p.target * 100) + '% you could spend ');
+      addB(read, money(Math.round(state.solvedSpend / 100) * 100));
+      add(read, ' a year — ');
+      if (Math.abs(diff) < 500) {
+        add(read, 'almost exactly what you have asked for.');
+      } else if (diff > 0) {
+        addB(read, money(diff) + ' more', 'ok');
+        add(read, ' than you planned.');
+      } else {
+        addB(read, money(-diff) + ' less', 'bad');
+        add(read, ' than you planned.');
+      }
+      add(read, ' The curve is steep where a small change in spending buys a lot of certainty, and flat where it buys almost none.');
+    }
+    C.table($('tblCurve'), ['Spending a year', 'Worked in'],
+      pts.map(function (q) { return [money(q.spend), pctWord(q.success)]; }));
+  }
+
+  function renderStack() {
+    var r = state.result, p = state.plan;
+    if (!r || !r.median) return;
+    var run = r.median;
+    // Only the retirement years. Asking "where does this year's money come
+    // from" about a year you are still working has one answer — your job — and
+    // twenty-five columns of it crush the part that matters into the corner.
+    var y0 = run.retireYear;
+    var years = run.years - y0;
+    if (years < 1) { $('cardStack').hidden = true; return; }
+    $('cardStack').hidden = false;
+    var wd = [], streams = {};
+    var i, y;
+
+    for (y = 0; y < years; y++) wd.push(run.withdrawn[y0 + y]);
+    p.incomes.forEach(function (inc) { if (inc.amount) streams[inc.label || 'Income'] = new Array(years).fill(0); });
+
+    // Split the median run's income back out by stream, so the picture names
+    // the actual pension rather than lumping it into "other".
+    var M = window.MARKET;
+    for (y = 0; y < years; y++) {
+      for (var m = 0; m < 12; m++) {
+        var age = p.currentAge + y0 + y + m / 12;
+        var idx = run.startIdx + (y0 + y) * 12 + m;
+        p.incomes.forEach(function (inc) {
+          if (!inc.amount) return;
+          if (age + 1e-9 < inc.from) return;
+          if (inc.to !== null && inc.to !== undefined && isFinite(inc.to) && age >= inc.to - 1e-9) return;
+          var a = inc.amount / 12;
+          if (inc.cola === false && M.cpi[idx]) a *= M.cpi[run.startIdx] / M.cpi[idx];
+          streams[inc.label || 'Income'][y] += a;
+        });
+      }
+    }
+
+    var series = [{ label: 'From the portfolio', values: wd, colour: COL.s2 }];
+    var pal = [COL.s3, COL.s4, COL.s5, COL.s1];
+    var k = 0;
+    for (var name in streams) {
+      if (!Object.prototype.hasOwnProperty.call(streams, name)) continue;
+      series.push({ label: name, values: streams[name], colour: pal[k % pal.length] });
+      k++;
+    }
+
+    C.stack($('chartStack'), {
+      height: 210, years: years, startAge: p.currentAge + y0, series: series,
+      colours: COL
+    });
+    C.legend($('legStack'), series.map(function (s) { return { label: s.label, colour: s.colour }; }));
+    var mname = retiredIn(run);
+    $('stackSub').textContent = 'One run — the one that ended closest to typical'
+      + (mname ? ', a retirement beginning in ' + mname : '') + '.';
+
+    var read = $('stackRead');
+    read.textContent = '';
+    var lastY = years - 1;
+    var otherAtEnd = 0;
+    for (i = 1; i < series.length; i++) otherAtEnd += series[i].values[lastY] || 0;
+    var totalEnd = otherAtEnd + wd[lastY];
+    if (totalEnd > 0) {
+      add(read, 'By ' + (p.currentAge + y0 + lastY) + ', ');
+      addB(read, Math.round(otherAtEnd / totalEnd * 100) + '%');
+      add(read, ' of the year’s money comes from outside the portfolio. That share is why an income that keeps up with inflation is worth so much more than one that does not.');
+    }
+    var rows = [], step2 = Math.max(1, Math.round(years / 12));
+    for (y = 0; y < years; y += step2) {
+      rows.push([String(p.currentAge + y0 + y)].concat(series.map(function (s) { return money(s.values[y] || 0); })));
+    }
+    C.table($('tblStack'), ['Age'].concat(series.map(function (s) { return s.label; })), rows);
+  }
+
+  function renderWorst() {
+    var r = state.result, p = state.plan;
+    var host = $('worstBody');
+    host.textContent = '';
+    if (!r || !r.worst) return;
+    var w = r.worst;
+    var wname = retiredIn(w);
+    $('worstHead').textContent = wname ? 'If you had retired in ' + wname : 'The worst run';
+    $('worstSub').textContent = w.failed
+      ? 'The single worst stretch in the record for this plan.'
+      : 'The worst stretch in the record for this plan — and it still held.';
+
+    line(host, 'Started with', money(w.balances[Math.min(w.retireYear, w.balances.length - 1)]));
+    line(host, 'Lowest it ever got', money(w.lowest));
+    if (w.failed) {
+      line(host, 'Ran out at age', String(Math.floor(w.failAge)),
+        'bad', (p.endAge - Math.floor(w.failAge)) + ' years short');
+    } else {
+      line(host, 'Ended at ' + p.endAge + ' with', money(w.final), 'ok', 'never ran out');
+    }
+    if (r.firstFail && r.firstFail !== w && retiredIn(r.firstFail)) {
+      line(host, 'Also ran out', retiredIn(r.firstFail));
+    }
+    var note = document.createElement('p');
+    note.className = 'read';
+    note.textContent = '';
+    if (r.kind !== 'bootstrap') {
+      add(note, 'The worst retirement in the American record is usually not the one people expect. It is ');
+      addB(note, 'January 1966');
+      add(note, ' — not 1929. A crash that ends quickly is survivable; fifteen years of inflation eating a portfolio you are already drawing on is what actually empties it.');
+    } else {
+      add(note, 'These lifetimes are stitched from real five-year blocks, so a run this bad is one history could plausibly have dealt — it simply never dealt exactly this one.');
+    }
+    host.appendChild(note);
+  }
+
+  function line(host, label, value, cls, pill) {
+    var d = document.createElement('div');
+    d.className = 'worst-line';
+    var s = document.createElement('span');
+    s.textContent = label;
+    var b = document.createElement('b');
+    b.textContent = value;
+    d.appendChild(s);
+    var right = document.createElement('span');
+    right.appendChild(b);
+    if (pill) {
+      var pl = document.createElement('span');
+      pl.className = 'pill ' + (cls || '');
+      pl.textContent = pill;
+      right.appendChild(document.createTextNode(' '));
+      right.appendChild(pl);
+    }
+    d.appendChild(right);
+    host.appendChild(d);
+  }
+
+  // ---- scenarios -------------------------------------------------------------
+
+  function byId(id) {
+    for (var i = 0; i < state.scenarios.length; i++) if (state.scenarios[i].id === id) return state.scenarios[i];
+    return null;
+  }
+  function activeName() {
+    var s = byId(state.activeId);
+    return s ? s.name : 'My plan';
+  }
+  function cmpName() {
+    var s = byId(state.compareId);
+    return s ? s.name : 'Other plan';
+  }
+
+  function clonePlan(p) { return JSON.parse(JSON.stringify(p)); }
+
+  /* A cycle is named by the month the RETIREMENT began, never the month the
+   * plan started. "Retiring in 1966" is a fact a reader can check against what
+   * they already know; "a plan that started in 1941" is trivia about our loop. */
+  function retiredIn(run) {
+    if (!run || run.startIdx === undefined || run.startLabel === null) return null;
+    return S.monthName(run.startIdx + run.retireYear * 12);
+  }
+
+  function today() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-'
+      + String(d.getDate()).padStart(2, '0');
+  }
+
+  async function saveScenario(name) {
+    if (!state.db) return;
+    var rec;
+    if (name === undefined && state.activeId) {
+      rec = byId(state.activeId);
+      if (rec) { rec.plan = clonePlan(state.plan); rec.updated = today(); }
+    }
+    if (!rec) {
+      rec = {
+        id: undefined,
+        name: (name || 'My plan').slice(0, 60),
+        plan: clonePlan(state.plan),
+        created: today(), updated: today()
+      };
+    }
+    var saved = await state.db.put(rec);
+    state.activeId = saved.id;
+    state.dirty = false;
+    await refreshScenarios();
+    paintScenarioBar();
+  }
+
+  async function refreshScenarios() {
+    if (!state.db) return;
+    var all = await state.db.getAll();
+    all.sort(function (a, b) { return String(a.created).localeCompare(String(b.created)); });
+    state.scenarios = all;
+  }
+
+  function paintScenarioBar() {
+    $('scenLabel').textContent = activeName();
+    $('dirty').hidden = !state.activeId || !state.dirty;
+    $('btnCompare').disabled = state.scenarios.length < 2;
+    $('btnCompare').setAttribute('aria-pressed', state.comparing ? 'true' : 'false');
+  }
+
+  function openMenu() {
+    var m = $('scenMenu');
+    m.textContent = '';
+    var head = document.createElement('div');
+    head.className = 'menu-head';
+    head.textContent = state.scenarios.length ? 'Saved plans' : 'No saved plans yet';
+    m.appendChild(head);
+
+    state.scenarios.forEach(function (sc) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'menu-item';
+      var t = document.createElement('span');
+      t.className = 'tick';
+      t.textContent = sc.id === state.activeId ? '✓' : '';
+      var n = document.createElement('span');
+      n.className = 'mi-name';
+      n.textContent = sc.name;                    // user text — textContent, always
+      var s = document.createElement('span');
+      s.className = 'mi-sub';
+      s.textContent = sc.plan ? 'retire ' + sc.plan.retireAge : '';
+      b.appendChild(t); b.appendChild(n); b.appendChild(s);
+      b.addEventListener('click', function () { loadScenario(sc.id); closeMenu(); });
+      m.appendChild(b);
+    });
+
+    m.appendChild(sep());
+    m.appendChild(menuAction('Rename this plan…', function () {
+      closeMenu();
+      askName('Rename plan', activeName(), function (v) {
+        var sc = byId(state.activeId);
+        if (sc) { sc.name = v; state.db.put(sc).then(function () { refreshScenarios().then(paintScenarioBar); }); }
+      });
+    }, !state.activeId));
+    m.appendChild(menuAction('Duplicate this plan', function () {
+      closeMenu();
+      askName('Duplicate plan', activeName() + ' (copy)', function (v) {
+        state.activeId = null;
+        saveScenario(v);
+      });
+    }));
+    m.appendChild(menuAction('Delete this plan', function () {
+      closeMenu();
+      var sc = byId(state.activeId);
+      if (!sc) return;
+      confirmBox('Delete “' + sc.name + '”?', 'This cannot be undone.', function () {
+        state.db.delete(sc.id).then(function () {
+          if (state.compareId === sc.id) { state.compareId = null; state.comparing = false; }
+          state.activeId = null;
+          refreshScenarios().then(function () { paintScenarioBar(); schedule(); });
+        });
+      });
+    }, !state.activeId, true));
+
+    m.hidden = false;
+    var r = $('scenPick').getBoundingClientRect();
+    m.style.left = Math.max(6, r.left) + 'px';
+    m.style.top = (r.bottom + 4) + 'px';
+    $('scenPick').setAttribute('aria-expanded', 'true');
+  }
+  function sep() { var d = document.createElement('div'); d.className = 'menu-sep'; return d; }
+  function menuAction(label, fn, disabled, danger) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'menu-item' + (danger ? ' danger' : '');
+    b.textContent = label;
+    if (danger) b.style.color = COL.critical;
+    if (disabled) { b.disabled = true; b.style.opacity = '.4'; }
+    else b.addEventListener('click', fn);
+    return b;
+  }
+  function closeMenu() {
+    $('scenMenu').hidden = true;
+    $('scenPick').setAttribute('aria-expanded', 'false');
+  }
+
+  async function loadScenario(id) {
+    var sc = byId(id);
+    if (!sc || !sc.plan) return;
+    state.plan = Object.assign(defaults(), clonePlan(sc.plan));
+    state.activeId = id;
+    state.dirty = false;
+    writeForm();
+    paintScenarioBar();
+    schedule();
+    savePrefs();
+  }
+
+  // ---- compare ---------------------------------------------------------------
+
+  function toggleCompare() {
+    if (state.comparing) {
+      state.comparing = false;
+      state.compareId = null;
+      paintScenarioBar();
+      schedule();
+      savePrefs();
+      return;
+    }
+    var others = state.scenarios.filter(function (s) { return s.id !== state.activeId; });
+    if (!others.length) return;
+    pickBox('Compare with', others, function (id) {
+      state.compareId = id;
+      state.comparing = true;
+      paintScenarioBar();
+      schedule();
+      savePrefs();
+    });
+  }
+
+  // ---- modals ----------------------------------------------------------------
+
+  var modalOnOk = null;
+
+  function showModal(title, buildBody, onOk, okLabel) {
+    $('modalTitle').textContent = title;
+    var body = $('modalBody');
+    body.textContent = '';
+    buildBody(body);
+    modalOnOk = onOk;
+    $('modalOk').textContent = okLabel || 'Save';
+    $('modal').hidden = false;
+    var f = body.querySelector('input, button');
+    if (f) setTimeout(function () { f.focus(); if (f.select) f.select(); }, 20);
+  }
+  function hideModal() { $('modal').hidden = true; modalOnOk = null; }
+
+  function askName(title, value, done) {
+    var input;
+    showModal(title, function (body) {
+      var f = document.createElement('div');
+      f.className = 'field';
+      var l = document.createElement('label');
+      l.textContent = 'Name';
+      l.htmlFor = 'nameField';
+      input = mkInput('text', value, '');
+      input.id = 'nameField';
+      input.maxLength = 60;
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); $('modalOk').click(); }
+      });
+      f.appendChild(l); f.appendChild(input);
+      body.appendChild(f);
+    }, function () {
+      var v = input.value.trim();
+      if (v) done(v.slice(0, 60));
+    });
+  }
+
+  function confirmBox(title, text, done) {
+    showModal(title, function (body) {
+      var p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = text;
+      body.appendChild(p);
+    }, done, 'Delete');
+  }
+
+  function pickBox(title, list, done) {
+    showModal(title, function (body) {
+      list.forEach(function (sc) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'menu-item';
+        b.textContent = sc.name;
+        b.addEventListener('click', function () { hideModal(); done(sc.id); });
+        body.appendChild(b);
+      });
+    }, null, 'Close');
+    $('modalOk').textContent = 'Cancel';
+  }
+
+  // ---- persistence -----------------------------------------------------------
+
+  var draftTimer = null;
+  function saveDraft() {
+    if (!state.prefsDb) return;
+    if (draftTimer) clearTimeout(draftTimer);
+    draftTimer = setTimeout(function () {
+      state.prefsDb.put({ id: 'draft', plan: clonePlan(state.plan) }).catch(noop);
+    }, 500);
+  }
+  function savePrefs() {
+    if (!state.prefsDb) return;
+    state.prefsDb.put({
+      id: 'ui', activeId: state.activeId, compareId: state.compareId, comparing: state.comparing
+    }).catch(noop);
+  }
+  function noop() {}
+
+  // ---- wiring ----------------------------------------------------------------
+
+  function bindNumber(id, apply) {
+    var e = $(id);
+    e.addEventListener('input', function () { apply(); touched(); });
+    e.addEventListener('blur', function () { writeForm(); });
+  }
+  function bindMoney(id, rangeId) {
+    var e = $(id), r = rangeId ? $(rangeId) : null;
+    e.addEventListener('input', function () {
+      readForm();
+      if (r) r.value = clamp(parseMoney(e.value), +r.min, +r.max);
+      touched();
+    });
+    e.addEventListener('blur', function () { e.value = fmtMoneyInput(parseMoney(e.value)); });
+    if (r) {
+      r.addEventListener('input', function () {
+        e.value = fmtMoneyInput(+r.value);
+        touched();
+      });
+      dragBind(r);
+    }
+  }
+  // While a slider is held the sweep samples every fourth cycle, so the chart
+  // moves with the thumb; on release it re-runs at full resolution.
+  function dragBind(el) {
+    el.addEventListener('pointerdown', function () { dragging = true; });
+    var up = function () { if (dragging) { dragging = false; schedule(); } };
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('keydown', function () { dragging = false; });
+  }
+
+  function wire() {
+    bindNumber('fAge', noop);
+    bindNumber('fEnd', noop);
+    $('fRetire').addEventListener('input', function () {
+      $('fRetireR').value = $('fRetire').value; touched();
+    });
+    $('fRetireR').addEventListener('input', function () {
+      $('fRetire').value = $('fRetireR').value; touched();
+    });
+    dragBind($('fRetireR'));
+
+    bindMoney('fPot');
+    bindMoney('fSave');
+    bindMoney('fSpend', 'fSpendR');
+
+    ['fStocks', 'fFees', 'fRate', 'fTarget', 'fGlideTo'].forEach(function (id) {
+      $(id).addEventListener('input', touched);
+      dragBind($(id));
+    });
+    $('fGlideBy').addEventListener('input', touched);
+    $('fGlide').addEventListener('change', function () {
+      $('glideRow').hidden = !$('fGlide').checked;
+      touched();
+    });
+
+    $('spanPick').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-v]');
+      if (!b) return;
+      state.span = b.getAttribute('data-v');
+      var all = $('spanPick').querySelectorAll('button');
+      for (var i = 0; i < all.length; i++) {
+        all[i].setAttribute('aria-checked', all[i] === b ? 'true' : 'false');
+      }
+      renderFan();
+    });
+
+    $('modePick').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-v]');
+      if (!b) return;
+      state.plan.mode = b.getAttribute('data-v');
+      renderModePicker(); touched();
+    });
+
+    $('btnAddIncome').addEventListener('click', function () {
+      state.plan.incomes.push({ label: '', amount: 12000, from: state.plan.retireAge, to: null, cola: true });
+      renderIncomes(); touched();
+      var rows = $('incomeList').querySelectorAll('.r-name');
+      if (rows.length) rows[rows.length - 1].focus();
+    });
+    $('btnAddEvent').addEventListener('click', function () {
+      state.plan.events.push({ label: '', amount: 25000, at: state.plan.retireAge });
+      renderEvents(); touched();
+      var rows = $('eventList').querySelectorAll('.r-name');
+      if (rows.length) rows[rows.length - 1].focus();
+    });
+
+    $('btnReset').addEventListener('click', function () {
+      state.plan = defaults();
+      writeForm(); touched();
+    });
+
+    $('scenPick').addEventListener('click', function (e) {
+      e.stopPropagation();
+      if ($('scenMenu').hidden) openMenu(); else closeMenu();
+    });
+    document.addEventListener('click', function (e) {
+      if (!$('scenMenu').hidden && !$('scenMenu').contains(e.target)) closeMenu();
+    });
+    $('btnSave').addEventListener('click', function () {
+      if (state.activeId) saveScenario();
+      else askName('Name this plan', suggestName(), function (v) { saveScenario(v); });
+    });
+    $('btnNew').addEventListener('click', function () {
+      askName('Name the new plan', 'Plan ' + (state.scenarios.length + 1), function (v) {
+        state.plan = defaults();
+        state.activeId = null;
+        writeForm();
+        saveScenario(v).then(function () { schedule(); });
+      });
+    });
+    $('btnCompare').addEventListener('click', toggleCompare);
+
+    $('modalCancel').addEventListener('click', hideModal);
+    $('modalOk').addEventListener('click', function () {
+      var fn = modalOnOk;
+      hideModal();
+      if (fn) fn();
+    });
+    $('modal').addEventListener('click', function (e) { if (e.target === $('modal')) hideModal(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      if (!$('modal').hidden) hideModal();
+      else if (!$('scenMenu').hidden) closeMenu();
+    });
+
+    var rt = null;
+    window.addEventListener('resize', function () {
+      if (rt) clearTimeout(rt);
+      rt = setTimeout(function () { if (state.result) renderAll(); }, 150);
+    });
+  }
+
+  function suggestName() {
+    return 'Retire at ' + state.plan.retireAge;
+  }
+
+  // ---- boot ------------------------------------------------------------------
+
+  async function boot() {
+    wire();
+
+    if (window.gifos) {
+      try {
+        state.db = gifos.db('scenarios');
+        state.prefsDb = gifos.db('prefs');
+        await refreshScenarios();
+        var ui = await state.prefsDb.get('ui').catch(function () { return null; });
+        var draft = await state.prefsDb.get('draft').catch(function () { return null; });
+        if (ui && ui.activeId && byId(ui.activeId)) {
+          state.activeId = ui.activeId;
+          state.compareId = ui.compareId && byId(ui.compareId) ? ui.compareId : null;
+          state.comparing = !!ui.comparing && !!state.compareId;
+          state.plan = Object.assign(defaults(), clonePlan(byId(ui.activeId).plan));
+        } else if (draft && draft.plan) {
+          state.plan = Object.assign(defaults(), clonePlan(draft.plan));
+        }
+        // Another tab, or a partner on the far end of an Invite link, editing
+        // the same set of plans.
+        state.db.subscribe(function (all) {
+          all.sort(function (a, b) { return String(a.created).localeCompare(String(b.created)); });
+          state.scenarios = all;
+          paintScenarioBar();
+          if (!$('scenMenu').hidden) openMenu();
+        });
+        if (gifos.onBack) {
+          gifos.onBack(function () {
+            if (!$('modal').hidden) hideModal();
+            else if (!$('scenMenu').hidden) closeMenu();
+          });
+        }
+      } catch (e) {
+        // Saving is off, or the ability was declined. The calculator still works;
+        // it just cannot remember. Say so rather than failing silently.
+        state.db = null; state.prefsDb = null;
+      }
+    }
+
+    if (!state.db) {
+      $('btnSave').disabled = true;
+      $('btnNew').disabled = true;
+      $('btnSave').title = 'Saving is turned off for this app.';
+    }
+
+    writeForm();
+    paintScenarioBar();
+    readForm();
+    computeMain();
+    computeExtras();
+
+    $('footData').textContent = 'Prices, dividends, bond returns and inflation from Robert Shiller’s '
+      + 'monthly record, ' + MARKET.start[0] + ' to ' + MARKET.end[0] + '. '
+      + 'It travels inside this app, so none of this needs the internet.';
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
+  window.RetirementApp = { state: state, defaults: defaults, parseMoney: parseMoney, boot: boot };
+}());

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Retirement Calculator</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- The scenario rail. A plan is a saved, named thing you can come back to,
+     duplicate and put beside another one. -->
+<header id="scenbar">
+  <div class="scen-left">
+    <button type="button" id="scenPick" class="scen-name" aria-haspopup="listbox" aria-expanded="false">
+      <span id="scenLabel">My plan</span>
+      <svg viewBox="0 0 16 16" class="chev" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <span id="dirty" class="dirty" hidden>unsaved</span>
+  </div>
+  <div class="scen-right">
+    <button type="button" id="btnSave" class="btn">Save</button>
+    <button type="button" id="btnNew" class="btn ghost" title="Start a new plan">New</button>
+    <button type="button" id="btnCompare" class="btn ghost" aria-pressed="false" title="Put two plans side by side">Compare</button>
+  </div>
+</header>
+
+<div id="scenMenu" class="menu" role="listbox" hidden></div>
+
+<!-- The answer, pinned. Drag any slider and this is what moves. -->
+<section id="verdict" aria-live="polite">
+  <div class="verdict-main">
+    <div id="vDot" class="v-dot" aria-hidden="true"></div>
+    <div class="verdict-words">
+      <strong id="vHead">Working it out&hellip;</strong>
+      <span id="vSub"></span>
+    </div>
+  </div>
+  <div class="verdict-stats">
+    <div class="stat" id="statRetire">
+      <span class="stat-label">Could retire at</span>
+      <b class="stat-value" id="vRetire">&mdash;</b>
+    </div>
+    <div class="stat" id="statSpend">
+      <span class="stat-label">Could spend a year</span>
+      <b class="stat-value" id="vSpend">&mdash;</b>
+    </div>
+  </div>
+</section>
+
+<main id="main">
+
+  <!-- The picture comes FIRST on a phone: someone who opens this app should see
+       the answer and its shape before they meet a single input box. -->
+    <section class="card chart-card" id="cardFan">
+      <div class="card-head">
+        <h2>What happens to the money</h2>
+        <p class="sub" id="fanSub"></p>
+        <div class="segmented small" id="spanPick" role="radiogroup" aria-label="Which years to show">
+          <button type="button" data-v="all" role="radio" aria-checked="true">Whole plan</button>
+          <button type="button" data-v="retire" role="radio" aria-checked="false">From retirement</button>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chartFan"></div>
+      <div class="legend" id="legFan"></div>
+      <p class="read" id="fanRead"></p>
+      <details class="tabledrop"><summary>See the numbers</summary><div id="tblFan"></div></details>
+    </section>
+
+  <!-- ------------------------------------------------ the inputs -->
+  <form id="inputs" autocomplete="off">
+
+    <fieldset class="card">
+      <legend>You</legend>
+      <div class="field">
+        <label for="fAge">Your age</label>
+        <input id="fAge" type="number" inputmode="numeric" min="18" max="100" step="1" value="40">
+      </div>
+      <div class="field">
+        <label for="fRetire">Retire at</label>
+        <input id="fRetire" type="number" inputmode="numeric" min="18" max="100" step="1" value="65">
+        <input id="fRetireR" class="range" type="range" min="30" max="80" step="1" value="65" aria-label="Retire at (slider)">
+      </div>
+      <div class="field">
+        <label for="fEnd">Plan through age</label>
+        <input id="fEnd" type="number" inputmode="numeric" min="50" max="120" step="1" value="95">
+        <p class="hint" id="hintEnd"></p>
+      </div>
+    </fieldset>
+
+    <fieldset class="card">
+      <legend>Money</legend>
+      <div class="field">
+        <label for="fPot">Saved and invested</label>
+        <input id="fPot" type="text" inputmode="numeric" class="money" value="$150,000">
+      </div>
+      <div class="field">
+        <label for="fSave">Adding each year</label>
+        <input id="fSave" type="text" inputmode="numeric" class="money" value="$15,000">
+      </div>
+      <div class="field">
+        <label for="fSpend">Spending each year, once retired</label>
+        <input id="fSpend" type="text" inputmode="numeric" class="money" value="$60,000">
+        <input id="fSpendR" class="range" type="range" min="10000" max="250000" step="1000" value="60000" aria-label="Spending each year (slider)">
+        <p class="hint">In today&rsquo;s money. Every number in this app is.</p>
+      </div>
+    </fieldset>
+
+    <details class="card" id="secIncome">
+      <summary><span class="sum-title">Other income</span><span class="sum-value" id="sumIncome"></span></summary>
+      <div id="incomeList" class="rows"></div>
+      <button type="button" class="btn ghost wide" id="btnAddIncome">Add an income</button>
+      <p class="hint">A pension, an annuity, rent, part-time work. Tick <em>rises with inflation</em>
+        for anything indexed &mdash; Social Security is; most company pensions are not, and
+        that difference is worth tens of thousands over a retirement.</p>
+    </details>
+
+    <details class="card" id="secEvents">
+      <summary><span class="sum-title">One-off events</span><span class="sum-value" id="sumEvents"></span></summary>
+      <div id="eventList" class="rows"></div>
+      <button type="button" class="btn ghost wide" id="btnAddEvent">Add an event</button>
+      <p class="hint">Selling a house, an inheritance, a new roof, a wedding.
+        Use a minus sign for money going out.</p>
+    </details>
+
+    <details class="card" id="secPortfolio">
+      <summary><span class="sum-title">Investments</span><span class="sum-value" id="sumPortfolio"></span></summary>
+      <div class="field">
+        <label for="fStocks">Shares <output id="outStocks" for="fStocks">75%</output></label>
+        <input id="fStocks" class="range" type="range" min="0" max="100" step="5" value="75">
+        <p class="hint" id="hintMix"></p>
+      </div>
+      <div class="field checkline">
+        <input id="fGlide" type="checkbox">
+        <label for="fGlide">Move towards bonds as I age</label>
+      </div>
+      <div class="field indent" id="glideRow" hidden>
+        <label for="fGlideTo">Down to <output id="outGlideTo">40%</output> shares by age</label>
+        <input id="fGlideTo" class="range" type="range" min="0" max="100" step="5" value="40">
+        <input id="fGlideBy" type="number" inputmode="numeric" min="30" max="100" step="1" value="70">
+      </div>
+      <div class="field">
+        <label for="fFees">Yearly fees <output id="outFees" for="fFees">0.10%</output></label>
+        <input id="fFees" class="range" type="range" min="0" max="200" step="1" value="10">
+        <p class="hint" id="hintFees"></p>
+      </div>
+    </details>
+
+    <details class="card" id="secStrategy">
+      <summary><span class="sum-title">How you take the money</span><span class="sum-value" id="sumStrategy"></span></summary>
+      <div class="field">
+        <div class="segmented" id="stratPick" role="radiogroup" aria-label="How you take the money"></div>
+        <p class="hint" id="hintStrategy"></p>
+      </div>
+      <div class="field" id="rateRow" hidden>
+        <label for="fRate">Take <output id="outRate">4.0%</output> of the balance each year</label>
+        <input id="fRate" class="range" type="range" min="20" max="100" step="1" value="40">
+      </div>
+    </details>
+
+    <details class="card" id="secTest">
+      <summary><span class="sum-title">How it is tested</span><span class="sum-value" id="sumTest"></span></summary>
+      <div class="field">
+        <div class="segmented" id="modePick" role="radiogroup" aria-label="What to test against">
+          <button type="button" data-v="history" role="radio" aria-checked="true">Real history</button>
+          <button type="button" data-v="bootstrap" role="radio" aria-checked="false">History reshuffled</button>
+        </div>
+        <p class="hint" id="hintMode"></p>
+      </div>
+      <div class="field">
+        <label for="fTarget">Call it safe at <output id="outTarget">95%</output></label>
+        <input id="fTarget" class="range" type="range" min="50" max="100" step="1" value="95">
+        <p class="hint">The bar the two numbers at the top are solved against.</p>
+      </div>
+    </details>
+
+    <p class="reset-line"><button type="button" id="btnReset" class="linky">Reset this plan to the defaults</button></p>
+  </form>
+
+  <!-- ------------------------------------------------ the pictures -->
+  <div id="charts">
+
+    <section class="card chart-card" id="cardCurve">
+      <div class="card-head">
+        <h2>The price of spending more</h2>
+        <p class="sub">How often the plan works, at every yearly spend.</p>
+      </div>
+      <div class="chart-wrap" id="chartCurve"></div>
+      <p class="read" id="curveRead"></p>
+      <details class="tabledrop"><summary>See the numbers</summary><div id="tblCurve"></div></details>
+    </section>
+
+    <section class="card chart-card" id="cardStack">
+      <div class="card-head">
+        <h2>Where each year&rsquo;s money comes from</h2>
+        <p class="sub" id="stackSub"></p>
+      </div>
+      <div class="chart-wrap" id="chartStack"></div>
+      <div class="legend" id="legStack"></div>
+      <p class="read" id="stackRead"></p>
+      <details class="tabledrop"><summary>See the numbers</summary><div id="tblStack"></div></details>
+    </section>
+
+    <section class="card" id="cardWorst">
+      <div class="card-head">
+        <h2 id="worstHead">The worst it ever went</h2>
+        <p class="sub" id="worstSub"></p>
+      </div>
+      <div id="worstBody" class="worst-body"></div>
+    </section>
+
+  </div>
+</main>
+
+<footer id="foot">
+  <p id="footData"></p>
+  <p class="fine">Not financial advice. This is arithmetic on what markets have
+    already done, which is the best guide anyone has and still not a promise.</p>
+</footer>
+
+<!-- Naming a plan, and the compare picker. -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h3 id="modalTitle"></h3>
+    <div id="modalBody"></div>
+    <div class="modal-foot">
+      <button type="button" class="btn ghost" id="modalCancel">Cancel</button>
+      <button type="button" class="btn" id="modalOk">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="data/market.js"></script>
+<script src="sim.js"></script>
+<script src="chart.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
