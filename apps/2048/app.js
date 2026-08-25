@@ -2,7 +2,8 @@
 //   1. RNG — Math.random in addRandomTile / randomAvailableCell, swapped for a
 //      seeded generator when a race is on so both boards spawn the same tiles.
 //   2. actuate / restart — friend-mode publishes the row and swallows New Game
-//      mid-race (Play again starts the next round once the current one is over).
+//      mid-race (Play again starts the next round once the current one is over),
+//      and every solo board is filed into the archive (hist.js) as it is played.
 (function (root) {
   'use strict';
 
@@ -36,16 +37,27 @@
     this.actuate();
   };
 
+  function histOpen() {
+    return !!(root.G2048.HistUI && root.G2048.HistUI.isOpen());
+  }
+
   var origMove = GameManager.prototype.move;
   GameManager.prototype.move = function (direction) {
-    if (root.G2048.frozen) return;
+    if (root.G2048.frozen || histOpen()) return;
     origMove.call(this, direction);
   };
 
   var origActuate = GameManager.prototype.actuate;
   GameManager.prototype.actuate = function () {
+    // The board that ends the game is the one upstream never saves: actuate()
+    // calls clearGameState() the moment `over` is true. File it first, so the
+    // archived game ends where it actually died.
+    if (this.over && !root.G2048.mp && LocalStorageManager.finalize) {
+      LocalStorageManager.finalize(this.serialize());
+    }
     origActuate.call(this);
     if (root.G2048.Mp) root.G2048.Mp.onActuate(this);
+    if (root.G2048.HistUI) root.G2048.HistUI.render();
   };
 
   var origRestart = GameManager.prototype.restart;
@@ -61,7 +73,7 @@
   };
 
   function chromeEl(el) {
-    return el && el.closest && el.closest('a, button, input, textarea, .restart-button, .friend-button, .retry-button, .keep-playing-button, #friend-bar');
+    return el && el.closest && el.closest('a, button, input, textarea, .restart-button, .friend-button, .hist-button, .retry-button, .keep-playing-button, #friend-bar, #hist-panel');
   }
 
   // Original only swipes on .game-container. In this iframe the heading and
@@ -74,6 +86,7 @@
     var sx, sy, tracking = false;
     document.addEventListener('touchstart', function (e) {
       if (!e.changedTouches || !e.changedTouches.length) return;
+      if (histOpen()) return;
       if (chromeEl(e.target)) return;
       if (e.target.closest && e.target.closest('.game-container')) return;
       sx = e.changedTouches[0].clientX;
@@ -97,6 +110,7 @@
     root.requestAnimationFrame(function () {
       root.G2048.game = new GameManager(4, KeyboardInputManager, HTMLActuator, LocalStorageManager);
       bindAnywhereSwipe(root.G2048.game);
+      if (root.G2048.mountHistUI) root.G2048.mountHistUI();
       try { root.focus(); } catch (e) {}
     });
   }
