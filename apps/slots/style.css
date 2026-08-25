@@ -61,7 +61,7 @@ main{width:100%;max-width:640px;margin:0 auto;padding:0 12px 20px}
 .cabinet.play .marquee .bulb{animation-duration:.45s}
 .cabinet.hit .marquee .bulb{animation-duration:.2s;background:#fff}
 
-.toy{margin:0 0 6px;color:var(--gold);font-size:11px;letter-spacing:.12em;
+.rules{margin:0 0 6px;color:var(--gold);font-size:11px;letter-spacing:.12em;
   text-transform:uppercase;text-align:center;font-weight:700}
 #jackpot{color:var(--gold2);font-size:32px;text-align:center;font-weight:800;
   letter-spacing:.04em;font-variant-numeric:tabular-nums}

@@ -6,8 +6,8 @@
   "shortName": "Slots",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "Toy reels the whole table watches. The file holds your credits.",
-  "description": "Works offline, with no account and no cash. Your credit pile lives in the file, so sharing the GIF shares the machine. Send one link and everyone at the table sees the same spin — anyone can pull.\n\nFive fruit reels, a gold payline, a lever. Land three of a kind and the credits jump. Auto keeps pulling. Stake 10, 25, 50 or 100. A broke machine still lets you play; Top up restocks the toy pile.\n\nAn unofficial port of html5-slot-machine by johakr. Same Web Animations reels; fruit symbols instead of the original icon pack. Never a casino.",
+  "tagline": "Five fruit reels and a lever. Friends watch the same spin from one link.",
+  "description": "Five fruit reels, a gold payline, a lever. Land three of a kind and the credits jump. Auto keeps pulling. Stake 10, 25, 50 or 100. Go broke and Top up restores your credits.\n\nSend one link and everyone at the table watches the same spin — anyone can pull. Your credits are saved with your copy of the app.\n\nAn unofficial port of html5-slot-machine by johakr.",
   "author": {
     "name": "johakr",
     "url": "https://github.com/johakr/html5-slot-machine"
@@ -40,14 +40,14 @@
   "cover": "/apps/slots/cover.jpg",
   "screenshots": [],
   "gif": "/apps/slots/slots.gif",
-  "bytes": 194479,
+  "bytes": 194567,
   "download": 0,
   "provides": null,
-  "sha256": "a79c0d30bad305421ca1f99602ee42090f7ad1fa26db5455f6da00980c17b6b2",
+  "sha256": "cf7b3ff46fab5dbf2ff10d26052eeb6ac1046b9df489b9ce44545e15bd342670",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

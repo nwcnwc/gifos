@@ -5,7 +5,7 @@
   "shortName": "Slots",
   "version": "1.1",
   "minBuild": 947,
-  "description": "Toy reels the whole table watches. Five fruit reels, fake credits, no cash.",
+  "description": "Five fruit reels and a lever. Friends watch the same spin from one link.",
   "entry": "index.html",
   "accent": [212, 160, 48],
   "capabilities": {

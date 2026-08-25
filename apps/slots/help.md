@@ -1,6 +1,6 @@
 # Slots
 
-Five reels. A gold payline across the middle. Toy credits, **never cash**. Nothing is wagered and nothing is paid out.
+Five reels. A gold payline across the middle.
 
 Tap **Spin** (or the lever, or the space bar) to pull. The reels take a second each, left to right. **Auto** keeps pulling after each stop. Back turns Auto off.
 
@@ -13,7 +13,7 @@ Only the **middle row** pays. Matching symbols from the left:
 - five of a kind — **100×**
 - three **7**s — **50×** · four 7s — **100×** · five 7s — **250×** (jackpot)
 
-A miss costs the stake. Credits cannot go below zero: a broke machine still lets you pull, and a win starts you again. **Top up 1000 toy credits** restocks the pile whenever it dips under 100. Stake is 10, 25, 50 or 100.
+A miss costs the stake. Credits cannot go below zero: a broke machine still lets you pull, and a win starts you again. **Top up 1000 credits** appears whenever the pile dips under 100. Stake is 10, 25, 50 or 100.
 
 ## Sound
 

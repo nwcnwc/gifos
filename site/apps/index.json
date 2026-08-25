@@ -5735,7 +5735,7 @@
       "name": "Slots",
       "shortName": "Slots",
       "version": "1.1",
-      "tagline": "Toy reels the whole table watches. The file holds your credits.",
+      "tagline": "Five fruit reels and a lever. Friends watch the same spin from one link.",
       "author": {
         "name": "johakr",
         "url": "https://github.com/johakr/html5-slot-machine"
@@ -5769,15 +5769,15 @@
         48
       ],
       "cover": "/apps/slots/cover.jpg",
-      "bytes": 194479,
+      "bytes": 194567,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-25"
       },
-      "sha256": "a79c0d30bad305421ca1f99602ee42090f7ad1fa26db5455f6da00980c17b6b2"
+      "sha256": "cf7b3ff46fab5dbf2ff10d26052eeb6ac1046b9df489b9ce44545e15bd342670"
     },
     {
       "slug": "snake",
@@ -7165,7 +7165,7 @@
       "name": "Vintage Poker",
       "shortName": "Poker",
       "version": "1.1",
-      "tagline": "No account, no cash. Invite is the table.",
+      "tagline": "Texas Hold'em with friends. Everyone who opens your link takes a seat.",
       "author": {
         "name": "Patrick Obermeier",
         "url": "https://github.com/Pobermeier/vintage-poker"
@@ -7199,15 +7199,15 @@
         58
       ],
       "cover": "/apps/vintage-poker/cover.jpg",
-      "bytes": 199567,
+      "bytes": 199906,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-25"
       },
-      "sha256": "937d31706305ff30af7083a1c998625d79faa97398086dbf19f28a23c2ab9a3b"
+      "sha256": "cbb5d35a888b45fc7e7cfa02e828c9a98446abeaa37ab9ef75dbfac1105fb846"
     },
     {
       "slug": "vocal-remover",

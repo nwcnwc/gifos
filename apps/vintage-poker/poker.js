@@ -126,7 +126,7 @@
     return {
       phase: 'idle', board: [], pot: 0, toAct: null, dealer: 0,
       streetBet: 0, minRaise: BB, deck: [], seats: seats,
-      winners: [], msg: 'Toy chips. No cash.', handNo: 0, sb: SB, bb: BB
+      winners: [], msg: 'Shuffle up and deal.', handNo: 0, sb: SB, bb: BB
     };
   }
 

@@ -1,4 +1,4 @@
-// Slots — toy credits, shared reels. Invite is OS chrome.
+// Slots — shared reels; credits are per-device. Invite is OS chrome.
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -185,7 +185,7 @@
     credits = credits + M.REFILL;
     countTo(credits);
     paintRefill();
-    $('status').textContent = 'Topped up. Still toy credits.';
+    $('status').textContent = 'Topped up. 1000 credits.';
     persist();
   });
   $('mute').addEventListener('click', function () {

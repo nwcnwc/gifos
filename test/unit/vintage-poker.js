@@ -204,14 +204,16 @@ check('poker.js loads PK', !!(PK && PK.newTable && PK.startHand && PK.applyActio
     js.includes("t.phase !== 'showdown' && t.phase !== 'idle'"));
   check('empty table copy is distinct from waiting-on-host',
     js.includes('This table is empty') && js.includes('Waiting for the host to deal'));
-  check('listing leads with no-account / no-cash / invite is the table',
-    /^No account, no cash/.test(listing.description) &&
-    /invite is the table/i.test(listing.description) &&
-    /no game server/i.test(listing.description));
-  check('listing says toy chips, not a wallet',
-    /Toy chips only/.test(listing.description) && !/wallet/i.test(listing.description.split('original')[0]));
-  check('cards stay generic ranks and suits',
-    /generic ranks and suits/.test(listing.description) &&
+  check('listing leads with the game and plain friends-join copy',
+    /^Texas Hold'em/.test(listing.description) &&
+    /takes a seat/i.test(listing.description) &&
+    /host deals/i.test(listing.description));
+  // The app is a computer game; it does not protest that it is one. No "toy
+  // chips", no "no cash" banners — that copy read as nervous and is gone.
+  check('no cash disclaimers anywhere a user reads',
+    !/no cash|toy chip|never cash|nothing is (wagered|paid)|no account/i
+      .test(listing.tagline + ' ' + listing.description + ' ' + help + ' ' + html + ' ' + js));
+  check('cards stay generic, no branded deck',
     !/bicycle|bee|copag|theory11/i.test(html + js + listing.description));
   check('their server stays behind',
     !/socket\.io|express|mongoose/i.test(js + src('poker.js')));
@@ -219,8 +221,8 @@ check('poker.js loads PK', !!(PK && PK.newTable && PK.startHand && PK.applyActio
     !/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, '')) &&
     !/@import|fonts\.google/i.test(css));
   check('help does not document OS internals', !/gifos\.db|sandbox|localStorage/.test(help));
-  check('help.md names fold/call/raise and toy chips',
-    /fold/i.test(help) && /call/i.test(help) && /raise/i.test(help) && /Toy chips/i.test(help));
+  check('help.md names fold/call/raise',
+    /fold/i.test(help) && /call/i.test(help) && /raise/i.test(help));
   check('minBuild stays 947', man.minBuild === 947);
   check('multiplayer + db declared; no network',
     man.capabilities.db === true && man.capabilities.multiplayer === true && !man.capabilities.network);

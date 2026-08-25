@@ -5,7 +5,7 @@
   "shortName": "Poker",
   "version": "1.1",
   "minBuild": 947,
-  "description": "No account, no cash. Invite is the table. Host deals. Toy chips.",
+  "description": "Texas Hold'em. Friends who open your link take the empty seats. The host deals.",
   "entry": "index.html",
   "accent": [26, 122, 58],
   "capabilities": {
