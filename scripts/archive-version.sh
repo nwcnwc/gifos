@@ -111,8 +111,13 @@ cp -r "$SITE/themes" "$DEST/"
 # and stamped the bare anchor 280 — so the live edge build went BACKWARD and the
 # Version panel offered an "upgrade" to a lower number. Anchor only ever to a
 # commit that is PUSHED, and never let a failed count fall back to a number.
-ANCHOR_SHA=b4ada94            # the "release: cut v0.8.4" commit
-ANCHOR_BUILD=825              # the edge build 0.8.4 was cut from
+# RE-ANCHORED 2026-08-25 after the commit-message history rewrite: b4ada94 became
+# ae79e96 (identical tree, identical count). The old sha still resolved in CI but
+# was no longer an ancestor of main, so one deploy stamped 2059 against a true
+# 1849. ANCHOR_BUILD carries a permanent +210 offset so the published counter
+# never moves backward. Keep this in step with .github/workflows/pages.yml.
+ANCHOR_SHA=ae79e96            # the "release: cut v0.8.4" commit (post-rewrite)
+ANCHOR_BUILD=1035            # 825 the 0.8.4 cut + 210 rewrite offset (see above)
 if ! git -C "$ROOT" cat-file -e "${ANCHOR_SHA}^{commit}" 2>/dev/null; then
   echo "ANCHOR_SHA ${ANCHOR_SHA} is not in this repo — re-anchor archive-version.sh (and pages.yml) to a pushed commit." >&2
   exit 1
