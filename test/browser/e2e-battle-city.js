@@ -211,9 +211,12 @@ async function toPlay(frame, label) {
 
     const canvasBox = await (await frame.$('canvas')).boundingBox();
     await run.touchscreen.tap(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2);
-    await sleep(200);
-    check('a touch reveals the pad',
-      await frame.evaluate(() => document.getElementById('touch').hidden) === false);
+    // A claim, not a deadline: wait for the pad, then assert it. reveal() is
+    // synchronous on touchstart, but the tap's delivery into the app frame is
+    // not — 200 ms of sleep was red twice in a row on nvidia-laptop (0.9.13).
+    const revealed = await frame.waitForFunction(() => document.getElementById('touch').hidden === false, null, { timeout: 10000 })
+      .then(() => true).catch(() => false);
+    check('a touch reveals the pad', revealed);
 
     // The board must be worth looking at. An integer-only scale gave a 390pt
     // phone 1x — a 256px stamp in ~14% of the screen with the pad marooned

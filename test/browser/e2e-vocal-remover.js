@@ -132,19 +132,26 @@ async function measureStems(fr, hz, amp) {
 
   await page.goto(BASE + '/index.html');
   await page.waitForSelector('.icon', { timeout: 30000 });
-  await page.evaluate(async (b64) => {
+  const itemId = await page.evaluate(async (b64) => {
     const bin = atob(b64); const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const fid = GifOS.store.uid('file');
     await GifOS.store.putFile({ id: fid, name: 'Vocal Remover.gif', bytes, kind: 'gif', isApp: true, appId: 'vocal-remover', mime: 'image/gif' });
-    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Vocal Remover.gif', parent: null, x: 200, y: 200, iconSize: 64 });
+    const iid = GifOS.store.uid('item');
+    await GifOS.store.putItem({ id: iid, kind: 'file', fileId: fid, name: 'Vocal Remover.gif', parent: null, x: 200, y: 200, iconSize: 64 });
     await GifOS.desktop.load(); await GifOS.desktop.render();
+    return iid;
   }, GIF_B64);
   await sleep(600);
 
   const [app] = await Promise.all([
     context.waitForEvent('page'),
-    page.locator('.icon', { hasText: 'Vocal Remover' }).first().dblclick(),
+    // By id, never by label: decorate() repaints an app icon's label as the
+    // app's own nameplate (this one reads "Vocals"), and on a fast box that
+    // lands before the locator looks — 'Vocal Remover' then matches nothing
+    // and the suite dies with zero assertions (nvidia-laptop, every run of
+    // the 0.9.13 gate; the slower fleet boxes matched the filename first).
+    page.locator('.icon[data-id="' + itemId + '"]').dblclick(),
   ]);
   app.on('pageerror', (e) => console.log('  [app pageerror]', e.message));
 
