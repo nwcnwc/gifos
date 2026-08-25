@@ -172,6 +172,143 @@ check('game.js loads and attaches Backdooms',
     BD.cell(BD.state().x | 0, BD.state().y | 0) === '0', BD.state());
 }
 
+// --- what the 1.2 gauntlet run bought, so none of it can rot back ---------
+//
+// Every one of these is a bug that SHIPPED, and every one was found by running
+// the thing rather than reading it. They are cheap, pure-sim checks; the
+// browser cannot be trusted to notice any of them.
+
+{
+  // The two you wake to used to stand 2.5 metres away and simply walk in: six
+  // passive runs died at 7.4s, to the tick. The room is 0..8 and you wake at
+  // (4,4), so 'across the room' has to be a coordinate near 8, not near 7.
+  const B = load().Backdooms;
+  B.start({ seed: 7, headless: true });
+  const s = B.state();
+  const d = B.view().sprites.map((sp) => Math.hypot(sp.x - s.x, sp.y - s.y));
+  check('you do not wake with something on top of you', Math.min(...d) >= 4,
+    d.map((v) => +v.toFixed(2)));
+}
+
+{
+  // Two seconds of grace, and then a fight you can lose. Both halves matter:
+  // no grace is the 7.4-second death, and no death at all is not a game.
+  const B = load().Backdooms;
+  B.start({ seed: 7, headless: true });
+  let t = 0, firstHit = null;
+  while (B.state().alive && t < 40000) {
+    B.step(16); t += 16;
+    if (firstHit === null && B.state().hp < 100) firstHit = t;
+  }
+  check('nothing can touch you for the first two seconds', firstHit >= 2000, firstHit);
+  check('but standing still does kill you', !B.state().alive && t < 25000,
+    { deadAt: t, alive: B.state().alive });
+}
+
+{
+  // They used to close to 0.2 units — inside your head, sprite filling the
+  // screen, no way to see the room or the other one.
+  const B = load().Backdooms;
+  B.start({ seed: 7, headless: true });
+  let closest = 99;
+  for (let i = 0; i < 900; i++) {
+    B.step(16);
+    const s = B.state();
+    for (const sp of B.view().sprites) {
+      if (sp.dying != null) continue;
+      closest = Math.min(closest, Math.hypot(sp.x - s.x, sp.y - s.y));
+    }
+    if (!s.alive) break;
+  }
+  check('they stop at arm\'s length, not inside your head', closest > 0.45,
+    +closest.toFixed(3));
+}
+
+{
+  // A blocked thing used to stand at a corner for good. A competent bot
+  // survived three minutes untouched because of it.
+  const B = load().Backdooms;
+  B.start({ seed: 42, headless: true });
+  const game = fs.readFileSync(path.join(APP, 'game.js'), 'utf8');
+  check('a blocked thing slides along the wall instead of stopping',
+    /o\.side/.test(game) && /wall-follow/i.test(game));
+}
+
+{
+  // Bodies stay. Kill twenty things and the room used to be spotless.
+  const B = load().Backdooms;
+  B.start({ seed: 7, headless: true });
+  B.shoot(); B.shoot();
+  let corpses = 0;
+  for (let i = 0; i < 200; i++) {
+    B.step(16);
+    corpses = B.view().sprites.filter((sp) => sp.dying != null && sp.dying >= 1).length;
+    if (corpses) break;
+  }
+  check('a body is still there after the death animation ends', corpses > 0, corpses);
+}
+
+{
+  // THE LEVEL. A 70x70 scan of the old generator found the longest run of open
+  // floor with a wall on both sides was SIX tiles, in either axis, anywhere —
+  // which is the block width, because crossings every seven cells cut the wall
+  // open at every junction. An endless hall was structurally impossible.
+  const B = load().Backdooms;
+  const HALL = 12;
+  let best = 0;
+  for (const seed of [42, 7, 999]) {
+    B.start({ seed, headless: true });
+    // BOTH axes. Scanning only one hid a real asymmetry: a doorway always
+    // punched on the same edge cut every horizontal corridor to five tiles
+    // while vertical ones ran to ten.
+    for (const axis of [0, 1]) {
+      let axisBest = 0;
+      for (let k = -5; k < 5; k++) {
+        const a0 = k * HALL; let run = 0;
+        for (let n = -70; n < 70; n++) {
+          const at = (u, v) => (axis ? B.cell(v, u) : B.cell(u, v));
+          const lane = at(n, a0) === '0' && at(n, a0 + 1) === '0';
+          const walled = at(n, a0 - 1) === '1' && at(n, a0 + 2) === '1';
+          if (lane && walled) { run++; axisBest = Math.max(axisBest, run); } else run = 0;
+        }
+      }
+      best = best === 0 ? axisBest : Math.min(best, axisBest);
+    }
+  }
+  check('there is a corridor you cannot see the end of', best >= 10, best + ' tiles');
+}
+
+{
+  // Halls are always lit: a corridor with no fixtures is a corridor whose
+  // length you cannot read, and the receding line of them is the strongest
+  // depth cue in the game.
+  const B = load().Backdooms;
+  B.start({ seed: 42, headless: true });
+  let lit = 0, hallCells = 0;
+  for (let i = 12; i < 60; i++) {
+    if (B.cell(i, 12) !== '0') continue;
+    hallCells++;
+    if (B.light(i, 12)) lit++;
+  }
+  check('a hall has a line of fixtures down it', hallCells > 20 && lit >= hallCells / 4,
+    { hallCells, lit });
+}
+
+{
+  // Pellets stop at walls. It used to be a hitscan cone that fired through
+  // solid mass.
+  const B = load().Backdooms;
+  B.start({ seed: 42, headless: true });
+  // put a friend on the far side of the nearest wall along +x
+  const s = B.state();
+  let wx = s.x;
+  while (wx < s.x + 30 && B.cell(Math.floor(wx), Math.floor(s.y)) === '0') wx += 0.25;
+  B.setRemotes([{ id: 'behind', x: wx + 1.5, y: s.y, h: 100 }]);
+  const r = B.shoot();
+  check('you cannot shoot through the mass', r.hits.indexOf('behind') < 0,
+    { wallAt: +wx.toFixed(2), hits: r.hits });
+}
+
 const src = (f) => fs.readFileSync(path.join(APP, f), 'utf8');
 const html = src('index.html');
 const boot = src('boot.js');
