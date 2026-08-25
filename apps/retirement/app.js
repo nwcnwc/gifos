@@ -26,21 +26,34 @@
   // Chosen so the app says something true and useful the second it opens, to
   // somebody who has typed nothing. Every one of them is visible and editable —
   // a default you cannot see is an assumption made on your behalf.
+  //
+  // These land at about 90% against a 95% bar ON PURPOSE. A default that
+  // reports a serene 100% teaches a first-time reader that the tool always says
+  // yes, and hides the half of it that is worth having. A plan that is nearly
+  // but not quite there opens on the honest sentence — this is tighter than it
+  // looks — and immediately shows the measured levers that close the gap.
+  //
+  // Age 95, not 90: a 65-year-old couple has a 51% chance one of them reaches
+  // 90. Planning to a coin flip is not planning.
 
   function defaults() {
     return {
-      currentAge: 40,
+      currentAge: 45,
       retireAge: 65,
       endAge: 95,
-      portfolio: 150000,
-      annualSavings: 15000,
-      annualSpend: 60000,
+      portfolio: 180000,
+      annualSavings: 18000,
+      annualSpend: 75000,
       stocks: 0.75,
       glidepath: null,
       fees: 0.001,
       strategy: 'constant',
       percentRate: 0.04,
-      incomes: [{ label: 'Social Security', amount: 24000, from: 67, to: null, cola: true }],
+      // The average US retired worker's benefit in 2026 is $2,071 a month.
+      // Leaving it out entirely makes the savings required look absurd, so it
+      // is here, named, and one tap from being deleted by anyone it does not
+      // apply to.
+      incomes: [{ label: 'Social Security', amount: 24900, from: 67, to: null, cola: true }],
       events: [],
       mode: 'history',
       target: 0.95
@@ -567,11 +580,24 @@
     var typical = r.bands[r.bands.length - 1][2];
     add(read, 'At ' + p.endAge + ' the typical run leaves ');
     addB(read, money(typical));
-    add(read, '. A quarter of runs end above ');
+    add(read, ', a quarter of them more than ');
     addB(read, money(r.bands[r.bands.length - 1][3]));
-    add(read, ', a quarter below ');
+    add(read, ' and a quarter less than ');
     addB(read, money(r.bands[r.bands.length - 1][1]));
-    add(read, '. Everything here is in today’s money, so these are numbers you can feel.');
+    add(read, '. ');
+    // The number almost nobody prints, and for most readers the likelier
+    // problem: a success rate measures running out, and running out is not
+    // what usually happens. Reporting only failure quietly argues for
+    // underspending, which is the one mistake you cannot fix afterwards.
+    if (r.endedRicher >= 0.5) {
+      addB(read, Math.round(r.endedRicher * 100) + '% ended richer than the day they retired');
+      if (r.endedDoubled >= 0.2) {
+        add(read, ', ' + Math.round(r.endedDoubled * 100) + '% with more than double');
+      }
+      add(read, ' — so the likelier miss here is underspending, not running out.');
+    } else {
+      add(read, 'Everything is in today’s money, so these are numbers you can feel.');
+    }
 
     var rows = [], step = Math.max(1, Math.round((r.bands.length - 1) / 12));
     for (var y = from; y < r.bands.length; y += step) {

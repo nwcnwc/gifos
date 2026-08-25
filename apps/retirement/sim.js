@@ -94,16 +94,28 @@
       }
     },
 
-    // Guyton-Klinger guardrails, as published (Guyton & Klinger, Journal of
-    // Financial Planning, 2006). Two rails around the INITIAL withdrawal rate:
-    //   Capital Preservation  rate has risen 20% above initial  -> cut 10%
-    //   Prosperity            rate has fallen 20% below initial -> raise 10%
-    // plus the Inflation Rule: in a year the portfolio lost money AND the rate
-    // is above initial, skip the inflation raise. In real terms "skipping the
-    // raise" IS a cut, by exactly that year's inflation — which is why this
-    // needs CPI even though everything else here does not.
-    // Capital Preservation is switched off over the last 15 years, per the
-    // paper: there is nothing left to preserve the capital for.
+    // Guyton-Klinger guardrails, as the 2006 paper actually publishes them
+    // (Guyton & Klinger, Journal of Financial Planning, March 2006):
+    //
+    //   Withdrawal Rule       no raise in a year the portfolio lost money AND
+    //                         the current rate is above the initial rate. BOTH
+    //                         conditions — the 2004 version had only the first
+    //                         and froze about 60% more often.
+    //   Capital Preservation  rate has risen >20% above initial -> cut 10%.
+    //                         Switched off over the last 15 years: there is
+    //                         nothing left to preserve the capital for.
+    //   Prosperity            rate has fallen >20% below initial -> raise 10%.
+    //                         Deliberately does NOT expire; the asymmetry is
+    //                         the point.
+    //
+    // The 6%-a-year INFLATION CAP is deliberately absent. Every popular write-up
+    // presents it as one of the four rules, but the authors dropped it: removing
+    // it "increased the purchasing power maintained by more than 10 percent
+    // without reducing the probability of success", and their published 5.2-5.6%
+    // results do not use it.
+    //
+    // In real terms "no raise" IS a cut, by exactly that year's inflation, which
+    // is why this rule needs CPI when nothing else here does.
     guardrails: {
       label: 'Guardrails',
       blurb: 'Spend steadily, but trim 10% after a bad run and give yourself a 10% raise after a good one. What most people would actually do.',
@@ -111,7 +123,7 @@
         if (st.w === undefined) { st.w = ctx.base; st.initialRate = ctx.base / ctx.balance; return st.w; }
         var w = st.w;
         var rate = w / ctx.balance;
-        // Inflation rule first — it modifies the raise, not the rails.
+        // Withdrawal Rule first — it modifies the raise, not the rails.
         if (ctx.lastReturn < 0 && rate > st.initialRate) w = w / ctx.infl;
         var lastYears = ctx.left <= 15;
         if (!lastYears && rate > st.initialRate * 1.2) w = w * 0.9;
@@ -121,34 +133,49 @@
       }
     },
 
-    // Vanguard's dynamic spending: aim at a percentage of the balance, but never
-    // let the paycheck move more than +5% / -2.5% against last year in real
-    // terms. Smooths the fixed-percentage swing without the cliff of a rail.
+    // Vanguard's dynamic spending (Jaconetti et al. 2020): aim at a percentage
+    // of the balance, but cap how far the PAYCHECK may move against last year.
+    //
+    // Ceiling +5%, floor -1.5%. Not -2.5%: Vanguard's own document is
+    // internally inconsistent — the body text and the figures every published
+    // success rate is computed from use -1.5%, while an appendix and the
+    // consumer flyer say -2.5%, which is the number most secondary sources
+    // repeat. The figures win. And the asymmetry is deliberate: their footnote
+    // notes a higher ceiling than floor suits loss aversion.
     dynamic: {
       label: 'Smoothed',
-      blurb: 'Follow the portfolio, but cap any raise at 5% and any cut at 2.5% a year. Vanguard\'s ceiling-and-floor method.',
+      blurb: 'Follow the portfolio, but cap any raise at 5% and any cut at 1.5% a year. Vanguard\'s ceiling-and-floor method.',
       step: function (st, ctx) {
         var target = ctx.balance * (ctx.plan.percentRate || 0.04);
         if (st.w === undefined) { st.w = ctx.base; return st.w; }
-        var hi = st.w * 1.05, lo = st.w * 0.975;
-        st.w = clamp(target, lo, hi);
+        st.w = clamp(target, st.w * 0.985, st.w * 1.05);
         return st.w;
       }
     },
 
-    // Bogleheads' Variable Percentage Withdrawal: each year, the payment that
-    // would exactly exhaust the balance over the years remaining at an assumed
-    // real return. Spends down to zero on purpose, so it is judged on the
-    // paycheck it pays, never on "success".
+    // Bogleheads' Variable Percentage Withdrawal, reproducing the published
+    // table rather than approximating it:
+    //
+    //   r    = stocks * 5.0% + bonds * 1.9%     (real, blended on the RETURN)
+    //   n    = 100 - age                        (the table depletes at 100)
+    //   pct  = PMT(r, n, -1, 0, type=1)         (ANNUITY-DUE — you withdraw at
+    //          = [r / (1-(1+r)^-n)] / (1+r)      the START of the year)
+    //
+    // The annuity-due form is what pins the table: an ordinary annuity misses
+    // the published percentages by an order of magnitude more. The percentage
+    // is capped at 10%, which starts binding around age 88.
     vpw: {
       label: 'Spend it down',
       selfLimiting: true,
-      blurb: 'Each year, take what would exactly use the money up by your final year. Nothing is left over, and nothing runs out early.',
+      blurb: 'Each year, take what would exactly use the money up by 100. Nothing runs out early, and nothing is left over.',
       step: function (st, ctx) {
-        var r = ctx.plan.vpwReturn === undefined ? 0.035 : ctx.plan.vpwReturn;
-        var n = Math.max(1, ctx.left);
-        if (Math.abs(r) < 1e-9) return ctx.balance / n;
-        return ctx.balance * r / (1 - Math.pow(1 + r, -n));
+        var alloc = stocksAt(ctx.plan, ctx.plan.currentAge + ctx.yearIndex);
+        var r = alloc * 0.05 + (1 - alloc) * 0.019;
+        var n = Math.max(1, Math.min(100 - (ctx.plan.currentAge + ctx.yearIndex), ctx.left));
+        var pct = Math.abs(r) < 1e-9
+          ? 1 / n
+          : (r / (1 - Math.pow(1 + r, -n))) / (1 + r);
+        return ctx.balance * Math.min(0.10, pct);
       }
     }
   };
@@ -265,6 +292,7 @@
       if (retired) {
         w = Math.max(0, strat.step(st, {
           plan: plan, base: plan.annualSpend, balance: bal, year: y - retireYear,
+          yearIndex: y,
           left: years - y, infl: cpi[off + y * 12 + 12] / cpi[off + y * 12],
           lastReturn: lastReturn
         }));
@@ -546,6 +574,25 @@
     out.worst = worst;
     out.best = best;
     out.firstFail = firstFail;
+
+    /* How many runs ended with MORE, in real terms, than they retired with.
+     *
+     * This is the counterweight to the success rate, and it is the number most
+     * calculators never print. Over 30 years at 4% the majority of historical
+     * cohorts finished richer than they started — so for most readers the live
+     * risk is not running out, it is dying with a pile they could have spent
+     * and a decade they could have had. A tool that reports only failure
+     * silently argues for underspending. */
+    var atRetire = runs[0].balances[out.retireYear] || 0;
+    var richer = 0, doubled = 0;
+    for (i = 0; i < runs.length; i++) {
+      var start = runs[i].balances[out.retireYear];
+      if (runs[i].final > start) richer++;
+      if (runs[i].final > start * 2) doubled++;
+    }
+    out.endedRicher = richer / runs.length;
+    out.endedDoubled = doubled / runs.length;
+    void atRetire;
 
     var finals = runs.map(function (a) { return a.final; }).sort(function (a, b) { return a - b; });
     out.medianFinal = percentile(finals, 0.5);

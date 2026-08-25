@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "retirement",
+  "name": "Retirement Calculator",
+  "shortName": "Retirement",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Will your money last? Your plan, run against every retirement since 1871. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [57, 135, 229],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "scenarios": { "visibility": "read-write" },
+    "prefs": { "visibility": "private" }
+  }
+}
