@@ -53,7 +53,7 @@
   var WALK_MS = 620;          // one hex at a stroll — the whole point of 1.2.0
   var RUN_MIN_MS = 170;       // ...and the floor when taps outrun the walk
   var PERSPECTIVE = 1150;     // px; matches #scene in style.css
-  var WALL_H = 0.62;          // wall cap lift, in dot radii
+  var WALL_H = 1.0;           // wall cap lift, in dot radii
   var CAT_SCALE = 1.55;       // against upstream's catStepLength of 20
 
   var TILT_MIN = 0, TILT_MAX = 74, TILT_DEF = 34;
@@ -410,6 +410,10 @@
 
   function down(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    // The view buttons live over the stage. preventDefault() on pointerdown is
+    // what suppresses the compatibility mouse events, so capturing here would
+    // silently stop them ever being clicked.
+    if (e.target && e.target.closest && e.target.closest('#viewbar')) return;
     stage.setPointerCapture(e.pointerId);
     var hit = e.target && e.target.classList && e.target.classList.contains('hit') ? e.target : null;
     pts[e.pointerId] = { id: e.pointerId, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, hit: hit, moved: 0 };
