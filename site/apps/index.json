@@ -51,7 +51,7 @@
         46
       ],
       "cover": "/apps/2048/cover.jpg",
-      "bytes": 319562,
+      "bytes": 319676,
       "download": 0,
       "provides": null,
       "signature": {
@@ -59,7 +59,7 @@
         "id": "gifos.app",
         "ts": "2026-08-25"
       },
-      "sha256": "54334e2085b4b21440196c5e01b83cf06b09484ece46b9c8e294ae00155c9a92"
+      "sha256": "2a08afb85df53fd2b9c2649a477c41100ae770d8eef0947bb38a1b0045407d26"
     },
     {
       "slug": "aim-and-shoot",

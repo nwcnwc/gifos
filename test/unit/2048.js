@@ -373,6 +373,19 @@ function gameRows(db) {
     check('✕ is close, never delete', /id="hist-close"/.test(html) && !/row-del[^>]*&#10005;/.test(html));
     check('the panel escapes ids and names it prints', /function esc\(/.test(ui) && /esc\(row\.id\)/.test(ui));
     check('friend-mode hides the Games button', /body\.friend[\s\S]{0,80}\.hist-button/.test(css));
+
+    // A preview whose tile colours lose to the empty-cell rule paints every
+    // board as blank — which is exactly what shipped for one build, because
+    // `.prev .pv` (two classes) outranks a bare `.pv-16` (one).
+    {
+      const classes = (sel) => (sel.match(/\.[A-Za-z0-9_-]+/g) || []).length;
+      const base = (css.match(/([^{}\n]*\.pv)\s*\{/) || [])[1];
+      const tiles = [...css.matchAll(/([^{}\n]*\.pv-[A-Za-z0-9]+)\s*\{/g)].map((m) => m[1].trim());
+      check('every preview tile colour outranks the empty-cell rule',
+        !!base && tiles.length >= 12 &&
+        tiles.every((t) => classes(t) >= classes(base)),
+        { base: base && base.trim(), weakest: tiles.filter((t) => classes(t) < classes(base || '')) });
+    }
     check('storage.js keeps best score out of the archive — deleting a game does not rewrite it',
       /id: 'best'/.test(storage) && !/hist\.[a-z]+\([^)]*best/i.test(storage));
     check('storage.js reads the collection ONCE at boot',
