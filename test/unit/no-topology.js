@@ -190,6 +190,24 @@ if (!fleet) {
   // see almost nothing — and "0 scanned, no hits" must not read as a pass.
   check('the commit-message scan actually read history', msgs.length > 50, msgs.length + ' commit(s) visible');
 
+  // THE THREE COMMITS THIS GUARD WILL NEVER COVER, and that is a decision, not
+  // an oversight. GitHub pins the head of every pull request under
+  // `refs/pull/<n>/head` — a ref GitHub owns, that no force-push can rewrite
+  // and no API can delete. PR #3 (closed 2026-07-22, its branch long deleted)
+  // pins three commits that name a machine and that live on NO branch:
+  //
+  //     153835b0   0c46e6b1   8abc71ca
+  //
+  // The 2026-08-25 rewrite could not reach them and nothing short of asking
+  // GitHub to delete the pull request can. That is not worth doing for three
+  // commits nobody navigates to, so these are the ONLY sanctioned exceptions to
+  // the no-topology rule — the equivalent of test/batteries/known-unfixed.sh,
+  // and like it, this list may only ever SHRINK.
+  //
+  // This scan reads `--branches --tags`, which is why it stays green: PR refs
+  // are not branches. If you ever fetch `refs/pull/*` into a clone, do not
+  // fetch it into a namespace this walks.
+
   // An annotated tag carries a message of its own that `git log` never shows,
   // and `git push --tags` publishes it. Four of the eleven rewritten tags had
   // one.
