@@ -267,6 +267,21 @@ once pushed, that tree is frozen.
 **Roll back** — set `version.json.current = <prev>`. Done. Instant, no redeploy,
 no git history surgery. (Because data is additive-only, the old code is happy.)
 
+**Retire a release** — `git rm -r site/versions/<v>` and rebuild `version.json`
+from the directory (`versions` = what is on disk, newest first; `minData` =
+the oldest; prune `builds` to shipped releases). `test/unit/retired-release.js`
+holds `version.json` to the disk. A visitor whose localStorage still names the
+retired build — an explicit `gifos_pin`, or `gifos_current`, the last-known
+release every default visitor redirects on without re-reading `version.json` —
+is NOT stranded: Pages answers `/versions/<v>/…` with `404.html`, whose
+`/versions/` branch probes the snapshot's `build.js`, and if the build is gone
+clears both keys, sets `gifos_gone=<v>`, and goes home once (page and hash kept);
+the desktop then says, once, which build was retired and which one it now
+runs (`desktop.js noteRetiredBuild`). Without that branch the visitor looped
+forever (`/` → loader → `/versions/<v>/` → `404.html` → `/` → …) — a JS
+redirect loop never trips the browser's limit. The 0.8.x line was retired
+2026-08-25; the floor is 0.9.0.
+
 ## How this de-risks the mesh rip-and-replace
 
 This scheme *is* the seatbelt for the mesh-v2 swap:

@@ -33,6 +33,42 @@
  * Anything unrecognized just goes home.
  */
 (function () {
+  // /versions/<v>/… that Pages does not have — a RETIRED release (old
+  // snapshots get pruned; version.json.versions is what still ships). Without
+  // this branch a visitor whose localStorage still names <v> (an explicit
+  // gifos_pin, or gifos_current — the last-known release every default
+  // visitor redirects on without re-reading version.json) loops forever:
+  // / → loader → /versions/<v>/ → this file → / → loader → … A JS redirect
+  // loop never trips the browser's limit; the tab just flickers.
+  //
+  // Two cases, told apart by ONE probe at the snapshot's build.js (every
+  // archived build has one): the build is there and only this PAGE is missing
+  // (e.g. a store.html in a snapshot cut before the store existed) → that
+  // build's own desktop; the build is gone → forget it, remember WHICH one
+  // for the desktop's one-line notice (gifos_gone), and go home ONCE. The
+  // page and hash ride along so a run.html#id=… link still lands on its app,
+  // now on the live release, with the desktop (per-origin, additive-only
+  // data) intact.
+  var rv = location.pathname.match(/^\/versions\/(\d+\.\d+\.\d+)\/(.*)$/);
+  if (rv) {
+    var alive = false;
+    try {
+      var x = new XMLHttpRequest();
+      x.open('HEAD', '/versions/' + rv[1] + '/js/build.js?ts=' + Date.now(), false);
+      x.send();
+      alive = x.status >= 200 && x.status < 300;
+    } catch (e) { alive = false; }
+    if (alive) { location.replace('/versions/' + rv[1] + '/index.html' + location.hash); return; }
+    try {
+      localStorage.removeItem('gifos_pin');
+      localStorage.removeItem('gifos_current');
+      localStorage.setItem('gifos_gone', rv[1]);
+    } catch (e) {}
+    var page = /^[a-z0-9-]+\.html$/i.test(rv[2]) ? rv[2] : '';
+    location.replace('/' + page + location.search + location.hash);
+    return;
+  }
+
   // /store and /store/<slug> — the App Store, and a shareable link to one
   // listing. The slug is a public catalog name (site/apps/<slug>/), NOT a
   // capability like a join code: nothing is derived from it and anyone may

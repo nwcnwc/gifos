@@ -89,7 +89,7 @@ const check = (name, cond, d) => { console.log((cond ? 'PASS' : 'FAIL') + ' — 
     return { total: rows.length, openByDefault: rows.filter((d) => d.open).length };
   });
   check('release-note folds are collapsed by default', foldState.total >= 1 && foldState.openByDefault === 0, JSON.stringify(foldState));
-  const noteRow = page.locator('#set-version details.vrow', { hasText: 'v0.8.5' });
+  const noteRow = page.locator('#set-version details.vrow', { hasText: 'v0.9.5' });
   await noteRow.locator('summary').click();
   await sleep(150);
   const expanded = await noteRow.evaluate((el) => el.open && !!el.querySelector('.vnotes .cl-notes, .vnotes .cl-headline'));

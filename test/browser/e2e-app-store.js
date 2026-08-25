@@ -177,7 +177,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     out.onThisHost = await GifOS.storeBuild.effectiveRelease();
     // Pinned builds must be honoured wherever we are — that pin IS the user's
     // computer, and an install has to reach it.
-    localStorage.setItem('gifos_pin', '0.8.4');
+    localStorage.setItem('gifos_pin', '0.9.4');
     out.pinned = await GifOS.storeBuild.effectiveRelease();
     localStorage.removeItem('gifos_pin');
     localStorage.setItem('gifos_channel', 'edge');
@@ -189,7 +189,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     build.onThisHost === null, build.host + ' → ' + build.onThisHost);
   check('an explicit edge opt-in keeps the visitor on the root build', build.edge === null);
   check('a pin is honoured — an install must reach the computer the user pinned',
-    build.pinned === '0.8.4', String(build.pinned));
+    build.pinned === '0.9.4', String(build.pinned));
   check('nothing is flagged legacy here, so Install is live', (await page.locator('#install').count()) >= 0);
 
   // ---- categories + search --------------------------------------------------
