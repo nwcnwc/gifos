@@ -73,7 +73,29 @@ function fakeEl(tag) {
   return el;
 }
 
-function load() {
+function fakeApi(opts) {
+  const cols = {};
+  const subs = {};
+  const rows = (c) => (cols[c] = cols[c] || {});
+  const fire = (c) => (subs[c] || []).forEach((cb) => cb(Object.keys(rows(c)).map((k) => rows(c)[k])));
+  return {
+    api: {
+      me: () => Promise.resolve({ id: opts.id, name: opts.name }),
+      info: () => Promise.resolve({ owner: !!opts.owner }),
+      db: (c) => ({
+        put(rec) { rows(c)[rec.id] = rec; fire(c); return Promise.resolve(rec); },
+        get(k) { return Promise.resolve(rows(c)[k] || null); },
+        subscribe(cb) { (subs[c] = subs[c] || []).push(cb); cb(Object.keys(rows(c)).map((k) => rows(c)[k])); },
+      }),
+    },
+    push(c, rec) { rows(c)[rec.id] = rec; fire(c); },
+    last(c, id) { return rows(c)[id] || null; },
+  };
+}
+
+const flush = () => new Promise((r) => setImmediate(r));
+
+function load(room) {
   let now = 10_000;
   let raf = null;
   const body = fakeEl('body');
@@ -139,8 +161,12 @@ function load() {
     matchMedia: () => ({ matches: false, addListener() {}, addEventListener() {} }),
     addEventListener() {},
     setTimeout: (fn) => { fn(); return 0; },
+    setImmediate,
+    ResizeObserver: undefined,
     gifos: undefined,
   };
+  const net = room ? fakeApi(room) : null;
+  if (net) sandbox.gifos = net.api;
   sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
   sandbox.self = sandbox;
@@ -153,12 +179,15 @@ function load() {
     'vendor/Dejavu.js',
     'vendor/Genetics.js',
     'vendor/GuiControls.js',
+    'coop.js',
     'vendor/main.js',
     'boot.js',
   ].map((f) => fs.readFileSync(path.join(APP, f), 'utf8'));
   vm.runInContext(files.join('\n;\n'), sandbox, { filename: 'aim-and-shoot.js' });
   return {
     sandbox,
+    net,
+    eval(code) { return vm.runInContext(code, sandbox); },
     tick(ms) {
       now += ms == null ? 16 : ms;
       if (raf) {
@@ -317,8 +346,127 @@ check('main.js still inlines artwork from AAS', main.includes('AAS.artwork') && 
 check('GuiControls.js is still packed (upstream) but the shell pad is ours',
   html.includes('vendor/GuiControls.js') && boot.includes('p-fire'));
 
-if (failures) {
-  console.log('\n' + failures + ' failing');
-  process.exit(1);
+function finish() {
+  if (failures) {
+    console.log('\n' + failures + ' failing');
+    process.exit(1);
+  }
+  console.log('\nall pass');
 }
-console.log('\nall pass');
+
+// ---- ONE ARENA ------------------------------------------------------------
+// The room used to be a scoreboard: an invite gave your friend their own
+// private wave and a number to compare. Now the app OWNER simulates and
+// publishes `world`; a guest publishes input and draws what came back. These
+// two vms are a host and a guest, wired through one fake collection.
+(async () => {
+  const H = load({ id: 'host-1', name: 'Nathan', owner: true });
+  await flush();
+  const HA = H.sandbox.AAS;
+  HA.startPlay();
+  H.tick(16);
+
+  check('alone, the host is still just a game — no snapshot published',
+    H.net.last('world', 'world') === null);
+
+  H.net.push('players', {
+    id: 'ada', name: 'Ada', t: 1,
+    mv: { r: true }, mx: 0, my: 0, lx: 400, ly: 200, fire: false,
+  });
+  await flush();
+  for (let i = 0; i < 40; i++) { HA.player.health = 99; H.tick(16); }
+
+  const mate = HA.bodies().find((p) => p.netId === 'ada');
+  check('a friend who joins gets a BODY in the host arena, not their own arena',
+    !!mate && !mate.ai, mate && { ai: mate.ai });
+  check('their stick drives that body', !!mate && mate.pos.x > 84, mate && mate.pos.x);
+
+  const snap = H.net.last('world', 'world');
+  check('the host publishes the whole arena', !!(snap && snap.ps && snap.ps.length > 2),
+    snap && { ps: snap.ps && snap.ps.length, bs: snap.bs && snap.bs.length });
+  check('the snapshot carries both humans and the wave',
+    !!snap && snap.ps.filter((r) => !r.ai).length === 2 && snap.ps.some((r) => r.ai),
+    snap && snap.ps.map((r) => r.k));
+  check('the snapshot carries the arena shape and the generation',
+    !!snap && snap.w === HA.w && snap.h === HA.h && snap.gen === HA.generation);
+
+  // A teammate's bullet must not be the thing that kills you — but a bot has
+  // to keep bleeding, or the fix would have disarmed the game. Fired straight
+  // at each in turn, away from the noise of a live wave.
+  {
+    const shot = H.eval(`(function () {
+      var mate = players.filter(function (p) { return p.netId === 'ada'; })[0];
+      var bot = players.filter(function (p) { return p.ai && !p.isDead; })[0];
+      var me = AAS.player;
+      mate.health = 10; bot.health = 10;
+      var at = function (t) {
+        var a = Math.atan2(t.pos.y - me.pos.y, t.pos.x - me.pos.x);
+        var b = new Bullet(me, me.pos.x, me.pos.y, 5, a, 1.2, 1, [t]);
+        for (var i = 0; i < 400 && !b.isGone; i++) b.update();
+        return b.isGone;
+      };
+      var m = at(mate), bt = at(bot);
+      return { mate: mate.health, bot: bot.health, mateStopped: m, botStopped: bt };
+    })()`);
+    check('a teammate stops the bullet and takes NOTHING from it',
+      shot.mate === 10 && shot.mateStopped === true, shot);
+    check('a robot still bleeds from the same gun', shot.bot < 10 && shot.botStopped === true, shot);
+  }
+
+  // Death in a room is a trip to the floor, not the end of the run.
+  {
+    const gen0 = HA.generation;
+    HA.player.health = 0;
+    for (let i = 0; i < 4; i++) H.tick(16);
+    check('a death in a room does not end the room', HA.isGameover === false, HA.isGameover);
+    check('the wave is not reset while a teammate is standing', HA.generation === gen0,
+      { was: gen0, now: HA.generation });
+    let up = -1;
+    for (let i = 0; i < 400 && up < 0; i++) { H.tick(16); if (!HA.player.isDead) up = i; }
+    check('the downed player gets back up, on their own, in the same wave',
+      up > 60 && up < 300 && HA.generation === gen0, { tick: up, gen: HA.generation });
+  }
+
+  // Everyone down at once IS the end of a run — but the room stays open.
+  {
+    H.eval("players.forEach(function (p) { if (!p.ai) { p.health = 0; } });");
+    for (let i = 0; i < 6; i++) H.tick(16);
+    check('a whole-team wipe resets the wave to generation 1', HA.generation === 1, HA.generation);
+    check('and the room is still open, not a game-over screen', HA.isGameover === false);
+    let both = -1;
+    for (let i = 0; i < 400 && both < 0; i++) {
+      H.tick(16);
+      const up = HA.bodies().filter((p) => !p.ai && !p.isDead).length;
+      if (up === 2) both = i;
+    }
+    check('everybody gets up together after a wipe', both > 60, { tick: both });
+  }
+
+  // ---- the guest -----------------------------------------------------------
+  const G = load({ id: 'ada', name: 'Ada', owner: false });
+  await flush();
+  const GA = G.sandbox.AAS;
+  GA.startPlay();
+  const solo = { w: GA.w, h: GA.h };
+  G.net.push('world', H.net.last('world', 'world'));
+  await flush();
+  GA.player.isMoving.right = true;
+  GA.player.isShooting = true;
+  for (let i = 0; i < 6; i++) G.tick(16);
+
+  check('the guest adopts the HOST arena, not its own screen shape',
+    GA.w === snap.w && GA.h === snap.h, { solo, now: { w: GA.w, h: GA.h } });
+  check('the guest draws the host bodies', GA.bodies().length === snap.ps.length,
+    { drawn: GA.bodies().length, sent: snap.ps.length });
+  check('the guest simulates nothing of its own',
+    GA.bodies().every((b) => !b.brain), GA.bodies().length);
+  check('the guest publishes what its hands are doing', (() => {
+    const row = G.net.last('players', 'ada');
+    return !!row && row.mv && row.mv.r === true && row.fire === true;
+  })(), G.net.last('players', 'ada'));
+  check('the guest knows which body is its own',
+    GA.bodies().some((b) => b.you === true), GA.bodies().map((b) => !!b.you));
+
+  finish();
+})();
+

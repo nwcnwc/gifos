@@ -30,6 +30,6 @@ Press **Invite** in the bar above the app. Each of you plays your own arena. The
 
 ## What is saved
 
-Your **best generation** stays in the file. A round in progress is not kept.
+Your **best generation** stays in the file. A round in progress is not kept, and neither is the room.
 
 Unofficial port of [Aim and Shoot](https://github.com/victorqribeiro/aimAndShoot) by Victor Ribeiro.

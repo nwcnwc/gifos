@@ -24,6 +24,7 @@ html, body {
    so nothing you are shooting at hides under your own hand. */
 #arena {
   position: fixed;
+  display: flex; align-items: center; justify-content: center;
   top: 26px; right: 10px; bottom: 10px; left: 10px;
   padding: 9px;
   box-sizing: border-box;
@@ -31,6 +32,12 @@ html, body {
     repeating-linear-gradient(45deg, #b8443c 0 11px, #24272e 11px 22px);
   border-radius: 4px;
   box-shadow: 0 0 0 1px #0d0e11, 0 6px 24px rgba(0,0,0,.45);
+}
+/* A guest's field is the host's shape, so it cannot fill this box — the
+   leftover is CHROME, and the rim it needs is painted on the canvas. */
+#arena.adopted {
+  background: #14161a;
+  padding: 0;
 }
 body.touch #arena {
   top: max(30px, env(safe-area-inset-top));
@@ -54,6 +61,7 @@ header {
 }
 #roster[hidden] { display: none; }
 #roster .me { color: #fff; font-weight: 650; }
+#roster .down { color: #e08a84; }
 
 #pad {
   position: absolute; inset: 0; z-index: 8; pointer-events: none;

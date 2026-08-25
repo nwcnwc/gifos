@@ -9,12 +9,9 @@
   root.AAS = root.AAS || {};
 
   var api = typeof gifos !== 'undefined' ? gifos : null;
-  var saveDb = null, playersDb = null;
+  var saveDb = null;
   try {
-    if (api && api.db) {
-      saveDb = api.db('save');
-      playersDb = api.db('players');
-    }
+    if (api && api.db) saveDb = api.db('save');
   } catch (e) {}
 
   var hiEl = document.getElementById('hi');
@@ -22,9 +19,6 @@
   var statusEl = document.getElementById('status');
   var best = 1;
   var gen = 1;
-  var me = { id: 'local', name: 'You' };
-  var others = {};
-  var started = false;
   var COARSE = !!(root.matchMedia && (
     root.matchMedia('(pointer: coarse)').matches ||
     root.matchMedia('(hover: none)').matches
@@ -49,27 +43,18 @@
     saveDb.put({ id: 'best', generation: n }).catch(function () {});
   }
 
-  function publish() {
-    if (!started || !playersDb || !me.id || me.id === 'local') return;
-    playersDb.put({
-      id: me.id, name: me.name, generation: gen, best: best, t: Date.now()
-    }).catch(function () {});
-  }
-
-  function paintRoster() {
-    var list = [{ id: me.id, name: me.name, mine: true, generation: gen, best: best }];
-    Object.keys(others).forEach(function (id) {
-      var p = others[id];
-      list.push({ id: p.id, name: p.name || 'Player', mine: false, generation: p.generation || 1, best: p.best || 1 });
-    });
+  /* The room is a TEAM SHEET now, not a table of separate scores: everyone on
+     it is standing in the same arena, so it says who is up and who is on the
+     floor. `players` carries input rows and belongs to coop.js — the shell
+     never writes it. */
+  function paintRoster(list) {
+    list = list || [];
     if (list.length < 2) { rosterEl.hidden = true; return; }
-    list.sort(function (a, b) { return (b.generation || 0) - (a.generation || 0); });
     rosterEl.hidden = false;
     rosterEl.innerHTML = list.map(function (p) {
-      return '<div class="' + (p.mine ? 'me' : '') + '">' +
+      return '<div class="' + (p.me ? 'me' : '') + (p.down ? ' down' : '') + '">' +
         (p.name || 'Player').replace(/[<>&]/g, '') +
-        ' · gen ' + (p.generation || 1) +
-        (p.best && p.best > 1 ? (' (best ' + p.best + ')') : '') +
+        (p.down ? ' · down' : '') +
         '</div>';
     }).join('');
   }
@@ -77,14 +62,18 @@
   root.AAS.onGeneration = function (g) {
     gen = g | 0;
     persist(gen);
-    publish();
-    paintRoster();
   };
   root.AAS.onGameover = function (g) {
     persist(g | 0);
     gen = 1;
-    publish();
-    paintRoster();
+  };
+  /* coop.js announces the room the moment it knows there is one. */
+  root.AAS.onCoop = function (coop) {
+    coop.onRoster(paintRoster);
+    paintRoster(coop.roster());
+    if (statusEl) statusEl.textContent = COARSE
+      ? 'One arena. Your friends are on your side.'
+      : 'One arena · WASD moves, mouse aims, click fires. Friends are on your side.';
   };
 
   /* THE GUN RELOADS EVEN WHILE THE TRIGGER IS HELD.
@@ -114,6 +103,24 @@
      and in a crowd you could not tell which black circle was you. Paint
      only — the hit test in the pinned Bullet.js is untouched. */
   if (typeof Bullet !== 'undefined' && Bullet.prototype && !Bullet.prototype._aasShow) {
+    /* HUMANS ARE A TEAM. Upstream had exactly one of us, so a bullet asked
+       only "did it touch a body". With friends in the room a stray shot down
+       the line would end the person you came to play with, so a human's
+       bullet stops on a teammate and does nothing. Bot-on-bot friendly fire
+       is left alone — it is one of the pressures the breeding selects on. */
+    var baseBullet = Bullet.prototype.update;
+    Bullet.prototype.update = function () {
+      if (this.isGone) return;
+      var before = [], i;
+      for (i = 0; i < this.targets.length; i++) before.push(this.targets[i].health);
+      baseBullet.call(this);
+      if (!this.owner || this.owner.ai) return;
+      for (i = 0; i < this.targets.length; i++) {
+        if (this.targets[i].ai || this.targets[i].health === before[i]) continue;
+        this.targets[i].health = before[i];   /* a teammate: the shot stops, unharmed */
+        if (this.owner.friendlyFire) this.owner.friendlyFire--;
+      }
+    };
     Bullet.prototype.show = function () {
       var col = (this.owner && this.owner.color) || [0, 0, 0];
       c.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',.30)';
@@ -144,13 +151,23 @@
     var baseShow = Player.prototype.show;
     Player.prototype.show = function () {
       if (!this.ai && !this.isDead) {
-        c.strokeStyle = 'rgba(24,92,208,.95)';
+        /* Blue is you. Green is the person who came through your link — with
+           their name over them, because a room of black circles is a room
+           you shoot into. */
+        var mine = this.you !== false && !this.mate;
+        c.strokeStyle = mine ? 'rgba(24,92,208,.95)' : 'rgba(28,150,80,.95)';
         c.lineWidth = 3;
         c.beginPath();
         c.arc(this.pos.x, this.pos.y, this.size + 7, 0, TWOPI);
         c.stroke();
         c.lineWidth = 1;
         c.strokeStyle = 'black';
+        if (this.mate && this.netName) {
+          c.textAlign = 'center';
+          c.fillStyle = 'rgba(20,20,20,.85)';
+          c.fillText(String(this.netName).slice(0, 14), this.pos.x, this.pos.y + this.size + 26);
+          c.textAlign = 'start';
+        }
       }
       baseShow.call(this);
     };
@@ -310,29 +327,8 @@
     });
   }
 
-  function bootNet() {
-    if (!api || !playersDb) return;
-    api.me().then(function (id) {
-      me.id = (id && id.id) || 'local';
-      me.name = (id && id.name) || 'You';
-      if (me.id === 'local') return;
-      started = true;
-      playersDb.subscribe(function (list) {
-        var seen = {};
-        (list || []).forEach(function (p) {
-          if (!p || !p.id || p.id === me.id) return;
-          seen[p.id] = 1;
-          others[p.id] = p;
-        });
-        Object.keys(others).forEach(function (id) { if (!seen[id]) delete others[id]; });
-        paintRoster();
-      });
-      publish();
-    }).catch(function () {});
-  }
-
-  if (!saveDb) { bootNet(); return; }
+  if (!saveDb) return;
   saveDb.get('best').then(function (row) {
     if (row && row.generation) setBest(row.generation | 0);
-  }).catch(function () {}).then(bootNet);
+  }).catch(function () {});
 })(window);
