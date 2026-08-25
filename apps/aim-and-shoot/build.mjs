@@ -77,7 +77,8 @@ writeFileSync(join(dir, 'vendor', 'assets.js'), assetsJs);
 
 const SCRIPTS = [
   'vendor/assets.js', 'vendor/Player.js', 'vendor/Bullet.js', 'vendor/Matrix.js',
-  'vendor/Dejavu.js', 'vendor/Genetics.js', 'vendor/GuiControls.js', 'vendor/main.js', 'boot.js'
+  'vendor/Dejavu.js', 'vendor/Genetics.js', 'vendor/GuiControls.js', 'coop.js',
+  'vendor/main.js', 'boot.js'
 ];
 const files = {
   'manifest.json': JSON.stringify(manifest),
@@ -91,6 +92,7 @@ const files = {
   'vendor/Genetics.js': read('vendor/Genetics.js'),
   'vendor/GuiControls.js': read('vendor/GuiControls.js'),
   'vendor/main.js': read('vendor/main.js'),
+  'coop.js': read('coop.js'),
   'boot.js': read('boot.js'),
   'COPYING-aim-and-shoot.txt': read('vendor/COPYING-aim-and-shoot.txt'),
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
@@ -111,6 +113,14 @@ if (!files['vendor/main.js'].includes('AAS.artwork') || !files['vendor/main.js']
   throw new Error('main.js patches missing');
 }
 if (!files['boot.js'].includes("db('save')")) throw new Error('boot must save');
+// ONE ARENA: the owner simulates and publishes `world`; guests publish input.
+if (!files['coop.js'].includes("db('world')") || !files['coop.js'].includes("db('players')")) {
+  throw new Error('coop must speak world + players');
+}
+if (!manifest.data.world || manifest.data.world.visibility !== 'read-only') {
+  throw new Error('world is the host\'s to write');
+}
+if (manifest.data.players.visibility !== 'read-write') throw new Error('players is communal');
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;

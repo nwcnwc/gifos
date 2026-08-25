@@ -9,7 +9,26 @@ let artwork, canvas, rect, _x, _y,  c, w, h, w2, h2, TWOPI, genetics, player, en
    canvas (style.css #arena) hugs the exact line a tank bounces off. */
 const ARENA_SHORT = 620;
 
+/* Humans who are not at this keyboard. The host drives them from the input
+   they publish; they stand in `players` beside the local one, so physics,
+   collisions and bot targeting cannot tell the difference. */
+let guestBodies = [];
+
+let adopted = false;
+
+const syncRect = function(){
+
+	rect = canvas.getBoundingClientRect();
+
+	_x = w / (rect.width || w);
+
+	_y = h / (rect.height || h);
+
+};
+
 const fitArena = function(){
+
+	if( adopted ){ syncRect(); return; }
 
 	const cw = (canvas && canvas.clientWidth) || 1366;
 
@@ -140,6 +159,15 @@ const placeInside = function(list){
 
 };
 
+/* players = me, the friends who came through the link, then the wave. Every
+   rebuild goes through here so a new generation can never quietly delete the
+   people standing in the room. */
+const regroup = function(){
+
+	players = [player, ...guestBodies, ...enemies];
+
+};
+
 const init = function(){
 
 	maxEnemies = 7;
@@ -188,13 +216,17 @@ const init = function(){
 
 	player = new Player();
 
+	player.you = true;
+
 	enemies = genetics.population.slice();
 
 	placeInside(enemies);
 
 	bullets = Array();
 
-	players = [player, ...enemies];
+	guestBodies = [];
+
+	regroup();
 
 	if( isStarting ){
 
@@ -209,12 +241,83 @@ const init = function(){
 }
 
 
+const joiningScreen = function(){
+
+	c.fillStyle = "#ececec";
+
+	c.fillRect(0, 0, w, h);
+
+	c.fillStyle = "#666";
+
+	c.textAlign = "center";
+
+	c.fillText("Joining the arena\u2026", w2, h2);
+
+};
+
+/* Everything co-op needs from the game, and nothing it does not: a host adds
+   and drops bodies and publishes what it simulated, a guest hands back a
+   finished frame to draw. */
+function coopBridge(){
+	AAS.bodies = function () { return players; };
+	AAS.bulletList = function () { return bullets; };
+	AAS.addBody = function (p) { guestBodies.push(p); regroup(); };
+	AAS.dropBody = function (p) {
+		const i = guestBodies.indexOf(p);
+		if (i >= 0) guestBodies.splice(i, 1);
+		regroup();
+	};
+	AAS.showRemote = function (bodies, shots, gen) {
+		players = bodies;
+		bullets = shots;
+		if (gen) generation = gen;
+	};
+	/* A guest draws the HOST's field, not its own screen's shape — two people
+	   shooting at differently proportioned rooms is not one arena. What does
+	   not fit is letterboxed onto the hazard band, never onto floor. */
+	AAS.adoptArena = function (hw, hh) {
+		if (!canvas || !(hw > 0) || !(hh > 0)) return;
+		adopted = true;
+		const box = document.getElementById('arena');
+		if (box && box.classList) box.classList.add('adopted');
+		if (canvas.width === hw && canvas.height === hh) return;
+		w = hw; h = hh; w2 = w / 2; h2 = h / 2;
+		canvas.width = w; canvas.height = h;
+		if (canvas.style) {
+			canvas.style.width = 'auto';
+			canvas.style.height = 'auto';
+			canvas.style.maxWidth = '100%';
+			canvas.style.maxHeight = '100%';
+			canvas.style.aspectRatio = w + ' / ' + h;
+		}
+		if (c) {
+			c.font = Math.max(14, Math.round(ARENA_SHORT / 26)) + "px Arial";
+			c.textAlign = "center";
+		}
+		syncRect();
+	};
+	/* The whole team went down at once. Nobody's run survives that, so the
+	   wave starts again at generation 1 — but the room stays open. */
+	AAS.wipe = function () {
+		if (AAS.onGameover) AAS.onGameover(generation);
+		generation = 1;
+		genetics = new Genetics();
+		genetics.createPopulation();
+		enemies = genetics.population.slice();
+		placeInside(enemies);
+		regroup();
+		bullets.length = 0;
+		startTime = Date.now();
+	};
+}
+
 function syncAAS(){
 	window.AAS = window.AAS || {};
 	AAS.player = player;
 	AAS.enemies = enemies;
 	AAS.bullets = bullets;
 	AAS.generation = generation;
+	AAS.guests = guestBodies.length;
 	AAS.isStarting = isStarting;
 	AAS.isGameover = isGameover;
 	AAS.w = w;
@@ -230,6 +333,28 @@ const update = function(){
 	totalTime += deltaTime;
 
 	if (player && window.AAS && AAS.applyPad) AAS.applyPad(player);
+
+	const coop = window.AASCoop;
+
+	/* A GUEST SIMULATES NOTHING. It publishes what its hands are doing and
+	   draws the host's arena — one fight, one set of bots, one truth. */
+	if( coop && coop.guest() ){
+
+		if( coop.guestFrame() ) draw();
+
+		else joiningScreen();
+
+		prevTime = nextTime;
+
+		syncAAS();
+
+		u = requestAnimationFrame( update );
+
+		return;
+
+	}
+
+	if( coop ) coop.beforeHost();
 
 	for(let i = bullets.length-1; i >= 0; i--){
 
@@ -251,7 +376,9 @@ const update = function(){
 
 	draw();
 
-	if( player.isDead ){
+	/* In a room, one death is a trip to the floor and the wave carries on;
+	   alone, it is still upstream's game over. */
+	if( player.isDead && !(coop && coop.mark(player)) ){
 
 		gameover()
 
@@ -285,6 +412,8 @@ const update = function(){
 
 	syncAAS();
 
+	if( coop ) coop.afterHost();
+
 	u = requestAnimationFrame( update );
 
 }
@@ -295,6 +424,12 @@ const draw = function(){
 	c.fillStyle = "#ececec";
 
 	c.fillRect(0, 0, w, h);
+
+	/* A GUEST plays the HOST's field, so its canvas is letterboxed inside the
+	   frame and the CSS band no longer hugs anything. Paint the rim on the
+	   floor instead and let the surround go dark — a screen of hazard stripes
+	   with a stamp of arena in the middle reads as decoration, not as walls. */
+	if( adopted ) drawRim();
 
 	/* The line a tank bounces off, on the floor, inside the wall band. */
 	c.strokeStyle = "rgba(0,0,0,.34)";
@@ -329,6 +464,40 @@ const draw = function(){
 
 }
 
+const drawRim = function(){
+
+	const b = 10;
+
+	c.fillStyle = "#24272e";
+
+	c.fillRect(0, 0, w, b);
+
+	c.fillRect(0, h - b, w, b);
+
+	c.fillRect(0, 0, b, h);
+
+	c.fillRect(w - b, 0, b, h);
+
+	c.fillStyle = "#b8443c";
+
+	for(let x = 0; x < w; x += 22){
+
+		c.fillRect(x, 0, 11, b);
+
+		c.fillRect(x + 11, h - b, 11, b);
+
+	}
+
+	for(let y = 0; y < h; y += 22){
+
+		c.fillRect(0, y, b, 11);
+
+		c.fillRect(w - b, y + 11, b, 11);
+
+	}
+
+};
+
 const endRound = function(){
 
 	totalTime = (Date.now() - startTime) / 1000;
@@ -339,7 +508,7 @@ const endRound = function(){
 
 	placeInside(enemies);
 
-	players = [player, ...enemies];
+	regroup();
 
 	startTime = Date.now();
 
@@ -581,7 +750,11 @@ function bootGame(){
 	if (window._aasBooted) return;
 	window._aasBooted = true;
 	init();
+	coopBridge();
 	syncAAS();
+	if (window.AASCoop) AASCoop.init().then(function (on) {
+		if (on && window.AAS && AAS.onCoop) AAS.onCoop(AASCoop);
+	});
 	window.AASShowPad = function () { if (window.AAS && AAS.showPad) AAS.showPad(); };
 	AAS.startPlay = function () {
 		if (isStarting) { isStarting = false; update(); }
