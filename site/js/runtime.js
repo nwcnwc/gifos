@@ -3108,6 +3108,25 @@
         if (revealed) return;
         revealed = true;
         iframe.style.opacity = '1';
+        // The splash is an absolute z-5 overlay and the iframe is not
+        // positioned at all, so the frame's fade-in happens UNDER it. Until
+        // 0.9.13 the splash simply stayed — opaque and taking pointer events —
+        // for the 250 ms before its removal, and then cut away. On a fast box
+        // that is a live, title-screened game under a pane that EATS the
+        // first tap (e2e-battle-city's "a touch reveals the pad" was red
+        // every run on nvidia-laptop and green on every slower box). From
+        // the moment the app is revealed the app owns the input: the splash
+        // goes pointer-transparent NOW and fades out over the same 0.2 s the
+        // frame fades in — the dark-stage cross-fade this always meant.
+        let n = mountEl.firstChild;
+        while (n) {
+          if (n !== iframe && n.style) {
+            n.style.pointerEvents = 'none';
+            n.style.transition = 'opacity 0.2s linear';
+            n.style.opacity = '0';
+          }
+          n = n.nextSibling;
+        }
         setTimeout(() => {
           let n = mountEl.firstChild;
           while (n) { const nx = n.nextSibling; if (n !== iframe) mountEl.removeChild(n); n = nx; }
