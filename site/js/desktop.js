@@ -20,6 +20,11 @@
   const BUILD = Number(root.GIFOS_BUILD) || 0;   // this build's edge build number (build.js)
   const TRASH_ID = 'sys_trash';
   const REPO_URL = 'https://github.com/nwcnwc/gifos';
+  // The GitHub new-issue link, pre-filled with where it was clicked from and
+  // this build (GifOS.help.issueUrl is the one builder; every surface uses it).
+  const issueUrl = (from) => (root.GifOS && GifOS.help && GifOS.help.issueUrl)
+    ? GifOS.help.issueUrl({ from })
+    : REPO_URL + '/issues/new';
 
   // Launchers whose GIF opens a trusted GifOS page instead of running in the
   // sandbox (runtime.js SYSTEM_PAGES). They wear a SYSTEM badge, and the value
@@ -2270,7 +2275,8 @@
       '<a href="about.html" target="_blank" rel="noopener">What is GifOS?</a> · ' +
       '<a href="browser-support.html" target="_blank" rel="noopener">Which browsers work</a> · ' +
       '<a href="' + REPO_URL + '" target="_blank" rel="noopener">Source code</a> · ' +
-      '<a href="https://gifos.app" target="_blank" rel="noopener">gifos.app</a>') },
+      '<a href="https://gifos.app" target="_blank" rel="noopener">gifos.app</a><br><br>' +
+      'Something wrong? <a href="' + issueUrl('About GifOS (desktop menu)') + '" target="_blank" rel="noopener">Report a problem on GitHub</a> — the form opens with this build and browser filled in.') },
     'sep',
     // Where more apps come from. Also on the Home Screen as a launcher icon,
     // but an icon can be moved into a folder or trashed — the menu is the one

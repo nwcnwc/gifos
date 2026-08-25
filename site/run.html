@@ -7116,7 +7116,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const sig = GifOS.sign && GifOS.sign.readSig && rec.bytes ? GifOS.sign.readSig(rec.bytes) : null;
         if (sig && sig.type === 'domain' && sig.id) signedBy = sig.id;
       } catch (e) {}
-      return { installedAt: (rec.storeMeta && rec.storeMeta.installedAt) || '', signedBy };
+      const sm = rec.storeMeta || {};
+      // slug + appId ride along for the Help's "Report a problem" link (apps/<slug>).
+      return { installedAt: sm.installedAt || '', signedBy, slug: sm.slug || '', appId: sm.appId || rec.appId || '' };
     }
     function bootSoloApp() {
       document.body.classList.add('solo-app');
@@ -12168,7 +12170,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function openAppHelp() {
       const H = window.GifOS && GifOS.help;
-      const md = (H && H.withOsFooter) ? H.withOsFooter(currentAppHelpMd(), currentAppCredits()) : (currentAppHelpMd() || '');
+      const ctxName = (document.getElementById('appname').textContent || '').trim();
+      const md = (H && H.withOsFooter) ? H.withOsFooter(currentAppHelpMd(), currentAppCredits(), { from: 'app Help window', name: ctxName }) : (currentAppHelpMd() || '');
       const parsed = (H && H.parse) ? H.parse(md) : { title: '', html: '' };
       const titleEl = document.getElementById('apphelp-title');
       const bodyEl = document.getElementById('apphelp-body');

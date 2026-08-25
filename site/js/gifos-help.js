@@ -6,7 +6,7 @@
  * subset: headings, paragraphs, lists, bold/italic, inline code, fenced
  * blocks, https links. HTML in the file is escaped, never executed.
  *
- * Attaches to GifOS.help = { read, readCredits, render, parse, withOsFooter, creditsMd }.
+ * Attaches to GifOS.help = { read, readCredits, render, parse, withOsFooter, creditsMd, issueUrl, issueMd }.
  */
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
@@ -247,13 +247,64 @@
     return out.join('\n');
   }
 
-  function withOsFooter(md, storeMeta) {
-    const body = String(md || '').replace(/^\uFEFF/, '').replace(/\s+$/, '');
+  // REPORT A PROBLEM — the very last line of every Help. GitHub's new-issue
+  // page takes ?title=&body= and pre-fills the form, so the link carries the
+  // context a reporter never thinks to include: which app, which version,
+  // where it lives in the repo (apps/<slug>) and in the store, the page they
+  // were on, the GifOS build and the browser. Everything is encoded, so the
+  // URL has no ')' or whitespace for the markdown link parser to trip on.
+  const ISSUES_NEW = 'https://github.com/nwcnwc/gifos/issues/new';
+  const REPO_TREE = 'https://github.com/nwcnwc/gifos/tree/main/';
+  function issueUrl(ctx) {
+    ctx = ctx || {};
+    const app = mdText(ctx.name);
+    const ver = mdText(ctx.version);
+    const slug = /^[a-z0-9][a-z0-9-]*$/.test(String(ctx.slug || '')) ? String(ctx.slug) : '';
+    const lines = [];
+    if (app) lines.push('**App:** ' + app + (ver ? ' ' + ver : '') + (ctx.appId && mdText(ctx.appId).toLowerCase() !== app.toLowerCase() ? ' (`' + mdText(ctx.appId) + '`)' : ''));
+    if (slug) {
+      lines.push('**Source:** ' + REPO_TREE + 'apps/' + slug);
+      lines.push('**Store:** https://gifos.app/store/' + slug);
+    }
+    const from = mdText(ctx.from);
+    if (from) lines.push('**From:** ' + from);
+    let page = '';
+    try { page = String(ctx.page || (typeof location !== 'undefined' ? location.href : '')); } catch (e) {}
+    if (page) lines.push('**Page:** ' + page);
+    let build = mdText(ctx.build);
+    if (!build) {
+      try {
+        const g = typeof window !== 'undefined' ? window : globalThis;
+        build = (g.GIFOS_VERSION || 'edge') + (g.GIFOS_BUILD ? ' build ' + g.GIFOS_BUILD : '');
+      } catch (e) {}
+    }
+    if (build) lines.push('**GifOS:** ' + build);
+    let ua = mdText(ctx.browser);
+    if (!ua) { try { ua = mdText(navigator.userAgent); } catch (e) {} }
+    if (ua) lines.push('**Browser:** ' + ua);
+    const body = [
+      '## What happened', '', '', '## What I expected', '', '',
+      '## Steps to reproduce', '', '1. ', '', '---', '_Context (filled in by GifOS):_',
+    ].concat(lines).join('\n');
+    const title = app ? app + ': ' : '';
+    // encodeURIComponent leaves ( ) ' ! * alone; a browser UA is full of
+    // parentheses and one ')' ends the markdown link. Encode them too.
+    const enc = (s) => encodeURIComponent(s).replace(/[()'!*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+    return ISSUES_NEW + '?title=' + enc(title) + '&body=' + enc(body);
+  }
+  function issueMd(ctx) {
+    return '## Something wrong?\n\n[Report a problem on GitHub](' + issueUrl(ctx) + ') — the issue form opens with this app, page and build already filled in; just say what happened.';
+  }
+
+  function withOsFooter(md, storeMeta, ctx) {
+    const body = String(md || '').replace(/^﻿/, '').replace(/\s+$/, '');
     const credits = creditsMd(storeMeta);
-    const tail = OS_FOOTER + (credits ? '\n\n---\n\n' + credits : '');
+    // The sealed credits (name, version, slug) outrank the caller's guess.
+    const report = issueMd(Object.assign({}, ctx || {}, storeMeta || {}));
+    const tail = OS_FOOTER + (credits ? '\n\n---\n\n' + credits : '') + '\n\n---\n\n' + report;
     if (!body) return EMPTY_INTRO + '\n\n' + tail;
     return body + '\n\n---\n\n' + tail;
   }
 
-  GifOS.help = { read, readCredits, render, parse, withOsFooter, creditsMd };
+  GifOS.help = { read, readCredits, render, parse, withOsFooter, creditsMd, issueUrl, issueMd };
 })(typeof window !== 'undefined' ? window : globalThis);

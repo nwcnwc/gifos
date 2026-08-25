@@ -170,10 +170,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <a class="cta" href="/">Try GifOS now →</a>
     <div class="foot">
       <p style="margin-bottom:.7rem">Found a bug or have a feature request?
-      <a href="https://github.com/nwcnwc/gifos/issues/new">Open an issue on GitHub</a> —
+      <a id="issue-link" href="https://github.com/nwcnwc/gifos/issues/new">Open an issue on GitHub</a> —
       describe what happened (or what you'd like), include the digit subdomain and steps to
       reproduce if it's a bug, and we'll take a look. No account with us needed, just a
-      free GitHub login.</p>
+      free GitHub login. The link pre-fills the form with this page, build and browser.</p>
       GifOS — apps are GIFs, data is GIFs, everything is just files. ·
       <a href="/">gifos.app</a> · <a href="/store">app store</a> ·
       <!-- RELATIVE, unlike its neighbours: inside a frozen /versions/<v>/ build
@@ -184,5 +184,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <a href="https://github.com/nwcnwc/gifos">source</a> ·
       <a href="https://github.com/nwcnwc/gifos/issues">issues</a></div>
   </div>
+<script src="js/gifos-help.js"></script>
+<script>
+  // Pre-fill the new-issue form with where it was clicked from (this page),
+  // the build and the browser — the context a report never remembers to carry.
+  (function () {
+    var a = document.getElementById('issue-link');
+    if (a && window.GifOS && GifOS.help && GifOS.help.issueUrl) a.href = GifOS.help.issueUrl({ from: 'About page' });
+  })();
+</script>
 </body>
 </html>
