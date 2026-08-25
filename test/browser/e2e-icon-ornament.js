@@ -42,16 +42,17 @@ function check(name, cond, detail) {
   await page.waitForSelector('.icon', { timeout: 60000 });
 
   // Install a real app the way the store does: putFile, then place it.
-  const fileId = await page.evaluate(async (b64) => {
+  const { fileId, itemId } = await page.evaluate(async (b64) => {
     const bin = atob(b64); const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const fid = GifOS.store.uid('file');
     await GifOS.store.putFile({ id: fid, name: 'Anyroad.gif', bytes, kind: 'gif',
                                 isApp: true, appId: 'anyroad', mime: 'image/gif' });
-    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid,
+    const iid = GifOS.store.uid('item');
+    await GifOS.store.putItem({ id: iid, kind: 'file', fileId: fid,
                                 name: 'Anyroad.gif', parent: null, x: 620, y: 320, iconSize: 64 });
     await GifOS.desktop.load(); await GifOS.desktop.render();
-    return fid;
+    return { fileId: fid, itemId: iid };
   }, gifB64);
   await page.evaluate((fid) => { window.__ornFileId = fid; }, fileId);
   await sleep(600);
@@ -128,7 +129,10 @@ function check(name, cond, detail) {
   // double-clicking the icon still opens the real app.
   const [app] = await Promise.all([
     context.waitForEvent('page'),
-    page.locator('.icon', { hasText: 'Anyroad.gif' }).dblclick(),
+    // By id, never by label: decorate() repaints an app icon's label as the
+    // app's nameplate ("Anyroad", no .gif) — on a fast box that lands before
+    // this locator looks, and the suite went FLAKY on exactly that (0.9.13 gate).
+    page.locator('.icon[data-id="' + itemId + '"]').dblclick(),
   ]);
   await app.bringToFront();
   await app.setViewportSize({ width: 900, height: 560 });
