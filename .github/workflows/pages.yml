@@ -51,8 +51,16 @@ jobs:
       - name: Stamp edge build number
         run: |
           set -euo pipefail
-          ANCHOR_SHA=b4ada94            # the "release: cut v0.8.4" commit
-          ANCHOR_BUILD=825              # the edge build 0.8.4 was cut from
+          # RE-ANCHORED 2026-08-25 after the commit-message history rewrite. The old
+          # anchor (b4ada94) was rewritten to ae79e96 — identical tree, identical
+          # count — but the OLD sha still resolved in CI from GitHub's retained
+          # objects while no longer being an ANCESTOR of main, so `A..HEAD` stopped
+          # excluding anything and swept in ~210 extra commits: one deploy stamped
+          # 2059 where the true count was 1849. ANCHOR_BUILD carries a permanent
+          # +210 offset so the counter never moves BACKWARD past that published
+          # 2059. The count itself is unchanged; only the origin of the number is.
+          ANCHOR_SHA=ae79e96            # the "release: cut v0.8.4" commit (post-rewrite)
+          ANCHOR_BUILD=1035            # 825 the 0.8.4 cut + 210 rewrite offset (see above)
           # The anchor MUST exist in CI's checkout. The previous anchor (3d84267)
           # was a dangling object that lived only in one local clone — it resolved
           # on that machine and was absent here, so `rev-list` failed, the old
