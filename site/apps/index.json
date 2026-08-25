@@ -260,8 +260,8 @@
       "appId": "backdooms",
       "name": "Backdooms",
       "shortName": "Backdooms",
-      "version": "1.1",
-      "tagline": "DOOM in the Backrooms, in a GIF. No server.",
+      "version": "1.2",
+      "tagline": "DOOM in the Backrooms, in a GIF. No install, no server.",
       "author": {
         "name": "Kuberwastaken",
         "url": "https://github.com/Kuberwastaken/backdooms"
@@ -286,6 +286,7 @@
         "backrooms",
         "fps",
         "shooter",
+        "raycaster",
         "offline",
         "multiplayer"
       ],
@@ -295,15 +296,15 @@
         36
       ],
       "cover": "/apps/backdooms/cover.jpg",
-      "bytes": 193669,
+      "bytes": 262234,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-25"
       },
-      "sha256": "1becbe6f5f6502713261916985202bee9efc6f41ced56c27b98b3f48b99661da"
+      "sha256": "0f557757db796f075111817cf77f7e96cf15689ca3e03a18f1a68a4d92723c76"
     },
     {
       "slug": "backgammon",
