@@ -14,12 +14,24 @@
   var DEFAULT_BG = 'white';
   var DEFAULT_FG = 'hsla(200,0%,0%,.7)';
 
-  var messages = {
-    semitransparent: 'The background is semi-transparent, so the contrast ratio cannot be precise. Depending on what is underneath, it could be any of the following:',
-    fail: 'Fails WCAG 2.0 and 2.1',
-    'aa-large': 'Passes AA for large text (above 18pt or bold above 14pt) and AA for user interface components and graphical objects',
-    aa: 'Passes AA level for any size text, AAA for large text (above 18pt or bold above 14pt), and AA for user interface components and graphical objects',
-    aaa: 'Passes AAA level for any size text and AA for user interface components and graphical objects'
+  // One short title and one plain line each — the whole verdict, no lists.
+  var verdicts = {
+    fail: {
+      title: 'Fails',
+      note: 'Too close. Not readable at any size.'
+    },
+    'aa-large': {
+      title: 'Large text only',
+      note: 'AA above 18pt, or bold above 14pt, and for icons and controls.'
+    },
+    aa: {
+      title: 'Passes AA',
+      note: 'Any size. AAA for large text, AA for icons and controls.'
+    },
+    aaa: {
+      title: 'Passes AAA',
+      note: 'The strict level, at any size.'
+    }
   };
 
   var levels = {
@@ -37,6 +49,17 @@
 
   function rangeIntersect(min, max, upper, lower) {
     return (max < upper ? max : upper) - (lower < min ? min : lower);
+  }
+
+  // "fails, large text only, or passes AA" — the see-through case, in a line.
+  function joinTitles(classes) {
+    var names = [];
+    for (var i = 0; i < classes.length; i++) {
+      names.push(verdicts[classes[i]].title.charAt(0).toLowerCase() +
+                 verdicts[classes[i]].title.slice(1));
+    }
+    if (names.length < 2) return names.join('');
+    return names.slice(0, -1).join(', ') + ', or ' + names[names.length - 1];
   }
 
   function persist(immediate) {
@@ -57,18 +80,15 @@
     else saveTimer = setTimeout(write, 250);
   }
 
-  function updateLuminance(input, out) {
-    var color = input.color;
-    if (!color || !out) return;
+  // Luminance, short: one number, or a range when the colour is see-through.
+  function luminance(input) {
+    var color = input && input.color;
+    if (!color) return '?';
     if (color.alpha < 1) {
-      var lumBlack = color.overlayOn(Color.BLACK).luminance;
-      var lumWhite = color.overlayOn(Color.WHITE).luminance;
-      out.textContent = lumBlack + ' - ' + lumWhite;
-      out.style.color = Math.min(lumBlack, lumWhite) < 0.2 ? 'white' : 'black';
-    } else {
-      out.textContent = color.luminance;
-      out.style.color = color.luminance < 0.2 ? 'white' : 'black';
+      return floor(color.overlayOn(Color.BLACK).luminance, 3) + '–' +
+             floor(color.overlayOn(Color.WHITE).luminance, 3);
     }
+    return String(floor(color.luminance, 3));
   }
 
   function update() {
@@ -78,13 +98,11 @@
     var ratioEl = $('ratio');
     var errorEl = $('error');
     var wcag = $('wcag');
-    var precise = $('preciseContrast');
+    var note = $('note');
+    var detail = $('detail');
     if (!bg || !fg || !bg.color || !fg.color) return;
 
     var contrast = bg.color.contrast(fg.color);
-    updateLuminance(bg, $('backgroundLum'));
-    updateLuminance(fg, $('foregroundLum'));
-
     var min = contrast.min;
     var max = contrast.max;
     var range = max - min;
@@ -107,37 +125,31 @@
 
     ratioEl.textContent = String(floor(contrast.ratio, 2));
 
+    var exact;
     if (contrast.error) {
-      errorEl.textContent = '\u00b1' + floor(contrast.error, 2);
-      errorEl.title = floor(min, 2) + ' - ' + floor(max, 2);
-      precise.textContent = min + ' - ' + max;
+      errorEl.textContent = '±' + floor(contrast.error, 2);
+      exact = floor(min, 2) + '–' + floor(max, 2);
     } else {
       errorEl.textContent = '';
-      errorEl.title = '';
-      precise.textContent = String(contrast.ratio);
+      exact = String(floor(contrast.ratio, 4));
     }
+    detail.textContent = 'exact ' + exact + ' · luminance ' +
+      luminance(bg) + ' → ' + luminance(fg);
 
-    wcag.textContent = '';
     if (classes.length <= 1) {
-      wcag.textContent = messages[classes[0]] || '';
+      var only = verdicts[classes[0]];
+      wcag.textContent = only ? only.title : '';
+      note.textContent = only ? only.note : '';
       output.style.backgroundImage = '';
       output.style.backgroundColor = levels[classes[0]] ? levels[classes[0]].color : '';
     } else {
-      var p = document.createElement('p');
-      p.textContent = messages.semitransparent;
-      wcag.appendChild(p);
-      var ul = document.createElement('ul');
-      var i;
-      for (i = 0; i < classes.length; i++) {
-        var li = document.createElement('li');
-        li.textContent = messages[classes[i]];
-        ul.appendChild(li);
-      }
-      wcag.appendChild(ul);
+      // See-through: the answer depends on what is underneath, so say the span.
+      wcag.textContent = 'Between ' + floor(min, 2) + ' and ' + floor(max, 2);
+      note.textContent = 'Depends on what is underneath: ' + joinTitles(classes) + '.';
 
       var stops = [];
       var previousPercentage = 0;
-      for (i = 0; i < 2 * percentages.length; i++) {
+      for (var i = 0; i < 2 * percentages.length; i++) {
         var info = percentages[i % percentages.length];
         var color = levels[info.level].color;
         var percentage = previousPercentage + info.percentage / 2;
@@ -151,21 +163,24 @@
     persist();
   }
 
+  // The swatch doubles as the parser: assign the typed value, read back what
+  // the browser made of it. An unparseable value leaves the old colour alone.
   function colorChanged(input) {
-    input.style.width = input.value.length + 'ch';
     var isForeground = input === $('foreground');
-    var display = isForeground ? $('foregroundDisplay') : $('backgroundDisplay');
-    var previousColor = getComputedStyle(display).backgroundColor;
+    var swatch = isForeground ? $('foregroundSwatch') : $('backgroundSwatch');
+    var previousColor = getComputedStyle(swatch).backgroundColor;
 
     var match = input.value.match(/^[0-9a-f]{3,8}$/i);
     if (match && [3, 4, 6, 8].indexOf(match[0].length) >= 0) {
       input.value = '#' + input.value;
     }
 
-    display.style.background = input.value;
-    var color = getComputedStyle(display).backgroundColor;
+    swatch.style.background = input.value;
+    var color = getComputedStyle(swatch).backgroundColor;
     if (color && input.value && (color !== previousColor || color === 'transparent' || color === 'rgba(0, 0, 0, 0)')) {
-      if (isForeground) $('backgroundDisplay').style.color = input.value;
+      var preview = $('preview').firstElementChild;
+      if (isForeground) preview.style.color = input.value;
+      else preview.style.background = input.value;
       input.color = new Color(color);
       return true;
     }
@@ -175,11 +190,10 @@
   function syncPicker(which) {
     var input = $(which);
     var picker = $(which + 'ColorPicker');
-    var display = $(which + 'Display');
-    if (!input || !picker || !display || !input.color) return;
+    var swatch = $(which + 'Swatch');
+    if (!input || !picker || !swatch || !input.color) return;
     try {
-      var style = getComputedStyle(display).backgroundColor;
-      picker.value = new Color(style).toHex(false);
+      picker.value = new Color(getComputedStyle(swatch).backgroundColor).toHex(false);
     } catch (e) {}
   }
 
@@ -254,5 +268,5 @@
     persist(true);
   });
 
-  root.ContrastRatio = { floor: floor, messages: messages };
+  root.ContrastRatio = { floor: floor, verdicts: verdicts };
 })(window);

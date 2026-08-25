@@ -1073,7 +1073,7 @@
         42
       ],
       "cover": "/apps/contrast-ratio/cover.jpg",
-      "bytes": 189715,
+      "bytes": 189679,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1081,7 +1081,7 @@
         "id": "gifos.app",
         "ts": "2026-08-25"
       },
-      "sha256": "c054facdfaff3ca7b7f811d7870b2bdc5a8687c087ad31f186a0fd5e98ee54df"
+      "sha256": "9e9947ede1f9f4e852aa7bcd29854a312b9628e310f8c539358ef825dabbb4be"
     },
     {
       "slug": "cron-speak",
