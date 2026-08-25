@@ -4,10 +4,10 @@
   "appId": "aim-and-shoot",
   "name": "Aim and Shoot",
   "shortName": "Aim",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "minBuild": 947,
-  "tagline": "You aim. The robots learn. Don't touch the walls.",
-  "description": "The file is the save, and it works on a plane. You are the black one in the middle. Move, aim, shoot the robots before they shoot you. Each wave the survivors breed: they get better at dodging, better at hitting, better at not walking into the walls — which hurt you too. Your best generation lives in the file. No account, no install.\n\nOn a computer, WASD or arrows to move, the mouse to aim, click to fire. On a phone a stick on the left moves you, a drag on the right aims, and FIRE sits under the right thumb. Tap the title art to start.\n\nPress Invite in the bar above and a friend sees how far you got — each of you plays your own arena.\n\nAn unofficial port of Aim and Shoot by Victor Ribeiro, a neuroevolution experiment. The bots, the gun, and the joke about Nole Ksum are his.",
+  "tagline": "You aim. The robots learn. One arena, with your friends.",
+  "description": "The file is the save, and it works on a plane. You are the black one with the blue ring. Move, aim, shoot the robots before they shoot you. Each wave the survivors breed: they get better at dodging, better at hitting, better at not walking into the walls — which hurt you too. Your best generation lives in the file. No account, no install.\n\nPress Invite in the bar above and whoever opens the link stands in the SAME arena: one wave, one set of robots, everyone on the same side. Your shots pass through your friends, the robots shoot at all of you, and going down puts you on the floor for a few seconds rather than ending the run — that only happens when the whole team is down at once.\n\nOn a computer, WASD or arrows to move, the mouse to aim, click to fire. On a phone a stick on the left moves you, a drag on the right aims, and FIRE sits under the right thumb. Tap the title art to start.\n\nAn unofficial port of Aim and Shoot by Victor Ribeiro, a neuroevolution experiment. The bots, the gun, and the joke about Nole Ksum are his.",
   "author": {
     "name": "Victor Ribeiro",
     "url": "https://github.com/victorqribeiro/aimAndShoot"
@@ -38,14 +38,14 @@
   "cover": "/apps/aim-and-shoot/cover.jpg",
   "screenshots": [],
   "gif": "/apps/aim-and-shoot/aim-and-shoot.gif",
-  "bytes": 244299,
+  "bytes": 257250,
   "download": 0,
   "provides": null,
-  "sha256": "060cfc86900000a4e080b382a095951497e3cc99eef2300072c56266ac3b4290",
+  "sha256": "87ad0f81c0a62acdf1a11dd4d32efac333dad0164b1348737f86d85ed21cc3b0",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",
