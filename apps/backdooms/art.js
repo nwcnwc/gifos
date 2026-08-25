@@ -70,7 +70,11 @@
   function makeWall() {
     var t = new Uint8Array(TEX * TEX * 3);
     var grain = field(TEX, 0x51A2), f8 = field(8, 0x9E11), f16 = field(16, 0x3C77);
-    var RAIL = 40, BASE = 53;
+    /* The baseboard is the load-bearing detail. A 3-texel chair rail is
+       sub-pixel by four metres and stops paying; a 14-texel dark skirting
+       survives to the end of the hall, and it is the line that actually draws
+       the perspective on the walls. */
+    var RAIL = 40, BASE = 50;
     for (var v = 0; v < TEX; v++) {
       for (var u = 0; u < TEX; u++) {
         var uu = u / TEX, vv = v / TEX;
@@ -78,24 +82,27 @@
         var r, g, b;
 
         if (v >= BASE) {
-          /* baseboard — scuffed olive-brown, lit along its top lip */
+          /* baseboard — scuffed olive-brown, with a lit lip along its top */
           var bt = (v - BASE) / (TEX - BASE);
-          var k = 0.62 + 0.30 * (1 - bt) - 0.18 * bt;
-          if (v === BASE) k = 1.15;
-          if (v === BASE + 1) k = 0.95;
-          r = 96 * k; g = 78 * k; b = 34 * k;
-          r -= damp * 22; g -= damp * 20; b -= damp * 10;
+          var k = 0.78 - 0.26 * bt;
+          if (v === BASE) k = 1.55;
+          if (v === BASE + 1) k = 1.05;
+          r = 74 * k; g = 60 * k; b = 26 * k;
+          r -= damp * 20; g -= damp * 18; b -= damp * 9;
         } else if (v >= RAIL && v < RAIL + 3) {
-          /* chair rail — a lit lip, then its own shadow */
-          var lit = v === RAIL ? 1.34 : v === RAIL + 1 ? 1.06 : 0.66;
-          r = 186 * lit; g = 158 * lit; b = 66 * lit;
+          /* chair rail — a lit lip, then its own shadow under it */
+          var lit = v === RAIL ? 1.52 : v === RAIL + 1 ? 1.10 : 0.48;
+          r = 190 * lit; g = 160 * lit; b = 68 * lit;
         } else {
           /* wallpaper field: a wide stripe with a hairline seam */
           var stripe = ((u % 16) < 8) ? 1.0 : 0.955;
           if ((u % 16) === 0) stripe = 0.83;
           if ((u % 16) === 15) stripe = 1.06;
-          /* upper wall sits in the light, lower wall is grubbier */
-          var band = v < RAIL ? (0.90 + 0.16 * (v / RAIL)) : 0.86;
+          /* Lit from ABOVE, because that is where the fluorescents are. The
+             first cut had this backwards — the top of the wall darker than the
+             bottom — and it made every wall meet the ceiling in a muddy join
+             instead of a bright one. */
+          var band = v < RAIL ? (1.12 - 0.22 * (v / RAIL)) : 0.84;
           var kk = stripe * band;
           r = 201 * kk; g = 172 * kk; b = 68 * kk;
           /* damp bleeding up from the skirting and down from the ceiling */
@@ -172,11 +179,11 @@
           r = 132 * k; g = 126 * k; b = 106 * k;
         } else {
           var pit = grain[v * TEX + u];
-          var k2 = 0.88 + damp * 0.18 - (pit > 0.86 ? 0.16 : 0);
+          var k2 = 0.90 + damp * 0.14 - (pit > 0.93 ? 0.11 : 0);
           r = 146 * k2; g = 141 * k2; b = 120 * k2;
           /* the brown bloom of a leak */
-          var leak = clamp(damp * 1.8 - 1.08, 0, 1);
-          r -= leak * 34; g -= leak * 54; b -= leak * 74;
+          var leak = clamp(damp * 1.8 - 1.14, 0, 1);
+          r -= leak * 26; g -= leak * 42; b -= leak * 58;
         }
         var gr = (grain[v * TEX + u] - 0.5) * 6;
         var o = (v * TEX + u) * 3;
@@ -309,23 +316,37 @@
     capsule(s, cx - 7.5 + lean, shY + 5, cx - 5.5 + lean, shY - 3.5, 3.6, 2.6, body, { shade: 0.30, rim: 0.5 });
     capsule(s, cx + 7.5 + lean, shY + 5, cx + 5.5 + lean, shY - 3.5, 3.6, 2.6, body, { shade: 0.30, rim: 0.2 });
 
-    /* ---- head: no neck, pushed forward and DOWN between the blades ---- */
+    /* ---- head: no neck, pushed forward and DOWN between the blades.
+       Two masses, not one blob: a low narrow cranium and a snout that juts
+       forward off it. A round head with two dots on it is a pumpkin, and the
+       first cut of this sprite was exactly that — the eye glow washed the
+       whole skull orange and the brow bar across it finished the job by
+       reading as a welding visor. ---- */
     capsule(s, cx + lean, shY + 1, cx + lean + 1.6, headY + 4, 3.0, 2.6, dark, { shade: 0.5, rim: 0.2 });
-    blob(s, cx + lean + 1.4, headY, 6.2, 5.4, skin, { shade: 0.30 });
-    /* a heavy brow: the eyes have to sit in shadow or they read as buttons */
-    capsule(s, cx + lean - 4.6, headY - 2.0, cx + lean + 6.6, headY - 2.0, 2.0, 2.0, dark, { shade: 0.78, rim: 0 });
+    capsule(s, cx + lean - 2.6, headY - 0.6, cx + lean + 3.4, headY + 0.4, 4.6, 4.0, skin, { shade: 0.26, rim: 0.44 });
+    capsule(s, cx + lean + 3.0, headY + 1.0, cx + lean + 7.4, headY + 3.0, 3.2, 1.9, skin, { shade: 0.24, rim: 0.40 });
+    /* the socket the eye sits in, so it is set INTO the head */
+    capsule(s, cx + lean - 1.6, headY - 0.4, cx + lean + 3.6, headY + 0.6, 2.0, 1.7, dark, { shade: 0.62, rim: 0 });
 
     /* ---- near arm: long enough to reach the ankle ---- */
     arm(s, cx + 7.5 + lean, shY + 3, sw, body, NEAR, 1);
 
-    /* ---- eyes ---- */
-    var ec = pal.eye, ex = cx + lean + 1.4;
-    blob(s, ex - 2.8, headY + 0.8, 1.6, 1.3, ec, { shade: 1 });
-    blob(s, ex + 3.0, headY + 0.8, 1.6, 1.3, ec, { shade: 1 });
-    glow(s, ex - 2.8, headY + 0.8, 7, ec, 0.55);
-    glow(s, ex + 3.0, headY + 0.8, 7, ec, 0.55);
-    put(s, ex - 2.8, headY + 0.6, 255, 246, 230, 255);
-    put(s, ex + 3.0, headY + 0.6, 255, 246, 230, 255);
+    /* ---- eyes: two embers, and a halo small enough to stay a halo ---- */
+    var ec = pal.eye, ex = cx + lean + 1.2;
+    blob(s, ex - 1.5, headY - 0.2, 1.15, 1.0, ec, { shade: 1 });
+    blob(s, ex + 2.6, headY + 0.2, 1.15, 1.0, ec, { shade: 1 });
+    glow(s, ex - 1.5, headY - 0.2, 3.2, ec, 0.42);
+    glow(s, ex + 2.6, headY + 0.2, 3.2, ec, 0.42);
+    put(s, ex - 1.5, headY - 0.4, 255, 244, 226, 255);
+    put(s, ex + 2.6, headY, 255, 244, 226, 255);
+
+    /* ---- what it stands in: without a shadow a sprite hovers ---- */
+    for (var gx = -11; gx <= 11; gx++) {
+      var gw = Math.sqrt(Math.max(0, 121 - gx * gx)) * 0.26;
+      for (var gy = -gw; gy <= gw; gy++) {
+        put(s, cx + gx, FH - 3 + gy, 12, 8, 5, 130 * (1 - Math.abs(gx) / 13));
+      }
+    }
     return s;
   }
 
@@ -409,47 +430,47 @@
 
   function gunBody() {
     var s = sprite(GW, GH);
-    var steel = [104, 106, 112], dsteel = [58, 60, 66], wood = [116, 74, 38];
+    var steel = [78, 81, 90], dsteel = [42, 44, 51], wood = [104, 63, 30];
     /* magazine tube, sitting under and behind the barrel */
     capsule(s, 70, 26, 80, 82, 6.0, 6.4, dsteel, { shade: 0.34, rim: 0.42 });
     /* barrel */
-    capsule(s, 76, 2, 87, 84, 8.2, 8.8, steel, { shade: 0.30, rim: 0.5 });
+    capsule(s, 76, 2, 87, 84, 8.2, 8.8, steel, { shade: 0.22, rim: 0.72 });
     /* the muzzle ring, so the barrel has an opening and not a dome */
-    blob(s, 76, 3, 8.0, 3.6, [140, 142, 148], { shade: 0.6 });
+    blob(s, 76, 3, 8.0, 3.6, [126, 130, 138], { shade: 0.6 });
     blob(s, 76, 3, 4.6, 2.0, [16, 16, 18], { shade: 1 });
     /* a bead front sight */
     blob(s, 76, 7, 1.8, 1.6, [190, 190, 196], { shade: 0.7 });
     /* receiver */
     capsule(s, 86, 84, 100, 104, 12.0, 11.0, dsteel, { shade: 0.36, rim: 0.4 });
-    capsule(s, 84, 82, 102, 88, 3.0, 3.0, [138, 140, 146], { shade: 0.7, rim: 0.2 });
+    capsule(s, 84, 82, 102, 88, 3.0, 3.0, [128, 132, 142], { shade: 0.7, rim: 0.2 });
     /* ejection port */
     capsule(s, 96, 88, 104, 94, 3.2, 3.0, [22, 22, 24], { shade: 0.9, rim: 0 });
     /* stock, running off the bottom-right corner */
     capsule(s, 100, 100, 140, 130, 11.0, 15.0, wood, { shade: 0.34, rim: 0.42 });
     /* trigger guard + trigger hand */
     capsule(s, 92, 104, 104, 110, 2.0, 2.0, dsteel, { shade: 0.6 });
-    capsule(s, 96, 100, 112, 116, 8.0, 9.0, [186, 150, 120], { shade: 0.40, rim: 0.34 });
+    capsule(s, 96, 100, 112, 116, 7.2, 8.2, [162, 126, 98], { shade: 0.34, rim: 0.38 });
     for (var i = 0; i < 3; i++) {
       capsule(s, 98 + i * 1.2, 104 + i * 4, 108 + i * 1.2, 106 + i * 4, 2.2, 2.0,
-        [206, 172, 142], { shade: 0.6, rim: 0.2 });
+        [184, 148, 118], { shade: 0.6, rim: 0.2 });
     }
     return s;
   }
   function gunPump() {
     var s = sprite(GW, GH);
-    var wood = [124, 80, 42];
+    var wood = [112, 68, 32];
     /* forestock */
     capsule(s, 80, 46, 88, 76, 11.5, 11.5, wood, { shade: 0.34, rim: 0.44 });
     /* the grooves are what say "pump" at a glance */
     for (var i = 0; i < 5; i++) {
-      capsule(s, 72, 52 + i * 5, 96, 53.5 + i * 5, 1.0, 1.0, [72, 44, 22], { shade: 0.9, rim: 0 });
+      capsule(s, 71, 52 + i * 5, 97, 53.5 + i * 5, 1.15, 1.15, [56, 32, 14], { shade: 0.9, rim: 0 });
     }
     /* the hand on it */
-    capsule(s, 66, 56, 86, 70, 9.0, 8.0, [178, 142, 112], { shade: 0.38, rim: 0.36 });
-    capsule(s, 68, 52, 84, 56, 4.2, 4.0, [200, 166, 136], { shade: 0.55, rim: 0.24 });
+    capsule(s, 67, 56, 86, 70, 8.0, 7.2, [156, 121, 94], { shade: 0.32, rim: 0.40 });
+    capsule(s, 69, 52, 84, 56, 3.8, 3.6, [178, 142, 112], { shade: 0.55, rim: 0.24 });
     for (var k = 0; k < 3; k++) {
       capsule(s, 70 + k * 1.0, 58 + k * 4.4, 88, 59 + k * 4.4, 2.6, 2.2,
-        [196, 160, 130], { shade: 0.6, rim: 0.2 });
+        [172, 136, 106], { shade: 0.6, rim: 0.2 });
     }
     return s;
   }

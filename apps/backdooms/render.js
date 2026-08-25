@@ -269,14 +269,25 @@
         var k2 = base * sector(ci, cj) * vigX[i] * vy;
         var r2, g2, b2;
 
-        if (!isFloor && litCell(ci, cj) && u > 0.16 && u < 0.84 && v > 0.24 && v < 0.76) {
+        if (!isFloor && litCell(ci, cj) && u > 0.12 && u < 0.88 && v > 0.20 && v < 0.80) {
+          /* the HOUSING first: a hot rectangle floating on a tile reads as a
+             glitch, a hot rectangle inside a dark painted frame reads as a
+             fitting recessed into the grid */
+          if (u < 0.155 || u > 0.845 || v < 0.235 || v > 0.765) {
+            var hk = base * 0.88 * vigX[i] * vy;
+            r2 = 96 * hk; g2 = 94 * hk; b2 = 85 * hk;
+            buf32[rowOff + i] = 0xff000000 |
+              ((b2 > 255 ? 255 : b2) << 16) | ((g2 > 255 ? 255 : g2) << 8) | (r2 > 255 ? 255 : r2);
+            fx += sx; fy += sy;
+            continue;
+          }
           /* the fixture. It is the brightest thing in the game on purpose:
              a line of these running away down a hall is what tells you the
              hall is long. Only lightly dimmed by distance so it survives to
              the vanishing point. */
-          var across = 1 - Math.abs((u - 0.5) / 0.34);
+          var across = 1 - Math.abs((u - 0.5) / 0.335);
           if (across < 0) across = 0;
-          var alongT = (v - 0.24) / 0.52;
+          var alongT = (v - 0.245) / 0.51;
           var tube = alongT < 0.40 ? alongT / 0.40 : alongT > 0.60 ? (1 - alongT) / 0.40 : 0.10;
           if (tube > 1) tube = 1;
           /* blown out in the middle, warm at the edges of the diffuser */
@@ -371,7 +382,7 @@
       /* a figure is 1.15 world units tall and stands ON the carpet, so its
          feet land where the floor is at that distance — not floating at the
          screen's centre line, which is what the old rectangle did */
-      var hgt = Math.abs(H / tY) * FIGH;
+      var hgt = Math.abs(H / tY) * FIGH * (e.size || 1);
       var wid = hgt * (sw / sh);
       var bottom = (horizon + (EH * H) / tY) | 0;
       var top = bottom - hgt;
