@@ -82,7 +82,7 @@ async function assertServingThisTree() {
   check('Version panel lists release rows', rowCount >= 1, 'rows=' + rowCount);
   // The live changelog now lives folded INSIDE each release row; expand one and
   // read its notes (this replaced the old wall-of-notes block above the picker).
-  const noteRow = page.locator('#set-version details.vrow', { hasText: 'v0.8.5' });
+  const noteRow = page.locator('#set-version details.vrow', { hasText: 'v0.9.5' });
   await noteRow.locator('summary').click().catch(() => {});
   await sleep(150);
   const clText = await noteRow.locator('.vnotes').innerText().catch(() => '');
@@ -108,8 +108,8 @@ async function assertServingThisTree() {
   const swRegOrig = fs.readFileSync(swRegPath, 'utf8');
   // 4b. RELEASE / versions: IMMUTABLE cache-first. Prime an archived asset into the
   // cache, change it on disk, reload, and prove the SW still served the OLD copy.
-  const VER_URL = '/versions/0.8.3/js/build.js';
-  const verPath = 'site/versions/0.8.3/js/build.js';
+  const VER_URL = '/versions/0.9.3/js/build.js';
+  const verPath = 'site/versions/0.9.3/js/build.js';
   const verOrig = fs.readFileSync(verPath, 'utf8');
   const verMarker = '/* VERSIONS_IMMUTABLE_PROBE ' + stamp + ' */';
   // Prime the archived asset through the SW so it is cached BEFORE we mutate disk.

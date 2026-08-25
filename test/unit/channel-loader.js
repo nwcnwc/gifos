@@ -34,7 +34,9 @@ const inlineScripts = (s) => (s.match(/<script(?![^>]*src=)(?![^>]*type=)[^>]*>(
 
 const loaderOf = (file) => {
   const s = fs.readFileSync(path.join(SITE, file), 'utf8');
-  return inlineScripts(s).find((b) => /gifos_channel|gifos_pin/.test(b)) || null;
+  // A loader is the thing that DECIDES the channel (pinTarget). Touching the
+  // keys is not enough: 404.html clears a retired pin and is not a loader.
+  return inlineScripts(s).find((b) => /function pinTarget\(/.test(b)) || null;
 };
 
 // ---- 1. WHO ships a loader is a deliberate list, discovered not remembered ---

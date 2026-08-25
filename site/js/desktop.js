@@ -3389,6 +3389,21 @@
     showModal('Added to Stolen Apps', escapeHtml(r.name) + ' was added to your Stolen Apps. (It isn’t a runnable app GIF, so it wasn’t launched.)');
   }
 
+  // gifos_gone=<v> — 404.html set it when the release this computer was pinned
+  // to (or last knew as current) is no longer shipped, and bounced here. Say
+  // so ONCE, in one line: which build went away, which one this is, and that
+  // nothing of theirs moved. Read-and-clear so a refresh never repeats it.
+  function noteRetiredBuild() {
+    let gone = '';
+    try { gone = localStorage.getItem('gifos_gone') || ''; localStorage.removeItem('gifos_gone'); } catch (e) {}
+    if (!gone || !/^\d+\.\d+\.\d+$/.test(gone)) return;
+    const here = VERSION === 'edge' ? 'the edge build' + (BUILD ? ' (build ' + BUILD + ')' : '') : 'v' + VERSION;
+    showModal('Build v' + gone + ' has been retired',
+      'This computer was pinned to <b>v' + gone + '</b>, which is no longer available, so it now runs <b>' + escapeHtml(here) + '</b>. ' +
+      'Your files, apps and settings are untouched — every build reads the same desktop. ' +
+      'You can pin a different build any time in <b>Settings → Version</b>.');
+  }
+
   // #place=<fileId> — finish an App Store install. store.js downloaded and
   // verified the GIF and wrote the FILE; the icon's cell is not its business,
   // because saveItem is the only thing that decides where an arrival lands. So
@@ -3672,7 +3687,7 @@
 
   // ---------- boot ----------
   requestPersistence();
-  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate).then(reclaimOrphanAssets).then(backfillOrnaments);
+  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(noteRetiredBuild).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate).then(reclaimOrphanAssets).then(backfillOrnaments);
 
   GifOS.desktop = { render, load, backfillOrnaments, get stats() { return renderStats; } };
 })(typeof window !== 'undefined' ? window : globalThis);
