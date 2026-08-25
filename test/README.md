@@ -341,6 +341,27 @@ cast a box that can hold it, or spread it over the farm (FLEET mode, below).
 Idle and roomy → **the crash itself is the bug**, and the run dir has the
 renderer's last words.
 
+### A MISSING TOOL IS A RED — it is not a refusal to judge
+
+The two refusals above are for what no install can fix: NEEDS-FLEET wants
+hardware that this box is not, NO-VERDICT is a browser that died. **A suite that
+fails because the box lacks something installable is a plain RED, and it stays
+one.** Do not reach for exit 3 or 4 to make it quiet, and do not call it
+environmental noise in a report — fix the box.
+
+The red is doing its job precisely by being loud. On 2026-08-25
+`test/unit/sandspiel.js` was red on jetson3 with `FAIL — clang --target=wasm32
+builds the kernel`, because clang was not installed. `apt-get install clang`
+took a minute, and the suite went from 41 pass + 1 red to **49 pass**: the
+check sits above `if (r.status !== 0) return;`, so eight assertions on the wasm
+kernel — its exports, its grid, sand falling, water falling, sand sinking
+through water — had never executed once on that machine. A skip would have
+hidden all eight indefinitely, which is the exact shape of the dead app drills
+in CLAUDE.md that pointed at a chromium path that did not exist.
+
+So: NEEDS-FLEET and NO-VERDICT for the unfixable. Anything a box can be MADE to
+have stays RED until the box has it.
+
 ### A RESIDENT MODEL IS NOT SPARE CAPACITY — stop it for the run
 
 The behaviour box's shortage was invisible in every process: `ps` accounted for
