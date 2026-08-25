@@ -232,6 +232,13 @@ check('game.js loads and attaches Backdooms',
   const game = fs.readFileSync(path.join(APP, 'game.js'), 'utf8');
   check('a blocked thing slides along the wall instead of stopping',
     /o\.side/.test(game) && /wall-follow/i.test(game));
+  // cancelAnimationFrame can only cancel the ONE handle it kept, so a second
+  // loop would run for the life of the page — stepping the sim and fighting
+  // the live loop over the same state. Each run carries a generation and a
+  // stale callback stops rather than rescheduling. (Proved in a browser:
+  // eight hammered start() calls render 61 frames a second, same as one.)
+  check('only one render loop can ever be live',
+    /myGen !== gen/.test(game) && /var gen = 0/.test(game));
 }
 
 {

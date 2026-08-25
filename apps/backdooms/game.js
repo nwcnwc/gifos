@@ -515,20 +515,41 @@
     root.Render.frame(view());
   }
 
-  function frame(now) {
-    if (!running) return;
-    if (!paused) {
-      if (!lastT) lastT = now || 0;
-      var dt = (now && lastT) ? (now - lastT) : STEP;
-      lastT = now || (lastT + STEP);
-      step(dt);
-    } else {
-      lastT = now || lastT;
-    }
-    draw();
-    if (!running) { draw(); return; }
-    raf = requestAnimationFrame(frame);
-    if (root.Net && root.Net.tick) root.Net.tick();
+  /*
+   * ONE LOOP, EVER.
+   *
+   * Each run gets a generation, and a scheduled callback that finds itself
+   * stale stops rather than rescheduling. `cancelAnimationFrame(raf)` alone is
+   * not enough: it can only cancel the ONE handle it kept, so if a second loop
+   * were ever started its handle would be lost and it would run for the life
+   * of the page — stepping the sim, fighting the live loop over the same
+   * state, and repainting the same buffer twice a frame.
+   *
+   * A fresh-eyes player reported exactly one hang whose symptoms only that can
+   * explain: the view frozen and the DOM HUD frozen WHILE state() kept ticking
+   * down. Fourteen scripted deaths through the same input pattern could not
+   * reproduce it, so this is not a confirmed fix for that report — it is
+   * closing the only door that leads to those symptoms.
+   */
+  var gen = 0;
+
+  function makeLoop() {
+    var myGen = ++gen;
+    return function tick(now) {
+      if (!running || myGen !== gen) return;
+      if (!paused) {
+        if (!lastT) lastT = now || 0;
+        var dt = (now && lastT) ? (now - lastT) : STEP;
+        lastT = now || (lastT + STEP);
+        step(dt);
+      } else {
+        lastT = now || lastT;
+      }
+      draw();
+      if (!running || myGen !== gen) { draw(); return; }
+      raf = requestAnimationFrame(tick);
+      if (root.Net && root.Net.tick) root.Net.tick();
+    };
   }
 
   function start(opts) {
@@ -538,12 +559,13 @@
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
     lastT = 0;
-    if (opts.headless) return;
-    frame(0);
+    if (opts.headless) { gen++; return; }
+    makeLoop()(0);
   }
 
   function stop() {
     running = false;
+    gen++;
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
   }
