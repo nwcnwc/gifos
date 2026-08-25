@@ -128,6 +128,17 @@
     return list;
   }
 
+  // The other players who are on the round we are on. Co-op mirrors these and
+  // nothing else: a row still carrying the previous round's walls would put
+  // walls on this board that nobody laid.
+  function coopRows() {
+    return liveOthers().filter(function (p) { return p.round === round.id; });
+  }
+
+  function mirrorNow() {
+    if (onMirror && round.mode === 'coop') onMirror(coopRows());
+  }
+
   // Everyone on the CURRENT round, me included. The field for a verdict.
   function field() {
     var out = [entry(mineRow(), true)];
@@ -184,9 +195,7 @@
       my.seat = pickSeat();
       if (onRound) onRound(round);
     }
-    if (round.mode === 'coop' && onMirror) {
-      onMirror(liveOthers().filter(function (p) { return p.round === round.id; }));
-    }
+    mirrorNow();
     settle();
     if (onRoster) onRoster(roster());
   }
@@ -313,7 +322,12 @@
 
   function startRound(seedOpt, modeOpt) {
     round = {
-      id: Date.now(),
+      // A round id must always go UP: it is the only thing that tells another
+      // client "this is newer than what you are on". Date.now() alone is not
+      // enough — two rounds started inside the same millisecond (switching
+      // mode straight after a verdict does exactly that) would tie, and every
+      // other screen would stay on the old one with no way to notice.
+      id: Math.max(Date.now(), (round.id || 0) + 1),
       n: (round.n || 0) + 1,
       seed: (seedOpt >>> 0) || ((Math.random() * 0x7fffffff) | 1),
       by: me.id,
@@ -323,9 +337,17 @@
     my.clicks = 0; my.status = 'playing';
     my.walls = []; my.cstate = 'chasing';
     my.seat = pickSeat();
-    publish();
+    // ANNOUNCE BEFORE PUBLISHING, and it is not cosmetic. publish() reaches
+    // every other client, and the answer can come back INSIDE this call — the
+    // db notifies subscribers, they switch rounds, they publish, and our own
+    // ingest runs before this function has returned. If our rules were still
+    // on the old round at that moment, mirror() would drop the co-op rows on
+    // the floor and this board would show no cats but its own until the next
+    // heartbeat four seconds later. Get local state onto the new round first,
+    // then tell the room.
     if (onRound) onRound(round);
-    if (onMirror && round.mode === 'coop') onMirror([]);
+    mirrorNow();
+    publish();
     if (onRoster) onRoster(roster());
   }
 
