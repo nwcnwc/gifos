@@ -703,6 +703,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   #appbar .perms.ok     { border-color: #4a9eff; color: color-mix(in srgb, #4a9eff 60%, var(--text, #e0e0f0)); }
   #appbar .perms.unsafe { border-color: #ff8a3d; color: color-mix(in srgb, #ff8a3d 60%, var(--text, #e0e0f0)); box-shadow: 0 0 12px rgba(255,138,61,.3); }
   #appmount { flex: 1; min-height: 0; background: var(--bg, #0a0a0f); }
+  /* FULL SCREEN takes the app PANE, not the document: the bar goes with it, so
+     the app fills the glass while its Help / Save / Stop stay one tap away —
+     and in a meeting the feed steps aside without the call ending. A glyph, not
+     a word, on a bar that already carries up to nine buttons. */
+  #appbar .fs-btn { padding: .2rem .4rem; line-height: 0; color: var(--muted, #8888aa); }
+  #appbar .fs-btn:hover { color: var(--text, #e0e0f0); }
+  #appbar .fs-btn.on { color: var(--accent, #7b5cff); border-color: var(--accent, #7b5cff); }
+  #apppane:fullscreen { background: var(--bg, #0a0a0f); }
+  #apppane:-webkit-full-screen { background: var(--bg, #0a0a0f); }
   #appmount iframe { width: 100%; height: 100%; border: 0; }
   /* The guest's wait while the App GIF crosses the mesh (APP-COPY PROGRESS). */
   #appcopy { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .7rem; padding: 1.5rem; text-align: center; }
@@ -1149,6 +1158,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <button id="appinvite" style="display:none" title="Share this app live — friends join with one link">Invite</button>
       <button id="appsave" style="display:none" title="Save a snapshot GIF — the app with its data, yours to keep">Save</button>
       <button id="apphelp" title="How this app works">Help</button>
+      <button class="fs-btn" id="appfull" style="display:none" title="Full screen" aria-label="Full screen" aria-pressed="false"></button>
       <button id="appaudio" style="display:none" title="Talk with the people in this app — when on, everyone here gets their own mic control (host only)">Talk: off</button>
       <button id="appsteal" style="display:none" title="Steal a copy of this app — it goes to your desktop's Stolen Apps, data and all">Steal</button>
       <button class="perms" id="appperms" title="What this app can do — review or turn things off" style="display:none"></button>
@@ -1489,6 +1499,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   </script>
   <script src="js/gifos-gif.js"></script>
   <script src="js/gifos-help.js"></script>
+  <script src="js/gifos-fullscreen.js"></script>
   <script src="js/gifos-ed.js"></script>
   <script src="js/gifos-sign.js"></script>
   <script src="js/gifos-assets.js"></script>
@@ -12267,6 +12278,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       bodyEl.scrollTop = 0;
     }
     document.getElementById('apphelp').onclick = openAppHelp;
+    // The pane, not the document: see #appbar .fs-btn above. Hidden outright
+    // where the browser has no element fullscreen — gifos-fullscreen.js decides.
+    if (window.GifOS && GifOS.fullscreen) {
+      GifOS.fullscreen.attach(document.getElementById('appfull'), () => document.getElementById('apppane'));
+    }
     document.getElementById('apphelp-close').onclick = () => { document.getElementById('apphelp-modal').style.display = 'none'; };
     document.getElementById('apphelp-modal').onclick = (e) => {
       if (e.target && e.target.id === 'apphelp-modal') e.target.style.display = 'none';
