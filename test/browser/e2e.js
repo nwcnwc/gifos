@@ -814,12 +814,15 @@ async function openApp(page, ctx, folder, label) {
   ]);
   await wildPage.waitForSelector('iframe');
   await wildPage.waitForTimeout(200);
-  check('wildcard-network app wears the ⚠ Unsafe tab label', (await wildPage.locator('#appperms').textContent()) === '⚠ Unsafe');
+  // The chip is called Abilities in EVERY state (gifos-perms.js paintChip) —
+  // it no longer renames itself Internet/Sharing/Unsafe per manifest. The
+  // danger still shows, as the ⚠ and the unsafe colours.
+  check('wildcard-network app wears the ⚠ unsafe Abilities chip', (await wildPage.locator('#appperms').textContent()) === '⚠ Abilities');
   check('opening the app pops the network acknowledgement', (await wildPage.locator('.perm-modal').count()) === 1);
   await wildPage.waitForTimeout(700);
   check('an allowed app reaches the internet through the bridge', (await wildPage.frameLocator('iframe').locator('#out').textContent()) === 'OK:200');
   await wildPage.locator('.perm-row input[data-host="*"]').uncheck();
-  check('unticking Any website drops the unsafe label', (await wildPage.locator('#appperms').textContent()) === 'Internet');
+  check('unticking Any website drops the ⚠', (await wildPage.locator('#appperms').textContent()) === 'Abilities');
   await wildPage.locator('.perm-box .done').click();
   await wildPage.reload();
   await wildPage.waitForSelector('iframe');

@@ -56,10 +56,16 @@ for (const b of bars) {
   // right corner, last past the named actions, so the Home Screen and the app
   // bar put it in the same place on screen. A later edit that inserts a button
   // after it moves the control the user reaches for without meaning to.
-  if (b.id === 'fs-btn') {
+  //
+  // This used to be checked on the Home Screen bars ONLY, and run.html drifted
+  // in exactly the way the comment warns about: #appfull sat mid-cluster, so
+  // the toggle SLID sideways whenever a conditional neighbour appeared — the
+  // Abilities chip, Steal, Talk, Hide — and the corner held Stop app instead.
+  // Every bar is checked now; there is no bar this rule does not apply to.
+  {
     const tags = bar.match(/<button[^>]*id="([a-z-]+)"/g) || [];
     check(b.page + ': …in the far right corner, last in the bar',
-      /id="fs-btn"/.test(tags[tags.length - 1] || ''), tags.length + ' buttons');
+      new RegExp('id="' + b.id + '"').test(tags[tags.length - 1] || ''), tags.length + ' buttons');
   }
   check(b.page + ': wires it through GifOS.fullscreen.attach, hand-rolling nothing',
     b.page === 'run.html'

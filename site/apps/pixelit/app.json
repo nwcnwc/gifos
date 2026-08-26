@@ -7,7 +7,7 @@
   "version": "1.1",
   "minBuild": 947,
   "tagline": "Turn a photo into pixel art, right on your device.",
-  "description": "A photo becomes pixel art on this computer. Take a still or open a picture — nothing is sent anywhere. Drag the block size, tick greyscale, or snap the colours to a palette. Hold the picture to see the original.\n\nThe last picture and the last recipe are remembered.\n\nThis is a converter, not a drawing app: you start from a photo. An unofficial port of Pixel It by giventofly.",
+  "description": "A photo becomes pixel art on this device. Take a still or open a picture — nothing is sent anywhere. Drag the block size, tick greyscale, or snap the colours to a palette. Hold the picture to see the original.\n\nThe last picture and the last recipe are remembered.\n\nThis is a converter, not a drawing app: you start from a photo. An unofficial port of Pixel It by giventofly.",
   "author": {
     "name": "giventofly",
     "url": "https://github.com/giventofly/pixelit"

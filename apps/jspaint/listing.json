@@ -1,6 +1,6 @@
 {
   "tagline": "Classic MS Paint, faithfully remade.",
-  "description": "Every tool from MS Paint, running as an ordinary app: pencil, brush, eraser, fill, airbrush, text, select, shapes, undo that keeps every branch, zoom with a grid, and Save As PNG, GIF, JPEG or BMP. The picture auto-saves on this computer, inside the app. Close it, open it later, the canvas is where you left it.\n\nAn unofficial port of JS Paint by Isaiah Odhner, MIT-licensed. This copy is local: File > Open and File > Save As stay on the device. Themes included are Classic Light and Classic Dark.\n\nNot in this copy: Load from URL, Upload to Imgur, online sessions, eye tracking, speech recognition, or extra seasonal skins. The drawing tools are.",
+  "description": "Every tool from MS Paint, running as an ordinary app: pencil, brush, eraser, fill, airbrush, text, select, shapes, undo that keeps every branch, zoom with a grid, and Save As PNG, GIF, JPEG or BMP. The picture auto-saves on this device, inside the app. Close it, open it later, the canvas is where you left it.\n\nAn unofficial port of JS Paint by Isaiah Odhner, MIT-licensed. This copy is local: File > Open and File > Save As stay on the device. Themes included are Classic Light and Classic Dark.\n\nNot in this copy: Load from URL, Upload to Imgur, online sessions, eye tracking, speech recognition, or extra seasonal skins. The drawing tools are.",
   "author": {
     "name": "Isaiah Odhner",
     "url": "https://github.com/1j01/jspaint"

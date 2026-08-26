@@ -1,6 +1,6 @@
 {
   "tagline": "The hand-drawn whiteboard. Drawings save into the app's own file.",
-  "description": "Sketch boxes, arrows, handwriting and diagrams the way Excalidraw always has — the rough ink, the infinite canvas, undo, export to PNG or SVG or the open .excalidraw file. This copy is the editor alone — no live collaboration room. What you draw is saved on this device and is still there when you open it again.\n\nDrop a .excalidraw file on the canvas to open it. Export when you want a picture or a file you can email. Images you paste stay in the drawing, on this computer. There is no share-link, because there is no server to put it on.\n\nAn unofficial port of Excalidraw (MIT). This copy drops the collaboration cloud and keeps the editor.",
+  "description": "Sketch boxes, arrows, handwriting and diagrams the way Excalidraw always has — the rough ink, the infinite canvas, undo, export to PNG or SVG or the open .excalidraw file. This copy is the editor alone — no live collaboration room. What you draw is saved on this device and is still there when you open it again.\n\nDrop a .excalidraw file on the canvas to open it. Export when you want a picture or a file you can email. Images you paste stay in the drawing, on this device. There is no share-link, because there is no server to put it on.\n\nAn unofficial port of Excalidraw (MIT). This copy drops the collaboration cloud and keeps the editor.",
   "author": {
     "name": "Excalidraw",
     "url": "https://github.com/excalidraw/excalidraw"

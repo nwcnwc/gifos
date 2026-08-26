@@ -148,7 +148,7 @@ that has ever existed.
 For a utility, "feel" includes first-run clarity and error honesty, not just
 pixels. For a provider app, the bar is the paid cloud service it replaces
 (quality per watt, first-token latency, honesty about limits) — and the win
-is structural: the user's data never leaves the machine.
+is structural: the user's data never leaves the device.
 
 ## Running it
 

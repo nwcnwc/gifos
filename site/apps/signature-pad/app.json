@@ -7,7 +7,7 @@
   "version": "1.0",
   "minBuild": 947,
   "tagline": "Sign with a finger, save the picture. Your signature stays on your device.",
-  "description": "Sign with a finger or a mouse. The line thickens and thins the way a pen does. Clear, undo, black ink or blue. When you are done, save a PNG on this device — that file is yours to keep or send.\n\nThe last signature stays on this computer — nothing is uploaded.\n\nIn a meeting, press Pass the pad, then Invite (in the GifOS menu). Everyone who opens the link gets their own line on the same sheet. You sign yours; you cannot sign theirs. Save the whole sheet as a PNG when the lines are filled.\n\nAn unofficial port of signature_pad by szimek. Bugs go to GifOS, not upstream.",
+  "description": "Sign with a finger or a mouse. The line thickens and thins the way a pen does. Clear, undo, black ink or blue. When you are done, save a PNG on this device — that file is yours to keep or send.\n\nThe last signature stays on this device — nothing is uploaded.\n\nIn a meeting, press Pass the pad, then Invite (in the GifOS menu). Everyone who opens the link gets their own line on the same sheet. You sign yours; you cannot sign theirs. Save the whole sheet as a PNG when the lines are filled.\n\nAn unofficial port of signature_pad by szimek. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "szimek",
     "url": "https://github.com/szimek/signature_pad"

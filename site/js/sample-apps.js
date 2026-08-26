@@ -4698,7 +4698,7 @@ recBtn.onclick=async()=>{
   // erase the conversation it was leaving; now it only moves on. Every message
   // carries the id of the conversation it belongs to (`conv`), so the history
   // is DERIVED from the messages themselves — there is no second collection to
-  // fall out of step with them, and the only way a chat leaves this computer is
+  // fall out of step with them, and the only way a chat leaves this device is
   // the trash button in History, behind an explicit confirm.
   //
   // Everything carries a wall-clock stamp, and an answer also carries what it

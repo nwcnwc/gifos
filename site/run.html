@@ -695,8 +695,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   #appbar button { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .55rem;
     border: 1px solid var(--border, #2a2a3f); border-radius: .5rem; background: transparent;
     color: inherit; font: inherit; font-size: .78rem; cursor: pointer; }
-  /* The app-in-meeting Abilities/Internet chip — same acknowledgement + opt-out
-     panel as the app's own tab (gifos-perms.js), so it's available here too. */
+  /* The app-in-meeting Abilities chip — same acknowledgement + opt-out panel as
+     the app's own tab (gifos-perms.js), so it's available here too. */
   #appbar .perms { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .55rem;
     border: 1px solid var(--border, #2a2a3f); border-radius: .5rem; background: transparent;
     color: inherit; font: inherit; font-size: .78rem; cursor: pointer; }
@@ -1197,13 +1197,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <button id="appinvite" style="display:none" title="Share this app live — friends join with one link">Invite</button>
       <button id="appsave" style="display:none" title="Save a snapshot GIF — the app with its data, yours to keep">Save</button>
       <button id="apphelp" title="How this app works">Help</button>
-      <button class="fs-btn" id="appfull" style="display:none" title="Full screen" aria-label="Full screen" aria-pressed="false"></button>
       <button id="appaudio" style="display:none" title="Talk with the people in this app — when on, everyone here gets their own mic control (host only)">Talk: off</button>
       <button id="appsteal" style="display:none" title="Steal a copy of this app — it goes to your desktop's Stolen Apps, data and all">Steal</button>
       <button class="perms" id="appperms" title="What this app can do — review or turn things off" style="display:none"></button>
       <button id="applead" style="display:none"></button>
       <button id="apphide" style="display:none" title="Hide this app on my screen only — the meeting keeps sharing it">Hide</button>
       <button id="appstop" title="Stop sharing this app with the meeting">Stop app</button>
+      <button class="fs-btn" id="appfull" style="display:none" title="Full screen" aria-label="Full screen" aria-pressed="false"></button>
     </div>
     <div id="appmount"></div>
   </div>
@@ -11209,7 +11209,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // A popup asks WHAT to capture (scope) and at what QUALITY. Tiles are drawn
     // to a canvas (blur baked in — a blurred feed records blurred), audio is
     // mixed honoring your four faders + consent, and MediaRecorder writes a
-    // .webm that never leaves your machine. Everyone sees the ⏺ chip while you
+    // .webm that never leaves your device. Everyone sees the ⏺ chip while you
     // record.
     //
     // The recorder is STADIUM-AWARE: sources are what you actually RECEIVE — the

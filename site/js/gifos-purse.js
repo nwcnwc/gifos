@@ -33,7 +33,7 @@
   const big = (v) => BigInt(v || 0);
 
   // ---- THE RULE THAT PROTECTS EVERYTHING ELSE --------------------------------
-  // Nothing here may ever leave this computer inside a GIF or a backup. An
+  // Nothing here may ever leave this device inside a GIF or a backup. An
   // entitlement that travelled would be a purchase given away with a share; a
   // ledger that travelled would be a spending history handed to a stranger.
   // Export paths ask this, and it answers for every key we own.

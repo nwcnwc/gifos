@@ -173,12 +173,15 @@ async function measureStems(fr, hz, amp) {
     /compiled|WebAssembly/i.test(sheet) && /graphics/i.test(sheet), sheet.slice(0, 120));
   // The sheet's prose talks about the internet in order to say the app cannot
   // reach it, so the honest test is structural: exactly the two abilities the
-  // manifest declares are offered, and the chip is the no-network one.
-  // ("Internet" there would mean a host allowlist got in.)
+  // manifest declares are offered, and no network row got in.
   const capRows = await app.locator('.perm-box [data-cap]').evaluateAll((els) => els.map((e) => e.getAttribute('data-cap')).sort());
   check('...and offers exactly those two abilities and no network',
     capRows.join(',') === 'gpu,wasm', capRows);
-  check('the abilities chip reads "Abilities", not "Internet"',
+  check('...with NO host row, so nothing here can reach a server',
+    (await app.locator('.perm-box [data-host]').count()) === 0);
+  // The chip carries ONE name in every state — it used to rename itself
+  // Internet/Sharing/Unsafe per manifest, which is three buttons for one door.
+  check('the abilities chip reads "Abilities"',
     /^Abilities$/.test((await app.locator('.perms').first().textContent().catch(() => '')).trim()));
   await app.locator('.perm-box .done', { hasText: 'Confirm' }).click()
     .catch(() => app.locator('.perm-modal .done').click().catch(() => {}));
