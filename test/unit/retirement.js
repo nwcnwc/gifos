@@ -343,6 +343,43 @@ const base = (o) => Object.assign({
   check('...and holds after that', near(S.stocksAt(p, 95), 0.3, 1e-9), S.stocksAt(p, 95));
 }
 
+{
+  // THE SPENDING SMILE. Blanchett's published per-year curve: real spending
+  // drifts down through the sixties and seventies, troughs around 79, and turns
+  // back up late. Interpolated between the published points rather than fitted
+  // to one quadratic — the curve is not symmetric about its trough, and a single
+  // parabola throws one arm out by more than a point a year, which compounds.
+  check('the smile falls before the trough', S.smileRate(70) < 0, S.smileRate(70));
+  check('...bottoms out around 79',
+    S.smileRate(79) < S.smileRate(70) && S.smileRate(79) < S.smileRate(90),
+    [S.smileRate(70), S.smileRate(79), S.smileRate(90)]);
+  check('...and turns back up late', S.smileRate(95) > 0, S.smileRate(95));
+  check('...matching the published points', near(S.smileRate(70), -0.010, 0.0005)
+    && near(S.smileRate(79), -0.014, 0.0005) && near(S.smileRate(100), 0.024, 0.0005),
+    [S.smileRate(70), S.smileRate(79), S.smileRate(100)]);
+
+  const flat = base();
+  const smiled = base({ smile: true });
+  const sp = S.runCycle(smiled, 0).spends;
+  // The multiplier troughs where the RATE crosses zero on the way up — around
+  // 87, not at 79 where the rate itself is lowest. Asserting against a fixed
+  // age gets that wrong; assert against the actual minimum.
+  let lo = 0;
+  for (let i = 1; i < sp.length; i++) if (sp[i] < sp[lo]) lo = i;
+  check('spending falls to a trough and then turns back up',
+    sp[lo] < sp[0] * 0.93 && lo > 15 && lo < sp.length - 1 && sp[sp.length - 1] > sp[lo],
+    { troughAge: 65 + lo, first: Math.round(sp[0]), trough: Math.round(sp[lo]), last: Math.round(sp[sp.length - 1]) });
+  check('the first year is untouched', near(sp[0], 40000, 1), sp[0]);
+  check('the flat plan really is flat', near(S.runCycle(flat, 0).spends[20], 40000, 1));
+
+  // It has to move the safe rate, or it is decoration — and it must move it in
+  // the flattering direction, which is exactly why it is off by default.
+  const a = S.solveSpend(flat, 1.0, { iters: 18 });
+  const b = S.solveSpend(smiled, 1.0, { iters: 18 });
+  check('easing off with age raises the safe rate', b > a * 1.04 && b < a * 1.25,
+    [(a / 10000).toFixed(2) + '%', (b / 10000).toFixed(2) + '%']);
+}
+
 // ---- 5. the advice must be true ----------------------------------------------
 //
 // The app prints sentences like "retiring at 66 clears 95%". If a suggestion is

@@ -57,6 +57,40 @@
     return clamp(plan.stocks + (g.to - plan.stocks) * t, 0, 1);
   }
 
+  /* THE RETIREMENT SPENDING SMILE.
+   *
+   * Real spending is not flat for thirty years. Household data says it falls
+   * through the sixties and seventies, bottoms around 79, and turns up again
+   * late as health costs arrive — the shape Blanchett named the smile. EBRI's
+   * measurements put real spending 19% lower by 75, 34% by 85 and 52% by 95
+   * than at 65; Morningstar streamlines the whole thing to a flat -2% a year.
+   *
+   * This is a quadratic through the published curve: about -1.4% a year at the
+   * trough, rising either side of it, roughly +1.7% by 60 and +2.4% by 100. It
+   * is an APPROXIMATION of a figure read off a chart, not a fitted coefficient
+   * from the paper, and it is OFF by default — a plan that quietly assumes you
+   * will want less as you age is flattering itself.
+   *
+   * Turning it on raises the safe rate materially, which is the point: the flat
+   * assumption is the conservative one and most people's actual lives are not
+   * flat.
+   */
+  // The published curve, read straight off the figure, and INTERPOLATED between
+  // its points. A single quadratic through them is tempting and wrong — the
+  // real curve is not symmetric about its trough, and fitting one arm throws the
+  // other out by more than a percentage point a year, which compounds.
+  var SMILE = [[60, 0.011], [70, -0.010], [79, -0.014], [90, 0.004], [100, 0.024]];
+  function smileRate(age) {
+    if (age <= SMILE[0][0]) return SMILE[0][1];
+    for (var i = 1; i < SMILE.length; i++) {
+      if (age <= SMILE[i][0]) {
+        var a = SMILE[i - 1], b = SMILE[i];
+        return a[1] + (b[1] - a[1]) * (age - a[0]) / (b[0] - a[0]);
+      }
+    }
+    return SMILE[SMILE.length - 1][1];
+  }
+
   // ---- withdrawal strategies -------------------------------------------------
   //
   // Each returns the REAL dollars to withdraw over the coming year. `st` is the
@@ -305,6 +339,7 @@
     var lastReturn = 0;
     var w = 0;
     var yearlySavings = Math.max(0, plan.annualSavings || 0);
+    var smile = !!plan.smile, smileMul = 1;
 
     for (var y = 0; y < years; y++) {
       var age = plan.currentAge + y;
@@ -340,8 +375,12 @@
 
       // This year's paycheck decision, made once, at the start of the year.
       if (retired) {
+        if (smile) {
+          if (y === retireYear) smileMul = 1;
+          else smileMul *= 1 + smileRate(age - 1);
+        }
         w = Math.max(0, strat.step(st, {
-          plan: plan, base: plan.annualSpend, balance: bal, year: y - retireYear,
+          plan: plan, base: plan.annualSpend * smileMul, balance: bal, year: y - retireYear,
           yearIndex: y,
           left: years - y, infl: cpi[off + y * 12 + 12] / cpi[off + y * 12],
           lastReturn: lastReturn
@@ -891,6 +930,7 @@
     yearsToFI: yearsToFI,
     coastNumber: coastNumber,
     latestCape: latestCape,
+    smileRate: smileRate,
     survival: survival,
     outcomeStates: outcomeStates,
     monthName: monthName,

@@ -50,6 +50,10 @@ be left alone.
 - **How you take the money** — a steady inflation-adjusted paycheck (the 4%
   rule), guardrails that trim after a bad year, a fixed percentage of the
   balance, a smoothed version of that, or spending it down deliberately.
+  **Spend less as I get older** swaps the flat assumption for the shape
+  households actually follow: real spending drifts down through the seventies,
+  bottoms out around 79, and turns back up late as health costs arrive. It is
+  off by default, because it makes every plan look better.
 - **How it is tested** — real history in the order it happened, or history
   reshuffled into a thousand new lifetimes out of real five-year blocks.
 
