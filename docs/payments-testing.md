@@ -24,15 +24,20 @@ vectors and real on-chain addresses; a sealed key signs and refuses export.
 
 Cannot prove: that any of it moves money.
 
-## Tier 2 — hermetic browser gate (still no network, no chain, no money) — NOT BUILT
+## Tier 2 — hermetic browser gate (still no network, no chain, no money) — BUILT 2026-08-25
 
-*(Nothing runs this tier yet: `fake-x402.js` exists but no battery or browser
-suite starts it, there is no fake payee/wallet server, and no e2e suite
-touches charge/entitlement — matching the doctrine's as-built status: the
-payment modules are loaded by no page. This section is the spec for when the
-OS surface lands.)*
+`test/browser/e2e-pay.js`, discovered by the browser tier like every suite.
+It spawns its own fixtures — `fake-paypal.js` (8795), `pay-local.js` (8796 —
+the SAME `pay/src/core.js` the Cloudflare Worker runs, signing receipts with
+a throwaway key served at `/test-pubkey`), `fake-facilitator.js` (8797), and
+a test catalog (8798) — signs an app in-browser with a fresh domain key, and
+walks the whole surface: acknowledgement, sheet, PayPal approval window,
+capture, signed receipt verified against the (route-intercepted) site key,
+entitlement, ledger, the x402 97/3 two-transfer settle via a stub wallet,
+and the refusals (unsigned, double-buy, over-ceiling, decline). 17 checks.
 
-The suite that will run on every push. `test/servers/fake-x402.js` plays a paid
+The paragraph below was the spec it was built to; kept for the parts
+(hostile quotes on the buying direction) not yet exercised. `test/servers/fake-x402.js` plays a paid
 resource server and a sponsor, on Base Sepolia's real identifiers, with flags to
 serve deliberately hostile quotes (`?mainnet=1`, `?huge=1`, `?scheme=upto`). A
 matching **fake payee + fake wallet** does the same for the selling direction:

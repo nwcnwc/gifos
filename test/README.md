@@ -566,6 +566,14 @@ node test/servers/fake-keyapi.js          # 8792 — e2e-api, e2e-fluence
 node test/servers/fake-cors-proxy.js      # 8793 — e2e-api, e2e-cors-proxy
 ```
 
+The payments fixtures (`fake-paypal` 8795, `pay-local` 8796, `fake-facilitator`
+8797, plus a test catalog on 8798) are NOT in this list on purpose:
+`e2e-pay.js` spawns and reaps its own, needing only the static site on 8099.
+`pay-local.js` runs the SAME `pay/src/core.js` the Cloudflare pay Worker runs
+(docs/payments-testing.md tier 2). `fake-x402.js` (8794 by default) collides
+with relay-dev.sh's port — neither is a standing fixture, so start whichever
+one the moment needs.
+
 `relay-local.js` runs UNGUARDED by default (DEV mode): every test box drives
 its whole fleet from one IP, so the production per-IP cap of 8 is precisely
 wrong locally — it silently starved the swarm once and the release gate's
