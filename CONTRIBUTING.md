@@ -34,9 +34,12 @@ app GIFs already) splices your changes into the same GIF, animation and saved
 data intact. And if you'd rather write every line yourself, `llms.txt` is the
 complete reference for humans too.
 
-Shipping needs nobody's approval: host the GIF anywhere with CORS and the link
-`https://gifos.app/?run=<url-to-your-gif>` runs it for anyone, in a sandbox, in
-about a second.
+And here is the part worth stressing: **gifos.app runs *any* app, not just the
+ones in this repo.** The App Store is one shelf, not the platform. Host your
+GIF anywhere that serves it with CORS — GitHub, S3, your own site — and the
+link `https://gifos.app/?run=<url-to-your-gif>` runs it for anyone, in the
+same sandbox, in about a second, with no store submission, no review, and no
+permission from us. Distribution is a URL you already control.
 
 ### Get your app into the App Store
 
