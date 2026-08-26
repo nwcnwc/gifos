@@ -7,7 +7,7 @@
 // GIFs from one commit.
 //
 // Run:  node apps/retirement/build.mjs
-import { retirementIcon } from './icon.mjs';
+import { retirementIcon, iconInk } from './icon.mjs';
 import { creditsJson, CREDITS_PATH } from '../../scripts/app-credits.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -212,6 +212,26 @@ if (M.months < 1860) throw new Error('market data is suspiciously short: ' + M.m
   }
   console.log('4% / 30y / 75-25 →', (o.successRate * 100).toFixed(1) + '% over', o.cycles,
               'cycles; worst cohort', worstRetired);
+}
+
+/* THE ICON HAS TO HAVE SOMETHING IN IT, IN EVERY FRAME.
+ *
+ * The first icon animated by growing a line out of a single dot, so a third of
+ * its loop was a blank tile — measured at 0.13% ink at its emptiest and 10.3%
+ * at its fullest, against the 30-50% a working glyph carries. "It looks better
+ * now" is not something a future edit can be held to; this is.
+ */
+{
+  const ink = iconInk();
+  if (ink.worst < 0.24) {
+    throw new Error('the icon is nearly empty in at least one frame ('
+      + (ink.worst * 100).toFixed(1) + '% ink) — it must never fall below 24%');
+  }
+  if (ink.best > 0.75) {
+    throw new Error('the icon is a solid block (' + (ink.best * 100).toFixed(1) + '% ink)');
+  }
+  console.log('icon ink ' + (ink.worst * 100).toFixed(1) + '-' + (ink.best * 100).toFixed(1)
+    + '% over ' + ink.frames + ' frames');
 }
 
 const bytes = await gif.encode(files, { preview: retirementIcon(), accent: manifest.accent });
