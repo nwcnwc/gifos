@@ -10,7 +10,7 @@
  * TWO THINGS ABOUT THE ACCESS URL, both of which have bitten:
  *
  *   It carries the credential INSIDE the URL — https://<user>:<pass>@host/… —
- *   and a browser fetch() REJECTS such a URL outright, with a TypeError, before
+ *   and a browser fetch REJECTS such a URL outright, with a TypeError, before
  *   any request is made. It has to be split and re-sent as an Authorization:
  *   Basic header. GifOS Settings does that splitting when the entry is saved
  *   (desktop.js splitCreds), which is why this file never sees the URL and

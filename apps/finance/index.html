@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Financial Tracker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header id="top">
+  <div class="worth">
+    <div class="worth-lab">Net worth</div>
+    <div class="worth-num" id="nwTotal">—</div>
+    <div class="worth-sub" id="nwChange"></div>
+  </div>
+  <div class="worth-side">
+    <div id="nwStack"></div>
+    <button id="btnTheme" class="icon-btn" aria-pressed="false" title="Switch to the light theme">◐</button>
+  </div>
+</header>
+
+<nav id="tabs" role="tablist">
+  <button role="tab" data-view="accounts" aria-selected="true">Accounts</button>
+  <button role="tab" data-view="import">Import</button>
+  <button role="tab" data-view="money">Money</button>
+  <button role="tab" data-view="history">History</button>
+  <button role="tab" data-view="plan">Plan</button>
+</nav>
+
+<main>
+
+<!-- ACCOUNTS ------------------------------------------------------------- -->
+<section id="vaccounts" class="view">
+  <div class="bar">
+    <button id="btnAdd" class="primary">＋ Add an account</button>
+    <button id="btnPull">↻ Refresh from SimpleFIN</button>
+    <button id="btnSnap" title="Write today's net worth into the history">Save today's figure</button>
+  </div>
+  <div id="sfNote" class="note" hidden></div>
+  <div id="acctList"></div>
+  <p id="acctEmpty" class="empty">
+    Nothing here yet. <b>Add an account</b> for every place you keep money — and
+    for the things no bank will ever tell you about: the house, the car, what
+    you still owe on them. That list is the whole point; the balances can catch
+    up afterwards.
+  </p>
+</section>
+
+<!-- IMPORT --------------------------------------------------------------- -->
+<section id="vimport" class="view" hidden>
+  <div class="drop" id="drop">
+    <input type="file" id="file" accept=".csv,.txt,text/csv,text/plain" hidden>
+    <button id="btnFile" class="primary">Choose a CSV file</button>
+    <p>or drop one here. Every bank exports one — look for <i>Download</i>,
+       <i>Export</i> or <i>Statements</i> and pick CSV.</p>
+  </div>
+  <div id="importPane" hidden>
+    <div class="card">
+      <h3>What GifOS thinks this file is</h3>
+      <p class="muted" id="impSummary"></p>
+      <div id="impWarn"></div>
+      <div class="grid2">
+        <label>Put it in
+          <select id="impAccount"></select>
+        </label>
+        <label>Dates read as
+          <select id="impOrder">
+            <option value="mdy">month / day / year</option>
+            <option value="dmy">day / month / year</option>
+            <option value="iso">the file says which</option>
+          </select>
+        </label>
+      </div>
+      <details id="impCols"><summary>Which column is which</summary>
+        <div class="grid2" id="impColGrid"></div>
+      </details>
+      <label class="check"><input type="checkbox" id="impFlip">
+        <span>Turn every sign over — this file writes money <i>out</i> as a positive number</span></label>
+      <h4>The first few rows, as they will be saved</h4>
+      <div class="tablewrap"><table id="impPreview"></table></div>
+      <div class="bar right">
+        <button id="btnCancelImp">Cancel</button>
+        <button id="btnDoImport" class="primary">Import</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MONEY ---------------------------------------------------------------- -->
+<section id="vmoney" class="view" hidden>
+  <div class="card">
+    <h3>In and out, each month</h3>
+    <div id="barsChart" class="chartbox"></div>
+    <p class="muted" id="moneyNote"></p>
+  </div>
+  <div class="card" id="xferCard">
+    <h3>Moves between your own accounts</h3>
+    <p class="muted">These are matched pairs — money that left one of your
+      accounts and arrived in another. They are <b>not</b> counted as income or
+      spending. Have a look: a wrong pair here quietly changes every figure on
+      this screen.</p>
+    <div id="xferList"></div>
+  </div>
+  <div class="card">
+    <h3>Everything, most recent first</h3>
+    <input id="txSearch" placeholder="Search descriptions…">
+    <div class="tablewrap"><table id="txTable"></table></div>
+    <button id="btnMoreTx" hidden>Show more</button>
+  </div>
+</section>
+
+<!-- HISTORY -------------------------------------------------------------- -->
+<section id="vhistory" class="view" hidden>
+  <div class="card">
+    <h3>Net worth over time</h3>
+    <div id="nwChart" class="chartbox"></div>
+    <p class="muted" id="histNote"></p>
+  </div>
+  <div class="card">
+    <h3>Every figure saved</h3>
+    <div class="tablewrap"><table id="snapTable"></table></div>
+  </div>
+</section>
+
+<!-- PLAN ----------------------------------------------------------------- -->
+<section id="vplan" class="view" hidden>
+  <div class="card">
+    <h3>What this all means for retiring</h3>
+    <p class="muted">Worked out from what you have entered and imported. The
+      Retirement Calculator opens by asking for exactly these numbers — hand
+      them over and it opens on your actual situation instead of six guesses.</p>
+    <label class="agerow">Your age
+      <input id="planAge" type="number" min="18" max="100" inputmode="numeric">
+      <span class="muted">the one number here that is not in your statements</span>
+    </label>
+    <table id="planTable"></table>
+    <div id="planBasis" class="muted"></div>
+    <div class="bar right">
+      <button id="btnHandoff" class="primary">Hand it to the Retirement Calculator</button>
+    </div>
+    <p class="muted small" id="handoffNote">GifOS will show you the whole
+      summary and ask before anything moves. It stays on this computer.</p>
+  </div>
+</section>
+
+</main>
+
+<div id="modal" class="modal" hidden><div class="modal-box" id="modalBox"></div></div>
+<div id="flash" class="flash" hidden></div>
+
+<script src="csv.js"></script>
+<script src="model.js"></script>
+<script src="simplefin.js"></script>
+<script src="chart.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
