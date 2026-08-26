@@ -278,6 +278,71 @@ overwrite the host's — and **neither camera was ever opened**, counted at
 
 ---
 
+## Round 7 — the critics again, and the fresh eyes (2026-08-25)
+
+### The icon — VERDICT: PASSES
+
+Re-measured independently: 28.16–28.36% ink and it never leaves that band; only
+~150 of 16,384 pixels change per frame, all of them the marker. *"On the real
+Home Screen at 64px it now has mass… my cold read is finance / markets /
+outcomes app. That is a real answer where before I got 'some squiggles.'"*
+**Top third, 3rd or 4th of 15.**
+
+The critic tested three `$`-glyph variants at true 64px and conceded: a large one
+swallows the fork, a small corner one reads as a second badge and collides with
+the NEW pill. Its remaining note — *the failing branch is the story and it is the
+least visible mark on the tile* — was right, so the red branch is now the
+heaviest line in the frame and the marker is unmistakable.
+
+### The store art — VERDICT: FAILED AGAIN, then rebuilt
+
+Still last of ten. But the critic withdrew its own prescription: *"SANDSPIEL's
+'POUR SAND AND WATCH IT REACT' is not text that exists in Sandspiel. That is a
+composed marketing image and your gauntlet rule correctly forbids it. I handed
+you a fix that broke your own rule."*
+
+And replaced it with a better one inside the rule — **the problem is not missing
+type, it is that the app's own type renders at 5px because the shot is too
+wide.** Three changes: shoot **"Rich, broke, or gone"** instead of the fan (it is
+100%-stacked, so it fills its plot with four flat saturated masses that survive
+any reduction); shoot it **light** (in dark the grey "not here any more" band
+merges into the background at exactly the point the story turns, and the catalog
+grid is overwhelmingly dark so a light card pops); and shoot **closer**.
+
+### Fresh eyes — 1st on usefulness and looks, 4th of 4 on trust
+
+*"The engine earns first place and the chrome loses it."* They could answer the
+only question that matters without prompting — *"it answers the question I
+actually have… FIRECalc has never once told me what to do"* — and then listed
+what was undermining it:
+
+- **"Could spend a year: $185B."** In 48-point type, for two of five strategies.
+- **"Only none of 1,244 real retirements lasted."** A shipped sentence.
+- **"1,268 real retirements" inflates the evidence 12×** — overlapping windows.
+- **"Add an income" was silently worth $12,000 a year**, flipping the verdict.
+- **The advice rounded in its own favour** — a card claiming 100% beside a
+  verdict of 89%, showing 99.7% three seconds later.
+- **Half the app was invisible on a desktop** — a nested scroller with no cue.
+  *"There is no visible evidence that pensions are a thing this app does."*
+- **Zero mention of tax anywhere in the UI.**
+- Two buttons in one dialog both saying Cancel; **New** silently destroying the
+  plan while Duplicate hid in a dropdown; **Try it** with no undo; tables thinned
+  to every fourth year; saving silent after the first time.
+
+All fixed, and the ones worth guarding are guarded.
+
+---
+
+## Round 8 — what was asked for late (2026-08-25)
+
+**College** (round 5), **a light theme** (round 5), and **the spending smile** —
+Blanchett's curve instead of a flat line, interpolated between the published
+points because a single quadratic throws one arm out by over a point a year. It
+moves the never-failed rate from 3.80% to 4.17% and is **off by default**,
+because it makes every plan look better.
+
+---
+
 ## Where we beat the comp, in one line each
 
 | | |
