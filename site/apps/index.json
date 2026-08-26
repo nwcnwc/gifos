@@ -1877,11 +1877,15 @@
         120
       ],
       "cover": "/apps/finance/cover.jpg",
-      "bytes": 346900,
+      "bytes": 347087,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "9f5e24ecb1bcf78b1ccb8dc340647d4d3c757fea9764a247a6662284793d4a36"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-26"
+      },
+      "sha256": "fb09eac3142817e1597e839179d0a823a5c4834d1123c8bae00dc2185985b4ee"
     },
     {
       "slug": "finger-pool",
@@ -5507,11 +5511,15 @@
         229
       ],
       "cover": "/apps/retirement/cover.jpg",
-      "bytes": 393218,
+      "bytes": 393405,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "fec9088950b7464f0fc5dcbc7a60de10cdfc22b39b0b9cbfbbbe196af995a9b2"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-26"
+      },
+      "sha256": "911d93ca3feef8c14ee3852ba3f3a66a809453ed4cd8c68dbf68af926633f4b6"
     },
     {
       "slug": "reversi",
