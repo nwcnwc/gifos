@@ -152,15 +152,19 @@ function frame(pal, f) {
   // Everything is drawn in every frame. Nothing grows from nothing.
   curve((t) => climb(t, 74), X0, FORK_X, BLUE, 5.2);
   curve((t) => median(t), FORK_X, X1, BLUE, 5.2);
-  curve((t) => ruin(t), FORK_X, X1, RED, 4.6);
+  // THE RED BRANCH IS THE STORY, so it is the heaviest line on the tile, not the
+  // lightest. It was 4.6 against a large filled wedge, which made the dominant
+  // read at 64px "blue thing goes up" — the exact opposite of the warning this
+  // icon exists to deliver.
+  curve((t) => ruin(t), FORK_X, X1, RED, 7);
 
   // The only thing that moves: a marker running down the branch that empties,
   // pausing where it lands. The eye follows it to the floor, which is the app's
-  // entire thesis in one gesture.
-  const cycle = f / FRAMES;
-  const t = Math.min(1, cycle * 1.45);
-  put(xAt(t), ruin(t), [255, 236, 236], 11.5);
-  put(xAt(t), ruin(t), RED, 8);
+  // entire thesis in one gesture — so it has to be unmistakably the subject
+  // rather than a speck.
+  const t = Math.min(1, (f / FRAMES) * 1.45);
+  put(xAt(t), ruin(t), [255, 240, 240], 16);
+  put(xAt(t), ruin(t), RED, 12);
 
   // Downsample.
   const idx = new Uint8Array(OUT * OUT);

@@ -73,6 +73,7 @@
     result: null,
     compareResult: null,
     advice: null,
+    undo: null,
     db: null, prefsDb: null,
     ready: false
   };
@@ -429,6 +430,7 @@
   function touched() {
     state.dirty = true;
     $('dirty').hidden = !state.activeId || !state.dirty;
+    $('btnUndo').hidden = !state.undo;
     readForm();
     syncLabels();
     schedule();
@@ -482,14 +484,51 @@
   function computeExtras() {
     extrasTimer = null;
     var p = state.plan;
-    var opts = { mode: p.mode, sched: state.sched, step: 2, iters: 15, paths: 400 };
+    var strat = S.STRATEGIES[p.strategy] || S.STRATEGIES.constant;
+
+    /* A STRATEGY THAT CANNOT FAIL HAS NO SAFE-SPEND LIMIT, AND MUST NOT INVENT ONE.
+     *
+     * Both tiles are solved by asking "what is the largest X that still clears
+     * 95% of the runs". For a method whose paycheck is derived from the balance
+     * the answer to that is infinity — every X clears — so the bisection walked
+     * its ceiling up and printed the biggest number it reached. The app was
+     * shipping "Could spend a year: $185B" in the largest type on the page, for
+     * two of its five strategies. That one number destroys more credibility than
+     * every correct number on the screen earns.
+     */
+    if (strat.selfLimiting) {
+      var why = 'This way of taking the money can never run out, so there is no '
+        + 'safe-spending limit to find. Look at the leanest year instead.';
+      $('vSpend').textContent = '—';
+      $('vRetire').textContent = '—';
+      $('statSpend').title = why;
+      $('statRetire').title = why;
+      $('statSpend').classList.remove('pending');
+      $('statRetire').classList.remove('pending');
+      state.solvedSpend = null;
+      state.solvedAge = null;
+      renderCurve();
+      adviceTimer = setTimeout(computeAdvice, 30);
+      return;
+    }
+
+    var opts = { mode: p.mode, sched: state.sched, step: 2, iters: 15 };
 
     var spend = S.solveSpend(p, p.target, opts);
-    $('vSpend').textContent = compact(Math.round(spend / 100) * 100);
+    // Belt and braces: never print a paycheck that is absurd against the pot it
+    // comes out of, whatever the solver says.
+    var ceiling = Math.max(p.portfolio, 0) * 2 + Math.max(p.annualSpend, 0) * 4 + 1e6;
+    if (!isFinite(spend) || spend > ceiling) {
+      $('vSpend').textContent = '—';
+      $('statSpend').title = 'No sensible limit — on these numbers the plan never runs short.';
+      state.solvedSpend = null;
+    } else {
+      $('vSpend').textContent = compact(spend);
+      $('statSpend').title = 'The most you could spend every year and still clear '
+        + Math.round(p.target * 100) + '% of the runs.';
+      state.solvedSpend = spend;
+    }
     $('statSpend').classList.remove('pending');
-    $('statSpend').title = 'The most you could spend every year and still clear '
-      + Math.round(p.target * 100) + '% of the runs.';
-    state.solvedSpend = spend;
 
     setTimeout(function () {
       var age = S.solveRetireAge(p, p.target, opts);
@@ -696,9 +735,14 @@
     var dot = rate >= p.target ? 'good' : rate >= p.target - 0.15 ? 'warn' : 'bad';
     $('vDot').className = 'v-dot ' + dot;
 
+    /* "1,268 real retirements" reads as 1,268 independent data points. They are
+     * overlapping windows — one for every starting month — so there are more
+     * like a hundred non-overlapping ones behind them. The stretches are real;
+     * the independence is not, and the copy should not borrow it. */
+    var yrs = p.endAge - p.currentAge;
     var runsWord = r.kind === 'bootstrap'
       ? r.cycles.toLocaleString() + ' reshuffled lifetimes'
-      : r.cycles.toLocaleString() + ' real retirements';
+      : r.cycles.toLocaleString() + ' real ' + yrs + '-year stretches of history';
 
     if (st.selfLimiting) {
       // A method that cannot run out is not measured by whether it ran out.
@@ -723,6 +767,12 @@
       $('vHead').textContent = 'This is tighter than it looks.';
       $('vSub').textContent = pctWord(rate, true) + ' of ' + runsWord + ' made it, against the '
         + Math.round(p.target * 100) + '% you asked for. The rest ran out — the earliest at '
+        + Math.floor(r.worst.failAge) + '.';
+    } else if (r.failures === r.cycles) {
+      // pctWord(0) is the word "none", and "Only none of 1,244 lasted" is not a
+      // sentence anybody wrote on purpose.
+      $('vHead').textContent = 'This plan runs out every time.';
+      $('vSub').textContent = 'Not one of ' + runsWord + ' lasted. The first ran dry at '
         + Math.floor(r.worst.failAge) + '.';
     } else {
       $('vHead').textContent = 'On this plan, the money usually runs out.';
@@ -1026,7 +1076,14 @@
         b.type = 'button';
         b.className = 'advice-apply';
         b.textContent = 'Try it';
-        b.addEventListener('click', function () { apply(); writeForm(); touched(); });
+        b.addEventListener('click', function () {
+          // Keep the plan as it was. "Try it" is an invitation to experiment,
+          // and an experiment you cannot get back from is not one — it set the
+          // share of stocks to 100% and left no way home but remembering what
+          // it had been.
+          state.undo = { plan: clonePlan(state.plan), what: a.title };
+          apply(); writeForm(); touched();
+        });
         d.appendChild(b);
       }
       host.appendChild(d);
@@ -1211,6 +1268,9 @@
   function paintScenarioBar() {
     $('scenLabel').textContent = activeName();
     $('dirty').hidden = !state.activeId || !state.dirty;
+    var u = $('btnUndo');
+    u.hidden = !state.undo;
+    if (state.undo) u.title = 'Undo: ' + state.undo.what;
     $('btnCompare').disabled = state.scenarios.length < 2;
     $('btnCompare').setAttribute('aria-pressed', state.comparing ? 'true' : 'false');
   }
@@ -1330,6 +1390,7 @@
   var modalOnOk = null;
 
   function showModal(title, buildBody, onOk, okLabel) {
+    $('modalOk').hidden = false;
     $('modalTitle').textContent = title;
     var body = $('modalBody');
     body.textContent = '';
@@ -1384,7 +1445,10 @@
         body.appendChild(b);
       });
     }, null, 'Close');
-    $('modalOk').textContent = 'Cancel';
+    // pickBox has no confirm step — you pick by clicking a plan — so the second
+    // button is dismissal, and there is no sense in two buttons both saying
+    // Cancel. There is one.
+    $('modalOk').hidden = true;
   }
 
   // ---- persistence -----------------------------------------------------------
@@ -1494,7 +1558,11 @@
     });
 
     $('btnAddIncome').addEventListener('click', function () {
-      state.plan.incomes.push({ label: '', amount: 12000, from: state.plan.retireAge, to: null, cola: true });
+      // ZERO, not a helpful-looking default. Clicking Add and touching nothing
+      // used to be worth $12,000 a year indexed for life, which flipped the
+      // verdict from "tighter than it looks" to "lasted every single time"
+      // without the reader typing a character.
+      state.plan.incomes.push({ label: '', amount: 0, from: state.plan.retireAge, to: null, cola: true });
       renderIncomes(); touched();
       var rows = $('incomeList').querySelectorAll('.r-name');
       if (rows.length) rows[rows.length - 1].focus();
@@ -1507,7 +1575,7 @@
       if (rows.length) rows[rows.length - 1].focus();
     }
     $('btnAddEvent').addEventListener('click', function () {
-      addEvent({ label: '', amount: -25000, at: state.plan.retireAge, years: 1 });
+      addEvent({ label: '', amount: 0, at: state.plan.retireAge, years: 1 });
     });
     // College is the one nearly everybody needs and nearly nobody models: a big
     // outflow, several years long, landing in the decade before retirement —
@@ -1536,15 +1604,44 @@
       if (state.activeId) saveScenario();
       else askName('Name this plan', suggestName(), function (v) { saveScenario(v); });
     });
+    // NEW USED TO BE DESTRUCTIVE AND SILENT. It reset all six fields to the
+    // factory defaults, and the non-destructive option — Duplicate — was three
+    // items down a dropdown behind the plan's name. The visible button did the
+    // damaging thing. Now it asks, and starting from what you have is first.
     $('btnNew').addEventListener('click', function () {
-      askName('Name the new plan', 'Plan ' + (state.scenarios.length + 1), function (v) {
-        state.plan = defaults();
-        state.activeId = null;
-        writeForm();
-        saveScenario(v).then(function () { schedule(); });
-      });
+      var from = clonePlan(state.plan);
+      showModal('Start another plan', function (body) {
+        var p1 = document.createElement('p');
+        p1.className = 'hint';
+        p1.textContent = 'Your current plan is kept either way.';
+        body.appendChild(p1);
+        [['Copy of this one', true], ['Blank, from the defaults', false]].forEach(function (opt) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'menu-item';
+          b.textContent = opt[0];
+          b.addEventListener('click', function () {
+            hideModal();
+            askName('Name it', opt[1] ? activeName() + ' (copy)' : 'Plan ' + (state.scenarios.length + 1),
+              function (v) {
+                state.plan = opt[1] ? from : defaults();
+                state.activeId = null;
+                writeForm();
+                saveScenario(v).then(function () { readForm(); schedule(); });
+              });
+          });
+          body.appendChild(b);
+        });
+      }, null, 'Cancel');
+      $('modalOk').hidden = true;
     });
     $('btnCompare').addEventListener('click', toggleCompare);
+    $('btnUndo').addEventListener('click', function () {
+      if (!state.undo) return;
+      state.plan = state.undo.plan;
+      state.undo = null;
+      writeForm(); readForm(); schedule(); paintScenarioBar();
+    });
     $('btnTheme').addEventListener('click', function () {
       state.theme = state.theme === 'light' ? 'dark' : 'light';
       applyTheme();

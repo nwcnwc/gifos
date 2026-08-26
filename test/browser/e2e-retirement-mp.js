@@ -53,14 +53,25 @@ const portUp = (p) => new Promise((res) => {
   setTimeout(() => { s.destroy(); res(false); }, 2500);
 });
 
+/* Invite re-mounts the app behind the page, so the iframe can be swapped out
+ * between waitForSelector matching and page.$ resolving — which surfaces as
+ * "Cannot read properties of null (reading 'contentFrame')" and reads like a
+ * dead browser. Retry until one holds still. */
 async function appFrame(page) {
-  await page.waitForSelector('#appmount iframe', { timeout: 90000 });
-  const fr = await (await page.$('#appmount iframe')).contentFrame();
-  await fr.waitForFunction(
-    () => { const h = document.getElementById('vHead'); return h && !/Working it out/.test(h.textContent); },
-    null, { timeout: 60000 }
-  );
-  return fr;
+  for (let i = 0; i < 20; i++) {
+    await page.waitForSelector('#appmount iframe', { timeout: 90000 }).catch(() => {});
+    const el = await page.$('#appmount iframe');
+    const fr = el ? await el.contentFrame().catch(() => null) : null;
+    if (fr) {
+      const ok = await fr.waitForFunction(
+        () => { const h = document.getElementById('vHead'); return h && !/Working it out/.test(h.textContent); },
+        null, { timeout: 20000 }
+      ).then(() => true).catch(() => false);
+      if (ok) return fr;
+    }
+    await sleep(1500);
+  }
+  return null;
 }
 const plans = (fr) => fr.evaluate(async () => (await gifos.db('scenarios').getAll())
   .map((s) => ({ name: s.name, spend: s.plan.annualSpend, retire: s.plan.retireAge }))
@@ -118,6 +129,30 @@ const plans = (fr) => fr.evaluate(async () => (await gifos.db('scenarios').getAl
   host.page.on('pageerror', (e) => console.log('  [Host pageerror]', e.message));
   await host.page.goto(BASE + '/run.html#id=' + fid);
   let hostFr = await appFrame(host.page);
+  if (!hostFr) noVerdict('the app never mounted on the host');
+
+
+  /* "New" is two steps now: it asks whether to start from a copy or from the
+   * defaults, THEN asks for a name. The old flow reached straight for the name
+   * field, which no longer exists at that moment. */
+  async function newPlan(fr, name, blank) {
+    await fr.evaluate(() => document.getElementById('btnNew').click());
+    await sleep(500);
+    await fr.evaluate((wantBlank) => {
+      const bs = Array.prototype.slice.call(document.querySelectorAll('#modalBody .menu-item'));
+      const b = bs.filter((x) => /Blank/.test(x.textContent))[0];
+      const c = bs.filter((x) => /Copy/.test(x.textContent))[0];
+      (wantBlank ? (b || c) : (c || b)).click();
+    }, !!blank);
+    await sleep(500);
+    await fr.evaluate((n) => {
+      const i = document.getElementById('nameField');
+      i.value = n;
+      i.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('modalOk').click();
+    }, name);
+    await sleep(1400);
+  }
 
   async function save(fr, name, spend, retire) {
     await fr.evaluate(([s, r]) => {
@@ -141,14 +176,7 @@ const plans = (fr) => fr.evaluate(async () => (await gifos.db('scenarios').getAl
     await sleep(1000);
   }
   await save(hostFr, 'Ours at 62', 72000, 62);
-  await hostFr.evaluate(() => document.getElementById('btnNew').click());
-  await sleep(400);
-  await hostFr.evaluate(() => {
-    const i = document.getElementById('nameField');
-    i.value = 'Ours at 67'; i.dispatchEvent(new Event('input', { bubbles: true }));
-    document.getElementById('modalOk').click();
-  });
-  await sleep(1200);
+  await newPlan(hostFr, 'Ours at 67', true);
   await save(hostFr, 'Ours at 67', 92000, 67);
   check('the host has two saved plans before inviting', (await plans(hostFr)).length === 2,
     await plans(hostFr));
@@ -177,6 +205,7 @@ const plans = (fr) => fr.evaluate(async () => (await gifos.db('scenarios').getAl
   // throws "Target page, context or browser has been closed" three assertions
   // later, which reads like a dead browser and is nothing of the kind.
   hostFr = await appFrame(host.page);
+  if (!hostFr) noVerdict('the app never came back after Invite');
   check('the call layer stayed DARK — planning a retirement is not a video call',
     await host.page.evaluate(() => !document.body.classList.contains('call-on')));
 
@@ -185,13 +214,13 @@ const plans = (fr) => fr.evaluate(async () => (await gifos.db('scenarios').getAl
   guest.page = await guest.ctx.newPage();
   guest.page.on('pageerror', (e) => console.log('  [Guest pageerror]', e.message));
   await guest.page.goto(link);
-  const guestFr = await appFrame(guest.page).catch(async () => {
+  const guestFr = await appFrame(guest.page).catch(async () => null) || await (async () => {
     const st = await guest.page.evaluate(() => ({
       status: (document.getElementById('status') || {}).textContent,
       body: document.body.className
-    }));
+    })).catch(() => ({}));
     noVerdict('the guest never got the app up: ' + JSON.stringify(st));
-  });
+  })();
 
   await guestFr.waitForFunction(
     async () => (await gifos.db('scenarios').getAll()).length >= 2, null, { timeout: 60000 }

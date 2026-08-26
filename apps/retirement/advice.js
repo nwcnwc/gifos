@@ -307,10 +307,18 @@
     var n = Math.abs(Math.round(v));
     return '$' + n.toLocaleString('en-US');
   }
+  /* FLOOR, never round.
+   *
+   * A card that says "moves it from 90% to 100%" beside a verdict reading 89%,
+   * and then shows 99.7% when you press Try it, is the app disagreeing with
+   * itself twice in three seconds. Rounding up is always the flattering
+   * direction, which is exactly why it must not happen here.
+   */
   function pc(x) {
-    if (x >= 0.999) return '100%';
+    if (x >= 1 - 1e-12) return '100%';
+    if (x <= 0.0001) return 'none';
     var v = x * 100;
-    return (v >= 99.5 ? v.toFixed(1) : Math.round(v)) + '%';
+    return (v >= 99.5 ? (Math.floor(v * 10) / 10).toFixed(1) : Math.floor(v)) + '%';
   }
   function years(n) {
     n = Math.abs(Math.round(n));
