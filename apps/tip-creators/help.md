@@ -1,7 +1,6 @@
 # Tip GifOS Creators
 
-GifOS is free. It has no ads, sells nothing about you, and asks for no
-account. If it has been useful and you would like to say thanks, this app is
+GifOS is free. It sells nothing about you, and asks for no account. If it has been useful and you would like to say thanks, this app is
 the tip jar.
 
 ## How to tip
