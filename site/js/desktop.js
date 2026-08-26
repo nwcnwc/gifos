@@ -2861,6 +2861,75 @@
     return s;
   }
 
+  // ---- Payments: what this computer bought, spent, and allows ----------------
+  // The purse itself lives in localStorage under pay.* (written by run.html's
+  // broker, gifos-pay-broker.js) — this panel is a WINDOW onto it and owns no
+  // storage of its own. localStorage is deliberate: the desktop backup GIF
+  // packs IndexedDB and nothing else, so none of this can travel in a share.
+  const PAY_POLICY_KEY = 'gifos_pay_policy';
+  const PAY_DEFAULT_MAX = '20000000'; // $20 per charge — keep in step with gifos-pay-broker.js
+  function payUsd(units) {
+    try { const c = BigInt(units) / 10000n; return '$' + (c / 100n) + '.' + String(c % 100n).padStart(2, '0'); } catch (e) { return '$?'; }
+  }
+  function payLedger() {
+    const apps = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      let m;
+      if ((m = /^pay\.led:(.+):(\d+)$/.exec(k))) {
+        (apps[m[1]] = apps[m[1]] || { led: [], ent: [] }).led.push(JSON.parse(localStorage.getItem(k)));
+      } else if ((m = /^pay\.ent:([^:]+):(.+)$/.exec(k))) {
+        (apps[m[1]] = apps[m[1]] || { led: [], ent: [] }).ent.push(m[2]);
+      }
+    }
+    for (const a of Object.values(apps)) a.led.sort((x, y) => (x.seq || 0) - (y.seq || 0));
+    return apps;
+  }
+  function paySectionHtml() {
+    const apps = payLedger();
+    let policy = {}; try { policy = JSON.parse(localStorage.getItem(PAY_POLICY_KEY) || '{}') || {}; } catch (e) {}
+    const ids = [...new Set(Object.keys(apps).concat(Object.keys(policy)))].sort();
+    const rows = ids.map((id) => {
+      const a = apps[id] || { led: [], ent: [] };
+      const spent = a.led.reduce((t, e) => { try { return t + BigInt(e.amount || 0); } catch (x) { return t; } }, 0n);
+      const cap = (policy[id] && policy[id].maxAmount) || PAY_DEFAULT_MAX;
+      const led = a.led.map((e) =>
+        '<div class="pay-led-row"><span class="mono">' + payUsd(e.amount) + '</span> ' +
+        escapeHtml(e.reason || '') + ' <span class="pay-dim">' + escapeHtml(e.rail || '') +
+        (e.at ? ' · ' + new Date(e.at).toLocaleDateString() : '') + '</span></div>').join('');
+      const ent = a.ent.map((sku) =>
+        '<span class="pay-ent" data-app="' + escapeHtml(id) + '" data-sku="' + escapeHtml(sku) + '">' + escapeHtml(sku) +
+        ' <button class="pay-ent-del row-del" data-app="' + escapeHtml(id) + '" data-sku="' + escapeHtml(sku) + '" title="Forget this purchase on this computer (the payment is not refunded)">' + DEL_ICON + '</button></span>').join(' ');
+      return '<div class="pay-app" data-app="' + escapeHtml(id) + '">' +
+        '<div class="pay-head"><b>' + escapeHtml(id) + '</b><span class="pay-dim">' + a.led.length + ' payment' + (a.led.length === 1 ? '' : 's') + ' · ' + payUsd(String(spent)) + ' total</span></div>' +
+        (ent ? '<div class="pay-ents">Purchased: ' + ent + '</div>' : '') +
+        led +
+        '<div class="pay-cap-row">Per-charge ceiling $<input class="pay-cap" data-app="' + escapeHtml(id) + '" type="number" min="0" step="1" value="' + (Number(BigInt(cap) / 10000n) / 100) + '"></div>' +
+        '</div>';
+    }).join('');
+    return '<details class="adv"><summary>Payments</summary>' +
+      '<p class="add-help">Everything any app has charged on this computer, and what each one is allowed to ask for. Every payment here was approved by you on a GifOS payment screen naming the app\u2019s verified author \u2014 apps never see your card, wallet, or balance, and what you bought is recorded here (not inside the app), so sharing an app\u2019s GIF never shares a purchase. Payments are final; \u201cforgetting\u201d a purchase only clears it from this computer. The ceiling is the most one charge from that app may ask for.</p>' +
+      (rows || '<p class="add-help">No app has charged anything yet.</p>') +
+      '</details>';
+  }
+  function wirePaySection(box) {
+    for (const inp of box.querySelectorAll('.pay-cap')) {
+      inp.addEventListener('change', () => {
+        const usd = Number(inp.value);
+        if (!isFinite(usd) || usd < 0) return;
+        let p = {}; try { p = JSON.parse(localStorage.getItem(PAY_POLICY_KEY) || '{}') || {}; } catch (e) {}
+        p[inp.dataset.app] = Object.assign(p[inp.dataset.app] || {}, { maxAmount: String(Math.round(usd * 100)) + '0000' });
+        localStorage.setItem(PAY_POLICY_KEY, JSON.stringify(p));
+      });
+    }
+    for (const btn of box.querySelectorAll('.pay-ent-del')) {
+      btn.addEventListener('click', () => {
+        localStorage.removeItem('pay.ent:' + btn.dataset.app + ':' + btn.dataset.sku);
+        const chip = btn.closest('.pay-ent'); if (chip) chip.remove();
+      });
+    }
+  }
+
   async function showSettings(opts) {
     opts = opts || {};
     closeContext();
@@ -2901,6 +2970,8 @@
       '<div class="add-sep"></div>' +
       apiSectionHtml() +
       '<div class="add-sep"></div>' +
+      paySectionHtml() +
+      '<div class="add-sep"></div>' +
       '<details class="adv" id="set-advanced"><summary>Advanced settings</summary>' +
       '<h4>Storage</h4>' +
       '<p class="add-help">Your desktop lives entirely in this browser. ' + storageLine + '<br>' + persistLine + '</p>' +
@@ -2929,6 +3000,7 @@
     for (const i of box.querySelectorAll('input[type=password]')) pwEye(i); // API-key fields wear the reveal eye
     wireAiSection(box);
     wireApiSection(box);
+    wirePaySection(box);
 
     // Version panel: paint from what we know, then ALWAYS re-check the live site
     // (the request is network-first through the SW) so the newest release shows
