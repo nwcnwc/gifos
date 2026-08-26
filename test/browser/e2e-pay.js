@@ -194,12 +194,23 @@ async function until(url, ms) {
     /DECLINED_BY_USER/.test(await fr.locator('#out').textContent()));
 
   // ---- the x402 rail: one approval, two transfers, 97/3 ---------------------
-  await app.evaluate((sig) => {
-    // The stub wallet the fake facilitator recognises: 'stub:' + b64(transfer).
-    // A real Base Account stands here later; the broker cannot tell the
-    // difference, which is the point of the adapter seam.
-    window.GifOS.payWallet = {
-      signTransfers: (ts) => Promise.resolve(ts.map((t) => 'stub:' + btoa(JSON.stringify(t)))),
+  // An EIP-1193 fake stands where the Base Account provider stands, so the
+  // REAL adapter (gifos-paywallet.js) runs its whole path — connect, chain
+  // check, EIP-3009 typed data, one eth_signTypedData_v4 per transfer. Only
+  // the signature itself is fake, and the facilitator fake says so.
+  await app.evaluate(() => {
+    window.__signedTypedData = [];
+    window.__gifosTestProvider = {
+      request: async ({ method, params }) => {
+        if (method === 'eth_requestAccounts') return ['0x' + 'ab'.repeat(20)];
+        if (method === 'eth_chainId') return '0x14a34';
+        if (method === 'wallet_switchEthereumChain') return null;
+        if (method === 'eth_signTypedData_v4') {
+          window.__signedTypedData.push(JSON.parse(params[1]));
+          return '0x' + '11'.repeat(65);
+        }
+        throw new Error('test provider: unexpected ' + method);
+      },
     };
   });
   await fr.locator('#tip').click();
@@ -210,12 +221,18 @@ async function until(url, ms) {
   check('the x402 tip settles', tipped === 'ok:x402:3000000', tipped);
 
   const facState = await (await fetch('http://127.0.0.1:8797/_state')).json();
-  const settledTransfers = facState.settled[0].transfers;
-  check('ONE approval produced TWO transfers: 97% to the signed payee, 3% to the treasury',
-    settledTransfers.length === 2
-    && settledTransfers[0].to === CHAIN_PAYEE && settledTransfers[0].amount === '2910000'
-    && settledTransfers[1].to === TREASURY && settledTransfers[1].amount === '90000',
-    JSON.stringify(settledTransfers.map((t) => t.amount)));
+  check('ONE approval settled TWO transfers on the STANDARD wire: 97% to the signed payee, 3% to the treasury',
+    facState.settled.length === 2
+    && facState.settled[0].to === CHAIN_PAYEE && facState.settled[0].value === '2910000'
+    && facState.settled[1].to === TREASURY && facState.settled[1].value === '90000',
+    JSON.stringify(facState.settled.map((t) => t.value)));
+  const signedTds = await app.evaluate(() => window.__signedTypedData);
+  check('what the wallet signed IS EIP-3009 for the displayed split — built by the OS, not the app',
+    signedTds.length === 2
+    && signedTds.every((td) => td.primaryType === 'TransferWithAuthorization' && td.domain.chainId === 84532)
+    && signedTds[0].message.value === '2910000' && signedTds[0].message.to === CHAIN_PAYEE
+    && signedTds[1].message.value === '90000' && signedTds[1].message.to === TREASURY,
+    JSON.stringify(signedTds.map((t) => t.message && t.message.value)));
 
   // ---- the purse: OS-held, app-invisible, GIF-excluded ----------------------
   const purse = await app.evaluate(() => {

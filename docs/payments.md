@@ -15,13 +15,21 @@ the pay Worker exists (`pay/`, stateless, one core run by both the
 Cloudflare wrapper and the gate's Node twin). The first seller is
 `apps/tip-creators`. `test/browser/e2e-pay.js` proves the whole surface
 hermetically — both rails, the refusals, the 97/3 split, the signed receipt.
-STILL MISSING: the Worker is not deployed (needs PayPal sandbox credentials
-and the marketplace-partner application), tip-creators is unsigned (and so
-cannot charge) until the gifos.app signing pass runs, the Base Account
-wallet adapter (`GifOS.payWallet`) does not exist in production so the x402
-rail's button says "no wallet connected", the BUYING direction (a 402 on
-`gifos.fetch`) has no broker hook, and Spend Permissions/subscriptions are
-not wired. `gifos-pay.js` stays parked Solana groundwork.
+tip-creators is SIGNED as gifos.app. The wallet adapter EXISTS
+(`gifos-paywallet.js`): the Base Account SDK is vendored and hash-pinned
+(`js/vendor/base-account.min.js`, @base-org/account 2.5.10), loaded lazily on
+the OS page only, with an injected `window.ethereum` (Coinbase Wallet
+extension) as the interim fallback for tier-3 hand testing; the broker's
+transfers become EIP-3009 TransferWithAuthorization typed data
+(unit: `paywallet-typed-data.js`), and the Worker's /x402/settle speaks the
+STANDARD x402 facilitator wire (verify + settle per transfer) — the
+x402.org facilitator settles Base Sepolia with NO credentials, so the
+testnet chain rail needs no CDP keys at all; CDP's authed facilitator is the
+mainnet swap, same wire. STILL MISSING: the Worker is not deployed (PayPal
+sandbox credentials + the marketplace-partner application), the BUYING
+direction (a 402 on `gifos.fetch`) has no broker hook, and Spend
+Permissions/subscriptions are not wired. `gifos-pay.js` stays parked Solana
+groundwork.
 
 The live App Store has a **separate** optional fiat CTA (`site/js/gifos-cash.js`)
 — a tip or "feature this listing" button, plus an optional Stripe CTA meant

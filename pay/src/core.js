@@ -222,29 +222,80 @@ export function makeCore(cfg) {
   }
 
   // ---- x402 settle ----------------------------------------------------------
-  // The broker built and the wallet signed; this forwards to the facilitator
-  // and wraps the answer in the SAME receipt shape as the fiat rail — one
-  // verifiable object, whatever paid.
+  // The broker built and the wallet signed; this speaks the STANDARD x402
+  // facilitator interface (POST /verify then POST /settle, one call per
+  // transfer of the split) and wraps the answer in the SAME receipt shape as
+  // the fiat rail — one verifiable object, whatever paid. The testnet
+  // facilitator (https://x402.org/facilitator) takes these shapes with no
+  // credentials; CDP's mainnet facilitator takes the same shapes with auth —
+  // a config change, not a code change.
+  //
+  // Naming: GifOS pins the chain as CAIP-2 (eip155:84532) everywhere; the
+  // facilitator wire speaks x402 v1's names ('base-sepolia'). The mapping
+  // lives HERE, at the one boundary where both worlds meet.
+  const FACILITATOR_NETWORKS = { 'eip155:84532': 'base-sepolia' };
+
+  async function facilitator(path, body) {
+    const r = await F(cfg.facilitatorUrl + path, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const text = await r.text();
+    let parsed = null; try { parsed = text ? JSON.parse(text) : null; } catch (e) {}
+    return { ok: r.ok, body: parsed, text };
+  }
+
   async function settle(req) {
     if (!cfg.facilitatorUrl) return bad('no x402 facilitator is configured on this deployment', 501);
     let body; try { body = await req.json(); } catch (e) { return bad('body must be JSON'); }
     const appId = String(body.appId || '');
     if (!/^[\w.\-]{1,64}$/.test(appId)) return bad('bad appId');
     if (typeof body.amount !== 'string' || !/^[0-9]+$/.test(body.amount)) return bad('bad amount');
-    const r = await F(cfg.facilitatorUrl + '/settle', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transfers: body.transfers, payloads: body.payloads }),
-    });
-    if (!r.ok) return bad('facilitator refused: ' + (await r.text()).slice(0, 300), 502);
-    const res = await r.json();
-    if (!res.ok || !Array.isArray(res.txs) || !res.txs.length) return bad('facilitator did not settle', 502);
+    const transfers = body.transfers, payloads = body.payloads;
+    if (!Array.isArray(transfers) || !transfers.length || !Array.isArray(payloads) || payloads.length !== transfers.length) {
+      return bad('transfers/payloads mismatch');
+    }
+    const txs = [];
+    for (let i = 0; i < transfers.length; i++) {
+      const t = transfers[i], pl = payloads[i];
+      const network = FACILITATOR_NETWORKS[t && t.network];
+      if (!network) return bad('refused: network "' + (t && t.network) + '" has no facilitator mapping');
+      if (!pl || typeof pl.signature !== 'string' || !pl.authorization) return bad('payload ' + i + ' carries no signed authorization');
+      const paymentRequirements = {
+        scheme: 'exact',
+        network,
+        maxAmountRequired: t.amount,
+        resource: 'https://gifos.app/charge/' + appId,
+        description: 'GifOS charge: ' + appId + (body.sku ? ' / ' + body.sku : ''),
+        mimeType: 'application/json',
+        payTo: t.to,
+        maxTimeoutSeconds: 60,
+        asset: t.asset,
+        extra: t.extra || { name: 'USDC', version: '2' },
+      };
+      const paymentPayload = {
+        x402Version: 1,
+        scheme: 'exact',
+        network,
+        payload: { signature: pl.signature, authorization: pl.authorization },
+      };
+      const v = await facilitator('/verify', { x402Version: 1, paymentPayload, paymentRequirements });
+      if (!v.ok || !v.body || v.body.isValid !== true) {
+        return bad('facilitator refused transfer ' + i + ': ' + ((v.body && (v.body.invalidReason || v.body.error)) || v.text.slice(0, 200)), 502);
+      }
+      const st = await facilitator('/settle', { x402Version: 1, paymentPayload, paymentRequirements });
+      if (!st.ok || !st.body || st.body.success !== true || !st.body.transaction) {
+        return bad('facilitator did not settle transfer ' + i + ': ' + ((st.body && (st.body.errorReason || st.body.error)) || st.text.slice(0, 200)), 502);
+      }
+      txs.push(st.body.transaction);
+    }
     const { receiptJson, sig } = await signedReceipt({
       rail: 'x402',
       appId,
       sku: body.sku == null ? null : String(body.sku).slice(0, 64),
       amount: body.amount,
-      payee: (body.transfers && body.transfers[0] && body.transfers[0].to) || null,
-      tx: res.txs.join(','),
+      payee: (transfers[0] && transfers[0].to) || null,
+      tx: txs.join(','),
       at: Date.now(),
     });
     return json({ status: 'COMPLETED', receiptJson, sig });
