@@ -1111,6 +1111,9 @@ UI on the desktop.
   spend caps; never silent charges.
 - Paid **download** unlock is **out of scope** for v1 (can revisit later; free
   install is the rule).
+- **Two other revenue shapes have their own sections:** an ad slot in the shell
+  around an app (**§22** — untargeted, no third-party JS, revenue to the app's
+  signing identity) and games built for and signed by a brand (**§23**).
 
 **Why it fits.** Apps are files; free distribution matches Steal App / remix.
 Makers monetize **value inside** the session, not the bit copy (which users can
@@ -2997,3 +3000,192 @@ idea is attractive enough to be proposed again.
   the ack sheet has to say so.
 - Multi-currency is deferred. SimpleFIN reports a currency per account and the
   app records it, but net worth assumes one.
+
+## 22. Advertising: a slot on the desktop, a slot in an app
+
+Proposed 2026-08-26 (Nathan). **Not ratified** — the copy question below has to
+be answered before a line of this is built.
+
+**What.** Two ad surfaces, sold by us:
+
+- **GifOS itself** — a small strip on the Home Screen, revealed by scrolling
+  down past your icons. Never over them, never on a fresh one-screen desktop.
+- **Apps** — an ad slot an App GIF may opt into, drawn by the SHELL around the
+  app frame, with the revenue splitting to the app's author.
+
+### The constraint that shapes every part of this
+
+`site/about.html` says, today, on the internet: *"Everything lives in your
+browser (IndexedDB). No accounts, no sync, no tracking."* The store's pitch for
+our own apps is the same shape — chess with *"no account, no ads, no move
+limit"*. An ad network that is a tracking network detonates the only thing
+GifOS is selling. So the doctrine, in the same spirit as THE COVER RULE:
+
+- **No third-party ad JavaScript, on any surface, ever.** The desktop is the
+  trusted OS page — it holds every file in IndexedDB, the signature verdicts and
+  the invite links. A `<script>` from an ad exchange there is not a privacy
+  quibble, it is total compromise. Inside an app it is not even possible: the
+  sandbox CSP is `default-src 'none'; connect-src 'none'` and the peer
+  constructors are hard-deleted (docs/threat-model.md). **Relaxing that CSP to
+  admit an ad tag is off the table** — it is the wall the whole app model
+  stands on.
+- **Creative is DATA, not code.** An ad is a picture, a line of text and a link,
+  fetched as JSON from a first-party endpoint and painted by our own renderer —
+  precisely how the store paints `cover.jpg` instead of embedding a live GIF.
+  Guard it the way `e2e-app-store.js` guards covers: **count network requests**
+  and assert zero third-party origins and zero script loads. A source scan would
+  sail past a CSS background or a preload hint; a request count does not.
+- **Untargeted by construction.** The only signals in play are ones the client
+  already has and never sends — which app is open, which store category is on
+  screen. Contextual, never behavioral. No cookie (an app frame has no storage
+  at all), no device id, no profile, no impression callback that carries
+  anything about the person.
+- **Counting is the honest tension.** An ad business needs impressions and
+  clicks, and a count is a request. The acceptable shape is aggregate and
+  unlinkable: a fire-and-forget POST of `{slot, creativeId}` to our own
+  endpoint, no id, no cookie, `Referrer-Policy: no-referrer`. If that cannot be
+  sold, the answer is flat-rate sponsorships priced per period — the shape §6's
+  "Feature this listing" already uses — **not** a tracker.
+
+**Why the obvious networks are the wrong shape.** AdSense, Carbon and the game
+networks (Playwire, Nitropay) all require their tag in the page, which is
+exactly the thing that cannot happen. What fits is a server that returns a
+creative as JSON on a contextual, cookieless basis — EthicalAds is the closest
+existing model. Realistically the first cut is **first-party**: house ads for
+our own apps (an honest bootstrap that is useful even at zero revenue), then
+direct sponsorships, then a network only if one will serve plain data.
+
+### The desktop slot, and the problem with "the bottom"
+
+**There is no bottom.** The desktop surface is an endless pegboard, unbounded
+downward *and* rightward on purpose (`desktop.js` `cellOf`, and `sizePegboard`
+covers `scrollWidth`/`scrollHeight`). An element parked at the end of an
+infinite surface is never reached; one placed after the last occupied row moves
+every time an icon lands. So the strip is chrome, not content:
+
+- **Not in the grid coordinate space.** Never a cell, so `saveItem` can never
+  route an arrival onto it and Arrange mode can never drag it.
+- **Docked to the bottom edge of the viewport, hidden at rest**, revealed once
+  the user scrolls down past their last row (or after N px of downward travel),
+  hidden again on the way back up. A desktop that fits one screen shows no ad.
+- **Dismissible for the session.** It must not sit above icons, must not eat the
+  48 px edge-scroll zone the drag code uses (`e.clientY > r.bottom - 48`), and
+  must obey the touch rules — a finger on the strip is a page scroll unless it
+  is a tap on the link. `touch-action: none` there would recreate exactly the
+  bug the icon lock exists to prevent.
+- **Arrange mode hides the menubar; it hides this too.** Root only — never
+  inside a folder, never on `run.html`, never in a meeting.
+
+### The app slot
+
+An App GIF **cannot fetch**, so an app can never fetch an ad, and that is the
+feature. The manifest opts in (`ads: true`); the **shell** draws the slot
+outside the app frame, in the chrome where the shield and identity pill already
+live, and fetches the creative itself. The app receives nothing: no callback
+with a user in it, no ad code, no CSP relaxation.
+
+- **Revenue routes by the existing PAYEE RULE** (`gifos-charge.js`,
+  docs/payments.md): signed by a domain → `payments@<domain>`, signed by an
+  email → that email. Nothing new is declared, so nothing new can be tampered
+  with — redirecting an app's ad revenue means taking over its signing identity.
+- **Offline is the normal case for a GIF.** The slot collapses to zero height
+  when the fetch fails. It never reserves space for an ad that will not arrive,
+  and it never shows a broken box on a plane.
+- **The listing must say so** — a badge beside the capability chips. The
+  catalog's current pitch is "no ads"; an ad-supported app that hides it is the
+  first dishonest listing in the store.
+- **"Pay once, no ads" is the obvious first IAP** and a good first real load on
+  the §6 x402 rail.
+
+**Open questions.**
+
+- **The about.html sentence.** "No tracking" stays literally true if ads carry
+  no id — but printed next to an ad it reads as a lie to exactly the reader we
+  want. Decide the copy BEFORE the code: plain sentences, no disclaimer block,
+  the mechanism in one line (store copy voice).
+- **Frozen snapshots.** `site/versions/<x.y.z>/` never changes, so an archived
+  build would fetch today's creatives from a URL baked in forever. That endpoint
+  must be permanent, cheap, and safe to 404 into a collapsed slot.
+- **Consent.** Untargeted, idless, cookieless is the only version that needs no
+  consent dialog anywhere. That is a hard design requirement — a cookie banner
+  on GifOS would be an embarrassment, and it is what "just use a network" buys.
+- **Is it worth the pitch?** A strip on a small audience earns very little. The
+  honest ordering may be brand deals (§23) and IAP first, with a slot only once
+  traffic justifies the cost to the story.
+
+## 23. Brand-built games: the whole game is the brand
+
+Proposed 2026-08-26 (Nathan).
+
+**What.** Work with large brands to ship games that are *entirely* theirs — the
+world, the characters, the livery, the music, the copy — as App GIFs in the
+store, **signed by the brand's own domain**.
+
+**Why it fits, mechanically.** This is not a business idea bolted onto the
+product; four things that already exist point straight at it.
+
+- **The signature is already brand-shaped.** `gifos-sign.js`: a domain
+  identity's key is DERIVED, never embedded — it lives at
+  `https://<domain>/gifos.key`. A brand publishes one file on the domain it
+  already owns, and its game shows **"✅ Signed by &lt;brand&gt;"** on the Home
+  Screen and in the store, with tampering detectable. No developer account, no
+  review queue, no platform in the middle of their identity.
+- **The artifact is a file they can hold.** They host it themselves, hand it out
+  at an event, email it, put it on a stick, flash it phone-to-phone with no
+  network at all (§10). It runs offline, forever, with nothing to shut down —
+  a very different promise from a store listing that dies when the agency's
+  retainer lapses.
+- **Multiplayer with no servers and no user data.** Share the link and your
+  friends are in the room. The brand runs no infrastructure and holds no
+  personal data, which is the sentence that gets a legal department to yes.
+  (§6 records the demand proof: Hop.Earth's "create race → share the link" is
+  already the GifOS invite flow.)
+- **Money already routes to them.** The PAYEE RULE derives the payee from the
+  signing identity, so a branded game that sells anything pays the brand with
+  nothing declared and nothing to configure.
+
+**The tension, stated up front:** remix is a feature here. Every App GIF can
+carry the remix doc and Steal App is deliberate. A brand that wants a sealed,
+uncopyable artifact is the wrong partner; the right ones want the thing spread.
+Note the clean part: a remixed copy loses the signature, so the provenance and
+the brand mark separate honestly — the copy is no longer "by &lt;brand&gt;".
+
+**Sketch.**
+
+- **The pitch is a demo, not a deck.** The brand's world running from a GIF we
+  emailed them, opened in a meeting both sides are already in. §11/§14 (Anyroad)
+  are why a drive/fly game in someone's livery is cheap to show.
+- **Three shapes to sell:** fixed-fee build (we make it), template license (their
+  agency builds against a documented template, we review and sign off), or
+  co-marketing listing (they build, we feature — §6's featured-listing rail
+  exists already).
+- **Template first, or there is no business.** One genuinely reskinnable game —
+  kart/road, endless runner, quiz, or minigolf per putt.day — with the brand
+  surface isolated: palette, sprites, music, copy, splash. A one-week reskin is
+  a business; a one-quarter reskin is a one-off.
+- **The store needs a Brands category** and a listing that puts the domain
+  identity front and centre — the identity IS the product here.
+- **Capability honesty is non-negotiable, and say it in the first meeting.** A
+  branded game cannot phone home to the brand's analytics: there is no network
+  in the sandbox, and a declared `network` capability is listed in the store
+  where the user reads it. This is a gift to their legal team and a dealbreaker
+  for their media team — finding out early which one owns the account saves
+  everyone the quarter.
+
+**Open questions.**
+
+- **Trademark runs the other way here.** §7's rule is to rename ports carrying a
+  protected name; a brand deal is written permission, which means an actual
+  agreement, not a field in `listing.json`.
+- **Who signs?** Ideally the brand — their domain, their key, their control.
+  Realistically their IT will not mint an Ed25519 key on request, so we need a
+  "signed by gifos.app, made for &lt;brand&gt;" fallback that does **not** read as
+  the brand having signed. That distinction is binary in the UI today.
+- **Do branded games carry ads (§22)?** No. The game IS the ad; stacking a
+  network slot on a sponsored artifact insults both parties.
+- **Perpetuity is the default.** When the deal ends the GIF keeps working, in
+  every browser that has it, forever. There is no recall — delisting is the only
+  lever and it retrieves nothing. Every contract has to be written knowing that.
+- **Kids' brands** bring COPPA-shaped obligations, and the store has no rating
+  vocabulary at all yet. §22's untargeted-only rule helps; it is not the whole
+  answer.
