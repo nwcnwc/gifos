@@ -153,7 +153,7 @@
       bg.setAttribute('style', 'position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1.2rem;');
       const box = doc.createElement('div');
       box.setAttribute('style', 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.8rem;max-width:24rem;width:100%;padding:1.2rem;font:15px/1.55 system-ui,-apple-system,sans-serif;');
-      const walletReady = !!(GifOS.payWallet && typeof GifOS.payWallet.signTransfers === 'function');
+      const walletReady = !!(GifOS.payWallet && GifOS.payWallet.available());
       const canPaypal = !!sheetData.rails.paypal && wholeCents(sheetData.amount);
       const canX402 = !!sheetData.rails.x402;
       box.innerHTML =
@@ -278,7 +278,7 @@
   // signs; the Worker's facilitator endpoint settles. Testnet only.
   async function payWithX402(manifest, sheetData, amount) {
     const wallet = GifOS.payWallet;
-    if (!wallet || typeof wallet.signTransfers !== 'function') throw new Error('no wallet is connected on this computer');
+    if (!wallet || !wallet.available()) throw new Error('no wallet is available on this computer');
     const base = workerBase();
     const busyUi = showBusy('Asking your wallet to sign…');
     try {
@@ -291,7 +291,9 @@
         { to: sheetData.rails.x402.address, amount: String(toAuthor), asset, network },
       ];
       if (fee > 0n) transfers.push({ to: TREASURY, amount: String(fee), asset, network });
-      const payloads = await wallet.signTransfers(transfers); // human authenticates HERE (passkey)
+      // The human authenticates HERE — the Base Account passkey prompt (or the
+      // wallet's own confirm). One prompt per transfer of the split.
+      const payloads = await wallet.signTransfers(transfers);
       if (busyUi.cancelled()) throw new Error(GifOS.charge.DECLINED);
       busyUi.say('Settling on Base Sepolia…');
       const r = await fetch(base + '/x402/settle', {

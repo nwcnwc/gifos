@@ -83,9 +83,10 @@ CDP-managed wallet, and never needs that secret.
 
 ### What tier 3 needs that we do not have yet
 
-- **CDP API credentials** (`CDP_API_KEY_ID`, `CDP_API_KEY_SECRET`) from
-  Nathan's account. They are NOT committed, NOT in the repo, and NOT required
-  by any gated test — they live in the environment of whoever runs tier 3.
+- ~~CDP API credentials~~ **Not needed on testnet after all (2026-08-25):**
+  the x402.org facilitator settles Base Sepolia with no credentials, and the
+  Worker's `FACILITATOR_URL` points there. CDP credentials become relevant at
+  the MAINNET flag day, when the same wire moves to CDP's authed facilitator.
 - **A funded Base Sepolia account** via the CDP faucet.
 - **A device with a passkey.** This is why tier 3 cannot be automated in CI on
   a headless box: WebAuthn wants a real authenticator. Playwright can attach a
