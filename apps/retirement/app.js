@@ -659,8 +659,8 @@
       add(read, 'Survival odds come from the Social Security period life table.');
     }
 
-    var rows = [], step = Math.max(1, Math.round(n / 12));
-    for (var y = 0; y < n; y += step) {
+    var rows = [];
+    for (var y = 0; y < n; y++) {
       rows.push([String(st[y].age), C.pct(st[y].over), C.pct(st[y].under), C.pct(st[y].broke), C.pct(st[y].dead)]);
     }
     C.table($('tblStates'), ['Age', 'Ahead', 'Behind', 'Broke', 'Gone'], rows);
@@ -907,8 +907,11 @@
       add(read, 'Everything is in today’s money, so these are numbers you can feel.');
     }
 
-    var rows = [], step = Math.max(1, Math.round((r.bands.length - 1) / 12));
-    for (var y = from; y < r.bands.length; y += step) {
+    // EVERY year, not every fourth. This panel is the only way anybody gets
+    // numbers OUT of this app — there is no CSV in a sandbox — so thinning it to
+    // fourteen rows of a fifty-two-year plan defeats the point of having it.
+    var rows = [];
+    for (var y = from; y < r.bands.length; y++) {
       rows.push([String(p.currentAge + y), money(r.bands[y][0]), money(r.bands[y][2]), money(r.bands[y][4])]);
     }
     C.table($('tblFan'), ['Age', 'Worst 5%', 'Typical', 'Best 5%'], rows);
@@ -1024,8 +1027,8 @@
       addB(read, Math.round(otherAtEnd / totalEnd * 100) + '%');
       add(read, ' of the year’s money comes from outside the portfolio. That share is why an income that keeps up with inflation is worth so much more than one that does not.');
     }
-    var rows = [], step2 = Math.max(1, Math.round(years / 12));
-    for (y = 0; y < years; y += step2) {
+    var rows = [];
+    for (y = 0; y < years; y++) {
       rows.push([String(p.currentAge + y0 + y)].concat(series.map(function (s) { return money(s.values[y] || 0); })));
     }
     C.table($('tblStack'), ['Age'].concat(series.map(function (s) { return s.label; })), rows);
@@ -1253,6 +1256,23 @@
     state.dirty = false;
     await refreshScenarios();
     paintScenarioBar();
+    flash('Saved');
+  }
+
+  /* Saving used to be silent after the first time — the name prompt appears
+   * once, and every save after that wrote with no acknowledgement at all, so
+   * there was no way to tell it had worked. */
+  var flashTimer = null;
+  function flash(text) {
+    var e = $('flash');
+    e.textContent = text;
+    e.hidden = false;
+    e.classList.add('on');
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () {
+      e.classList.remove('on');
+      flashTimer = setTimeout(function () { e.hidden = true; }, 250);
+    }, 1400);
   }
 
   async function refreshScenarios() {

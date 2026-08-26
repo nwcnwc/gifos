@@ -166,6 +166,11 @@ h2 { font-size: 1rem; }
 }
 .btn.wide { width: 100%; margin-top: .4rem; }
 .small-btn { min-height: 26px; padding: .1rem .45rem; font-size: .78rem; }
+.flash {
+  font-size: .76rem; color: var(--good); flex: none;
+  opacity: 0; transition: opacity .18s;
+}
+.flash.on { opacity: 1; }
 .icon-btn { padding: .3rem .45rem; display: grid; place-items: center; }
 .icon-btn svg { width: 17px; height: 17px; display: block; }
 .icon-btn .ico-sun { display: none; }
@@ -357,13 +362,18 @@ details.card > summary {
   list-style: none; cursor: pointer;
 }
 details.card > summary::-webkit-details-marker { display: none; }
-.sum-title { font-weight: 650; font-size: .92rem; }
-.sum-title::after {
-  content: '›'; display: inline-block; margin-left: .35rem;
-  color: var(--muted); transform: rotate(90deg);
+/* The chevron belongs to the SUMMARY, not to the title.
+ * Hung off `.sum-title::after` it is an inline box at the end of a wrapping
+ * heading, so "How you take the money" broke across two lines and left the
+ * chevron sitting alone on the second one. */
+.sum-title { font-weight: 650; font-size: .92rem; flex: 0 1 auto; }
+details.card > summary::after {
+  content: '›'; order: 3; flex: none;
+  margin-left: .1rem; color: var(--muted); transform: rotate(90deg);
 }
-details[open] > summary .sum-title::after { transform: rotate(-90deg); }
+details.card[open] > summary::after { transform: rotate(-90deg); }
 .sum-value {
+  flex: 1 1 auto; min-width: 0; order: 2;
   color: var(--muted); font-size: .8rem; text-align: right;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -475,7 +485,9 @@ svg.chart { display: block; width: 100%; overflow: visible; }
 .data-table th, .data-table td { padding: .25rem .4rem; border-bottom: 1px solid var(--line); text-align: left; }
 .data-table th { color: var(--muted); font-weight: 600; }
 .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-.table-scroll { max-height: 15rem; overflow: auto; }
+/* Every year is in the table now, so it needs somewhere to go. */
+.tabledrop > div { max-height: 18rem; overflow: auto; }
+.data-table thead th { position: sticky; top: 0; background: var(--surface); }
 
 /* ------------------------------------------------------------ what to do */
 
