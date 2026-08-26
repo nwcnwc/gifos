@@ -260,7 +260,7 @@
             if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId) {
               throw new Error('the signed receipt does not match this payment — refusing to record it');
             }
-            return receipt;
+            return { receipt, receiptJson: body.receiptJson, sig: body.sig };
           }
         }
         await sleep(1500);
@@ -307,7 +307,7 @@
       if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId) {
         throw new Error('the signed receipt does not match this payment — refusing to record it');
       }
-      return receipt;
+      return { receipt, receiptJson: body.receiptJson, sig: body.sig };
     } finally { busyUi.close(); }
   }
 
@@ -337,16 +337,22 @@
     if (choice.amount > cap) throw new Error('that amount is over this app’s ceiling (' + fmtUsd(cap) + ')');
     sheetData.amount = String(choice.amount);
 
-    const receipt = choice.rail === 'paypal'
+    const paid = choice.rail === 'paypal'
       ? await payWithPaypal(manifest, sheetData, choice.amount, choice.win)
       : await payWithX402(manifest, sheetData, choice.amount);
+    const receipt = paid.receipt;
 
     // Record: entitlement (if a sku), then the ledger line. The receipt the
     // APP gets back is the pure-module shape — it never sees the Worker's raw
     // signed object, which names the payee account.
     const out = GifOS.charge.receipt(sheetData, receipt.tx || receipt.orderId || null, receipt.at || Date.now(), choice.rail);
-    if (request.sku) p.grant(manifest.appId, request.sku, out);
+    if (request.sku) p.grant(manifest.appId, request.sku, { tx: out.tx, amount: out.amount, rail: out.rail, at: out.at });
     p.record(manifest.appId, { amount: String(choice.amount), rail: choice.rail, sku: request.sku || null, reason: request.reason, payeeId: sheetData.payingTo, tx: out.tx, at: out.at });
+    // The receipt becomes a FILE (docs/payments.md "The receipt is a file"):
+    // proof you can hold, back up, and carry to a new computer. Best-effort
+    // and AFTER the money facts are recorded — a mint failure must never
+    // unwind a payment that already happened.
+    try { await mintReceiptFile(paid, request, sheetData, appName || manifest.name); } catch (e) { try { console.warn('receipt file not minted:', e); } catch (e2) {} }
     return out;
   }
 
@@ -358,8 +364,97 @@
     return Promise.resolve(purse().entitled(manifest.appId, sku));
   }
 
+  // ---- the receipt as a FILE ------------------------------------------------
+  // A purchase materializes as a small App GIF in the Purchases folder: the
+  // Worker's SIGNED receipt verbatim (any GifOS can re-verify it against
+  // gifos.app's published key), plus a tiny self-describing viewer. Opening
+  // it on any computer re-grants the entitlement there — that is the restore
+  // story, with no account anywhere. It is deliberately a BEARER artifact:
+  // sharing it is handing over your license identity (see license() below),
+  // which is exactly what makes it a family act rather than distribution.
+  const PENDING_KEY = 'gifos_pay_pending';   // fileIds awaiting desktop placement
+
+  function receiptViewerHtml(receipt, sheetData, appName) {
+    const esc2 = esc; // the sheet's escaper — receipt fields are data, not markup
+    const row = (k, v) => '<div class="r"><span>' + esc2(k) + '</span><b>' + esc2(v) + '</b></div>';
+    return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<title>GifOS Receipt</title><style>' +
+      'body{font:15px/1.55 system-ui,-apple-system,sans-serif;background:#14141f;color:#e8e8f4;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:1rem}' +
+      'main{max-width:22rem;width:100%;background:#0e0e17;border:1px solid #23233a;border-radius:.8rem;padding:1.1rem 1.2rem}' +
+      'h1{font-size:1.1rem;margin:0 0 .2rem}.sub{color:#9a9ab5;font-size:.82rem;margin:0 0 .9rem}' +
+      '.r{display:flex;justify-content:space-between;gap:.8rem;margin:.3rem 0;font-size:.9rem}.r span{color:#9a9ab5}' +
+      '.r b{text-align:right;word-break:break-all;font-weight:600}' +
+      '.foot{color:#9a9ab5;font-size:.78rem;margin-top:.9rem;border-top:1px solid #23233a;padding-top:.7rem}' +
+      '</style></head><body><main>' +
+      '<h1>🧾 ' + esc2(appName || receipt.appId || '') + '</h1>' +
+      '<p class="sub">' + (receipt.sku ? 'Purchase — unlocks <b>' + esc2(receipt.sku) + '</b>' : 'Tip — thank you!') + '</p>' +
+      row('Amount', fmtUsd(receipt.amount)) +
+      row('Paid', receipt.rail === 'paypal' ? 'by PayPal' : 'in USDC (Base Sepolia)') +
+      (sheetData && sheetData.payingTo ? row('To', sheetData.payingTo) : '') +
+      row('When', receipt.at ? new Date(receipt.at).toLocaleString() : '') +
+      row('Transaction', String(receipt.tx || '')) +
+      '<p class="foot">This file IS the proof: it carries a receipt signed by gifos.app, and opening it on any GifOS computer verifies the signature and registers the purchase there. Sharing it shares your license — the app treats whoever holds this receipt as the same buyer (same saves, same identity). Keep it with your backups.</p>' +
+      '</main></body></html>';
+  }
+
+  async function mintReceiptFile(paid, request, sheetData, appName) {
+    const r = paid.receipt;
+    const label = 'Receipt — ' + (appName || r.appId) + (r.sku ? ' — ' + r.sku : ' — tip');
+    const files = {
+      'manifest.json': JSON.stringify({
+        gifos: '1.0', appId: 'gifos-receipt', name: label, entry: 'index.html',
+        receipt: true,                     // the mount hook's cue to ingest
+        accent: [255, 196, 57],
+      }),
+      // The Worker's signed strings VERBATIM — verification is byte-exact,
+      // so nothing may reformat them.
+      'receipt.json': JSON.stringify({ receiptJson: paid.receiptJson, sig: paid.sig }),
+      'index.html': receiptViewerHtml(r, sheetData, appName),
+    };
+    const bytes = await GifOS.gif.encode(files, { accent: [255, 196, 57] });
+    const fileId = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fileId, name: label + '.gif', bytes, kind: 'gif', isApp: true, appId: 'gifos-receipt', mime: 'image/gif' });
+    // The desktop places icons, never this page (saveItem's monopoly): queue
+    // the fileId; desktop.js drains it into the Purchases folder on its next
+    // boot or focus (it listens for this key's storage event too).
+    let q = []; try { q = JSON.parse(ls().getItem(PENDING_KEY) || '[]') || []; } catch (e) {}
+    q.push(fileId);
+    ls().setItem(PENDING_KEY, JSON.stringify(q));
+  }
+
+  // A mounted GIF whose manifest says receipt:true passes its files here.
+  // TRUST IS THE SIGNATURE, nothing else: the manifest and the viewer HTML
+  // are attacker-editable bytes, but nothing is granted unless the embedded
+  // receipt verifies against this site's published key — a forged or edited
+  // receipt.json simply fails verification and grants nothing.
+  async function ingestReceiptFiles(files) {
+    const raw = files && files['receipt.json'];
+    if (!raw) return null;
+    const wrapped = JSON.parse(typeof raw === 'string' ? raw : new TextDecoder().decode(raw));
+    const receipt = await verifyReceipt(wrapped.receiptJson, wrapped.sig);
+    if (receipt.sku && receipt.appId) {
+      purse().grant(receipt.appId, receipt.sku, { tx: receipt.tx, amount: receipt.amount, rail: receipt.rail, at: receipt.at });
+    }
+    return receipt;
+  }
+
+  // The app-facing LICENSE id: the receipt's transaction, stable and unique
+  // per purchase, app-scoped by construction (the receipt names one appId).
+  // The seller anchors whatever they like to it — a server account, a save
+  // namespace, a room identity — which is what turns a shared receipt into a
+  // shared IDENTITY rather than a free copy (docs/payments.md).
+  function license(manifest, sku) {
+    if (!manifest || !manifest.capabilities || !manifest.capabilities.pay) {
+      return Promise.reject(new Error('This app did not declare the "pay" capability.'));
+    }
+    if (typeof sku !== 'string' || !sku.trim()) return Promise.reject(new Error('license() needs a sku'));
+    const ent = purse().entitlement(manifest.appId, sku);
+    return Promise.resolve(ent && ent.tx ? String(ent.tx) : null);
+  }
+
   GifOS.payBroker = {
-    charge, entitled,
+    charge, entitled, license, ingestReceiptFiles,
+    PENDING_KEY,
     // The Settings surface reads and writes through these — the panel owns no
     // storage of its own.
     purse, maxAmountFor, setMaxAmount, fmtUsd,

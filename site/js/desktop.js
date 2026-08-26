@@ -165,7 +165,7 @@
   const MANILA = [227, 197, 122];
   // …and the Providers rack keeps electric violet: it isn't storage, it's the
   // socket board the OS plugs abilities into (docs/providers.md).
-  const FOLDER_ACCENTS = { 'Stolen Apps': [255, 200, 80], Providers: [123, 92, 255] };
+  const FOLDER_ACCENTS = { 'Stolen Apps': [255, 200, 80], Providers: [123, 92, 255], Purchases: [255, 196, 57] };
   function accentFor(name) {
     return FOLDER_ACCENTS[name] || MANILA;
   }
@@ -447,6 +447,61 @@
   // desktops converge one deploy later. A dev checkout is 'edge:0' forever — no
   // churn. A pinned snapshot's stamp never changes — frozen builds never
   // reseed. Best-effort: a failed rebuild must never block boot.
+  // ---- Purchases: what you bought, as FILES (docs/payments.md) ---------------
+  // The broker (run.html) mints a receipt GIF at purchase and queues its
+  // fileId under gifos_pay_pending — PLACEMENT happens here and only here,
+  // because saveItem is the one place an item may be written. The folder is
+  // LAZY: it exists only once something was bought, so the many users who
+  // never buy anything don't carry an empty system folder.
+  const PAY_PENDING = 'gifos_pay_pending';
+  async function ensurePurchasesFolder() {
+    let f = items.find((i) => i.id === 'sys_purchases');
+    if (f) return f;
+    // Between Providers and the Trash (user decision 2026-08-26): aim for the
+    // cell right under Providers; saveItem resolves a collision (usually the
+    // Trash) to the next free cell, so it lands as close as the desktop allows.
+    const prov = items.find((i) => i.id === 'sys_providers');
+    const at = prov ? { x: prov.x, y: prov.y + GRID.rowPitch } : { x: GRID.origin, y: GRID.origin + 3 * GRID.pitch };
+    f = { id: 'sys_purchases', kind: 'folder', name: 'Purchases', parent: null, x: at.x, y: at.y, iconSize: 64 };
+    await saveItem(f, { at });
+    await load();
+    f = items.find((i) => i.id === 'sys_purchases') || f;
+    if (!f.fileId) {
+      try {
+        const fileId = store.uid('file');
+        const bytes = await makeFolderGif('Purchases', FOLDER_ACCENTS.Purchases, 'folder');
+        await store.putFile({ id: fileId, name: 'Purchases.gif', bytes, kind: 'gif', isApp: false, mime: 'image/gif' });
+        f.fileId = fileId;
+        await saveItem(f);                         // same cell — only the art
+        await load();
+      } catch (e) { /* falls back to the folder glyph */ }
+    }
+    return f;
+  }
+  let drainingReceipts = false;
+  async function drainPendingReceipts() {
+    let q = [];
+    try { q = JSON.parse(localStorage.getItem(PAY_PENDING) || '[]') || []; } catch (e) {}
+    if (!q.length || drainingReceipts) return;
+    drainingReceipts = true;
+    try {
+      const folder = await ensurePurchasesFolder();
+      for (const fileId of q) {
+        let file = null; try { file = await store.getFile(fileId); } catch (e) {}
+        if (!file) continue;                                   // minted, then erased
+        if (items.find((i) => i.fileId === fileId)) continue;  // already placed
+        await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: file.name || 'Receipt.gif', iconSize: 64 }, { into: folder.id });
+      }
+      localStorage.removeItem(PAY_PENDING);
+      await load(); render();
+    } finally { drainingReceipts = false; }
+  }
+  // The purchase usually happens in ANOTHER tab (the running app), so boot
+  // alone would miss it until the next reload: the storage event fires here
+  // the moment the broker queues, and visibility catches the tab-switch back.
+  window.addEventListener('storage', (e) => { if (e.key === PAY_PENDING && e.newValue) drainPendingReceipts(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) drainPendingReceipts(); });
+
   // A system folder's art is BAKED into a GIF when the folder is first created,
   // and it is only ever given art `if (!it.fileId)`. That is right for a user's
   // own folders and wrong for ours: when OUR drawing improves, every computer
@@ -3789,7 +3844,7 @@
 
   // ---------- boot ----------
   requestPersistence();
-  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(noteRetiredBuild).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate).then(reclaimOrphanAssets).then(backfillOrnaments);
+  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(drainPendingReceipts).then(render).then(noteRetiredBuild).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate).then(reclaimOrphanAssets).then(backfillOrnaments);
 
   GifOS.desktop = { render, load, backfillOrnaments, get stats() { return renderStats; } };
 })(typeof window !== 'undefined' ? window : globalThis);

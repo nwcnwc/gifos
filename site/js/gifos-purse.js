@@ -61,6 +61,11 @@
       const pre = ENT + appId + ':';
       return store.keys().filter((k) => k.startsWith(pre)).map((k) => k.slice(pre.length));
     }
+    // The stored receipt behind an entitlement — the broker reads .tx out of
+    // it as the app-facing LICENSE id (docs/payments.md "The receipt is a
+    // file"): the seller may anchor account/save/room identity to it, which
+    // is what makes sharing a receipt an act of intimacy, not distribution.
+    function entitlement(appId, sku) { return g(entKey(appId, sku)); }
 
     // ---- ledger (append only) -----------------------------------------------
     function record(appId, entry) {
@@ -131,7 +136,7 @@
     }
 
     return {
-      entitled, grant, entitlements,
+      entitled, grant, entitlements, entitlement,
       record, history, spentTotal,
       grantPermission, permission, revoke, checkPermission, commitPermission,
     };

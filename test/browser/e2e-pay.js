@@ -92,12 +92,13 @@ async function until(url, ms) {
   // ---- build TWO apps in-browser: one signed (may charge), one not ----------
   const APP_HTML = '<!doctype html><meta charset="utf-8">' +
     '<button id="buy">Buy pro</button><button id="tip">Tip</button>' +
-    '<div id="out">-</div><div id="ent">-</div>' +
+    '<div id="out">-</div><div id="ent">-</div><div id="lic">-</div>' +
     '<script>(function(){' +
     'function ent(){ return gifos.entitled("pro").then(function(v){ document.getElementById("ent").textContent = "ent:" + v; }); }' +
     'document.getElementById("buy").onclick = function(){ document.getElementById("out").textContent="…";' +
     '  gifos.charge({ sku:"pro", amount:"5000000", reason:"Unlock pro" })' +
-    '  .then(function(r){ document.getElementById("out").textContent = "ok:" + r.rail + ":" + r.amount; return ent(); })' +
+    '  .then(function(r){ document.getElementById("out").textContent = "ok:" + r.rail + ":" + r.amount; ' +
+    '    return gifos.license("pro").then(function(l){ document.getElementById("lic").textContent = "lic:" + l; }).then(ent); })' +
     '  .catch(function(e){ document.getElementById("out").textContent = "err:" + e.message; }); };' +
     'document.getElementById("tip").onclick = function(){ document.getElementById("out").textContent="…";' +
     '  gifos.charge({ amount:"3000000", reason:"Tip the author", editable:true })' +
@@ -170,6 +171,9 @@ async function until(url, ms) {
     bought === 'ok:paypal:5000000', bought);
   await fr.locator('#ent').filter({ hasText: 'ent:true' }).waitFor({ timeout: 5000 });
   check('entitled() flips to true — held by the OS, not the app', true);
+  const lic = await fr.locator('#lic').textContent();
+  check('license() hands the app the receipt\'s tx — the seller\'s anchor for account/save identity',
+    /^lic:CAP-ORD-/.test(lic), lic);
 
   const ppState = await (await fetch('http://127.0.0.1:8795/_state')).json();
   const unit = ppState.orders[0].purchase_units[0];
@@ -233,6 +237,63 @@ async function until(url, ms) {
     && signedTds[0].message.value === '2910000' && signedTds[0].message.to === CHAIN_PAYEE
     && signedTds[1].message.value === '90000' && signedTds[1].message.to === TREASURY,
     JSON.stringify(signedTds.map((t) => t.message && t.message.value)));
+
+  // ---- the receipt is a FILE: minted, placed, restorable --------------------
+  // The broker minted a receipt GIF per payment and queued it; the DESKTOP tab
+  // (still open) heard the storage event and placed both into the lazy
+  // Purchases folder — saveItem's monopoly intact, no third putItem call site.
+  await page.locator('.icon', { hasText: 'Purchases' }).waitFor({ timeout: 15000 });
+  check('the Purchases folder appears on the desktop, lazily, on first purchase', true);
+  const placed = await page.evaluate(async () => {
+    const items = await GifOS.store.allItems();
+    const inFolder = items.filter((i) => i.parent === 'sys_purchases');
+    return { count: inFolder.length, names: inFolder.map((i) => i.name), queue: localStorage.getItem('gifos_pay_pending') };
+  });
+  check('both receipts were filed INTO the folder and the queue was drained',
+    placed.count === 2 && placed.queue === null, JSON.stringify(placed));
+
+  // A FRESH computer: hand it nothing but the receipt file, open it, and the
+  // entitlement re-grants there — restore with no account anywhere.
+  const receiptBytes = await page.evaluate(async () => {
+    const files = await GifOS.store.allFiles();
+    const f = files.find((x) => /^Receipt — paytest — pro/.test(x.name));
+    return f ? Array.from(f.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f.bytes)) : null;
+  });
+  check('the receipt file exists and is small enough to text to a friend',
+    receiptBytes && receiptBytes.length > 500 && receiptBytes.length < 200000,
+    receiptBytes ? receiptBytes.length + ' bytes' : 'missing');
+
+  const ctx2 = await browser.newContext();
+  await ctx2.route('**/gifos.key', (route) => {
+    const host = new URL(route.request().url()).hostname;
+    route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, body: host === SIGN_DOMAIN ? appPubB64 : receiptPub });
+  });
+  const fresh = await ctx2.newPage();
+  await fresh.goto(BASE + '/index.html');
+  await fresh.waitForSelector('.icon', { timeout: 10000 });
+  check('the fresh computer starts with NO entitlement',
+    await fresh.evaluate(() => localStorage.getItem('pay.ent:paytest:pro') === null));
+  await fresh.evaluate(async (bytesArr) => {
+    const bytes = new Uint8Array(bytesArr);
+    const fid = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fid, name: 'Receipt.gif', bytes, kind: 'gif', isApp: true, appId: 'gifos-receipt', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Receipt.gif', parent: null, x: 620, y: 400, iconSize: 64 });
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+  }, receiptBytes);
+  const [viewer] = await Promise.all([
+    ctx2.waitForEvent('page'),
+    fresh.locator('.icon', { hasText: 'Receipt.gif' }).dblclick(),
+  ]);
+  await viewer.waitForSelector('iframe', { timeout: 8000 });
+  const vfr = viewer.frameLocator('iframe');
+  await vfr.locator('main').waitFor({ timeout: 8000 });
+  check('the receipt viewer shows the purchase to whoever holds the file',
+    /\$5\.00/.test(await vfr.locator('main').textContent()));
+  await viewer.waitForFunction(() => localStorage.getItem('pay.ent:paytest:pro') !== null, null, { timeout: 8000 });
+  const restored = await viewer.evaluate(() => JSON.parse(localStorage.getItem('pay.ent:paytest:pro')));
+  check('OPENING the receipt re-granted the entitlement — same license id, no account, no server of ours',
+    restored && /^CAP-ORD-/.test(restored.tx), JSON.stringify(restored));
+  await viewer.close(); await ctx2.close();
 
   // ---- the purse: OS-held, app-invisible, GIF-excluded ----------------------
   const purse = await app.evaluate(() => {
