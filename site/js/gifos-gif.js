@@ -177,6 +177,96 @@
     })();
   }
 
+  // ---- the remix doc: a packed app carries its own build guide -------------
+  // Every App GIF is meant to be taken apart. Whoever unpacks one finds
+  // llms.txt sitting next to index.html — the packing recipe, the manifest
+  // reference and the whole window.gifos API — so the step after "what is
+  // inside this?" is "here is my version", with no hunt for docs and no
+  // guessing at the format. site/llms.txt is that document; this is the same
+  // file, travelling with the app.
+  //
+  // Three rules keep it from doing harm:
+  //  1. PACKING, NOT SAVING. encode() and embed() add it — those MAKE an app
+  //     GIF. Bare repack() never does: it swaps the data block of a GIF that
+  //     already exists (a state save, a credits seal, a passkey wrap), and a
+  //     file appearing there would change the signed files digest and turn a
+  //     legitimately signed app TAMPERED (gifos-sign.js "canonical content
+  //     hash"). Once packed in, it simply rides along through every repack.
+  //  2. APPS ONLY. An archive with no entry file is a container — a folder
+  //     bundle, a desktop backup — not something to remix, and the apps inside
+  //     it carry their own copy.
+  //  3. AN AUTHOR'S OWN llms.txt WINS, and a doc that cannot be read is not an
+  //     error: the app packs without it. A pack must never fail over a README.
+  const REMIX_DOC = 'llms.txt';
+  const REMIX_DOC_TIMEOUT = 8000;
+  let remixDocSource;   // set by setRemixDoc(); undefined = use the default loader
+  let remixDocCache;    // Promise<string|Uint8Array|null>, resolved at most once
+
+  // Node, tests and build scripts have no origin to fetch from — they hand the
+  // text in (or pass null to switch the whole thing off).
+  function setRemixDoc(v) { remixDocSource = v; remixDocCache = undefined; }
+
+  // In a browser, read it off the site. Two candidates, in order: next to the
+  // page (gifos.app/llms.txt), then the origin root — a frozen snapshot under
+  // /versions/<x.y.z>/ has no llms.txt of its own, and the live spec is the one
+  // a remixer wants anyway.
+  function fetchRemixDoc() {
+    if (typeof fetch !== 'function' || typeof location === 'undefined' || !location.href) return Promise.resolve(null);
+    const urls = [];
+    try { urls.push(new URL(REMIX_DOC, location.href).href); } catch (e) { /* opaque origin */ }
+    try {
+      const root = new URL('/' + REMIX_DOC, location.href).href;
+      if (urls.indexOf(root) < 0) urls.push(root);
+    } catch (e) { /* opaque origin */ }
+    return urls.reduce((chain, url) => chain.then((got) => {
+      if (got) return got;
+      let stop = null;
+      const opts = {};
+      if (typeof AbortController === 'function') {
+        const ac = new AbortController();
+        opts.signal = ac.signal;
+        stop = setTimeout(() => ac.abort(), REMIX_DOC_TIMEOUT);
+      }
+      return fetch(url, opts)
+        .then((r) => (r && r.ok ? r.text() : null))
+        .catch(() => null)
+        .then((text) => { if (stop) clearTimeout(stop); return text || null; });
+    }), Promise.resolve(null));
+  }
+
+  function remixDoc() {
+    if (remixDocCache === undefined) {
+      const src = remixDocSource === undefined ? fetchRemixDoc : remixDocSource;
+      remixDocCache = Promise.resolve(typeof src === 'function' ? src() : src)
+        .catch(() => null)
+        .then((v) => (v && v.length ? v : null));
+    }
+    return remixDocCache;
+  }
+
+  // An app is an archive something can actually run: index.html, or whatever
+  // its manifest names as the entry.
+  function hasEntry(files) {
+    if (files['index.html']) return true;
+    const m = files['manifest.json'];
+    if (!m) return false;
+    try {
+      const entry = JSON.parse(typeof m === 'string' ? m : bytesToText(m)).entry;
+      return !!(entry && files[entry]);
+    } catch (e) { return false; }
+  }
+
+  function withRemixDoc(files) {
+    if (!files || files[REMIX_DOC] || !hasEntry(files)) return Promise.resolve(files);
+    return remixDoc().then((doc) => {
+      if (!doc) return files;
+      const out = {};
+      for (const p in files) out[p] = files[p];
+      out[REMIX_DOC] = doc;
+      return out;
+    });
+  }
+
   // ---- payload builder (shared by encode and repack) -----------------------
   function buildPayload(files) {
     const archive = { v: 1, files: {} };
@@ -198,7 +288,9 @@
   // ---- encode: filesystem archive -> GIF89a bytes (async) ------------------
   // files: { "path": Uint8Array | string }  →  Promise<Uint8Array>
   function encode(files, opts) {
-    return buildPayload(files).then((payload) => assemble(payload, opts || {}));
+    return withRemixDoc(files)
+      .then(buildPayload)
+      .then((payload) => assemble(payload, opts || {}));
   }
 
   // ---- repack: replace ONLY the GifOS data block inside an existing GIF ----
@@ -254,8 +346,8 @@
     if (!hostBytes || hostBytes.length < 13 || hostBytes[0] !== 0x47 || hostBytes[1] !== 0x49 || hostBytes[2] !== 0x46) {
       return Promise.reject(new Error('host is not a GIF'));
     }
-    if (looksLikeGifosGif(hostBytes)) return repack(hostBytes, files);
-    return buildPayload(files).then((payload) => {
+    if (looksLikeGifosGif(hostBytes)) return withRemixDoc(files).then((f) => repack(hostBytes, f));
+    return withRemixDoc(files).then(buildPayload).then((payload) => {
       const w = new Writer();
       w.byte(0x21).byte(0xff).byte(0x0b).ascii(GIFOS_MARKER).ascii(GIFOS_AUTH);
       w.subBlocks(payload);
@@ -522,6 +614,7 @@
     encode, decode, repack, embed, looksLikeGifosGif, readManifest,
     b64encode, b64decode, textToBytes, bytesToText,
     findAppExtSpan, appExtBlock, stripForDisplay,
+    setRemixDoc, REMIX_DOC,
     MARKER: GIFOS_MARKER,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
