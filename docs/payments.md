@@ -15,7 +15,10 @@ the pay Worker exists (`pay/`, stateless, one core run by both the
 Cloudflare wrapper and the gate's Node twin). The first seller is
 `apps/tip-creators`. `test/browser/e2e-pay.js` proves the whole surface
 hermetically — both rails, the refusals, the 97/3 split, the signed receipt.
-tip-creators is SIGNED as gifos.app. The wallet adapter EXISTS
+tip-creators is SIGNED as gifos.app. Purchases mint RECEIPT FILES into the
+lazy Purchases folder, opening one anywhere re-grants (e2e-pay proves the
+fresh-computer restore), and `gifos.license(sku)` is on the app API — see
+"The receipt is a FILE" below. The wallet adapter EXISTS
 (`gifos-paywallet.js`): the Base Account SDK is vendored and hash-pinned
 (`js/vendor/base-account.min.js`, @base-org/account 2.5.10), loaded lazily on
 the OS page only, with an injected `window.ethereum` (Coinbase Wallet
@@ -231,6 +234,50 @@ await gifos.charge({ sku: 'pro', amount: '2000000',
 
 An app that wants to keep its own copy for convenience may, but the OS's answer
 is the authority, and the OS's copy is the one that does not travel.
+
+### The receipt is a FILE — the Purchases folder (ratified 2026-08-26)
+
+A purchase materializes as a small App GIF in a **Purchases** system folder
+(lazy — seeded between Providers and the Trash on first purchase, never
+before; most users never buy anything and carry no empty folder). Inside:
+the Worker's **signed receipt verbatim** — so any GifOS can re-verify it
+against gifos.app's published key — plus a tiny self-describing viewer.
+This is "purchases are files you own", the same thesis as apps.
+
+What falls out of file-ness, for free:
+
+- **Backups stop losing purchases.** The purse (localStorage) deliberately
+  never travels; receipt FILES ride the whole-desktop backup GIF like any
+  file, and restoring re-grants.
+- **A new computer is a walk, not a login.** OPENING a receipt anywhere
+  verifies the embedded signature and re-grants the entitlement there
+  (`manifest.receipt` cues the mount hook; `ingestReceiptFiles` in
+  gifos-pay-broker.js). Trust is the SIGNATURE, never the manifest or the
+  viewer's words — a forged or edited receipt.json verifies as nothing and
+  grants nothing. This closes roadmap §6's open question (restore without
+  accounts).
+- The purse stays the AUTHORITY and the hot path: `entitled()` answers from
+  localStorage in microseconds and never reads a file — the ornament lesson,
+  applied to money. File = portable proof; purse = fast cache.
+
+**The sharing model: bearer-plus-identity.** A receipt is deliberately a
+bearer artifact — but `gifos.license(sku)` hands the app the receipt's
+transaction id (stable, unique per purchase, app-scoped by construction),
+and the SELLER anchors whatever they like to it: a server account, a save
+namespace, a room identity. So whoever holds your receipt is *you* to that
+app — same account, same saves, same name in the rooms. Handing it to your
+spouse or child is family sharing with no infrastructure; handing it to a
+mere friend is handing them your account, and posting it publicly is posting
+your own identity. The deterrent is the intimacy, not a lock (Nathan,
+2026-08-26).
+
+Honest edges, so this never overclaims: for serverless apps the binding is
+enforced by the app's own client code — a determined pirate patches it out,
+but doing so breaks the signature, and a tampered app can't charge or
+verify; they've left the paid ecosystem entirely. The OS stays out of the
+account business: one opaque id, and an app that ignores it keeps plain
+per-computer entitlements. And the id cannot correlate a buyer ACROSS apps,
+because a receipt names exactly one appId — keep that property deliberate.
 
 ### The four shapes, and how they map
 

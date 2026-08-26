@@ -415,7 +415,13 @@
         // because app state travels inside the shared GIF and a purchase must
         // not travel with it.
         charge: function(o){ return rpc(Object.assign({type:'charge'}, o||{})); },
-        entitled: function(sku){ return rpc({type:'entitled', sku:sku}); }
+        entitled: function(sku){ return rpc({type:'entitled', sku:sku}); },
+        // The LICENSE id behind a purchased sku: the receipt's transaction id,
+        // stable, unique per purchase, and the same on every computer this
+        // receipt is restored to. Anchor saves / room identity / a server
+        // account to it and a shared receipt becomes a shared IDENTITY — the
+        // buyer's own — rather than a free copy. null until purchased.
+        license: function(sku){ return rpc({type:'license', sku:sku}); }
       };
     })();`;
   }
@@ -2855,6 +2861,14 @@
       ? new Promise((res) => { openGate = res; })
       : Promise.resolve(null);
     armBackTrap(() => iframe);
+    // A receipt GIF (manifest.receipt — see gifos-pay-broker.js) re-grants its
+    // entitlement the moment it is OPENED, on any computer: that is the whole
+    // restore story. Trust is the embedded signature, never the manifest —
+    // ingest verifies against this site's published key and a forgery grants
+    // nothing. Fire-and-forget: the viewer renders either way.
+    if (manifest && manifest.receipt && GifOS.payBroker) {
+      try { Promise.resolve(GifOS.payBroker.ingestReceiptFiles(files)).catch(() => {}); } catch (e) {}
+    }
     const handler = (e) => {
       if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
       const d = e.data; if (!d || d.ns !== 'gifos') return;
@@ -2927,6 +2941,10 @@
       }
       else if (d.type === 'entitled') {
         (GifOS.payBroker ? GifOS.payBroker.entitled(manifest, d.sku) : Promise.reject(new Error('Payments are not available on this computer.')))
+          .then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      }
+      else if (d.type === 'license') {
+        (GifOS.payBroker ? GifOS.payBroker.license(manifest, d.sku) : Promise.reject(new Error('Payments are not available on this computer.')))
           .then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       }
       else if (d.type === 'storage') {
