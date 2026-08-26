@@ -1,6 +1,22 @@
-/* Dark by default, because GifOS is. Every colour here is a role, so the two
- * charts and the six panels cannot drift apart — and the categorical slots were
- * validated against THIS surface (#16161d), not against a generic one. */
+/* Dark by default, because GifOS is — and light is a SELECTED theme, not an
+ * automatic flip of the dark one.
+ *
+ * That distinction is the whole reason this file has two blocks instead of a
+ * filter. A palette is only safe against the surface it was measured on: the
+ * dark categorical slots were validated against #16161d, and the light ones
+ * against #fcfcfb, as their own set. Inverting the dark values would put
+ * mid-luminance blues on a white card, where they neither read as data nor
+ * clear contrast.
+ *
+ * The two money wedges are the sharpest case. On dark they run #184f95 →
+ * #3987e5 (brighter means more, because brighter separates from a dark
+ * surface). On light they run #86b6ef → #2a78d6 (darker means more). Step 250
+ * is the lightest that still clears 2:1 on white; the dark theme's lighter step
+ * measures 1.74:1 there and vanishes.
+ *
+ * Every colour below is a ROLE, so the charts, the panels and the JS that draws
+ * legend swatches all read the same value from one place.
+ */
 
 :root {
   --plane:        #0d0d12;
@@ -26,8 +42,51 @@
   --serious:  #ec835a;
   --critical: #d03b3b;
 
+  /* the two money wedges of the outcome chart: an ordinal ramp, brighter = more */
+  --w-less: #184f95;
+  --w-more: #3987e5;
+
+  --band-outer: .10;
+  --band-inner: .20;
+  --shadow: rgba(0,0,0,.55);
+
   --radius: 12px;
   --tap: 44px;
+}
+
+/* LIGHT — selected, and measured against #fcfcfb as its own set. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --plane:        #f2f2ee;
+  --surface:      #fcfcfb;
+  --surface-2:    #f0efec;
+  --ink:          #0b0b0b;
+  --ink-2:        #52514e;
+  --muted:        #6f6e69;
+  --grid:         #e1e0d9;
+  --axis:         #c3c2b7;
+  --line:         rgba(11,11,11,.14);
+
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --s5: #e87ba4;
+
+  /* status stays fixed across themes — a status colour that themes is not a
+     status colour. On this surface warning and serious are sub-3:1 BY DESIGN,
+     and the mitigation is that neither ever carries meaning without a label. */
+  --good:     #0ca30c;
+  --warning:  #fab219;
+  --serious:  #ec835a;
+  --critical: #d03b3b;
+
+  --w-less: #86b6ef;   /* step 250 — the lightest that clears 2:1 on white */
+  --w-more: #2a78d6;
+
+  --band-outer: .14;
+  --band-inner: .26;
+  --shadow: rgba(11,11,11,.18);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -91,7 +150,18 @@ h2 { font-size: 1rem; }
 .btn.ghost { background: transparent; color: var(--ink-2); border-color: var(--line); }
 .btn.ghost:hover { background: var(--surface-2); color: var(--ink); }
 .btn.ghost[aria-pressed="true"] { background: var(--s1); color: #fff; border-color: transparent; }
+/* The theme switch is a preference, not a mode the app is IN. Filling it the
+   way Compare fills makes it shout for attention it has not earned. */
+.btn.ghost.icon-btn[aria-pressed="true"] {
+  background: transparent; color: var(--ink-2); border-color: var(--line);
+}
 .btn.wide { width: 100%; margin-top: .4rem; }
+.icon-btn { padding: .3rem .45rem; display: grid; place-items: center; }
+.icon-btn svg { width: 17px; height: 17px; display: block; }
+.icon-btn .ico-sun { display: none; }
+:root[data-theme="light"] .icon-btn .ico-sun { display: block; }
+:root[data-theme="light"] .icon-btn .ico-moon { display: none; }
+
 .btn.danger { color: var(--critical); }
 
 .linky {
@@ -108,7 +178,7 @@ h2 { font-size: 1rem; }
   padding: .3rem;
   background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0,0,0,.55);
+  box-shadow: 0 12px 32px var(--shadow);
 }
 .menu-item {
   display: flex; align-items: center; gap: .5rem;
@@ -118,7 +188,7 @@ h2 { font-size: 1rem; }
   background: none; color: var(--ink); font: inherit; text-align: left;
   cursor: pointer;
 }
-.menu-item:hover { background: rgba(255,255,255,.07); }
+.menu-item:hover { background: var(--surface); }
 .menu-item .tick { width: 16px; flex: none; color: var(--s1); font-weight: 700; }
 .menu-item .mi-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-item .mi-sub { color: var(--muted); font-size: .76rem; flex: none; }
@@ -130,7 +200,7 @@ h2 { font-size: 1rem; }
 #verdict {
   position: sticky; top: 45px; z-index: 30;
   padding: .7rem .75rem .75rem;
-  background: linear-gradient(var(--plane) 78%, rgba(13,13,18,0));
+  background: linear-gradient(var(--plane) 78%, transparent);
   border-bottom: 1px solid var(--line);
 }
 .verdict-main { display: flex; align-items: flex-start; gap: .6rem; }
@@ -311,7 +381,7 @@ button.row-del {
   padding: 0; border: 0; border-radius: 8px;
   background: transparent; color: var(--muted); cursor: pointer;
 }
-button.row-del:hover { background: rgba(208,59,59,.16); color: var(--critical); }
+button.row-del:hover { background: color-mix(in srgb, var(--critical) 16%, transparent); color: var(--critical); }
 button.row-del svg { width: 16px; height: 16px; }
 
 .reset-line { margin: 0; text-align: center; }
@@ -336,8 +406,10 @@ svg.chart { display: block; width: 100%; overflow: visible; }
 .point-label { fill: var(--ink); font-size: 11.5px; font-weight: 650; }
 
 .band { stroke: none; }
-.band-outer { fill: var(--s1); fill-opacity: .10; }
-.band-inner { fill: var(--s1); fill-opacity: .20; }
+/* A wash on white needs more ink than a wash on black to read as the same
+ * thing, so the opacities are themed too. */
+.band-outer { fill: var(--s1); fill-opacity: var(--band-outer); }
+.band-inner { fill: var(--s1); fill-opacity: var(--band-inner); }
 .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .line-median  { stroke: var(--s1); }
 .line-worst   { stroke: var(--critical); }
@@ -358,7 +430,7 @@ svg.chart { display: block; width: 100%; overflow: visible; }
   padding: .45rem .55rem;
   background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 9px;
-  box-shadow: 0 8px 22px rgba(0,0,0,.5);
+  box-shadow: 0 8px 22px var(--shadow);
   font-size: .8rem;
   opacity: 0; transition: opacity .08s;
 }
@@ -417,11 +489,14 @@ svg.chart { display: block; width: 100%; overflow: visible; }
   display: grid; place-items: center;
   border-radius: 50%;
   font-size: .74rem; font-weight: 700;
-  background: rgba(57,135,229,.16); color: #9ec5f4;
+  background: color-mix(in srgb, var(--s1) 16%, transparent); color: var(--s1);
 }
 .advice.fix .advice-mark,
-.advice.room .advice-mark { background: rgba(12,163,12,.16); color: #7fd47f; }
-.advice.note .advice-mark { background: rgba(255,255,255,.07); color: var(--muted); }
+.advice.room .advice-mark {
+  background: color-mix(in srgb, var(--good) 16%, transparent);
+  color: var(--good);
+}
+.advice.note .advice-mark { background: var(--surface); color: var(--muted); }
 .advice b { font-size: .94rem; font-weight: 650; }
 .advice p { margin: .15rem 0 0; color: var(--ink-2); font-size: .82rem; line-height: 1.45; }
 .advice-apply {
@@ -431,7 +506,7 @@ svg.chart { display: block; width: 100%; overflow: visible; }
   background: transparent; color: var(--ink-2);
   font: inherit; font-size: .78rem; cursor: pointer;
 }
-.advice-apply:hover { background: rgba(255,255,255,.07); color: var(--ink); }
+.advice-apply:hover { background: var(--surface); color: var(--ink); }
 .advice-empty { color: var(--muted); font-size: .85rem; }
 
 /* ------------------------------------------------------- the worst-case card */
@@ -444,8 +519,8 @@ svg.chart { display: block; width: 100%; overflow: visible; }
   display: inline-block; padding: .1rem .45rem;
   border-radius: 999px; font-size: .74rem; font-weight: 600;
 }
-.pill.bad  { background: rgba(208,59,59,.18); color: #f0a0a0; }
-.pill.ok   { background: rgba(12,163,12,.16); color: #7fd47f; }
+.pill.bad  { background: color-mix(in srgb, var(--critical) 18%, transparent); color: var(--critical); }
+.pill.ok   { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
 
 /* --------------------------------------------------------------- compare */
 
@@ -465,14 +540,14 @@ svg.chart { display: block; width: 100%; overflow: visible; }
   position: fixed; inset: 0; z-index: 90;
   display: grid; place-items: center;
   padding: 1rem;
-  background: rgba(0,0,0,.6);
+  background: rgba(0,0,0,.45);
 }
 .modal-box {
   width: min(24rem, 100%);
   padding: 1rem;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: 14px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  box-shadow: 0 20px 60px var(--shadow);
 }
 .modal-box h3 { font-size: 1.02rem; margin-bottom: .6rem; }
 .modal-foot { display: flex; justify-content: flex-end; gap: .4rem; margin-top: .9rem; }

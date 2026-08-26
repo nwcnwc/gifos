@@ -68,6 +68,7 @@
     comparing: false,
     span: 'all',
     who: 'couple',
+    theme: 'dark',
     dirty: false,
     result: null,
     compareResult: null,
@@ -525,6 +526,7 @@
   // ---- rendering the answer --------------------------------------------------
 
   function renderAll() {
+    readColours();
     renderVerdict();
     renderFan();
     renderStack();
@@ -556,10 +558,10 @@
     var n = st.length;
 
     var series = [
-      { label: 'Not here any more', colour: '#52525c', values: st.map(function (a) { return a.dead; }) },
+      { label: 'Not here any more', colour: COL.dead, values: st.map(function (a) { return a.dead; }) },
       { label: 'Ran out of money', colour: COL.critical, values: st.map(function (a) { return a.broke; }) },
-      { label: 'Less than you retired with', colour: '#184f95', values: st.map(function (a) { return a.under; }) },
-      { label: 'More than you retired with', colour: COL.s1, values: st.map(function (a) { return a.over; }) }
+      { label: 'Less than you retired with', colour: COL.wLess, values: st.map(function (a) { return a.under; }) },
+      { label: 'More than you retired with', colour: COL.wMore, values: st.map(function (a) { return a.over; }) }
     ];
 
     C.stack($('chartStates'), {
@@ -750,10 +752,22 @@
     return { p5: S.percentile(lows, 0.05), median: S.percentile(meds, 0.5) };
   }
 
-  var COL = {
-    s1: '#3987e5', s2: '#d95926', s3: '#199e70', s4: '#c98500', s5: '#d55181',
-    critical: '#d03b3b'
-  };
+  /* The charts draw legend swatches and tooltip keys in JS, and the CSS draws
+   * the marks. If those two lists ever disagree the legend lies about the
+   * chart — so there is only one list, and it lives in the stylesheet. Re-read
+   * on every render, which is also how the theme switch reaches the SVG.
+   */
+  var COL = {};
+  function readColours() {
+    var cs = getComputedStyle(document.documentElement);
+    ['s1', 's2', 's3', 's4', 's5', 'critical', 'good', 'muted', 'ink'].forEach(function (k) {
+      COL[k] = (cs.getPropertyValue('--' + k) || '').trim() || COL[k] || '#888';
+    });
+    COL.wLess = (cs.getPropertyValue('--w-less') || '').trim() || '#184f95';
+    COL.wMore = (cs.getPropertyValue('--w-more') || '').trim() || '#3987e5';
+    COL.dead = (cs.getPropertyValue('--axis') || '').trim() || '#52525c';
+    return COL;
+  }
 
   function renderFan() {
     var r = state.result, p = state.plan;
@@ -1163,6 +1177,23 @@
     state.scenarios = all;
   }
 
+  /* Dark is the default because this app lives on a dark desktop, and an app
+   * that flips to white inside a dark OS on first open reads as a bug. The
+   * choice is remembered per device, in the PRIVATE collection — a guest who
+   * joins through an Invite keeps their own eyes' preference rather than
+   * inheriting the host's.
+   */
+  function applyTheme() {
+    var light = state.theme === 'light';
+    document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+    var b = $('btnTheme');
+    b.setAttribute('aria-pressed', light ? 'true' : 'false');
+    var label = light ? 'Switch to the dark theme' : 'Switch to the light theme';
+    b.title = label;
+    b.setAttribute('aria-label', label);
+    readColours();
+  }
+
   function paintScenarioBar() {
     $('scenLabel').textContent = activeName();
     $('dirty').hidden = !state.activeId || !state.dirty;
@@ -1355,7 +1386,8 @@
   function savePrefs() {
     if (!state.prefsDb) return;
     state.prefsDb.put({
-      id: 'ui', activeId: state.activeId, compareId: state.compareId, comparing: state.comparing
+      id: 'ui', activeId: state.activeId, compareId: state.compareId,
+      comparing: state.comparing, theme: state.theme
     }).catch(noop);
   }
   function noop() {}
@@ -1499,6 +1531,12 @@
       });
     });
     $('btnCompare').addEventListener('click', toggleCompare);
+    $('btnTheme').addEventListener('click', function () {
+      state.theme = state.theme === 'light' ? 'dark' : 'light';
+      applyTheme();
+      if (state.result) renderAll();
+      savePrefs();
+    });
 
     $('modalCancel').addEventListener('click', hideModal);
     $('modalOk').addEventListener('click', function () {
@@ -1528,6 +1566,7 @@
 
   async function boot() {
     wire();
+    applyTheme();
 
     if (window.gifos) {
       try {
@@ -1536,6 +1575,7 @@
         await refreshScenarios();
         var ui = await state.prefsDb.get('ui').catch(function () { return null; });
         var draft = await state.prefsDb.get('draft').catch(function () { return null; });
+        if (ui && (ui.theme === 'light' || ui.theme === 'dark')) state.theme = ui.theme;
         if (ui && ui.activeId && byId(ui.activeId)) {
           state.activeId = ui.activeId;
           state.compareId = ui.compareId && byId(ui.compareId) ? ui.compareId : null;
@@ -1571,6 +1611,7 @@
       $('btnSave').title = 'Saving is turned off for this app.';
     }
 
+    applyTheme();
     writeForm();
     paintScenarioBar();
     readForm();

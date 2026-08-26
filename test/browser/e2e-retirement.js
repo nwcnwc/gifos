@@ -151,6 +151,51 @@ const txt = (fr, id) => fr.evaluate((i) => {
     }
   }
 
+  // ---- 2b. the light theme is a SELECTED theme, not an inverted one --------
+
+  {
+    const dark = await fr.evaluate(() => {
+      const cs = getComputedStyle(document.documentElement);
+      return {
+        theme: document.documentElement.getAttribute('data-theme'),
+        surface: cs.getPropertyValue('--surface').trim(),
+        s1: cs.getPropertyValue('--s1').trim(),
+        wLess: cs.getPropertyValue('--w-less').trim(),
+        good: cs.getPropertyValue('--good').trim()
+      };
+    });
+    check('it opens dark, because it lives on a dark desktop', dark.theme === 'dark', dark);
+
+    await fr.evaluate(() => document.getElementById('btnTheme').click());
+    await sleep(1600);
+    const light = await fr.evaluate(() => {
+      const cs = getComputedStyle(document.documentElement);
+      const key = document.querySelector('#legStates .legend-key');
+      return {
+        theme: document.documentElement.getAttribute('data-theme'),
+        surface: cs.getPropertyValue('--surface').trim(),
+        s1: cs.getPropertyValue('--s1').trim(),
+        wLess: cs.getPropertyValue('--w-less').trim(),
+        good: cs.getPropertyValue('--good').trim(),
+        pressed: document.getElementById('btnTheme').getAttribute('aria-pressed'),
+        swatch: key ? key.style.background : null
+      };
+    });
+    check('the toggle switches to light', light.theme === 'light' && light.pressed === 'true', light);
+    check('...with its OWN categorical steps, not the dark ones',
+      light.s1 !== dark.s1 && light.wLess !== dark.wLess, { dark, light });
+    check('...and a status colour that does NOT theme', light.good === dark.good,
+      [dark.good, light.good]);
+    // The legend is drawn in JS and the marks in CSS. If they read from two
+    // lists the legend eventually lies about the chart.
+    check('the legend swatch follows the theme too', !!light.swatch, light.swatch);
+
+    await fr.evaluate(() => document.getElementById('btnTheme').click());
+    await sleep(1200);
+    check('and back to dark',
+      await fr.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'dark');
+  }
+
   // ---- 3. scenarios: save, name, switch, persist ---------------------------
 
   async function setPlan(spend, retire) {
