@@ -25,17 +25,33 @@
 
   const isAddress = (a) => typeof a === 'string' && /^0x[0-9a-fA-F]{40}$/.test(a);
 
-  // ---- the payee, out of the SIGNED manifest ---------------------------------
-  // manifest.pay = { to: "0x…", chain: "eip155:84532" }
-  // This block is inside the app's files, so it is covered by the app
+  // ---- the CHAIN payee, out of the SIGNED manifest ---------------------------
+  // manifest.pay = { to: "0x…", chain: "eip155:84532" } — OPTIONAL since the
+  // PayPal rail (below) derives its payee from the signing identity and needs
+  // no field at all. When the block IS present it is covered by the app
   // signature's content hash — editing it breaks the signature, which is what
-  // makes `eligibility()` below meaningful.
+  // makes `eligibility()` below meaningful. Absent block = no chain rail;
+  // MALFORMED block = refused outright (a wrong address is never "no rail").
   function payeeOf(manifest) {
     const pay = manifest && manifest.pay;
     if (!pay || typeof pay !== 'object') throw new Error('this app declares no payee (manifest.pay), so it cannot be paid');
     if (!isAddress(pay.to)) throw new Error('manifest.pay.to is not an address');
     if (pay.chain && pay.chain !== CHAIN) throw new Error('manifest.pay.chain "' + pay.chain + '" is refused — this build pays on ' + CHAIN_NAME + ' only');
     return { to: pay.to, chain: CHAIN };
+  }
+
+  // ---- the FIAT payee, DERIVED from the signing identity ---------------------
+  // THE PAYEE RULE (docs/payments.md): signed by an email -> that email is the
+  // PayPal payee; signed by a domain -> payments@<domain>. Nothing is declared,
+  // so nothing can be tampered with — redirecting revenue means taking over
+  // the signing identity itself. Derives ONLY from a verified identity:
+  // deriving from an unverified one would pay whoever forged it.
+  function paypalPayeeOf(identity) {
+    const id = identity || {};
+    if (id.verified !== true) throw new Error('the fiat payee derives from a VERIFIED signing identity only');
+    if (id.type === 'email') return id.id;
+    if (id.type === 'domain') return 'payments@' + id.id;
+    throw new Error('unknown signing identity type "' + id.type + '" — no payee can be derived');
   }
 
   // ---- may this app charge at all? -------------------------------------------
@@ -62,14 +78,24 @@
     if (v.keyChanged) {
       return { allowed: false, reason: 'The signing key published by ' + v.id + ' has changed since this computer last saw it. Payments are refused until that is resolved.' };
     }
-    let payee;
-    try { payee = payeeOf(manifest); } catch (e) { return { allowed: false, reason: e.message }; }
+    const identity = { id: v.id, type: v.type, verified: true, signedAt: v.ts || null };
+    // The chain rail rides on manifest.pay, and the block is optional — but a
+    // block that is PRESENT and wrong is a refusal, never a silent "no rail".
+    let payee = null;
+    if (manifest && manifest.pay != null) {
+      try { payee = payeeOf(manifest); } catch (e) { return { allowed: false, reason: e.message }; }
+    }
+    // The fiat rail derives from the identity that just verified. It cannot
+    // fail for a valid identity, but guard anyway rather than half-answer.
+    let paypal = null;
+    try { paypal = paypalPayeeOf(identity); } catch (e) { return { allowed: false, reason: e.message }; }
     return {
       allowed: true,
-      payee,
+      payee,                       // chain rail: { to, chain } | null
+      paypal,                      // fiat rail: the derived PayPal payee email
       // What the human is shown. An address means nothing to a person; the
       // verified identity is the thing they can judge (docs/payments.md).
-      identity: { id: v.id, type: v.type, verified: true, signedAt: v.ts || null },
+      identity,
     };
   }
 
@@ -119,7 +145,16 @@
       payingTo: elig.identity.id,
       payingToType: elig.identity.type,
       verified: true,
-      address: elig.payee.to,
+      // The rails this app can be paid on. PayPal always (derived); the chain
+      // only when the signed manifest carries an address. The sheet renders a
+      // button per rail — never a rail with a null payee.
+      rails: {
+        paypal: elig.paypal || null,
+        x402: elig.payee ? { address: elig.payee.to, chain: CHAIN_NAME } : null,
+      },
+      // Back-compat fields (address/chain) kept while the x402 rail is the
+      // only on-chain one; prefer rails.* in new code.
+      address: elig.payee ? elig.payee.to : null,
       chain: CHAIN_NAME,
       amount: String(request.amount),
       editable: !!request.editable,
@@ -130,12 +165,15 @@
   }
 
   // ---- the receipt the OS records, and hands back ---------------------------
-  function receipt(sheetData, txId, atMs) {
+  function receipt(sheetData, txId, atMs, rail) {
     return {
       ok: true,
+      rail: rail || 'x402',                 // 'paypal' | 'x402'
       amount: sheetData.amount,
-      chain: CHAIN,
-      payee: sheetData.address,
+      chain: rail === 'paypal' ? null : CHAIN,
+      payee: rail === 'paypal'
+        ? ((sheetData.rails && sheetData.rails.paypal) || null)
+        : sheetData.address,
       payeeId: sheetData.payingTo,
       sku: sheetData.sku,
       reason: sheetData.reason,
@@ -149,6 +187,6 @@
 
   GifOS.charge = {
     CHAIN, CHAIN_NAME, DECLINED,
-    payeeOf, eligibility, validateRequest, sheet, receipt,
+    payeeOf, paypalPayeeOf, eligibility, validateRequest, sheet, receipt,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
