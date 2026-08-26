@@ -231,6 +231,20 @@ new; then build freely if the bug needs machinery that isn't there.
   cannot synthesize a touch scroll (`gestureSourceType: 'touch'` moves nothing
   while `'mouse'` scrolls the same container) — guard the mechanisms
   (touch-action, `defaultPrevented`), never the scroll itself.
+- **THE SIGNING KEY IS ON THIS BOX — SIGN, DO NOT ASK.** It is at
+  `~/.gifos-signing-key-MAJOR-SECRET.json` (mode 600, never in the repo, never
+  in GitHub Secrets — docs/threat-model.md). Any session that rebuilds a listed
+  App GIF has invalidated its signature and MUST re-sign before it is done:
+
+      GIFOS_SIGN_KEY=~/.gifos-signing-key-MAJOR-SECRET.json node scripts/sign-apps.mjs <slug> [<slug>...]
+
+  **Name the slugs.** A bare `sign-apps.mjs` sweeps every app tree and will
+  pull another session's half-finished app into `index.json`. Verify with
+  `git status` that only your slugs moved, and with
+  `node scripts/build-app-catalog.mjs --check --require-signed` that the gate
+  is green — that check is what `e2e-app-store.js` runs, so an unsigned listing
+  is a RELEASE RED, not a cosmetic gap. Never print the key, and never hand it
+  to a tool that leaves this machine.
 - The App Store catalog under `site/apps/` is GENERATED but COMMITTED (Pages
   serves static files; there is no build step on deploy). Sources are
   `apps/<slug>/manifest.json` + `apps/<slug>/listing.json`; regenerate with
