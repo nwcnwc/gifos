@@ -2508,7 +2508,7 @@
           'background:#0f0f18;border:1px solid #2a2a3f;border-radius:.5rem;padding:.5rem">' + rows + '</table>'
               : '<p style="color:#ff9d9d;font-size:.88rem">There is nothing in it.</p>') +
         '<p style="color:#9a9ab5;font-size:.82rem;margin:0 0 1rem">That is the whole of it — ' + escHtml(spec.never) +
-          ' It stays on this computer, and only an app that asks for this exact kind of summary can read it.</p>' +
+          ' It stays on this device, and only an app that asks for this exact kind of summary can read it.</p>' +
         '<div style="display:flex;gap:.5rem;justify-content:flex-end">' +
         '<button id="gifos-handoff-no" style="padding:.5rem 1rem;border-radius:.5rem;border:1px solid #3a3a52;background:transparent;color:#e8e8f4;cursor:pointer;font:inherit">Not now</button>' +
         '<button id="gifos-handoff-yes" style="padding:.5rem 1.3rem;border-radius:.5rem;border:none;background:#7b5cff;color:#fff;cursor:pointer;font:inherit">Hand it over</button></div>';

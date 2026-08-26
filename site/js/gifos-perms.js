@@ -1,5 +1,5 @@
 /*
- * gifos-perms.js — the app "Abilities / Internet" acknowledgement + opt-out UI.
+ * gifos-perms.js — the app "Abilities" acknowledgement + opt-out UI.
  *
  * Used by every way an app can run — solo in its own tab, in an app room, or
  * inside a meeting (all one page now: run.html) — so the challenge, and the
@@ -14,7 +14,8 @@
  * every path out of here that does not reach the buttons must deny().
  *
  *   GifOS.perms.attach(chipEl, { onLeave })
- *     chipEl  — the header button to use as the Abilities/Internet chip.
+ *     chipEl  — the header button to use as the Abilities chip. It is called
+ *               Abilities on every surface and in every state (paintChip).
  *     onLeave — called if the user closes a REQUIRED-capabilities gate without
  *               setting things up (a solo tab closes itself; a shared app stops).
  *               Defaults to a best-effort close/back.
@@ -82,7 +83,7 @@
     'finance.plan': {
       offers: 'Hand your other apps a retirement plan summary',
       takes: 'Pick up a retirement plan summary from your other apps',
-      desc: 'Your age, what you are worth, what you put away and what you spend — the numbers a retirement calculator asks for. No account numbers, no institution names, and none of your transactions. It never leaves this computer, and you are shown the whole summary and asked, every single time.'
+      desc: 'Your age, what you are worth, what you put away and what you spend — the numbers a retirement calculator asks for. No account numbers, no institution names, and none of your transactions. It never leaves this device, and you are shown the whole summary and asked, every single time.'
     }
   };
   function handoffKinds(manifest, dir) {
@@ -182,7 +183,15 @@
         var unsafe = hasNet && policy.unsafe();
         chipEl.style.display = '';
         chipEl.className = 'perms ' + (unsafe ? 'unsafe' : 'ok');
-        chipEl.textContent = unsafe ? '⚠ Unsafe' : (hasNet ? 'Internet' : (caps.length ? 'Abilities' : 'Sharing'));
+        // ONE NAME, ALWAYS. This chip is the door to the Abilities sheet, so it
+        // is labelled Abilities whatever the app happens to declare. It used to
+        // rename itself — 'Internet' for a networked app, 'Sharing' for one
+        // whose only declaration was a handoff — which made three
+        // different-looking buttons out of a single control, and left the help
+        // ('the chip is Abilities') pointing at a word that was not on screen.
+        // The STATE still shows, in the two channels that carry no name: the
+        // ⚠ and the unsafe colours below, and the title.
+        chipEl.textContent = unsafe ? '⚠ Abilities' : 'Abilities';
         chipEl.title = unsafe
           ? 'Unsafe: this app can reach any website. Tap to see why, or to stop it.'
           : (hasNet ? 'This app can reach the internet. Tap to see or change what it can reach.'

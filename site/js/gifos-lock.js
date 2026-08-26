@@ -337,7 +337,7 @@
     },
     remove: {
       title: 'Remove passkey lock',
-      lead: (n) => 'Your passkey will unwrap <b>' + n + '</b>’s private data on this device. Anyone who can use this computer can then open it.',
+      lead: (n) => 'Your passkey will unwrap <b>' + n + '</b>’s private data on this device. Anyone who can use this device can then open it.',
       ok: 'Remove lock',
     },
     export: {

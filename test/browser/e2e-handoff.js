@@ -108,7 +108,7 @@ window.doTake = function(kind){
   check('the sheet shows the age as an age, not as money', ageCell.trim() === '45', ageCell);
   check('THE SMUGGLED KEY IS NOT ON THE SHEET',
     sheetText.indexOf('4111111111111111') === -1 && sheetText.indexOf('Bank of America') === -1);
-  check('the sheet says it stays on this computer', /stays on this computer/i.test(sheetText));
+  check('the sheet says it stays on this device', /stays on this device/i.test(sheetText));
 
   // ---- 2. declining writes nothing ----------------------------------------
   await sheet.locator('#gifos-handoff-no').click();
