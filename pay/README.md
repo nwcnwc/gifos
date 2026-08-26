@@ -17,6 +17,10 @@ proves about one it proves about the other.
 | `GET /return` | PayPal lands the buyer back here; capture |
 | `GET /receipt/:id` | PayPal's own answer, wrapped in an Ed25519-signed receipt the OS verifies against `gifos.app/gifos.key` |
 | `POST /x402/settle` | the standard x402 facilitator wire (verify + settle per transfer of the 97/3 split), same signed-receipt shape |
+| `POST /transfer/invoice` | the wallet-transfer rail (RockWallet + every self-custody wallet): signed stateless invoice, dust-unique amount, catalog payee |
+| `POST /transfer/receipt` | watch the chain (read-only `BASE_RPC`) for the exact transfer; same signed receipt, `feeCollected:false` |
+| `POST /fednow/rfp` | FedNow via a provider (`FEDNOW_API`, Finzly-shaped — FedNow itself has no public API); payee = the registered account for the signing identity (`FEDNOW_PAYEES`) |
+| `GET /fednow/receipt/:id` | poll the RfP to settlement; same signed receipt, `feeCollected:false` |
 
 ## Deploy
 

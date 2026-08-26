@@ -29,12 +29,14 @@ Cannot prove: that any of it moves money.
 `test/browser/e2e-pay.js`, discovered by the browser tier like every suite.
 It spawns its own fixtures — `fake-paypal.js` (8795), `pay-local.js` (8796 —
 the SAME `pay/src/core.js` the Cloudflare Worker runs, signing receipts with
-a throwaway key served at `/test-pubkey`), `fake-facilitator.js` (8797), and
-a test catalog (8798) — signs an app in-browser with a fresh domain key, and
+a throwaway key served at `/test-pubkey`), `fake-facilitator.js` (8797), a
+test catalog (8798), `fake-chain.js` (8799 — read-only Base Sepolia RPC with
+a wallet-send test hook) and `fake-fednow.js` (8800 — the provider; approval
+is a test hook because the real one happens in a bank's own app) — signs an app in-browser with a fresh domain key, and
 walks the whole surface: acknowledgement, sheet, PayPal approval window,
 capture, signed receipt verified against the (route-intercepted) site key,
 entitlement, ledger, the x402 97/3 two-transfer settle via a stub wallet,
-the refusals (unsigned, double-buy, over-ceiling, decline), and the receipt-file lifecycle — mint, lazy Purchases folder, and the fresh-computer restore-by-opening. 25 checks.
+the refusals (unsigned, double-buy, over-ceiling, decline), the receipt-file lifecycle — mint, lazy Purchases folder, the fresh-computer restore-by-opening — and all FOUR rails: PayPal, x402, the dust-unique wallet transfer (wrong amount never claimed), and the FedNow RfP against the registered account. 32 checks.
 
 The paragraph below was the spec it was built to; kept for the parts
 (hostile quotes on the buying direction) not yet exercised. `test/servers/fake-x402.js` plays a paid

@@ -22,6 +22,12 @@ RETURN_BASE = "https://pay.gifos.app"
 # credentials — which is why the testnet x402 rail needs no CDP keys at all.
 # The mainnet flag day swaps this for CDP's facilitator (authed), same wire.
 FACILITATOR_URL = "https://x402.org/facilitator"
+# Wallet-transfer rail: any public Base Sepolia RPC works — the Worker only
+# READS Transfer logs, it never sends or holds anything.
+BASE_RPC = "https://sepolia.base.org"
+# FedNow: unset until a provider account exists (Finzly-shaped; see README).
+# FEDNOW_API = ""
+FEDNOW_PAYEES = "{}"
 # PAYPAL_CLIENT_ID is a var (it is public by nature); set it at deploy.
 
 # Branded domain — TWO bindings, same rationale as relay/wrangler.toml:

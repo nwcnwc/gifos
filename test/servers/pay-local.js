@@ -23,6 +23,8 @@ const PORT = Number(process.argv[2] || process.env.PAY_PORT || 8796);
 const PAYPAL_BASE = process.env.PAYPAL_BASE || 'http://127.0.0.1:8795';
 const CATALOG_URL = process.env.CATALOG_URL || 'http://127.0.0.1:8099/apps/index.json';
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'http://127.0.0.1:8797';
+const BASE_RPC = process.env.BASE_RPC || 'http://127.0.0.1:8799/rpc';
+const FEDNOW_API = process.env.FEDNOW_API || 'http://127.0.0.1:8800';
 
 (async () => {
   const { makeCore } = await import('../../pay/src/core.js');
@@ -41,7 +43,11 @@ const FACILITATOR_URL = process.env.FACILITATOR_URL || 'http://127.0.0.1:8797';
     catalogUrl: CATALOG_URL,
     returnBase: 'http://127.0.0.1:' + PORT,
     facilitatorUrl: FACILITATOR_URL,
-    signKey: { privateKey: kp.privateKey },
+    rpcUrl: BASE_RPC,
+    fednowApi: FEDNOW_API,
+    fednowKey: null,
+    fednowPayees: { 'gifos.app': 'ACCT-GIFOS', 'paytest.example.com': 'ACCT-PAYTEST' },
+    signKey: { privateKey: kp.privateKey, publicKey: kp.publicKey },
   });
 
   http.createServer(async (req, res) => {
