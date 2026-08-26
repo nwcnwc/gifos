@@ -6935,7 +6935,7 @@
         57
       ],
       "cover": "/apps/tip-creators/cover.jpg",
-      "bytes": 184228,
+      "bytes": 184214,
       "download": 0,
       "provides": null,
       "signature": {
@@ -6946,7 +6946,7 @@
       "pay": {
         "to": "0x1111111111111111111111111111111111111111"
       },
-      "sha256": "a0cfa00cfbf366d5ef2122971196cef8c021098ee510bd78d0ae1133bf024623"
+      "sha256": "a0fc040110b60322afe273244b4b06fe9176fa440b53a0e0bc6288ed40b4b284"
     },
     {
       "slug": "tosios",
