@@ -1,6 +1,6 @@
 # Chess Grandmaster
 
-Play chess against the real engine, on this device. It never needs the network.
+Play chess against the real engine, on this device. It does not need the network.
 
 ## Against the engine
 

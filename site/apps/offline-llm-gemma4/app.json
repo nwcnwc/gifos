@@ -52,7 +52,7 @@
     ]
   },
   "pay": null,
-  "sha256": "a5471539c9f531b766dc0f954d70ee3dbc8c1cb9f1146133e5ed8ee5f0cb6029",
+  "sha256": "fab082a41a4cd8049434d11d88c6c0af0593c769e016ab59fb0b0250b9c45ea5",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

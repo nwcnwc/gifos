@@ -13,7 +13,7 @@ You need two things in **GifOS Settings** (the OS, not a button in this app):
 1. **Third-party APIs** — a Deepgram key, so the take can be turned into words with timings.
 2. **AI models** — **Smartest text** to coach you. **Cheapest text** to invent drills. **Text → image** only if you pick a picture-description drill.
 
-Keys stay in Settings. This app never sees them. If something is missing, Record pops a setup sheet instead of guessing.
+Keys stay in Settings. This app does not see them. If something is missing, Record pops a setup sheet instead of guessing.
 
 The microphone is the OS recorder. This app never holds the live mic. Allow the mic when asked.
 

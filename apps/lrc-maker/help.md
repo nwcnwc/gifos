@@ -1,6 +1,6 @@
 # LRC Maker
 
-Load a local song, tap lyric timings, export an .lrc file. The audio never leaves this device. The song and the lyrics live in this file, so you can close it and come back still mid-song (a song larger than about 8 MB is kept in memory only — pick it again next time).
+Load a local song, tap lyric timings, export an .lrc file. The audio stays on this device. The song and the lyrics live in this file, so you can close it and come back still mid-song (a song larger than about 8 MB is kept in memory only — pick it again next time).
 
 ## The loop
 

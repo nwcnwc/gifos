@@ -58,7 +58,7 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
 if (/\bDrop\b/.test(listing.tagline) || /\bDrop\b/.test(listing.description)) {
   throw new Error('listing copy: say Open, not Drop');
 }
-if (!/nothing is uploaded/i.test(listing.description) && !/never leaves this device/i.test(listing.description)) {
+if (!/nothing is uploaded/i.test(listing.description) && !/stays on (this|each) device/i.test(listing.description)) {
   throw new Error('listing must say it stays on this device');
 }
 if (!/unofficial port/i.test(listing.description)) throw new Error('listing must say unofficial port');

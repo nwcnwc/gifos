@@ -32,6 +32,6 @@ Lower quality is a smaller file and a softer picture. Higher quality keeps more 
 
 ## What stays here
 
-The picture you drop in never leaves this browser. **Invite** in the bar above the app shares the tool, not the photo. **Save** remembers format, quality, lossless, and resize — so the next photo starts where you left off. The image itself is not kept.
+The picture you drop in stays in this browser. **Invite** in the bar above the app shares the tool, not the photo. **Save** remembers format, quality, lossless, and resize — so the next photo starts where you left off. The image itself is not kept.
 
 An unofficial port of [Squoosh](https://github.com/GoogleChromeLabs/squoosh) by GoogleChromeLabs. Same compressors, no tracking.

@@ -1,6 +1,6 @@
 # KeeWeb
 
-A KeePass vault on this device. Open a `.kdbx`, or start a new one. Copy a password — this app never fills another site, and nothing is uploaded.
+A KeePass vault on this device. Open a `.kdbx`, or start a new one. Copy a password — this app does not fill other sites, and nothing is uploaded.
 
 This is **not** a cloud vault. There is no Dropbox, Google Drive, OneDrive, or WebDAV. There is no browser extension and no autofill. Secrets stay in this app, encrypted, on this device.
 
@@ -10,7 +10,7 @@ This is **not** a cloud vault. There is no Dropbox, Google Drive, OneDrive, or W
 - **New vault** — name, master password (8+ characters), confirm. Optional key file. Creating a new vault **replaces** the one stored here; export first if you still need the old file.
 - **Open a .kdbx** — drop a KeePass file onto the card, or tap to choose. Enter its master password. That file stays in this tab; it is not uploaded.
 
-Wrong password is refused, same as KeePass itself. The master password is **never stored**.
+Wrong password is refused, same as KeePass itself. The master password is not stored.
 
 ## The vault
 

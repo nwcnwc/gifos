@@ -37,6 +37,6 @@ Install the sibling **Scanned PDF Tables → Excel** from the store for those. T
 
 ## Private vs shared
 
-The PDF you drop and the Excel you download **never leave this device**. Nothing is saved inside the app: drop the file again to retry.
+The PDF you drop and the Excel you download **stay on this device**. Nothing is saved inside the app: drop the file again to retry.
 
 **Invite** in the bar above does not share a document. This is a tool for this computer, not a live room.

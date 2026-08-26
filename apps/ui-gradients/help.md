@@ -26,7 +26,7 @@ Playing alone is the original gallery. To look at the same ramp with a friend:
 1. Press **Share this pick**.
 2. Press **Invite** in the bar above the app and send the link.
 
-You both start from this ramp. When anyone picks another, or turns it, everyone sees it. **← Solo** puts you back on your own gallery. Hearts never leave this device.
+You both start from this ramp. When anyone picks another, or turns it, everyone sees it. **← Solo** puts you back on your own gallery. Hearts stay on this device.
 
 If you arrived through an Invite, you are already sharing.
 

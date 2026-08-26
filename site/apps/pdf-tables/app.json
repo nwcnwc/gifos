@@ -42,14 +42,14 @@
   "cover": "/apps/pdf-tables/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pdf-tables/pdf-tables.gif",
-  "bytes": 1248779,
+  "bytes": 1248770,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "fd510eba299f600face61216c58a274da2e9dae7a62b219cbd75322fc7cd5e52",
+  "sha256": "6ebcb51ba79dcaf9a0706ecdf340cf7c733ecd8c5086a969a3b3afd7860c16dc",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-26"
   }
 }

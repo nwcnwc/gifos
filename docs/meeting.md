@@ -110,7 +110,7 @@ it; tap again to fold it back.
 The controls worth knowing:
 
 - **Blur** (Max / Min / None) — how blurred *your own* video looks to everyone.
-  You always control your own camera; nobody can un-blur you. Everyone joins
+  Your own camera stays under your control; no one else can un-blur you. Everyone joins
   muted, camera off, and Max-blurred — invisible until they choose to be seen.
 - **Stage** — step up to be seen and heard first by the whole room; tap again to
   step down.
@@ -240,7 +240,7 @@ list to keep and nobody keeps it — like the Stage and the rows, the queue is
 
 A meeting's URL declares its governance, and **the address is the contract**:
 
-- **`gifos.app/meet/<room>`** is an **open room** — *anarchic forever*. No admin
+- **`gifos.app/meet/<room>`** is an **open room** — *anarchic by address*. No admin
   exists and none can be imposed mid-meeting. Order is kept by **peer-enforced
   civility**: anyone can mute or blur anyone for the whole room (always
   attributed, un-liftable by the target), and a **personal, global vote-off list**

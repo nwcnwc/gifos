@@ -1,6 +1,6 @@
 {
-  "tagline": "Recovery words on this device. They stay put.",
-  "description": "Type your recovery words, or make a new set. This tab shows the wallet addresses those words belong to. Anyone who sees the words can take the coins — treat them like cash on the table.\n\nRecovery words stays on this device — nothing is sent anywhere, and closing the app forgets them.\n\nAn unofficial port of bip39 by iancoleman. Same tool: generate words, type existing ones, pick a coin, see the addresses. Word lists for English and nine other languages ride inside the app.\n\nThis is not a wallet. It does not send coins. It does not talk to the internet.",
+  "tagline": "Recovery words stay on this device — nothing is sent anywhere.",
+  "description": "Type your recovery words, or make a new set. This tab shows the wallet addresses those words belong to. Anyone who sees the words can take the coins — treat them like cash on the table.\n\nRecovery words stay on this device — nothing is sent anywhere, and closing the app forgets them.\n\nAn unofficial port of bip39 by iancoleman. Same tool: generate words, type existing ones, pick a coin, see the addresses. Word lists for English and nine other languages ride inside the app.\n\nThis is not a wallet. It does not send coins. It does not talk to the internet.",
   "author": {
     "name": "iancoleman",
     "url": "https://github.com/iancoleman/bip39"

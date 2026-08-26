@@ -182,7 +182,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   function stateClass(s) { return s === 'supported' ? 'ok' : s === 'unsupported' ? 'no' : 'huh'; }
   function stateWords(entry) {
     if (entry.state === 'supported') return esc(entry.min) + ' and up';
-    if (entry.state === 'unsupported') return 'Never';
+    if (entry.state === 'unsupported') return 'Not supported';
     return 'Not checked';
   }
 

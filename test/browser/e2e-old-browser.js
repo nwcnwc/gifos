@@ -463,7 +463,7 @@ const LAUNCH = { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for
     check('…and an unmeasured browser says so rather than guessing',
       !!m && m.cards.samsung && Object.values(m.cards.samsung).every((v) => v === 'Not checked'), m && m.cards.samsung);
     check('…and a browser that can never work says THAT, not a version',
-      !!m && m.cards.ie && m.cards.ie.meet === 'Never', m && m.cards.ie);
+      !!m && m.cards.ie && m.cards.ie.meet === 'Not supported', m && m.cards.ie);
     check('the three numbers people came for are above the fold, in one sentence',
       !!m && /Safari 12\.1/.test(m.glance) && /Chrome 71/.test(m.glance) && /Firefox 65/.test(m.glance), m && m.glance.slice(0, 120));
     check('…and the page explains WHY the numbers are what they are (Ed25519)', !!m && /Ed25519/.test(m.reqs));

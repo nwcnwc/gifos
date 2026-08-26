@@ -4,9 +4,9 @@ A calculator for **recovery words**. Type an existing phrase, or generate a new 
 
 This is **not a wallet**. It does not send coins. It does not talk to the internet. Anyone who sees the words can take the coins — treat them like cash on the table.
 
-## Never leave this device
+## They stay on this device
 
-Recovery words **never leave this device**. Nothing is uploaded. **Close the app and they are gone** — they are not saved in the file. Do not press **Invite** with words on the screen; a guest gets a blank copy of the tool, but anyone looking at your display can still steal.
+Recovery words **stay on this device**. Nothing is uploaded. **Close the app and they are gone** — they are not saved in the file. Do not press **Invite** with words on the screen; a guest gets a blank copy of the tool, but anyone looking at your display can still steal.
 
 **Hide all private info** greys out the secrets if someone is standing behind you.
 
