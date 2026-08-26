@@ -6,17 +6,22 @@ amended 2026-08-25 (see "TWO RAILS" below — a PayPal rail joins the chain rail
 the payee is the SIGNING IDENTITY, the fee is 3%, and `gifos.charge()` is the
 first surface).
 
-**As built (checked 2026-08-24):** the four payment modules exist and are
-unit-gated but are LOADED BY NO PAGE — `gifos-x402.js` (the 402 wire),
-`gifos-charge.js` (the selling gate), `gifos-purse.js` (permissions + spend
-ledger), and `gifos-pay.js` (parked Solana-devnet groundwork, not the x402
-implementation). The broker (`runtime.js`) has no 402 path yet, no Base
-Account connection code exists, `capabilities.pay` is not in the
-acknowledgement sheet, `gifos.charge`/`gifos.entitled` are not on the app API
-surface, and Settings has no permissions/ledger panel. The only money that
-moves today is the tip / feature-a-listing links (`gifos-cash.js`, live in
-the store). Present-tense mechanism descriptions below are the ratified
-design; this block is what has landed.
+**As built (2026-08-25):** the selling direction is LIVE on test rails.
+run.html loads `gifos-x402.js`, `gifos-charge.js`, `gifos-purse.js` and the
+broker `gifos-pay-broker.js`; `gifos.charge()`/`gifos.entitled()` are on the
+app API; `capabilities.pay` is in the acknowledgement sheet; Settings has a
+Payments panel (ledger, entitlements, per-charge ceiling — default $20); and
+the pay Worker exists (`pay/`, stateless, one core run by both the
+Cloudflare wrapper and the gate's Node twin). The first seller is
+`apps/tip-creators`. `test/browser/e2e-pay.js` proves the whole surface
+hermetically — both rails, the refusals, the 97/3 split, the signed receipt.
+STILL MISSING: the Worker is not deployed (needs PayPal sandbox credentials
+and the marketplace-partner application), tip-creators is unsigned (and so
+cannot charge) until the gifos.app signing pass runs, the Base Account
+wallet adapter (`GifOS.payWallet`) does not exist in production so the x402
+rail's button says "no wallet connected", the BUYING direction (a 402 on
+`gifos.fetch`) has no broker hook, and Spend Permissions/subscriptions are
+not wired. `gifos-pay.js` stays parked Solana groundwork.
 
 The live App Store has a **separate** optional fiat CTA (`site/js/gifos-cash.js`)
 — a tip or "feature this listing" button, plus an optional Stripe CTA meant
