@@ -45,9 +45,9 @@
   "cover": "/apps/finance/cover.jpg",
   "screenshots": [],
   "gif": "/apps/finance/finance.gif",
-  "bytes": 346192,
+  "bytes": 346900,
   "download": 0,
   "provides": null,
-  "sha256": "ffa3f5e4bbcc627188876539f4f2c17893cfb337e84d5990ed9f3a7d9a67b6fd",
+  "sha256": "9f5e24ecb1bcf78b1ccb8dc340647d4d3c757fea9764a247a6662284793d4a36",
   "signature": null
 }
