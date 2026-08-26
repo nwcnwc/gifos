@@ -47,6 +47,7 @@
       "tts"
     ]
   },
+  "pay": null,
   "sha256": "86a25baafc1de31906ba8cbdf2f6b3307d5ffb92ff7b0e98bb0c4d7b7c96c844",
   "signature": {
     "type": "domain",

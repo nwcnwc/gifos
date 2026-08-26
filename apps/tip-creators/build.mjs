@@ -54,11 +54,15 @@ for (const forbidden of ['network', 'pool', 'api', 'ai', 'camera', 'microphone',
     throw new Error('tip-creators declares no ' + forbidden + ' — "it remembers nothing" must stay true');
   }
 }
-// NO manifest.pay block, deliberately: the payee is DERIVED from the signing
-// identity (payments@gifos.app once signed as gifos.app — THE PAYEE RULE,
-// docs/payments.md). A pay block appearing here would mean someone is trying
-// to point the money somewhere else.
-if (manifest.pay) throw new Error('tip-creators must have NO manifest.pay — the payee derives from the signing identity');
+// The FIAT payee is DERIVED from the signing identity (payments@gifos.app
+// once signed — THE PAYEE RULE, docs/payments.md) and needs no field. The
+// CHAIN payee is a field, and for the tip jar it must be the GifOS treasury
+// and nothing else — a different address here is someone pointing the tips
+// somewhere else, and this build must stop.
+const TREASURY = '0x1111111111111111111111111111111111111111'; // Base Sepolia TEST treasury — replace at the mainnet flag day
+if (!manifest.pay || manifest.pay.to !== TREASURY) {
+  throw new Error('tip-creators manifest.pay.to must be the GifOS treasury (' + TREASURY + ')');
+}
 
 // ---- the listing is a promise to the reader ---------------------------------
 

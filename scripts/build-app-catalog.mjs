@@ -535,6 +535,12 @@ async function buildApp(slug) {
     // the store can honestly say "+N MB download" before Install.
     download,
     provides: m.provides || null,
+    // The app's on-chain payee, straight from the signed manifest. The pay
+    // Worker treats THIS as the authority for where a wallet-transfer or x402
+    // author leg may point — never a client-sent address, or a buyer could
+    // self-deal an invoice and mint a signed receipt without paying the
+    // author (docs/payments.md).
+    pay: (m.pay && typeof m.pay.to === 'string') ? { to: m.pay.to } : null,
     sha256: crypto.createHash('sha256').update(gifBytes).digest('hex'),
     signature: signatureClaim(gifBytes),
   };
@@ -600,6 +606,11 @@ const index = {
     releaseDate: r.releaseDate, updated: r.updated,
     categories: r.categories, tags: r.tags, accent: r.accent,
     cover: r.cover, bytes: r.bytes, download: r.download, provides: r.provides, signature: r.signature,
+    // pay BELONGS IN THE INDEX for the same reason sha256 does: the pay
+    // Worker resolves an appId to its authoritative chain payee from ONE
+    // fetch of the index — never from a client-sent address (see the rec
+    // comment above; docs/payments.md).
+    ...(r.pay ? { pay: r.pay } : {}),
     // sha256 BELONGS IN THE INDEX, not only in each app.json. store.js decides
     // "yours is older" by hashing the installed bytes and comparing to
     // app.sha256 — and the GRID calls outdated() on an INDEX entry. Without

@@ -49,6 +49,7 @@
       "cheapest"
     ]
   },
+  "pay": null,
   "sha256": "4291288401bc33384994f84354d4e85bdd20b82473b88258330c3b3d4505d4fa",
   "signature": {
     "type": "domain",
