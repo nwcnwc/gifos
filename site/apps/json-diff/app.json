@@ -7,7 +7,7 @@
   "version": "1.1",
   "minBuild": 947,
   "tagline": "Paste two JSON documents, see exactly what changed.",
-  "description": "Paste the old document on the left and the new one on the right. Added bits light up green, removed bits red, and changed bits show both. The text never leaves this device.\n\nThe last pair you pasted comes back the next time you open the app. Press Invite in the GifOS bar to show the same difference, read-only, for everyone in a meeting. They can look; they do not type over it.\n\nAn unofficial port of jsondiffpatch by benjamine. Same visual difference the original demo draws, plus the JSON delta and JSON Patch. List items that carry an id are matched by that id, not only by position.",
+  "description": "Paste the old document on the left and the new one on the right. Added bits light up green, removed bits red, and changed bits show both. The text stays on this device.\n\nThe last pair you pasted comes back the next time you open the app. Press Invite in the GifOS bar to show the same difference, read-only, for everyone in a meeting. They can look; they do not type over it.\n\nAn unofficial port of jsondiffpatch by benjamine. Same visual difference the original demo draws, plus the JSON delta and JSON Patch. List items that carry an id are matched by that id, not only by position.",
   "author": {
     "name": "benjamine",
     "url": "https://github.com/benjamine/jsondiffpatch"

@@ -6,8 +6,8 @@
   "shortName": "BIP39",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Recovery words on this device. They never leave.",
-  "description": "Type your recovery words, or make a new set. This tab shows the wallet addresses those words belong to. Anyone who sees the words can take the coins — treat them like cash on the table.\n\nRecovery words never leave this device — nothing is sent anywhere, and closing the app forgets them.\n\nAn unofficial port of bip39 by iancoleman. Same tool: generate words, type existing ones, pick a coin, see the addresses. Word lists for English and nine other languages ride inside the app.\n\nThis is not a wallet. It does not send coins. It does not talk to the internet.",
+  "tagline": "Recovery words on this device. They stay put.",
+  "description": "Type your recovery words, or make a new set. This tab shows the wallet addresses those words belong to. Anyone who sees the words can take the coins — treat them like cash on the table.\n\nRecovery words stays on this device — nothing is sent anywhere, and closing the app forgets them.\n\nAn unofficial port of bip39 by iancoleman. Same tool: generate words, type existing ones, pick a coin, see the addresses. Word lists for English and nine other languages ride inside the app.\n\nThis is not a wallet. It does not send coins. It does not talk to the internet.",
   "author": {
     "name": "iancoleman",
     "url": "https://github.com/iancoleman/bip39"
@@ -37,15 +37,15 @@
   "cover": "/apps/bip39/cover.jpg",
   "screenshots": [],
   "gif": "/apps/bip39/bip39.gif",
-  "bytes": 2141267,
+  "bytes": 2143984,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "ffc0d995609ffc7601489489ff5e7d5ee661531bf7a355edcb60f8183cfc3f13",
+  "sha256": "1b3028f9d440b22bce8acce0dc0f045b825fa6cf48d58d44340f477b6d9063de",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-26"
   },
   "porter": {
     "name": "GifOS",

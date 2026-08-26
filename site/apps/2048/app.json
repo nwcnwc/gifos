@@ -6,7 +6,7 @@
   "shortName": "2048",
   "version": "1.2",
   "minBuild": 947,
-  "tagline": "Race a friend to 2048 — and never lose a board again.",
+  "tagline": "Race a friend to 2048 — and come back to the board you left.",
   "description": "Press Play a friend, then Invite in the bar above the app, and send the link. You both start from the same tiles. First to 2048 wins.\n\nOn your own it is the original 2048. Swipe or use the arrow keys. When two tiles with the same number touch, they merge into one. Close it, come back, the board is where you left it.\n\nEvery game you play is kept. Press Games for the list — newest first, each with a picture of the board as you left it — and tap one to sit back down at it. New Game deals a fresh board instead of erasing the last, and the game you reached 4096 on is still there years later. Nothing removes a game but you.\n\nEach of you plays your own board in a race. Live scores as you go. If someone runs out of moves, the other can keep going — highest score takes it once every board is stuck.\n\nAn unofficial port of 2048 by Gabriele Cirulli.",
   "author": {
     "name": "Gabriele Cirulli",
@@ -39,15 +39,15 @@
   "cover": "/apps/2048/cover.jpg",
   "screenshots": [],
   "gif": "/apps/2048/2048.gif",
-  "bytes": 320342,
+  "bytes": 320331,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "76dfe9cffe3fd00cc959cc80e1aa409935f5762c588aa9edc81bab2e6b5ad09c",
+  "sha256": "4942aa92b36a6ded5a0393836389f51dd8fe365788f175c3c896a3198541b501",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-26"
   },
   "porter": {
     "name": "GifOS",
