@@ -141,8 +141,8 @@ if (listing.releaseDate !== '2026-08-23') throw new Error('listing.releaseDate m
 if (listing.homepage !== 'https://github.com/nwcnwc/gifos/tree/main/apps/bip39') {
   throw new Error('listing.homepage must be the gifos tree');
 }
-if (!/never leave this device/i.test(listing.description) && !/never leave this device/i.test(listing.tagline)) {
-  throw new Error('listing must say recovery words never leave this device');
+if (!/stay on this device/i.test(listing.description) && !/stay on this device/i.test(listing.tagline)) {
+  throw new Error('listing must say recovery words stay on this device');
 }
 
 const listingBlob = JSON.stringify(listing);
@@ -178,8 +178,8 @@ if (/type=["']module["']/.test(html)) throw new Error('classic scripts only — 
 if (/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, ''))) {
   throw new Error('index.html has an external URL — nothing is fetched');
 }
-if (!html.includes('Recovery words never leave this device.')) {
-  throw new Error('index.html must say recovery words never leave this device');
+if (!html.includes('Recovery words stay on this device.')) {
+  throw new Error('index.html must say recovery words stay on this device');
 }
 if (!html.includes('id="phrase"') || !html.includes('generate')) {
   throw new Error('index.html is missing the phrase field or generate button');

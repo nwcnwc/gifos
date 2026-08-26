@@ -138,7 +138,7 @@ trusted GifOS origin; SSRFs internal services via a redirect.
   `capabilities.network`, and the brokered `gifos.ai` / `gifos.api` calls
   (their own capabilities, their own acknowledgement lines) reach only the
   user's configured provider or named API. A GIF that declares none of these
-  can never touch the internet — and note an app WITH `capabilities.ai` can
+  has no path to the internet — and note an app WITH `capabilities.ai` can
   ship what it hands the model off-device via the user's provider, which is
   why `ai`/`api` are named in the acknowledgement sheet like network hosts.
 - The user **sees and controls** the list: a plain-language acknowledgement on
@@ -219,7 +219,7 @@ clients; a lost reply causes duplicate writes on reconnect.
   `{sp, sig, pub}` and the relay verifies the same proof any peer verifies —
   commitment, signature, right action, fresh timestamp. No secret query
   param, no admin sockets, no stamps. So a link-holder can join and read the
-  shared state, but can never impersonate the owner or serve poisoned state
+  shared state, but cannot impersonate the owner or serve poisoned state
   under their name. The relay derives the verifier from the id with one
   helper (`verifierOf`) shared with meetings, so apps and meetings
   authenticate authority identically. A creator who instead picks "Let a

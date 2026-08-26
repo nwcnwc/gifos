@@ -40,7 +40,7 @@
   "cover": "/apps/offline-tts-neural/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-tts-neural/offline-tts-neural.gif",
-  "bytes": 12423417,
+  "bytes": 12423420,
   "download": 24369971,
   "provides": {
     "ai": [
@@ -48,7 +48,7 @@
     ]
   },
   "pay": null,
-  "sha256": "86a25baafc1de31906ba8cbdf2f6b3307d5ffb92ff7b0e98bb0c4d7b7c96c844",
+  "sha256": "110855c5e5f3a6eb1720fab95e8fac3c9f1282ba96b9390862352a6348db32ba",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

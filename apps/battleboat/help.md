@@ -29,7 +29,7 @@ There is no keyboard aiming. Mouse click and finger tap are the same.
 
 ## A friend
 
-Each of you hides a fleet on your own device. **Ship positions never leave this device.** Only shots and the revealed cells of your own fleet are shared. If they leave, press **Invite** again to bring them back, or **Leave**.
+Each of you hides a fleet on your own device. **Ship positions stay on this device.** Only shots and the revealed cells of your own fleet are shared. If they leave, press **Invite** again to bring them back, or **Leave**.
 
 **Play again** starts a new round with new placement.
 

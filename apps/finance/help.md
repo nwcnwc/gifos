@@ -56,7 +56,7 @@ app can ask for your balances.
    credentials and all — and GifOS will split it correctly. Tap **Test & save**.
 3. Back here, tap **↻ Refresh from SimpleFIN**.
 
-This app never sees that credential. GifOS holds it, attaches it, and only ever
+This app does not see that credential. GifOS holds it, attaches it, and only ever
 sends it to that one address.
 
 Everything works without it. CSV import covers every institution there is;
@@ -110,5 +110,5 @@ It stays on this device.
 - **It does not do multiple currencies.** It records the currency of an
   account, but net worth assumes one.
 - **It does not know about tax.**
-- **It never asks for a bank password**, and there is no version of this app
+- **It does not ask for a bank password**, and there is no version of this app
   that will.

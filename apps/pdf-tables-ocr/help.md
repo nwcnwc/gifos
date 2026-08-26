@@ -37,6 +37,6 @@ The preview shows the first 12 rows; the rest still go into the file. **Download
 
 ## Private
 
-This is a solo tool. There is no Invite. The PDF you drop and the spreadsheet you download never leave this device. Closing the app forgets the last file; drop it again if you need another copy.
+This is a solo tool. There is no Invite. The PDF you drop and the spreadsheet you download stay on this device. Closing the app forgets the last file; drop it again if you need another copy.
 
 The smaller sibling, [PDF Tables → Excel](https://gifos.app/store/pdf-tables), is the tiny text-only option if you never touch scans.

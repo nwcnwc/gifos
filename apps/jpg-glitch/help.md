@@ -8,7 +8,7 @@ Corrupt a **still photo** so it looks glitched. The tears, the colour bands, the
 - **Choose a picture** opens a JPEG, PNG or WebP already on this device.
 - **Try a sample** loads a small gradient so the sliders have something to smash.
 
-First open, with nothing saved, is an empty stage — not a blank canvas. The picture never leaves this device.
+First open, with nothing saved, is an empty stage — not a blank canvas. The picture stays on this device.
 
 ## Sliders
 

@@ -10,7 +10,7 @@ This is a converter, not a drawing app. You start from a picture. You do not pai
 - **Choose a picture** opens a JPEG, PNG or WebP already on this device.
 - **Try a sample** loads a small landscape so you can try the sliders before bringing your own photo.
 
-First open, with nothing saved, is an empty stage — not a blank canvas. The picture never leaves this device.
+First open, with nothing saved, is an empty stage — not a blank canvas. The picture stays on this device.
 
 ## Convert
 

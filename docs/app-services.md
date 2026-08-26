@@ -118,7 +118,7 @@ All three are available. Which combination is right is **not decided**.
 - **Eventual consistency is legitimate here and is the cheapest knob.** Each
   node keeps its own table of everyone's latest record and patches it as
   fragments arrive. No node ever needs a coherent room-wide snapshot at an
-  instant. Video can never do this; status always can.
+  instant. Video cannot do this; status can.
 - **Emission must be change-triggered, not clocked.** A parked car should emit
   nothing. Anyroad currently publishes unconditionally at 5 Hz
   (`mp.js:20`, `:163`) whether or not anything moved. Dead reckoning with a

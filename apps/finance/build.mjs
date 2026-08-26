@@ -96,8 +96,8 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
 }
 // The two sentences a reader of a FINANCE app is most likely to assume and be
 // wrong about. Both must keep being said.
-if (!/never asks for a password/i.test(listing.description)) {
-  throw new Error('the listing must say it never asks for a bank password — every reader arrives assuming a Mint replacement does');
+if (!/does not ask for a password/i.test(listing.description)) {
+  throw new Error('the listing must say it does not ask for a bank password — every reader arrives assuming a Mint replacement does');
 }
 if (!/Nothing is uploaded/i.test(listing.description)) {
   throw new Error('the listing must state the privacy claim plainly');

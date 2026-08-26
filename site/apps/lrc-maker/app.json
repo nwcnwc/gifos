@@ -40,15 +40,15 @@
   "cover": "/apps/lrc-maker/cover.jpg",
   "screenshots": [],
   "gif": "/apps/lrc-maker/lrc-maker.gif",
-  "bytes": 193031,
+  "bytes": 193015,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "4d79c24c584eee942fd7e40531cff2d70ace8e8173516999f9381714cbac9003",
+  "sha256": "450260f4ff4be5351fff01c1345b149d50c96f6ec1fbfa899c6519b14f99648d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-26"
   },
   "porter": {
     "name": "GifOS",

@@ -1,6 +1,6 @@
 # Offline Neural Text to Speech
 
-This is a **voice for your whole computer**, not a one-off talker. Other apps ask it to speak. The words never leave this device.
+This is a **voice for your whole computer**, not a one-off talker. Other apps ask it to speak. The words stay on this device.
 
 ## Set it as your voice
 
@@ -19,7 +19,7 @@ Type in the box, pick a voice, press **Speak**.
 
 It thinks before it talks. The first sound can take several seconds, longer on a phone, longer if the box is full. That wait is the voice being made, not a freeze. This page starts playing the first sentence while it still makes the rest.
 
-The first time you open it, a **24 MB voice** downloads once and stays on this device. After that it never needs the network.
+The first time you open it, a **24 MB voice** downloads once and stays on this device. After that it does not need the network.
 
 ## What other apps hear
 

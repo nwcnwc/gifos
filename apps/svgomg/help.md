@@ -39,7 +39,7 @@ A bigger result is possible — some steps, or **Prettify markup**, can grow a t
 - **Download** saves the cleaned SVG under the same name.
 - **Copy** puts the markup on the clipboard.
 
-The picture never leaves this device.
+The picture stays on this device.
 
 ## Invite and save
 
