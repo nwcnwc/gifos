@@ -246,6 +246,12 @@
     return i;
   }
 
+  /* One thing worth knowing about income that starts before you retire: this
+   * app has no concept of what you spend while you are still working, so any
+   * such income is added to what you save rather than to what you live on.
+   * Part-time work of $20,000 a year from 45 to 65 behaves exactly like putting
+   * $20,000 a year more into the pot. That is a defensible model and a
+   * surprising one, so the panel says it out loud. */
   function renderIncomes() {
     var host = $('incomeList');
     host.textContent = '';
@@ -274,12 +280,13 @@
 
       var to = mkInput('number', inc.to === null || inc.to === undefined ? '' : inc.to, '');
       to.min = 18; to.max = 120; to.placeholder = 'ever';
+      to.title = 'The last payment is the year BEFORE this age. Leave it blank for life.';
       to.addEventListener('input', function () {
         var v = to.value.trim();
         inc.to = v === '' ? null : clamp(num(v, 120), 0, 130);
         touched();
       });
-      grid.appendChild(labelled('Until age', to));
+      grid.appendChild(labelled('Stops at age', to));
 
       var chk = document.createElement('div');
       chk.className = 'r-check';
@@ -356,8 +363,15 @@
       grid.appendChild(labelled(ev.years > 1 ? 'A year' : 'Amount', amt));
 
       var at = mkInput('number', ev.at, '');
-      at.min = 18; at.max = 120;
-      at.addEventListener('input', function () { ev.at = clamp(num(at.value, 65), 0, 130); touched(); });
+      at.min = state.plan.currentAge; at.max = Math.max(state.plan.currentAge, state.plan.endAge - 1);
+      // Clamp to the plan's OWN window. An event dated at or past the final age
+      // used to be dropped in silence and the answer looked completely normal —
+      // a $500,000 inheritance at 95 on a plan through 95 changed nothing at all.
+      at.addEventListener('input', function () {
+        ev.at = clamp(num(at.value, state.plan.retireAge), state.plan.currentAge, state.plan.endAge - 1);
+        touched();
+      });
+      at.addEventListener('blur', function () { at.value = ev.at; });
       grid.appendChild(labelled('From age', at));
 
       var yrs = mkInput('number', Math.max(1, Math.round(ev.years || 1)), '');

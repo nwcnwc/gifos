@@ -34,8 +34,17 @@ be left alone.
   with inflation* for anything indexed. Social Security is; most company
   pensions are not, and over thirty years that difference is enormous. The app
   shrinks a non-indexed payment using real historical inflation.
-- **One-off events** — selling a house, an inheritance, a new roof, a wedding.
-  Use a minus sign for money going out.
+  *Stops at age* means the last payment is the year **before** that age; leave
+  it blank for life. And income that starts before you retire is added to what
+  you **save**, not to what you live on — the app has no notion of what you
+  spend while you are still working.
+- **Big one-offs and college** — anything that lands on one year or runs for
+  several: **college**, a wedding, a new roof, a few years of helping a parent,
+  selling a house, an inheritance. Set *for how many years* to 4 and it bills
+  every year for four years, which is one child in one row. **Add college**
+  fills that in for you; change the number to yours. Money can point either
+  way — there is a Paying out / Coming in switch, so you never type a minus
+  sign.
 - **Investments** — how much sits in shares rather than bonds, whether to drift
   towards bonds with age, and what you pay in yearly fees.
 - **How you take the money** — a steady inflation-adjusted paycheck (the 4%
@@ -55,8 +64,20 @@ be left alone.
   buys almost none.
 - **Where each year's money comes from** — how much of the budget the portfolio
   has to find once pensions and other income have paid their share.
+- **Rich, broke, or gone** — every year of retirement split by where you
+  actually end up, including not being here. Running out is not the only way a
+  plan ends, and for most people it is not the likeliest one. Survival odds come
+  from the Social Security life table; the switch picks a man, a woman, or *at
+  least one of a couple*, which is the one that matters for how long the money
+  has to last.
 - **What would change it** — the levers, each one re-measured against all of
   history. Press **Try it** to apply one and watch everything update.
+
+## Light or dark
+
+The sun/moon button at the top right switches between them, and it remembers.
+It is your device's choice, not the plan's — if someone joins you through an
+Invite they keep their own.
 
 ## Plans
 
