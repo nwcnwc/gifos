@@ -6,7 +6,7 @@ It is a **Provider**: instead of doing a job only on its own screen, it gives ev
 
 ## First-run wait
 
-The first time this computer installs it, you wait for a **one-time download of about 163 MB** — the voice's data, kept on this device. After that it never needs the network.
+The first time this device installs it, you wait for a **one-time download of about 163 MB** — the voice's data, kept on this device. After that it never needs the network.
 
 If you press **Speak** before that download finishes, you get an error asking you to open the app (or reinstall it) so the 163 MB voice can land. There is no pretend voice for ordinary speech. Wait, then try again.
 

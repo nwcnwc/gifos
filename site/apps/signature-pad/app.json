@@ -40,14 +40,14 @@
   "cover": "/apps/signature-pad/cover.jpg",
   "screenshots": [],
   "gif": "/apps/signature-pad/signature-pad.gif",
-  "bytes": 201033,
+  "bytes": 201037,
   "download": 0,
   "provides": null,
-  "sha256": "c66326894b39a7134bf9d9f33c78b56e6a754d7a3446cc463ea3637c81580b0c",
+  "sha256": "8a42b72dd5c3113cf1ecd7779adcc99aa9bde2ab93a53bdc4d4a729dc92fdef4",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-26"
   },
   "porter": {
     "name": "GifOS",

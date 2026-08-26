@@ -20,7 +20,7 @@ If the pad is empty, it asks you to sign first.
 
 ## What stays in the file
 
-The last signature on this computer stays **inside the app**. Close it, open it later — the strokes and the ink colour are still there.
+The last signature on this device stays **inside the app**. Close it, open it later — the strokes and the ink colour are still there.
 
 A PNG you saved is a separate picture. It does not update when you sign again.
 

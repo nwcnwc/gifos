@@ -6,7 +6,7 @@ It is a **Provider**: other apps ask the computer for cheap text, and this is on
 
 ## First-run wait
 
-The first time this computer installs it, you wait for a **one-time download of about 769 MB** — the model's data, kept on this device. After that, answers never need the network.
+The first time this device installs it, you wait for a **one-time download of about 769 MB** — the model's data, kept on this device. After that, answers never need the network.
 
 While that download is still going (or if it failed), this app falls back to a tiny **self-test** model. It proves the plumbing works, but it speaks **nonsense on purpose**. If you see a self-test label, the real Gemma 3 data is not ready yet. Wait for the download, then open the app again.
 
