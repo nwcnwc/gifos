@@ -3884,7 +3884,7 @@
         180
       ],
       "cover": "/apps/offline-llm-bitnet/cover.jpg",
-      "bytes": 10331105,
+      "bytes": 10227600,
       "download": 1105874048,
       "provides": {
         "ai": [
@@ -3894,9 +3894,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-26"
       },
-      "sha256": "90acbf74d1736fddc13d622171fedf909c5b13852d64afff06b1d987555540ab"
+      "sha256": "081151596b30edcf7327852c488f035e73fa7c185db90c6ad8bba4f32bb42518"
     },
     {
       "slug": "offline-llm-gemma",
@@ -3933,7 +3933,7 @@
         247
       ],
       "cover": "/apps/offline-llm-gemma/cover.jpg",
-      "bytes": 10331368,
+      "bytes": 10227841,
       "download": 806058240,
       "provides": {
         "ai": [
@@ -3943,9 +3943,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-26"
       },
-      "sha256": "16df0ee506c2c16cfdb1cc8a5c3027e99d48977ba90b251cfa16f6efc5188831"
+      "sha256": "4291288401bc33384994f84354d4e85bdd20b82473b88258330c3b3d4505d4fa"
     },
     {
       "slug": "offline-llm-gemma4",
@@ -3984,7 +3984,7 @@
         250
       ],
       "cover": "/apps/offline-llm-gemma4/cover.jpg",
-      "bytes": 10331871,
+      "bytes": 10228652,
       "download": 1875742368,
       "provides": {
         "ai": [
@@ -3994,9 +3994,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-26"
       },
-      "sha256": "edd508a5598a43b55da0a3ecc2cd63b98a1c7f0066387566e6cea43a3b37134e"
+      "sha256": "a5471539c9f531b766dc0f954d70ee3dbc8c1cb9f1146133e5ed8ee5f0cb6029"
     },
     {
       "slug": "offline-tts",
@@ -4079,7 +4079,7 @@
         255
       ],
       "cover": "/apps/offline-tts-kokoro/cover.jpg",
-      "bytes": 18537479,
+      "bytes": 18537498,
       "download": 163234740,
       "provides": {
         "ai": [
@@ -4091,7 +4091,7 @@
         "id": "gifos.app",
         "ts": "2026-08-26"
       },
-      "sha256": "7854af6b7284ced26f3f2d1f5193acc192d7343090c2fcca34140d437cd3bd33"
+      "sha256": "382dbe5d0e2c5ec6db08ba25f12a7cd9ef45d7379ac93981438387a889ad0128"
     },
     {
       "slug": "offline-tts-neural",
@@ -5760,15 +5760,15 @@
         156
       ],
       "cover": "/apps/signature-pad/cover.jpg",
-      "bytes": 201033,
+      "bytes": 201037,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-26"
       },
-      "sha256": "c66326894b39a7134bf9d9f33c78b56e6a754d7a3446cc463ea3637c81580b0c"
+      "sha256": "8a42b72dd5c3113cf1ecd7779adcc99aa9bde2ab93a53bdc4d4a729dc92fdef4"
     },
     {
       "slug": "skifree",
