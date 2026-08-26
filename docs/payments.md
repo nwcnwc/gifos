@@ -1,7 +1,9 @@
 # Payments — the app asks, the human approves, the OS moves the money
 
-**Status: Phase 2 (Base Sepolia testnet only). No mainnet asset is reachable by
-this code path.** Ratified 2026-08-11.
+**Status: Phase 2, TEST RAILS ONLY on both sides. No mainnet asset is reachable
+by this code path, and Stripe stays in test mode.** Ratified 2026-08-11,
+amended 2026-08-25 (see "TWO RAILS" below — a card rail joins the chain rail,
+and `gifos.charge()` is the first surface).
 
 **As built (checked 2026-08-24):** the four payment modules exist and are
 unit-gated but are LOADED BY NO PAGE — `gifos-x402.js` (the 402 wire),
@@ -27,6 +29,14 @@ payments at all.** Base, the Base Account (Coinbase Smart Wallet), and
 Coinbase's x402 facilitator. This is not a technical finding, it is a choice
 about which ecosystem GifOS lives in, and it settles the chain question that the
 rest of this file previously argued from custody alone.
+
+**AMENDED 2026-08-25 — read "TWO RAILS" below before acting on the paragraph
+above.** That decision settled which CHAIN ecosystem GifOS lives in, and it
+still stands: the chain rail is Coinbase's, or there is no chain rail. What it
+did NOT settle is whether a person may pay with a credit card. They may. A
+Stripe rail now runs beside the chain rail and terminates in the SAME OS-held
+entitlement, the author is paid direct on both, and GifOS takes a per-transaction
+broker fee on both.
 
 There are TWO directions, and they are different products. Keep them apart.
 
@@ -229,6 +239,119 @@ away.
 No key, no balance, no payer address, no ability to charge without an approval,
 and no way to raise its own ceiling. A charge the human declines returns a
 refusal the app must handle — declining is a normal outcome, not an error.
+
+## TWO RAILS — the card and the chain, one entitlement (ratified 2026-08-25)
+
+**This amends the platform decision above.** "Coinbase's stack, or no payments
+at all" settled which *chain* ecosystem GifOS lives in, and it still does. It
+did not settle whether a person may pay with a credit card, and the answer
+ratified by Nathan on 2026-08-25 is that they may. There are now two settlement
+rails, and they terminate in the same place.
+
+What makes this less than double the work is already in the tree:
+`gifos-charge.js`'s sheet and receipt and `gifos-purse.js`'s entitlements are
+**rail-agnostic**. `gifos.entitled('pro')` does not know or care what paid for
+it. One approval sheet, one entitlement store, one ledger, two backends.
+
+The four decisions:
+
+- **Both rails, sharing the entitlement spine.** Card via Stripe, micro-amounts
+  and trustless payees via x402 on Base.
+- **The author is always paid direct, and GifOS takes a fee per transaction.**
+  GifOS never custodies sale proceeds on either rail.
+- **Both rails stay on TEST rails** until the OS surface is proven end to end.
+  Base Sepolia stays pinned in code; Stripe stays in test mode. Nothing here
+  moves real money yet.
+- **`gifos.charge()` — app IAP — is the first surface.** Not the store tip, not
+  meeting tickets, not the buying direction.
+
+### The two rails have different jobs, and the reason is arithmetic
+
+Stripe takes roughly **2.9% + 30¢** on a card sale. The fixed 30¢ is what
+decides the product:
+
+| price | Stripe's cut | author nets after a 10% GifOS fee |
+|---|---|---|
+| $1.00 | 33% | $0.57 |
+| $2.99 | 13% | $2.31 (77%) |
+| $9.99 | 6% | $8.39 (84%) |
+
+At a dollar, a third of the money is gone before anyone is paid. So **the card
+rail carries a price floor (~$2.99); below it, only x402 is offered.** USDC on
+an L2 settles for a fraction of a cent, which is the only way a 25¢ purchase
+exists at all.
+
+That is the honest answer to "why two rails": not ideology, arithmetic. Cards
+reach everyone but cannot do small; the chain does small but asks the buyer to
+hold USDC. Neither one covers the product alone.
+
+### The broker fee — 10%, the same number on both rails
+
+**Card.** A Stripe Connect **direct charge**: the charge is created ON the
+author's connected account, with `application_fee_amount` retained by GifOS.
+The money is never in a GifOS balance, and refunds and chargebacks are the
+author's liability rather than ours. That is the literal shape of "paid direct,
+we take a fee" — and it is the reason to prefer a direct charge over a
+destination charge, where GifOS would become merchant of record.
+
+**x402.** The roadmap assumed a splitter contract for the platform cut. It is
+not needed here, and the reason is worth writing down: in the SELLING direction
+there is no external resource server naming its own `payTo` — **GifOS's own
+broker constructs the payment.** So it builds TWO `transferWithAuthorization`
+payloads from one challenge and ONE human approval: one to the author, one to
+the treasury. Two transfers, one passkey gesture, no contract, no new audited
+trust surface. A splitter would only be needed for the BUYING direction (§2 of
+the roadmap), where GifOS takes no fee anyway.
+
+10% matches Itch and Gumroad and undercuts the 15–30% platform norm. The same
+headline number on both rails keeps the fee a property of GifOS rather than of
+how somebody happened to pay — though an author does net less on card, because
+Stripe's cut is real and comes out of their side.
+
+### The Worker — four jobs, and no more
+
+A card rail cannot be browser-only, for two reasons that are not matters of
+taste: **Stripe's secret key cannot ship to a browser**, and **a redirect to a
+success URL is not proof of payment** (anyone can type it). The only
+trustworthy signal is the signed webhook. So there is a fourth Cloudflare
+Worker beside relay, cors-proxy and mirror:
+
+| endpoint | job |
+|---|---|
+| `POST /checkout` | look up `appId → acct_…` in the published catalog, create the direct charge |
+| `POST /webhook` | verify the `Stripe-Signature` HMAC — the only proof money moved |
+| `GET /receipt/:id` | return an **Ed25519-signed receipt**, verifiable against `gifos.app/gifos.key` |
+| `POST /onboard` | Stripe Connect account link, so an author can be paid at all |
+
+The signed receipt is the load-bearing piece. The Worker signs
+`{appId, sku, amount, payee, at, nonce}` with the same key infrastructure
+`gifos-sign.js` already uses for apps, so **the purse never takes the browser's
+word that a payment happened**, and both rails hand the OS the same shape of
+verifiable object — on-chain proof on one, a gifos.app signature on the other.
+It is also the answer to the roadmap's open question about restoring purchases
+on a new device without accounts: the receipt IS the portable proof.
+
+**THE WORKER TRUSTS THE PUBLISHED CATALOG, NEVER THE CLIENT.** It does not
+accept a `acct_…` id from the browser — it fetches `site/apps/index.json`
+itself and looks the app up by `appId`. The consequence is deliberate: the card
+rail is available only to catalog-listed apps, while the x402 rail stays open to
+any app that verifies `valid`, because that one is trustless and its payee is in
+the signed manifest.
+
+### Funding the Worker is not the argument for the fee
+
+Cloudflare bills Workers by request and never by bandwidth. A sale is THREE
+requests (checkout, webhook, receipt). The free tier is 100,000 requests a day
+— about 33,000 sales a day — and GifOS already runs three Workers on that plan
+(`relay/wrangler.toml` uses SQLite-backed Durable Objects precisely because the
+free plan requires it). The payments Worker is free at any volume this project
+will plausibly see, and would cost $5/month long after payments were obviously
+working.
+
+So do NOT justify the broker fee with infrastructure cost. It is a rounding
+error, and resting 10% on a $5 Worker invites the obvious rebuttal. The fee
+funds the RAIL — the catalog, the signing, the review, the support, and the OS
+surface that makes handing over money safe. That stands on its own.
 
 ## Consent — nothing spends without a human passkey signature behind it
 
