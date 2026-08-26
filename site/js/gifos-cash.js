@@ -4,7 +4,7 @@
  * THIS IS NOT gifos-pay / gifos-charge / x402. Those stay parked on testnet
  * (docs/payments.md). Near-term cash is a public Payment Link the deploy
  * may bake into js/pay.js. No account, no paywall, no SKU on a GIF: the
- * catalog stays free whether a link is configured or not.
+ * catalog installs free whether a link is configured or not.
  *
  * Pure. Every function is a decision over a string. Unit-tested with no
  * network and no credentials (test/unit/cash-link.js).
