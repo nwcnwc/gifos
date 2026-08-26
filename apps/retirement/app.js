@@ -73,6 +73,7 @@
     span: 'all',
     who: 'couple',
     theme: 'dark',
+    handoffSeen: null,
     dirty: false,
     result: null,
     compareResult: null,
@@ -1499,7 +1500,10 @@
     if (!state.prefsDb) return;
     state.prefsDb.put({
       id: 'ui', activeId: state.activeId, compareId: state.compareId,
-      comparing: state.comparing, theme: state.theme
+      comparing: state.comparing, theme: state.theme,
+      // Which Financial Tracker summary has already been offered. Per device,
+      // like the theme — being asked again on another computer is correct.
+      handoffSeen: state.handoffSeen || null
     }).catch(noop);
   }
   function noop() {}
@@ -1708,6 +1712,105 @@
     return 'Retire at ' + state.plan.retireAge;
   }
 
+  /* ---- taking the numbers from the Financial Tracker -------------------------
+   *
+   * docs/app-handoff.md. The Financial Tracker knows what somebody actually
+   * has and what they actually spend; this calculator opens by asking for
+   * exactly that and, until now, could only be told by hand. So it looks on
+   * the OS's shelf at boot and offers what it finds.
+   *
+   * Three things it deliberately does NOT do:
+   *
+   *   It does not apply anything on its own. Six input fields changing between
+   *   one opening and the next, because another app wrote something, would be
+   *   indistinguishable from the app having lost your plan.
+   *
+   *   It does not put NET WORTH in the portfolio box. That is the whole reason
+   *   the handoff carries them separately: a house is part of what you are
+   *   worth and is not money you can draw 4% of a year. The excluded figures
+   *   are shown anyway — somebody who is worth 700k and is told the plan runs
+   *   on 185k deserves to see why on the same screen.
+   *
+   *   It does not ask twice about the same summary. The Tracker offers a new
+   *   one whenever the numbers move; being asked again on every open about one
+   *   already declined is how a good feature becomes a thing people close
+   *   without reading.
+   */
+  function offerHandoff() {
+    if (!window.gifos || !gifos.handoff) return;
+    gifos.handoff.take('finance.plan').then(function (h) {
+      if (!h || !h.doc) return;
+      var d = h.doc;
+      if (state.handoffSeen === h.at) return;
+      var from = (h.from && h.from.name) || 'another app';
+
+      // Only the fields this calculator has somewhere to put.
+      var apply = [];
+      if (d.currentAge) apply.push(['Your age', d.currentAge, function (p) { p.currentAge = d.currentAge; }, false]);
+      if (d.portfolio !== undefined) apply.push(['Savings and investments', d.portfolio, function (p) { p.portfolio = d.portfolio; }, true]);
+      if (d.annualSavings !== undefined) apply.push(['Added each year', d.annualSavings, function (p) { p.annualSavings = d.annualSavings; }, true]);
+      if (d.annualSpend !== undefined) apply.push(['Spent each year', d.annualSpend, function (p) { p.annualSpend = d.annualSpend; }, true]);
+      if (!apply.length) return;
+
+      showModal(from + ' has your numbers', function (body) {
+        var p0 = document.createElement('p');
+        p0.className = 'hint';
+        p0.textContent = 'Worked out from your accounts on ' + (d.asOf || h.at.slice(0, 10)) +
+          '. Use them and this plan opens on your actual situation instead of the examples.';
+        body.appendChild(p0);
+
+        var t = document.createElement('table');
+        t.className = 'cmp-table';
+        apply.forEach(function (r) {
+          var tr = t.insertRow();
+          tr.insertCell().textContent = r[0];
+          var c = tr.insertCell();
+          c.style.textAlign = 'right';
+          c.textContent = r[3] ? money(r[1]) : String(r[1]);
+        });
+        body.appendChild(t);
+
+        /* WHY THE PORTFOLIO IS NOT THE NET WORTH. Without this line the box
+         * looks like it has quietly lost the house. */
+        var extras = [];
+        if (d.netWorth !== undefined) extras.push('you are worth ' + money(d.netWorth) + ' in total');
+        if (d.illiquid) extras.push(money(d.illiquid) + ' of that is property and things you own');
+        if (d.debts) extras.push('you owe ' + money(d.debts));
+        if (extras.length) {
+          var p1 = document.createElement('p');
+          p1.className = 'hint';
+          p1.textContent = 'For context: ' + extras.join(', ') + '. Only savings and investments go in the box above — ' +
+            'a house is part of what you are worth, and it is not money you can draw on each year.';
+          body.appendChild(p1);
+        }
+        var p2 = document.createElement('p');
+        p2.className = 'hint';
+        p2.textContent = 'This replaces what is in the form now. Your saved plans are not touched.';
+        body.appendChild(p2);
+      }, function () {
+        apply.forEach(function (r) { r[2](state.plan); });
+        rememberHandoff(h.at);
+        writeForm();
+        touched();
+        flash('Numbers taken from ' + from);
+      }, 'Use these');
+
+      // Closing the sheet is a decision too, and it must stick.
+      var cancel = $('modalCancel');
+      if (cancel) {
+        var once = function () {
+          cancel.removeEventListener('click', once);
+          rememberHandoff(h.at);
+        };
+        cancel.addEventListener('click', once);
+      }
+    }).catch(function () { /* an older GifOS, or no shelf — open normally */ });
+  }
+  function rememberHandoff(at) {
+    state.handoffSeen = at;
+    savePrefs();
+  }
+
   // ---- boot ------------------------------------------------------------------
 
   async function boot() {
@@ -1722,6 +1825,7 @@
         var ui = await state.prefsDb.get('ui').catch(function () { return null; });
         var draft = await state.prefsDb.get('draft').catch(function () { return null; });
         if (ui && (ui.theme === 'light' || ui.theme === 'dark')) state.theme = ui.theme;
+        if (ui && ui.handoffSeen) state.handoffSeen = ui.handoffSeen;
         if (ui && ui.activeId && byId(ui.activeId)) {
           state.activeId = ui.activeId;
           state.compareId = ui.compareId && byId(ui.compareId) ? ui.compareId : null;
@@ -1767,6 +1871,11 @@
     $('footData').textContent = 'Prices, dividends, bond returns and inflation from Robert Shiller’s '
       + 'monthly record, ' + MARKET.start[0] + ' to ' + MARKET.end[0] + '. '
       + 'It travels inside this app, so none of this needs the internet.';
+
+    // Last, and never blocking the first paint: the sheet may not appear at
+    // all, and an answer nobody is waiting for must not hold up the answer
+    // they are.
+    offerHandoff();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

@@ -15,5 +15,8 @@
   "data": {
     "scenarios": { "visibility": "read-write" },
     "prefs": { "visibility": "private" }
+  },
+  "handoff": {
+    "takes": ["finance.plan"]
   }
 }

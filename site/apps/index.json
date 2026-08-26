@@ -1843,6 +1843,47 @@
       "sha256": "9293b54a63128058bf6704cb769da50da050143a020015a46e88f330dfab9c40"
     },
     {
+      "slug": "finance",
+      "appId": "finance",
+      "name": "Financial Tracker",
+      "shortName": "Finance",
+      "version": "1.0",
+      "tagline": "Every account you have, in one place, on your own computer.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "minBuild": 2087,
+      "offline": true,
+      "releaseDate": "2026-08-25",
+      "updated": "2026-08-25",
+      "categories": [
+        "Productivity",
+        "Utilities"
+      ],
+      "tags": [
+        "money",
+        "finance",
+        "budget",
+        "net worth",
+        "banking",
+        "csv",
+        "simplefin",
+        "mint"
+      ],
+      "accent": [
+        26,
+        160,
+        120
+      ],
+      "cover": "/apps/finance/cover.jpg",
+      "bytes": 346192,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "ffa3f5e4bbcc627188876539f4f2c17893cfb337e84d5990ed9f3a7d9a67b6fd"
+    },
+    {
       "slug": "finger-pool",
       "appId": "finger-pool",
       "name": "Finger Pool",
@@ -5466,15 +5507,11 @@
         229
       ],
       "cover": "/apps/retirement/cover.jpg",
-      "bytes": 390907,
+      "bytes": 393218,
       "download": 0,
       "provides": null,
-      "signature": {
-        "type": "domain",
-        "id": "gifos.app",
-        "ts": "2026-08-26"
-      },
-      "sha256": "2c02870ebf4b5ca33bdc4a96ff5fb0d0a4934c0c87bd7b9a4e1a9dc8b503ed43"
+      "signature": null,
+      "sha256": "fec9088950b7464f0fc5dcbc7a60de10cdfc22b39b0b9cbfbbbe196af995a9b2"
     },
     {
       "slug": "reversi",
