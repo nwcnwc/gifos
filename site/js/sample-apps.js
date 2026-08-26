@@ -4001,7 +4001,7 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   <p>The <b>IRL Games</b> folder is for game night: everyone keeps their own phone — open a game, press <b>Invite</b>, and secret roles, hidden votes, and sneaky lies get dealt to each player's screen while the laughing and accusing happens face to face. Only one phone in the room? The <b>Single Phone</b> subfolder has pass-around versions.</p></div>
 
   <div class="card"><h2><span class="emoji">✨</span>Make your own apps</h2>
-  <p>Press <b>＋ Add</b> in the top bar, copy the magic prompt into any AI (like Claude), tell it what you want, and paste back what it gives you. You just made an app. It's yours forever.</p></div>
+  <p>Press <b>＋ Add</b> in the top bar, copy the magic prompt into any AI (like Claude), tell it what you want, and paste back what it gives you. You just made an app. It's yours to keep.</p></div>
 
   <div class="card"><h2><span class="emoji">🔧</span>Change any app</h2>
   <p>Every app is yours — free to keep, free to pass on, free to modify and improve. Hand the GIF to any AI and ask for a change. It unpacks what's inside, edits it, and packs it back. You don't need to know how to code.</p></div>

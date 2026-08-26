@@ -1109,7 +1109,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <button id="lob-admin-btn" class="lob-action">Start a room you run<small>You're the admin: set a password, mute/blur, ban a troublemaker</small></button>
       <div id="lob-admin" class="lob-expand" style="display:none">
         <input id="lob-admin-name" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off">
-        <label class="lob-pwlab">🔑 <b id="lob-admin-pass-head">Admin password</b> — yours alone, <b>never share it</b><small id="lob-admin-pass-note">This is what puts you in charge of the room. Guests don’t need it. Anyone you give it to can run the room too.</small></label>
+        <label class="lob-pwlab">🔑 <b id="lob-admin-pass-head">Admin password</b> — yours alone — <b>do not share it</b><small id="lob-admin-pass-note">This is what puts you in charge of the room. Guests don’t need it. Anyone you give it to can run the room too.</small></label>
         <input id="lob-admin-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="off">
         <label class="lob-pwlab">🎟 <b id="lob-guest-pass-head">Guest password</b> — the one you <b>do</b> share<small id="lob-guest-pass-note">Optional, but faces stay blurred until you set one. Guests type it to get in. It is not part of the link — send it to them yourself. The Password button changes it later.</small></label>
         <input id="lob-guest-pass" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="off">
@@ -1171,7 +1171,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <button id="votebtn" title="Vote someone onto the stage, off the stage, or out of the room — majorities decide">Vote</button>
     <button id="admbtn" title="Room admin controls" style="display:none">Admin</button>
     <button id="hand" title="Raise your hand — raised hands float to the top">Hand</button>
-    <button id="chatbtn" title="Chat and share files — stays between the people on this meeting, never on a server">Chat</button>
+    <button id="chatbtn" title="Chat and share files — stays between the people on this meeting, not on a server">Chat</button>
     <button id="recbtn" title="Record this meeting ON YOUR DEVICE (everyone sees that you're recording; blurred feeds stay blurred)">Record</button>
     <button id="ccbtn" title="Live captions: your device writes down what you say and shares them with the meeting's transcript">CC</button>
     <button id="stagebtn" title="Step onto the stage — the whole room sees and hears the stage first">Stage</button>
@@ -3883,7 +3883,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // cannot see. Say it while she is alone — that is exactly when she is
       // waiting for the guest who is being refused.
       const savedLock = (n === 1 && roomPw && pwFromStore) ? ' · 🔒 locked with a password you saved earlier — guests need it' : '';
-      statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link works forever'
+      statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link has no expiry'
         : n + ' in the meeting · ' + q.label) + link + savedLock + extra;
     }
 
@@ -5075,7 +5075,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           joinVeilEl.querySelector('#jv-p').textContent = 'The room is rearranging — someone may have dropped mid-handoff. You’ll be seated within ' + left + 's, usually much sooner.';
         } else {
           joinVeilEl.querySelector('#jv-t').textContent = 'This is taking longer than it ever should.';
-          joinVeilEl.querySelector('#jv-p').textContent = 'Check your connection, or close this tab and reopen the link — a fresh start always works.';
+          joinVeilEl.querySelector('#jv-p').textContent = 'Check your connection, or close this tab and reopen the link — a fresh start usually clears it.';
         }
       } else if (waited > 20000) {
         joinVeilEl.querySelector('#jv-t').textContent = 'Still trying to reach the meeting…';
@@ -6723,18 +6723,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           '<p class="help-lead">This is a <b>live broadcast</b>: one host (and anyone they call up) on the <b>Stage</b>, and an <b>unlimited audience</b> watching. Two viewers or two million, it runs the same — every phone talks only to a handful of neighbors, and the show reaches everyone.</p>'
           + '<h4>Watching</h4>'
           + '<ul class="help-list">'
-          + '<li>The link is all you need. Your <b>camera and microphone are never used</b> — watching asks no permissions at all.</li>'
-          + '<li>The video stays <b>blurred</b> until the host sets a <b>viewer password</b>. If you’re asked for one, the host shares it separately — it’s the ticket, and it never rides the link.</li>'
-          + '<li><b>Chat</b> is live to everyone here, never stored on any server, and gone when the broadcast ends.</li>'
+          + '<li>The link is all you need. Your <b>camera and microphone are not used</b> — watching asks no permissions at all.</li>'
+          + '<li>The video stays <b>blurred</b> until the host sets a <b>viewer password</b>. If you’re asked for one, the host shares it separately — it’s the ticket, and it does not ride the link.</li>'
+          + '<li><b>Chat</b> is live to everyone here, is not stored on any server, and is gone when the broadcast ends.</li>'
           + '</ul>'
           + '<h4>Speaking up</h4>'
           + '<ul class="help-list">'
           + '<li>Tap <b>Hand</b> to ask for the Stage. The host can call you up — your own phone then asks for your camera and mic (your choice to grant), and you join the host on Stage for the whole room.</li>'
-          + '<li>Stepping down is always your right; the host can also revoke the Stage.</li>'
+          + '<li>Stepping down is yours to do at any time; the host can also revoke the Stage.</li>'
           + '</ul>'
           + '<h4>For the host</h4>'
           + '<ul class="help-list">'
-          + '<li>Your <b>host password</b> is yours alone — it IS your control of this broadcast. Never send it to viewers.</li>'
+          + '<li>Your <b>host password</b> is yours alone — it IS your control of this broadcast. Do not send it to viewers.</li>'
           + '<li>The <b>Password</b> button sets or changes the <b>viewer password</b>: without one the broadcast stays blurred; with one, whoever you give it to sees you clear.</li>'
           + '<li>The hand queue floats to the top — tap a name to call them up on Stage. Revoking their grant pulls them back down.</li>'
           + '<li>Chat has a <b>Turn chat off</b> switch (your messages still land) and per-message delete. Ban lives on each tile’s controls.</li>'
@@ -11447,7 +11447,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const opt = (val, name, ttl, sub) => '<label class="rec-opt"><input type="radio" name="' + name + '" value="' + val + '"' + (val === 'stage' && name === 'rec-scope' ? ' checked' : '') + '> <span><b>' + ttl + '</b><small>' + sub + '</small></span></label>';
       bg.innerHTML = '<div class="name-box" style="max-width:470px;text-align:left">' +
         '<h3>Record this meeting</h3>' +
-        '<p style="color:#889;font-size:.85rem">Saved to YOUR device only — everyone sees the ⏺ while you record. Blur and mute are always baked in.</p>' +
+        '<p style="color:#889;font-size:.85rem">Saved to YOUR device only — everyone sees the ⏺ while you record. Blur and mute are baked in.</p>' +
         '<div class="rec-sec"><b>What to capture</b>' +
         opt('stage', 'rec-scope', 'The stage', 'Just the front — the reader or speaker, verbatim. One clean feed.') +
         opt('row', 'rec-scope', 'Stage + my row', 'The stage plus the people right around you.') +
@@ -11924,7 +11924,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         isApp ? 'Share this app' : BROADCAST ? 'Share this broadcast' : 'Share this meeting';
       if (isApp) {
         body.innerHTML =
-          '<p style="color:#aab">Anyone with this link joins you <b>live inside this app</b>, and it works forever.</p>' +
+          '<p style="color:#aab">Anyone with this link joins you <b>live inside this app</b>, and the link has no expiry.</p>' +
           linkRowHtml() +
           '<div style="display:flex;justify-content:flex-end;margin-top:.9rem"><button id="inv-done" style="' + surfaceBtn + '">Close</button></div>';
       } else if (hasAdminRoom()) {
@@ -11939,16 +11939,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           '<div style="display:flex;justify-content:flex-end;margin-top:.4rem"><button id="inv-done">Done</button></div>';
       } else {
         body.innerHTML =
-          '<p style="color:#aab">Anyone with this link can join, and it works forever. <b>No one is in charge</b> — anyone here can mute or blur anyone.</p>' +
+          '<p style="color:#aab">Anyone with this link can join, and the link carries no expiry. <b>No one is in charge</b> — anyone here can mute or blur anyone.</p>' +
           linkRowHtml() +
           '<div style="border-top:1px solid var(--border,#2a2a3f);margin:.9rem 0 .7rem"></div>' +
           '<div id="inv-adm-collapsed"><p style="color:#aab;margin-bottom:.5rem">Want a room <b>you</b> run — a password, global mute/blur, and the power to ban a troublemaker?</p>' +
             '<button id="inv-mkadm" style="' + surfaceBtn + '">Create a room you control →</button></div>' +
           '<div id="inv-adm-open" style="display:none">' +
-            '<div style="background:rgba(255,180,60,.12);border:1px solid rgba(255,180,60,.4);border-radius:.5rem;padding:.6rem .7rem;font-size:.85rem;margin-bottom:.7rem">This always makes a <b>new, separate room</b> that you run — so <b>name it anything you like</b>. ' +
+            '<div style="background:rgba(255,180,60,.12);border:1px solid rgba(255,180,60,.4);border-radius:.5rem;padding:.6rem .7rem;font-size:.85rem;margin-bottom:.7rem">This makes a <b>new, separate room</b> that you run — so <b>name it anything you like</b>. ' +
               (others ? 'The ' + others + ' ' + ppl + ' here won\'t move automatically, so leave the box ticked to drop the new link into this room\'s chat and they can follow you over.' : 'You\'ll switch to it now.') + '</div>' +
             '<input id="inv-adm-room" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off" value="' + esc(room) + '" style="width:100%;box-sizing:border-box;margin-bottom:.5rem">' +
-            '<label class="lob-pwlab">🔑 <b>Admin password</b> — yours alone, <b>never share it</b><small>This is what puts you in charge of the room. Guests don’t need it. Anyone you give it to can run the room too.</small></label>' +
+            '<label class="lob-pwlab">🔑 <b>Admin password</b> — yours alone — <b>do not share it</b><small>This is what puts you in charge of the room. Guests don’t need it. Anyone you give it to can run the room too.</small></label>' +
             '<input id="inv-adm-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
             '<label class="lob-pwlab">🎟 <b>Guest password</b> — the one you <b>do</b> share<small>Optional, but faces stay blurred until you set one. Guests type it to get in. It is not part of the link — send it to them yourself.</small></label>' +
             '<input id="inv-adm-guest" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
