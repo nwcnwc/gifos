@@ -49,8 +49,9 @@
       editable: true
     }).then(function (receipt) {
       thanks.hidden = false;
+      var how = { paypal: ' by PayPal.', x402: ' in USDC.', transfer: ' in USDC.', fednow: ' from your bank.' };
       $('thanks-line').textContent = 'Your tip went through' +
-        (receipt && receipt.rail === 'x402' ? ' in USDC.' : ' by PayPal.') +
+        (how[receipt && receipt.rail] || '.') +
         ' It goes straight to the people who build GifOS.';
       sendBtn.hidden = true; note.hidden = true;
       paint();

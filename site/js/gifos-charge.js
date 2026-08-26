@@ -151,6 +151,14 @@
       rails: {
         paypal: elig.paypal || null,
         x402: elig.payee ? { address: elig.payee.to, chain: CHAIN_NAME } : null,
+        // The universal rail: send exactly X to the signed payee, from ANY
+        // self-custody wallet (RockWallet included) — same address authority
+        // as x402, no connection needed.
+        transfer: elig.payee ? { address: elig.payee.to, chain: CHAIN_NAME } : null,
+        // FedNow rides the verified identity like PayPal does; whether that
+        // identity is REGISTERED with the provider is the Worker's answer at
+        // request time, not a claim made here.
+        fednow: elig.paypal ? { identity: elig.identity.id } : null,
       },
       // Back-compat fields (address/chain) kept while the x402 rail is the
       // only on-chain one; prefer rails.* in new code.
@@ -166,14 +174,16 @@
 
   // ---- the receipt the OS records, and hands back ---------------------------
   function receipt(sheetData, txId, atMs, rail) {
+    rail = rail || 'x402';                  // 'paypal' | 'x402' | 'transfer' | 'fednow'
+    const onChain = rail === 'x402' || rail === 'transfer';
     return {
       ok: true,
-      rail: rail || 'x402',                 // 'paypal' | 'x402'
+      rail,
       amount: sheetData.amount,
-      chain: rail === 'paypal' ? null : CHAIN,
-      payee: rail === 'paypal'
-        ? ((sheetData.rails && sheetData.rails.paypal) || null)
-        : sheetData.address,
+      chain: onChain ? CHAIN : null,
+      payee: onChain ? sheetData.address
+        : rail === 'paypal' ? ((sheetData.rails && sheetData.rails.paypal) || null)
+        : null,                             // fednow: the bank account is the provider's business, not the app's
       payeeId: sheetData.payingTo,
       sku: sheetData.sku,
       reason: sheetData.reason,

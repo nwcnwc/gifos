@@ -100,6 +100,12 @@
     return out;
   }
   const wholeCents = (units) => BigInt(units) % CENT === 0n;
+  // Exact USDC, six decimals, for the transfer rail — the buyer must send
+  // EXACTLY this, dust and all, so nothing here may round or trim.
+  function fmtUsdcExact(units) {
+    const n = BigInt(units);
+    return (n / 1000000n) + '.' + String(n % 1000000n).padStart(6, '0');
+  }
 
   // ---- the signature verdict, once per mount ---------------------------------
   // verify() fetches the author's published key, so it is cached per appId for
@@ -168,7 +174,9 @@
         '</div>' +
         '<div id="gp-buttons" style="display:flex;flex-direction:column;gap:.5rem">' +
           (canPaypal ? '<button id="gp-paypal" style="padding:.6rem 1rem;border-radius:.5rem;border:none;background:#ffc439;color:#111;cursor:pointer;font:inherit;font-weight:600">Pay with PayPal (sandbox)</button>' : '') +
-          (canX402 ? '<button id="gp-x402" ' + (walletReady ? '' : 'disabled ') + 'style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:' + (walletReady ? '#1652f0' : '#20203255') + ';color:' + (walletReady ? '#fff' : '#9a9ab5') + ';cursor:' + (walletReady ? 'pointer' : 'default') + ';font:inherit">Pay with USDC — Base Sepolia' + (walletReady ? '' : ' (no wallet connected yet)') + '</button>' : '') +
+          (canX402 ? '<button id="gp-x402" ' + (walletReady ? '' : 'disabled ') + 'style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:' + (walletReady ? '#1652f0' : '#20203255') + ';color:' + (walletReady ? '#fff' : '#9a9ab5') + ';cursor:' + (walletReady ? 'pointer' : 'default') + ';font:inherit">Pay with USDC — connected wallet' + (walletReady ? '' : ' (none yet)') + '</button>' : '') +
+          (sheetData.rails.transfer ? '<button id="gp-transfer" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:#1d1d2c;color:#e8e8f4;cursor:pointer;font:inherit">Send USDC from any wallet (RockWallet, …)</button>' : '') +
+          (sheetData.rails.fednow ? '<button id="gp-fednow" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:#1d1d2c;color:#e8e8f4;cursor:pointer;font:inherit">Pay from your bank (FedNow)</button>' : '') +
           '<button id="gp-decline" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">No thanks</button>' +
         '</div>' +
         '<div id="gp-status" style="display:none;color:#b6b6cf;font-size:.9rem;margin-top:.8rem"></div>';
@@ -196,6 +204,18 @@
         const amt = amountNow();
         if (amt == null) return;
         done({ rail: 'x402', amount: amt });
+      };
+      const tb = box.querySelector('#gp-transfer');
+      if (tb) tb.onclick = () => {
+        const amt = amountNow();
+        if (amt == null) return;
+        done({ rail: 'transfer', amount: amt });
+      };
+      const fb = box.querySelector('#gp-fednow');
+      if (fb) fb.onclick = () => {
+        const amt = amountNow();
+        if (amt == null) return;
+        done({ rail: 'fednow', amount: amt });
       };
       bg.addEventListener('click', (e) => { if (e.target === bg) done({ declined: true }); });
     });
@@ -311,6 +331,108 @@
     } finally { busyUi.close(); }
   }
 
+  // ---- the wallet-transfer rail (RockWallet and every other wallet) ---------
+  // The one integration surface every self-custody wallet has: send exactly X
+  // to address Y. The Worker mints a signed invoice with a dust-unique amount
+  // and watches the chain; this side shows the human WHAT to send, exactly,
+  // and polls for the receipt. Nothing connects, nothing signs here — the
+  // buyer's own wallet does the paying.
+  function showTransferSheet(inv) {
+    const doc = root.document;
+    const old2 = doc.getElementById('gifos-pay-transfer'); if (old2) old2.remove();
+    const bg = doc.createElement('div'); bg.id = 'gifos-pay-transfer';
+    bg.setAttribute('style', 'position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1.2rem;');
+    const box = doc.createElement('div');
+    box.setAttribute('style', 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.8rem;max-width:24rem;width:100%;padding:1.2rem;font:15px/1.55 system-ui,-apple-system,sans-serif;');
+    const exact = fmtUsdcExact(inv.expected);
+    box.innerHTML =
+      '<h3 style="margin:0 0 .35rem;font-size:1.05rem">Send from your wallet</h3>' +
+      '<p style="margin:0 0 .8rem;color:#b6b6cf;font-size:.86rem">Open RockWallet — or any wallet that holds USDC on <b>Base Sepolia</b> — and send <b>exactly</b> this amount to this address. The extra fraction of a cent is how this payment is recognised as yours.</p>' +
+      '<div style="background:#0e0e17;border:1px solid #23233a;border-radius:.6rem;padding:.8rem .9rem;margin-bottom:.9rem">' +
+        '<div style="color:#9a9ab5;font-size:.78rem">Amount (USDC)</div>' +
+        '<div style="display:flex;gap:.5rem;align-items:center"><b id="gpt-amt" style="font-size:1.05rem">' + esc(exact) + '</b><button data-copy="' + esc(exact) + '" class="gpt-copy" style="padding:.2rem .6rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.78rem">Copy</button></div>' +
+        '<div style="color:#9a9ab5;font-size:.78rem;margin-top:.6rem">To address</div>' +
+        '<div style="display:flex;gap:.5rem;align-items:center"><b style="font-size:.8rem;word-break:break-all">' + esc(inv.payTo) + '</b><button data-copy="' + esc(inv.payTo) + '" class="gpt-copy" style="padding:.2rem .6rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.78rem">Copy</button></div>' +
+        '<a href="' + esc(inv.uri) + '" style="display:inline-block;margin-top:.6rem;color:#9db4ff;font-size:.82rem">Open in a wallet on this device</a>' +
+      '</div>' +
+      '<p id="gpt-status" style="color:#b6b6cf;font-size:.86rem;margin:0 0 .8rem">Watching for your transfer…</p>' +
+      '<div style="text-align:right"><button id="gpt-cancel" style="padding:.5rem 1.2rem;border-radius:.5rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">Cancel</button></div>';
+    bg.appendChild(box); doc.body.appendChild(bg);
+    for (const b of box.querySelectorAll('.gpt-copy')) b.onclick = () => { try { root.navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; } catch (e) {} };
+    let cancelled = false;
+    box.querySelector('#gpt-cancel').onclick = () => { cancelled = true; };
+    return { cancelled: () => cancelled, close: () => bg.remove() };
+  }
+
+  async function payWithTransfer(manifest, sheetData, amount) {
+    const base = workerBase();
+    const r = await fetch(base + '/transfer/invoice', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appId: manifest.appId, amount: String(amount), sku: sheetData.sku || null, reason: sheetData.reason }),
+    });
+    if (!r.ok) throw new Error('could not start the transfer (HTTP ' + r.status + '): ' + (await r.text()).slice(0, 200));
+    const inv = await r.json();
+    const ui = showTransferSheet(inv);
+    try {
+      while (Date.now() < inv.exp) {
+        if (ui.cancelled()) throw new Error(GifOS.charge.DECLINED);
+        const rr = await fetch(base + '/transfer/receipt', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: inv.token }),
+        }).catch(() => null);
+        if (rr && rr.ok) {
+          const body = await rr.json();
+          if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
+            const receipt = await verifyReceipt(body.receiptJson, body.sig);
+            if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId) {
+              throw new Error('the signed receipt does not match this payment — refusing to record it');
+            }
+            return { receipt, receiptJson: body.receiptJson, sig: body.sig };
+          }
+        } else if (rr && rr.status === 410) {
+          throw new Error('the transfer window expired — start the payment again');
+        }
+        await sleep(3000);
+      }
+      throw new Error('the transfer window expired — start the payment again');
+    } finally { ui.close(); }
+  }
+
+  // ---- the FedNow rail ------------------------------------------------------
+  // A Request-for-Payment through the provider; the human approves it in
+  // their own banking app — there is nothing of ours to render there, so this
+  // side only says what to do and waits for the settled receipt.
+  async function payWithFednow(manifest, sheetData, amount) {
+    const base = workerBase();
+    const busyUi = showBusy('Sending the payment request to your bank…');
+    try {
+      const r = await fetch(base + '/fednow/rfp', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appId: manifest.appId, amount: String(amount), sku: sheetData.sku || null, reason: sheetData.reason }),
+      });
+      if (!r.ok) throw new Error('bank payment not available: ' + (await r.text()).slice(0, 200));
+      const rfp = await r.json();
+      busyUi.say('Approve the request in your banking app…');
+      const deadline = Date.now() + 5 * 60 * 1000;
+      while (Date.now() < deadline) {
+        if (busyUi.cancelled()) throw new Error(GifOS.charge.DECLINED);
+        const rr = await fetch(base + '/fednow/receipt/' + encodeURIComponent(rfp.id)).catch(() => null);
+        if (rr && rr.ok) {
+          const body = await rr.json();
+          if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
+            const receipt = await verifyReceipt(body.receiptJson, body.sig);
+            if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId) {
+              throw new Error('the signed receipt does not match this payment — refusing to record it');
+            }
+            return { receipt, receiptJson: body.receiptJson, sig: body.sig };
+          }
+        }
+        await sleep(2000);
+      }
+      throw new Error('the payment was not completed in time');
+    } finally { busyUi.close(); }
+  }
+
   // ---- gifos.charge(), brokered ---------------------------------------------
   async function charge(manifest, appBytes, req, appName) {
     if (!manifest || !manifest.capabilities || !manifest.capabilities.pay) {
@@ -337,9 +459,10 @@
     if (choice.amount > cap) throw new Error('that amount is over this app’s ceiling (' + fmtUsd(cap) + ')');
     sheetData.amount = String(choice.amount);
 
-    const paid = choice.rail === 'paypal'
-      ? await payWithPaypal(manifest, sheetData, choice.amount, choice.win)
-      : await payWithX402(manifest, sheetData, choice.amount);
+    const paid = choice.rail === 'paypal' ? await payWithPaypal(manifest, sheetData, choice.amount, choice.win)
+      : choice.rail === 'x402' ? await payWithX402(manifest, sheetData, choice.amount)
+      : choice.rail === 'transfer' ? await payWithTransfer(manifest, sheetData, choice.amount)
+      : await payWithFednow(manifest, sheetData, choice.amount);
     const receipt = paid.receipt;
 
     // Record: entitlement (if a sku), then the ledger line. The receipt the
@@ -389,7 +512,7 @@
       '<h1>🧾 ' + esc2(appName || receipt.appId || '') + '</h1>' +
       '<p class="sub">' + (receipt.sku ? 'Purchase — unlocks <b>' + esc2(receipt.sku) + '</b>' : 'Tip — thank you!') + '</p>' +
       row('Amount', fmtUsd(receipt.amount)) +
-      row('Paid', receipt.rail === 'paypal' ? 'by PayPal' : 'in USDC (Base Sepolia)') +
+      row('Paid', { paypal: 'by PayPal', x402: 'in USDC (Base Sepolia)', transfer: 'in USDC (wallet transfer)', fednow: 'by bank transfer (FedNow)' }[receipt.rail] || String(receipt.rail || '')) +
       (sheetData && sheetData.payingTo ? row('To', sheetData.payingTo) : '') +
       row('When', receipt.at ? new Date(receipt.at).toLocaleString() : '') +
       row('Transaction', String(receipt.tx || '')) +

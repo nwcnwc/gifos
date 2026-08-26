@@ -331,6 +331,47 @@ The decisions:
 - **`gifos.charge()` — app IAP — is the first surface.** Not the store tip, not
   meeting tickets, not the buying direction.
 
+### FOUR RAILS (amended 2026-08-26) — two more join, and what each is for
+
+| rail | reaches | needs from the buyer | needs from the author | 3% fee |
+|---|---|---|---|---|
+| **PayPal** | every card holder | nothing | a PayPal account claiming the derived email | collected (`platform_fees`) |
+| **x402** (connected wallet) | Base Account / injected wallets | a connected wallet with USDC | `manifest.pay.to` in the signed manifest | collected (the 97/3 split) |
+| **wallet transfer** | **RockWallet and EVERY self-custody wallet** | any wallet holding USDC — no connection, no adapter | `manifest.pay.to` | **NOT collected** (`feeCollected:false` in the receipt) |
+| **FedNow** | any US bank account | approving an RfP in their own banking app | registration with the provider (`FEDNOW_PAYEES`) | **NOT collected** (`feeCollected:false`) |
+
+**The wallet-transfer rail** exists because RockWallet — like most consumer
+wallets — has no developer API, no WalletConnect, no merchant surface. The
+one integration surface every self-custody wallet has is *send exactly X to
+address Y*, so that is the rail: the Worker mints a **signed, stateless
+invoice token** whose amount carries a random sub-cent DUST (uniqueness
+among concurrent buyers), the sheet shows the exact amount and the signed
+payee address, and `/transfer/receipt` watches the chain (read-only RPC) for
+that exact USDC Transfer. Supporting RockWallet this way supports every
+other wallet for free.
+
+**The FedNow rail** is a provider rail, because FedNow itself has NO public
+API — only financial institutions touch it. The Worker speaks a
+Finzly-shaped provider adapter: create a Request-for-Payment, the buyer
+approves it *inside their own banking app* (nothing of ours renders there),
+poll to settlement. Only identities REGISTERED with the provider can be
+paid; an unregistered identity gets a plain refusal, not a pretend rail.
+
+**The self-dealing rule, and why the catalog now carries `pay`:** an invoice
+whose payTo came from the client would let a buyer "pay" their own address
+and collect a genuine gifos-signed receipt — a working restore token — while
+the author saw nothing. So the Worker binds the chain payee to the PUBLISHED
+catalog (`index.json` `pay.to`, from the signed manifest), exactly as it
+binds the PayPal payee to the signing identity, and `/x402/settle` checks
+the author leg against the same authority.
+
+**Fee honesty:** a direct wallet send cannot split, and routing it through a
+GifOS account would be custody; the provider rail's split waits on provider
+capability. So on these two rails the 3% is simply NOT collected yet, and
+the receipt says so (`feeCollected:false`) rather than pretending. The
+convenience rails (PayPal, x402) carry the fee; the universal rails ride
+free until a non-custodial split exists. Deliberate, recorded, revisitable.
+
 ### THE PAYEE RULE — money goes to the signing identity, derived, not declared
 
 On the PayPal rail there is no payee field at all. The payee is **derived from

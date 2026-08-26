@@ -12,6 +12,12 @@
  *   CATALOG_URL            https://gifos.app/apps/index.json
  *   RETURN_BASE            https://pay.gifos.app
  *   FACILITATOR_URL        (optional) x402 settle backend; absent -> 501
+ *   BASE_RPC               (optional) Base Sepolia JSON-RPC for the wallet-
+ *                          transfer rail; absent -> 501
+ *   FEDNOW_API             (optional) the FedNow provider's API base (FedNow
+ *                          itself has no public API); absent -> 501
+ *   FEDNOW_KEY             (secret) the provider's API key
+ *   FEDNOW_PAYEES          JSON: signing identity -> provider account id
  *   GIFOS_PAY_SIGN_JWK     Ed25519 private key as a JWK JSON string (wrangler
  *                          secret; its PUBLIC half must be site/gifos.key —
  *                          receipts verify against the site's published key)
@@ -24,6 +30,8 @@ let handler = null;
 async function init(env) {
   const jwk = JSON.parse(env.GIFOS_PAY_SIGN_JWK);
   const privateKey = await crypto.subtle.importKey('jwk', jwk, { name: 'Ed25519' }, false, ['sign']);
+  // The PUBLIC half verifies this Worker's own stateless invoice tokens.
+  const publicKey = await crypto.subtle.importKey('jwk', { kty: jwk.kty, crv: jwk.crv, x: jwk.x }, { name: 'Ed25519' }, false, ['verify']);
   return makeCore({
     fetch: (u, o) => fetch(u, o),
     subtle: crypto.subtle,
@@ -35,7 +43,11 @@ async function init(env) {
     catalogUrl: env.CATALOG_URL,
     returnBase: env.RETURN_BASE,
     facilitatorUrl: env.FACILITATOR_URL || null,
-    signKey: { privateKey },
+    rpcUrl: env.BASE_RPC || null,
+    fednowApi: env.FEDNOW_API || null,
+    fednowKey: env.FEDNOW_KEY || null,
+    fednowPayees: env.FEDNOW_PAYEES ? JSON.parse(env.FEDNOW_PAYEES) : {},
+    signKey: { privateKey, publicKey },
   });
 }
 

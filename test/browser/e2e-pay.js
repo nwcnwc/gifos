@@ -14,7 +14,8 @@
 // verify they say so in their own headers.
 //
 // Needs: static server on 8099. Spawns its own: fake-paypal (8795),
-// pay-local (8796), fake-facilitator (8797), and a test catalog (8798).
+// pay-local (8796), fake-facilitator (8797), a test catalog (8798),
+// fake-chain (8799) and fake-fednow (8800).
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
@@ -57,14 +58,18 @@ async function until(url, ms) {
   // publishes one, carrying the test app under its test signing identity.
   const catalog = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ apps: [{ appId: 'paytest', slug: 'paytest', signature: { type: 'domain', id: SIGN_DOMAIN } }] }));
+    res.end(JSON.stringify({ apps: [{ appId: 'paytest', slug: 'paytest', signature: { type: 'domain', id: SIGN_DOMAIN }, pay: { to: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' } }] }));
   }).listen(8798);
 
   serve('fake-paypal', [path.join(ROOT, 'test', 'servers', 'fake-paypal.js')]);
   serve('fake-facilitator', [path.join(ROOT, 'test', 'servers', 'fake-facilitator.js')]);
+  serve('fake-chain', [path.join(ROOT, 'test', 'servers', 'fake-chain.js')]);
+  serve('fake-fednow', [path.join(ROOT, 'test', 'servers', 'fake-fednow.js')]);
   serve('pay-local', [path.join(ROOT, 'test', 'servers', 'pay-local.js')], { CATALOG_URL: 'http://127.0.0.1:8798/index.json' });
   await until('http://127.0.0.1:8795/_state');
   await until('http://127.0.0.1:8797/_state');
+  await until('http://127.0.0.1:8799/_state');
+  await until('http://127.0.0.1:8800/_state');
   await until(PAY + '/health');
   const receiptPub = await (await fetch(PAY + '/test-pubkey')).text();
 
@@ -238,6 +243,51 @@ async function until(url, ms) {
     && signedTds[1].message.value === '90000' && signedTds[1].message.to === TREASURY,
     JSON.stringify(signedTds.map((t) => t.message && t.message.value)));
 
+  // ---- the WALLET-TRANSFER rail (RockWallet and every other wallet) ---------
+  // No connection, no adapter: the sheet shows exactly-this-much to
+  // exactly-this-address, the "wallet" (fake-chain's test hook) sends it, the
+  // Worker finds the transfer on the chain and signs the same receipt shape.
+  await fr.locator('#tip').click();
+  await app.waitForSelector('#gifos-pay-sheet', { timeout: 5000 });
+  await app.locator('#gp-transfer').click();
+  await app.waitForSelector('#gifos-pay-transfer', { timeout: 10000 });
+  const tExact = await app.locator('#gpt-amt').textContent();
+  check('the transfer sheet demands an EXACT dust-unique amount (sub-cent uniqueness)',
+    /^3\.00[0-9]{4}$/.test(tExact) && tExact !== '3.000000', tExact);
+  const tSheet = await app.locator('#gifos-pay-transfer').textContent();
+  check('the transfer sheet names RockWallet, the chain, and the signed payee address',
+    /RockWallet/.test(tSheet) && /Base Sepolia/.test(tSheet) && tSheet.includes(CHAIN_PAYEE),
+    tSheet.replace(/\s+/g, ' ').slice(0, 120));
+  // a WRONG amount from someone else's payment must not complete this invoice
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: '3000000' }) });
+  await sleep(4000);
+  check('a transfer of the WRONG amount is not claimed', await app.evaluate(() => !!document.getElementById('gifos-pay-transfer')));
+  const tUnits = String(BigInt(Math.round(Number(tExact) * 1e6)));
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: tUnits }) });
+  await fr.locator('#out').filter({ hasText: /ok:|err:/ }).waitFor({ timeout: 20000 });
+  check('the exact transfer completes the payment with the same signed-receipt proof',
+    (await fr.locator('#out').textContent()) === 'ok:transfer:3000000', await fr.locator('#out').textContent());
+
+  // ---- the FEDNOW rail ------------------------------------------------------
+  // The buyer approves in their own BANKING APP — nothing of ours renders
+  // there, so the fake's approval is a test hook, exactly as its header says.
+  await fr.locator('#tip').click();
+  await app.waitForSelector('#gifos-pay-sheet', { timeout: 5000 });
+  await app.locator('#gp-fednow').click();
+  await app.waitForFunction(() => {
+    const el = document.getElementById('gpb-msg');
+    return el && /banking app/.test(el.textContent);
+  }, null, { timeout: 10000 });
+  check('the FedNow flow tells the human where the approval actually happens (their bank)', true);
+  const fnState = await (await fetch('http://127.0.0.1:8800/_state')).json();
+  const rfp = fnState.rfps[fnState.rfps.length - 1];
+  check('the RfP names the REGISTERED provider account for the signing identity — never a client value',
+    rfp.account === 'ACCT-PAYTEST' && rfp.amount === '3.00', JSON.stringify({ account: rfp.account, amount: rfp.amount }));
+  await fetch('http://127.0.0.1:8800/_approve?id=' + rfp.id, { method: 'POST' });
+  await fr.locator('#out').filter({ hasText: /ok:|err:/ }).waitFor({ timeout: 15000 });
+  check('the bank approval settles it — same receipt shape, fee honestly marked uncollected',
+    (await fr.locator('#out').textContent()) === 'ok:fednow:3000000', await fr.locator('#out').textContent());
+
   // ---- the receipt is a FILE: minted, placed, restorable --------------------
   // The broker minted a receipt GIF per payment and queued it; the DESKTOP tab
   // (still open) heard the storage event and placed both into the lazy
@@ -249,8 +299,8 @@ async function until(url, ms) {
     const inFolder = items.filter((i) => i.parent === 'sys_purchases');
     return { count: inFolder.length, names: inFolder.map((i) => i.name), queue: localStorage.getItem('gifos_pay_pending') };
   });
-  check('both receipts were filed INTO the folder and the queue was drained',
-    placed.count === 2 && placed.queue === null, JSON.stringify(placed));
+  check('all four receipts were filed INTO the folder and the queue was drained',
+    placed.count === 4 && placed.queue === null, JSON.stringify(placed));
 
   // A FRESH computer: hand it nothing but the receipt file, open it, and the
   // entitlement re-grants there — restore with no account anywhere.
@@ -305,8 +355,8 @@ async function until(url, ms) {
     }
     return out;
   });
-  check('the ledger holds one line per payment, in the OS’s own store',
-    purse.led.length === 2 && purse.ent.length === 1, JSON.stringify(purse));
+  check('the ledger holds one line per payment — four rails, four lines',
+    purse.led.length === 4 && purse.ent.length === 1, JSON.stringify(purse));
 
   // ---- over-ceiling and unsigned --------------------------------------------
   // The broker cached this appId's VALID verdict when the real app charged,
