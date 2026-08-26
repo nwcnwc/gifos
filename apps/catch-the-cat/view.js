@@ -260,20 +260,27 @@
   function makeView(rec) {
     var el = doc.createElement('div');
     el.className = 'cat';
+    // .cat carries the position and the counter-rotation, .art carries the
+    // sprite's own mirroring — so an idle needs a transform slot of its own,
+    // and .pose is it. Its origin is the cat's feet, which is what makes a
+    // rotation read as leaning rather than sliding.
+    var pose = doc.createElement('span');
+    pose.className = 'pose';
     var img = doc.createElement('img');
     img.className = 'art';
     img.alt = '';
     img.draggable = false;
     var tag = doc.createElement('span');
     tag.className = 'tag';
-    el.appendChild(img);
+    pose.appendChild(img);
+    el.appendChild(pose);
     el.appendChild(tag);
     var shadow = doc.createElement('div');
     shadow.className = 'catshadow';
     catsEl.appendChild(shadow);
     catsEl.appendChild(el);
     var v = {
-      id: rec.id, el: el, img: img, tag: tag, shadow: shadow,
+      id: rec.id, el: el, img: img, tag: tag, shadow: shadow, pose: pose,
       i: rec.i, j: rec.j, dir: rec.dir, x: 0, y: 0,
       queue: [], t0: 0, dur: 0, from: null, to: null,
       frame: -1, flip: null, state: rec.state, counter: '', k: 1
@@ -320,6 +327,11 @@
         v.el.classList.toggle('caught', rec.state === 'caught');
         v.el.classList.toggle('gone', rec.state === 'gone');
         if (rec.state !== 'gone') v.ranOff = false;
+        // A cat with nowhere left to go turns its back on you and starts
+        // washing. Which way round is per-cat so a room full of them does not
+        // look like a chorus line.
+        v.sit = rec.state === 'caught';
+        v.sitFlip = ((rec.i + rec.j) & 1) === 1;
       }
       var head = v.queue.length ? v.queue[v.queue.length - 1] : (v.to || { i: v.i, j: v.j });
       if (head.i === rec.i && head.j === rec.j) {
@@ -415,7 +427,14 @@
 
   function paintCat(v) {
     var n = v.to ? (v.step || 1) : 1;
-    var got = frameFor(v.dir, n);
+    // Sitting is not a heading, so it does not go through screenDir: the cat
+    // faces away from the CAMERA whichever way the board has been turned.
+    // !! is load-bearing: classList.toggle(name, undefined) does NOT force the
+    // class off, it TOGGLES — so a fresh cat, whose sit flag has never been
+    // set, would blink in and out of the sitting pose on every repaint.
+    var sitting = !!(v.sit && !v.to && !v.queue.length);
+    v.el.classList.toggle('sitting', sitting);
+    var got = sitting ? { f: art.frames.top_left_1, flip: !!v.sitFlip } : frameFor(v.dir, n);
     var f = got.f;
     if (!f) return;
     if (v.frame !== n || v.flip !== got.flip || v.fname !== f.key) {
@@ -435,6 +454,61 @@
       v.counter + (lift ? ' translateY(' + (-lift).toFixed(2) + 'px)' : '');
     v.shadow.style.transform = 'translate3d(' + v.x.toFixed(2) + 'px,' + v.y.toFixed(2) + 'px,0) translate(-50%,-50%)';
     v.shadow.style.opacity = lift ? (0.38 - lift / (r * 8)).toFixed(3) : '0.38';
+  }
+
+  // ------------------------------------------------------------ the pen shuts
+  //
+  // The walls go from something you are building to something that is finished,
+  // so they stop being green and go red, and they do it as a wave running
+  // OUTWARD from the hex the cat is standing on — which is the direction the
+  // trap actually closed in. Distance is straight-line between hex centres
+  // rather than a path through the board: this is a flourish, and a flourish
+  // that ran a breadth-first search would be a flourish that cost something.
+  var penned = false, bloom = null;
+
+  function celebrate(at, pen) {
+    if (penned) return;
+    penned = true;
+    plate.classList.add('penned');
+    // Only the stones that actually shut the cat in turn. The rest are walls
+    // you laid that it walked round, and they stay what they were.
+    (pen || []).forEach(function (k) {
+      var c = cells[Math.floor(k / 100)] && cells[Math.floor(k / 100)][k % 100];
+      if (c) c.el.classList.add('pen');
+    });
+    if (reduce || !at) return;
+    var o = px(at.i, at.j);
+    for (var i = 0; i < W; i++) {
+      for (var j = 0; j < H; j++) {
+        var c = cells[i] && cells[i][j];
+        if (!c || !c.on) continue;
+        var p = px(i, j);
+        c.cap.style.animationDelay = (Math.hypot(p.x - o.x, p.y - o.y) / (2 * r) * 0.06).toFixed(3) + 's';
+      }
+    }
+    bloom = doc.createElement('div');
+    bloom.className = 'bloom';
+    bloom.style.width = bloom.style.height = (r * 24) + 'px';
+    bloom.style.transform = 'translate3d(' + o.x + 'px,' + o.y + 'px,0) translate(-50%,-50%)';
+    cellsEl.appendChild(bloom);
+    root.setTimeout(function () { if (bloom) { bloom.remove(); bloom = null; } }, 1600);
+  }
+
+  // A new board. The cats go too — dropped rather than re-aimed, because
+  // setCats turns a change of hex into a WALK, and the centre of a fresh board
+  // is often one hex from wherever the last one ended. The cat would stroll
+  // home across a board that no longer exists.
+  function calm() {
+    penned = false;
+    plate.classList.remove('penned');
+    if (bloom) { bloom.remove(); bloom = null; }
+    Object.keys(views).forEach(dropView);
+    for (var i = 0; i < W; i++) {
+      for (var j = 0; j < H; j++) {
+        var c = cells[i] && cells[i][j];
+        if (c) { c.cap.style.animationDelay = ''; c.el.classList.remove('pen'); }
+      }
+    }
   }
 
   // -------------------------------------------------------------- gestures
@@ -595,6 +669,8 @@
     setCats: setCats,
     resetView: resetView,
     flatten: flatten,
+    celebrate: celebrate,
+    calm: calm,
     idle: idle,
     onSettled: onSettled,
     state: function () { return { tilt: view.tilt, spin: view.spin, zoom: view.zoom }; },

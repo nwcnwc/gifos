@@ -107,6 +107,34 @@ header {
   transition: transform .17s cubic-bezier(.2,1.5,.4,1), opacity .1s linear;
 }
 .cell.wall .cap { opacity: 1; transform: translateZ(var(--wall)); }
+
+/* THE PEN IS SHUT. The walls stop being something you are building and become
+   something that is finished, so they go red — and they do it as a wave running
+   outward from the hex the cat is standing on, which is the direction the trap
+   actually closed in. The delay per wall is set in view.js. */
+#plate.penned .cell.wall.pen .cap {
+  background: radial-gradient(circle at 34% 30%, #ff9d84 0%, #e2563f 46%, #8c2418 100%);
+  animation: ctc-snap .46s cubic-bezier(.2,1.6,.4,1) both;
+}
+#plate.penned .cell.wall.pen .shaft { background: #7a1f16; }
+@keyframes ctc-snap {
+  0%   { transform: translateZ(var(--wall)); }
+  38%  { transform: translateZ(calc(var(--wall) * 2.1)); }
+  100% { transform: translateZ(var(--wall)); }
+}
+/* Light spreading across the table from where the cat is standing. It lies IN
+   the board's plane, so it tilts and turns with everything else. */
+.bloom {
+  position: absolute; left: 0; top: 0; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,196,120,.55) 0%, rgba(255,120,90,.22) 42%, rgba(255,120,90,0) 70%);
+  pointer-events: none;
+  animation: ctc-bloom 1.5s ease-out both;
+}
+@keyframes ctc-bloom {
+  0%   { opacity: 0; scale: .12; }
+  18%  { opacity: 1; }
+  100% { opacity: 0; scale: 1; }
+}
 /* The tap target is the hex's OWN patch of table — regular, tessellating,
    inradius r. No overlap to arbitrate, no gap to fall through, and the
    browser does the 3D hit test for us. */
@@ -123,6 +151,34 @@ header {
    however the table is turned. Its origin is the cat's FEET: the art is hung
    above and left of it by view.js from the measured ink box. */
 .cat { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; }
+/* preserve-3d is NOT decoration here. .pose sits between .cat (which IS a 3D
+   context) and the art, and a flattening element inside a 3D context is
+   composited into a texture the size of its own box — which is 0x0. Without
+   this the sitting cat was a two-pixel sliver of its own drop-shadow. */
+.cat .pose {
+  position: absolute; left: 0; top: 0; width: 0; height: 0;
+  transform-origin: 0 0; transform-style: preserve-3d;
+}
+/* Caught, and pretending not to mind. It sits, it breathes, and every few
+   seconds it washes a paw for a moment — twice, briefly, the way a cat does
+   when it has decided the thing that just happened was not interesting. The
+   origin is the cat's FEET, so a rotation reads as leaning down rather than
+   sliding, and scaleY off the same origin is the breath. The delay is per-cat
+   so a room full of them does not wash in unison. */
+.cat.sitting.caught .pose { animation: ctc-groom 4.2s ease-in-out .8s infinite both; }
+@keyframes ctc-groom {
+  0%        { transform: rotate(0deg) translateY(0) scaleY(1); }
+  12%       { transform: rotate(0deg) translateY(0) scaleY(1.015); }
+  26%       { transform: rotate(0deg) translateY(0) scaleY(1); }
+  38%       { transform: rotate(0deg) translateY(0) scaleY(1.015); }
+  48%       { transform: rotate(0deg) translateY(0) scaleY(1); }
+  53%       { transform: rotate(-8deg) translateY(calc(var(--r) * .06)) scaleY(.98); }
+  58%       { transform: rotate(-14deg) translateY(calc(var(--r) * .12)) scaleY(.955); }
+  63%       { transform: rotate(-9deg) translateY(calc(var(--r) * .07)) scaleY(.98); }
+  68%       { transform: rotate(-14deg) translateY(calc(var(--r) * .12)) scaleY(.955); }
+  73%       { transform: rotate(-7deg) translateY(calc(var(--r) * .05)) scaleY(.985); }
+  80%, 100% { transform: rotate(0deg) translateY(0) scaleY(1); }
+}
 .cat .art {
   position: absolute; display: block; image-rendering: auto;
   /* The cat is a BLACK silhouette and the table is nearly black. Without a rim
@@ -132,7 +188,7 @@ header {
     drop-shadow(0 0 calc(var(--r) * .16) var(--tone, #e8b05a))
     drop-shadow(0 0 calc(var(--r) * .42) rgba(0,0,0,.9));
 }
-.cat.caught .art { filter: drop-shadow(0 0 calc(var(--r) * .5) rgba(125,206,154,.95)) drop-shadow(0 0 calc(var(--r) * .18) rgba(125,206,154,.9)); }
+.cat.caught .art { filter: drop-shadow(0 0 calc(var(--r) * .55) rgba(255,196,120,.95)) drop-shadow(0 0 calc(var(--r) * .2) rgba(255,150,110,.9)); }
 .cat.gone { transition: opacity .6s linear 1.1s; opacity: .3; }
 .cat.gone .art { filter: drop-shadow(0 0 calc(var(--r) * .5) rgba(255,138,122,.95)) drop-shadow(0 0 calc(var(--r) * .18) rgba(255,138,122,.9)); }
 .cat .tag {
@@ -164,8 +220,10 @@ header {
   cursor: pointer;
 }
 #viewbar button:active { color: var(--text); }
+/* Sits ABOVE the middle, not on it. The board's centre is where the cat is,
+   and once the pen shuts the cat is doing something worth watching. */
 #flash {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  position: absolute; left: 50%; top: 22%; transform: translate(-50%, -50%);
   max-width: 88%; padding: .65rem .95rem; text-align: center;
   background: rgba(11, 16, 32, .93); border: 1px solid var(--border);
   border-radius: .8rem; font-weight: 700; line-height: 1.3;
@@ -255,4 +313,9 @@ header {
   #again.ready { animation: none; }
   #flash { animation: none; }
   .cell .cap { transition: none; }
+  /* The walls still go red — that is information, not decoration. The wave,
+     the bloom and the washing are decoration, and they stop. */
+  #plate.penned .cell.wall.pen .cap { animation: none; }
+  .cat.sitting.caught .pose { animation: none; }
+  .bloom { display: none; }
 }

@@ -85,6 +85,7 @@
     mode = nextMode || (racing ? 'race' : 'solo');
     over = false; settled = false;
     stageEl.classList.remove('done');
+    GifCat.view.calm();
     flashEl.hidden = true;
     armAgain(false);
     GifCat.rules.reset({
@@ -149,6 +150,11 @@
     if (res.state === 'caught') {
       stopTaps();
       announce(function () {
+        // Solo, the round IS over the moment your cat is penned, so the pen
+        // shuts here. In a race it waits for the room's verdict — a board that
+        // celebrated before the others had finished would be celebrating a
+        // round you might not have won.
+        if (!racing) GifCat.view.celebrate(GifCat.rules.myCat(), GifCat.rules.pen());
         setStatus('The cat is walled in — ' + taps(res.clicks) + '.' + (racing ? ' Waiting on the others.' : ''), 'win');
         if (!racing) { flash('Walled in — ' + taps(res.clicks) + '.', 'win'); armAgain(true); }
       });
@@ -254,6 +260,7 @@
         setStatus('Nobody penned it. Next round?', 'lose');
         return;
       }
+      if (r.mine && GifCat.rules.state() === 'caught') GifCat.view.celebrate(GifCat.rules.myCat(), GifCat.rules.pen());
       var who = names(r.winners);
       if (r.mine && !r.shared) {
         flash('Round ' + r.n + ' is yours — ' + taps(r.clicks) + '!', 'win');
@@ -271,6 +278,7 @@
   function coopResult(r) {
     stopTaps();
     if (r.cleared) {
+      GifCat.view.celebrate(GifCat.rules.myCat(), GifCat.rules.pen());
       flash('Every cat penned — ' + taps(r.taps) + ' between you.', 'win');
       setStatus('Round ' + r.n + ' cleared. ' + taps(r.taps) + ' between ' + r.players + '.', 'win');
     } else {
