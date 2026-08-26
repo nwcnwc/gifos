@@ -13,8 +13,11 @@
  *   1. `window.__gifosTestProvider` — the gate's EIP-1193 fake, so tier 2
  *      exercises THIS file's real code path, not a stub around it.
  *   2. The vendored Base Account SDK (js/vendor/base-account.min.js,
- *      @base-org/account 2.5.10, sha256
- *      fd307e471e738cc16604aa5d5263d7505d6f6b76e45355c977e8c67e985f52fe) —
+ *      @base-org/account 2.5.10; upstream dist sha256
+ *      fd307e471e738cc16604aa5d5263d7505d6f6b76e45355c977e8c67e985f52fe, ours
+ *      efae551685f53a43a2ec418c00e29bf0772dd8a1c4329849cc7f5039503ceef9 — one
+ *      raw 0x19 byte escaped to \u0019 so the file stays greppable, evaluated
+ *      string identical; test/unit/parses.js is the guard that demanded it) —
  *      the passkey-owned smart account the doctrine chose (docs/payments.md
  *      §BASE FIRST). Loaded LAZILY, from our own origin, never a CDN, and
  *      only on the OS page. Signing happens in Coinbase's own account
