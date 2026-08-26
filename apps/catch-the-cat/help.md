@@ -10,7 +10,7 @@ A black cat sits in the middle of a honeycomb. You turn dots into walls. After e
 
 The board is a real 3D table, not a picture of one.
 
-- **Drag** with one finger (or the mouse) to turn it — sideways spins it, up and down tilts it.
+- **Drag** with one finger (or the mouse) and the board turns under it. Push the near edge right and it goes right; pull the far edge down and it comes down. The two halves of a tilted board move opposite ways, so which half you put your finger on is what decides the direction — the same as turning a real board on a table.
 - **Pinch**, or scroll the wheel, to move in. It is a proper dolly, so the closer you get the deeper the perspective.
 - **Two fingers** together also twist and shove the board around.
 - **Flat** looks straight down at it, which is how the game was originally drawn. **Reset view** puts everything back.

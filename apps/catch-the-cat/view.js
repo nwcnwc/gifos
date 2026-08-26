@@ -443,11 +443,43 @@
   // dolly, twist to spin, and both together to shove the board around. The tap
   // is decided on RELEASE — anything that travelled more than SLOP is a
   // gesture, not a move, so a shaky thumb never walls a hex you did not mean.
+  //
+  // WHICH HALF YOUR FINGER IS ON DECIDES WHICH WAY THE BOARD TURNS, and that is
+  // the whole of it. The board is a table tilted away from you, so its two
+  // halves move OPPOSITE ways under any turn — measured on the shipped
+  // transform at tilt 34: a +20deg spin carries the near edge 100px LEFT and
+  // the far edge 80px right; a +21deg tilt carries the near edge 63px UP and
+  // the far edge 65px down. A fixed sign is therefore right for one half of the
+  // board and backwards for the other, and it was fixed to the far half — so a
+  // finger on the near half, which is the big close part you actually reach
+  // for, pushed the board the opposite way to itself.
+  //
+  // So the sign comes from the grab: `near` is +1 for a finger below the
+  // board's projected centre and -1 above it, and both axes are multiplied by
+  // it. Push the near edge right and it goes right; pull the far edge down and
+  // it comes down. It is decided once, at pointerdown, so it cannot flip
+  // underneath a drag in progress.
   var SLOP = 9;
   var pts = {};
   var gest = null;
 
   function pointers() { return Object.keys(pts).map(function (k) { return pts[k]; }); }
+
+  // The plate's centre, in screen coordinates. Not its bounding box's centre:
+  // under a tilt the near half is magnified, so the box is biased toward the
+  // viewer and would call a genuinely far grab near. The plate's transform
+  // origin IS its layout centre, which is the scene's centre, and the transform
+  // carries the origin to (panX, panY) at depth dz — so the projection is exact
+  // arithmetic, and needs one rect read rather than a probe element.
+  function plateCentre() {
+    var sc = scene.getBoundingClientRect();
+    var dz = PERSPECTIVE * (1 - 1 / view.zoom);
+    var w = 1 - dz / PERSPECTIVE;
+    return {
+      x: sc.left + sc.width / 2 + view.panX / w,
+      y: sc.top + sc.height / 2 + view.panY / w
+    };
+  }
 
   function down(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -463,7 +495,10 @@
       gest = { two: true, base: pinch(list), view: { tilt: view.tilt, spin: view.spin, zoom: view.zoom, panX: view.panX, panY: view.panY } };
       list.forEach(function (p) { p.moved = SLOP + 1; });   // a second finger is never a tap
     } else if (list.length === 1) {
-      gest = { two: false, view: { tilt: view.tilt, spin: view.spin, zoom: view.zoom, panX: view.panX, panY: view.panY } };
+      gest = {
+        two: false, near: e.clientY >= plateCentre().y ? 1 : -1,
+        view: { tilt: view.tilt, spin: view.spin, zoom: view.zoom, panX: view.panX, panY: view.panY }
+      };
     }
     e.preventDefault();
   }
@@ -495,10 +530,10 @@
         panY: v.panY + (now.cy - b.cy)
       }, false);
     } else if (!gest.two && list.length === 1 && p.moved > SLOP) {
-      var v1 = gest.view;
+      var v1 = gest.view, side = gest.near || 1;
       setView({
-        tilt: v1.tilt + (p.y - p.y0) * 0.35,
-        spin: v1.spin + (p.x - p.x0) * 0.42,
+        tilt: v1.tilt - (p.y - p.y0) * 0.35 * side,
+        spin: v1.spin - (p.x - p.x0) * 0.42 * side,
         zoom: v1.zoom, panX: v1.panX, panY: v1.panY
       }, false);
     }
@@ -511,7 +546,14 @@
     try { stage.releasePointerCapture(e.pointerId); } catch (err) {}
     if (!p) return;
     if (!pointers().length) gest = null;
-    else gest = { two: false, view: { tilt: view.tilt, spin: view.spin, zoom: view.zoom, panX: view.panX, panY: view.panY } };
+    else {
+      var left = pointers()[0];
+      gest = {
+        two: false, near: left && left.y >= plateCentre().y ? 1 : -1,
+        view: { tilt: view.tilt, spin: view.spin, zoom: view.zoom, panX: view.panX, panY: view.panY }
+      };
+      if (left) { left.x0 = left.x; left.y0 = left.y; }
+    }
     if (p.hit && p.moved <= SLOP && e.type === 'pointerup' && tapCb) {
       tapCb(Number(p.hit.dataset.i), Number(p.hit.dataset.j));
     }
