@@ -3076,6 +3076,37 @@ every time an icon lands. So the strip is chrome, not content:
   bug the icon lock exists to prevent.
 - **Arrange mode hides the menubar; it hides this too.** Root only — never
   inside a folder, never on `run.html`, never in a meeting.
+- **A tip removes it entirely** (below).
+
+### A tip turns the desktop strip off — for the desktop only
+
+Any tip, of any size, through the existing **Tip GifOS Creators** app turns off
+the Home Screen strip. It is the whole opt-out: no plan, no tier, no "premium".
+
+- **It buys the GifOS surface, and nothing else.** Ads inside an app are the
+  app author's arrangement with their own user, and a tip to us cannot switch
+  off another author's revenue. An app's ads are governed by its `ads` Ability
+  and the per-app toggle in the Abilities sheet — a separate control, on a
+  separate screen, that the user already has.
+- **The OS records it, not the app.** The receipt lands on the GifOS payment
+  sheet, which is the OS's own screen; the flag is written there. The tip app
+  itself still stores nothing, which keeps `build.mjs`'s "it remembers nothing"
+  assertion true and keeps the app's own promise intact.
+- **The flag is local, like everything else**: this browser, this device. It
+  does not follow you to your phone, and erasing the site erases it. That is
+  the same honesty rule the desktop already applies to every other saved thing
+  — say "on this device", never imply a synced entitlement.
+- **It is a courtesy, not DRM.** With no account there is nothing to verify
+  against, so anyone who wants the strip gone without paying can have it.
+  Enforcing it would require exactly the account GifOS does not have. Do not
+  build a check; do not phone anything home.
+- **Copy to fix when this ships:** the tip app currently promises "There is no
+  subscription hiding in here, nothing to unlock, and the app is exactly the
+  same before and after you tip" (`apps/tip-creators/listing.json`,
+  `help.md`). That becomes false the day a tip removes the strip. New wording
+  has to say plainly what a tip does and does not do — the app is unchanged,
+  the desktop loses its ad strip on this device — and the GIF is rebuilt and
+  re-signed with it.
 
 ### The app slot: a declared Ability, fetched through the broker
 
