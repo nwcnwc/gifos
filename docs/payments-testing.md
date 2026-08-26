@@ -80,7 +80,7 @@ own:
 One detail that simplifies our case: a seller receiving to an address they
 already control sets `payToConfig` to `address` and **skips
 `CDP_WALLET_SECRET`** entirely. GifOS app authors are exactly that — the payout
-address is in their signed manifest — so GifOS never provisions or holds a
+address is in their signed manifest — so GifOS does not provision or hold a
 CDP-managed wallet, and never needs that secret.
 
 ### What tier 3 needs that we do not have yet

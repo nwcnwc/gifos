@@ -49,7 +49,7 @@ transaction — so two tabs of the same app can't clobber each other.
 
 Sharing rides on top of this store as **collection visibility** (see the manifest `data` field under App GIFs). The host is the authoritative store; a guest's `gifos.db` is a hybrid — writes to a *shared* collection forward to the host, writes to a *private* one stay in an in-tab map — and the host filters every read/steal/state-dump by each record's effective visibility (its `_vis` override, else the collection default, else `private`). So a "multiplayer state dump" carries only what the host chose to share; a guest can be refused but never routes around the host.
 
-The store is a **namespace factory**: the default desktop binds to the `gifos` database, and every **booted computer image** gets its own `gifos_vm_<fileId>` database with the identical schema — a whole computer per namespace (see "Computer Images"). Because storage is local and unsynced, GifOS never needs an identity system. The "account" is the browser profile (a screen name in `localStorage` is used to attribute multiplayer moves).
+The store is a **namespace factory**: the default desktop binds to the `gifos` database, and every **booted computer image** gets its own `gifos_vm_<fileId>` database with the identical schema — a whole computer per namespace (see "Computer Images"). Because storage is local and unsynced, GifOS does not need an identity system. The "account" is the browser profile (a screen name in `localStorage` is used to attribute multiplayer moves).
 
 ## Layer 2 — App GIFs
 
