@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "_what": "The rails registry (docs/payments.md §Registration). The fee-free rails — wallet transfer and FedNow — collect no per-transaction cut, so they are open only to signing identities registered here. The fee-collecting rails (PayPal, x402) need no registration. The pay Worker fetches this file and refuses /transfer/invoice and /fednow/rfp for identities absent or expired.",
+  "_how": "One entry per signing identity (the same identity that signs the apps — a domain or an email). `until` is an ISO date; null means perpetual, and is reserved for the platform's own identity. The registration FEE IS NOT SET YET; entries are added by hand on payment until that is decided (Nathan, 2026-08-26).",
+  "registered": {
+    "gifos.app": { "until": null }
+  }
+}

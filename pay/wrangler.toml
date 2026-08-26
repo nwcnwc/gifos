@@ -28,6 +28,9 @@ BASE_RPC = "https://sepolia.base.org"
 # FedNow: unset until a provider account exists (Finzly-shaped; see README).
 # FEDNOW_API = ""
 FEDNOW_PAYEES = "{}"
+# The rails registry: identities allowed on the FEE-FREE rails (annual
+# registration; fee not yet set). Committed to the site like the catalog.
+REGISTRY_URL = "https://gifos.app/pay/registry.json"
 # PAYPAL_CLIENT_ID is a var (it is public by nature); set it at deploy.
 
 # Branded domain — TWO bindings, same rationale as relay/wrangler.toml:

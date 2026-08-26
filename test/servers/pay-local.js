@@ -25,6 +25,7 @@ const CATALOG_URL = process.env.CATALOG_URL || 'http://127.0.0.1:8099/apps/index
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'http://127.0.0.1:8797';
 const BASE_RPC = process.env.BASE_RPC || 'http://127.0.0.1:8799/rpc';
 const FEDNOW_API = process.env.FEDNOW_API || 'http://127.0.0.1:8800';
+const REGISTRY_URL = process.env.REGISTRY_URL || 'http://127.0.0.1:8099/pay/registry.json';
 
 (async () => {
   const { makeCore } = await import('../../pay/src/core.js');
@@ -47,6 +48,7 @@ const FEDNOW_API = process.env.FEDNOW_API || 'http://127.0.0.1:8800';
     fednowApi: FEDNOW_API,
     fednowKey: null,
     fednowPayees: { 'gifos.app': 'ACCT-GIFOS', 'paytest.example.com': 'ACCT-PAYTEST' },
+    registryUrl: REGISTRY_URL,
     signKey: { privateKey: kp.privateKey, publicKey: kp.publicKey },
   });
 
