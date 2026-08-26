@@ -3037,10 +3037,10 @@ that had drifted into saying so were removed on 2026-08-26.
 
 **Not decided — do not write any of this into copy until it is:**
 
-- Whether ads are contextual only, or may use signals the client holds; what (if
-  anything) an impression or click callback carries; whether we accept a network
-  whose terms require its own tag on the desktop surface, or refuse on the
-  security ground above.
+- What (if anything) an impression or click callback carries, and whether we
+  accept a network whose terms require its own tag on the desktop surface or
+  refuse on the security ground above. (What the *ad request* carries is decided
+  below: a sentence the user writes.)
 - Whether the desktop strip is sold by us, by a network, or filled with house
   ads for our own apps at first — the last of which is useful at zero revenue
   and is the obvious way to start.
@@ -3141,6 +3141,60 @@ capability system exactly as every other power does:
   refuse — the same mechanism that already stops an app calling your AI or your
   mic. There is no path around it, because the app never had the network.
 
+### You write your own targeting line
+
+Decided 2026-08-26 (Nathan). The ads row in the Abilities sheet carries a **text
+box: how do you want advertisers to see you?** Whatever is typed there is what
+accompanies an ad request — verbatim, and it is the only description that goes.
+
+This settles the "what may an ad request carry" question above, which had the
+usual two answers (nothing, or signals we infer). This is the third: **the user
+writes it.** Nothing has to be derived from behaviour, because the person tells
+us directly, in their own words, and can read exactly what they said.
+
+- **The box IS the payload.** Under the field, the sheet shows the actual
+  request that will be sent. If it is not visible in that preview, it is not
+  sent. That is a claim a test can hold to — compare the outgoing body against
+  the box, byte for byte.
+- **Empty by default, and never pre-filled.** No inference, no "we noticed you
+  play a lot of chess", no starter text to accept by inertia. An empty box means
+  an untargeted request.
+- **Held by the OS, never by the app.** It lives on the desktop origin, outside
+  the app, outside the GIF, and out of anything that is shared or backed up —
+  the same non-exportable rule `gifos-purse.js` (`isExportable`) applies to
+  entitlements. The app never reads it; the broker composes the request.
+- **One line, edited wherever it is used.** Ads can appear in more than one place
+  (the Home Screen strip, an app's slot). One text, reachable from the Abilities
+  sheet and from Settings, beats a per-app profile nobody audits.
+- **It may say anything.** "A retired oil baron with a boat problem" is a
+  legitimate entry. Trading honest context for more relevant ads is the user's
+  call to make or refuse, and a box they can lie in is the only version where
+  that is true.
+- **Fits the existing sheet.** `gifos-perms.js` renders each capability through
+  `capRow(k, title, desc, statusHtml)`; the ads row adds a textarea and the
+  request preview to its status area, beside the same on/off checkbox every
+  other Ability has. Off means no request at all, whatever the box says.
+- **Say the obvious thing plainly next to the box**: this text goes to an ad
+  provider. A name, an address or an email typed there is sent as typed. One
+  sentence, no disclaimer block.
+
+**Open questions.**
+
+- **The box cannot be the whole truth, and the copy must not claim it is.** An
+  HTTP request carries an IP address and browser-set headers whatever the box
+  says, and the provider sees them. Either the preview names that too, or the
+  request goes out through something that strips it (§20's personal proxy is the
+  only version of that we would run). Pretending the text is the entire payload
+  would be the exact dishonesty this feature exists to remove.
+- **Most ad APIs do not accept a sentence.** They want fields — segments, an age
+  bracket, interests. Mapping free text onto fields is inference again, and it
+  only survives the transparency test if the mapping is shown as plainly as the
+  text was. A provider that cannot take the user's own words may simply be the
+  wrong provider.
+- Per-app override versus one line for everything.
+- Length limit, and whether an entry that looks like an email or a phone number
+  gets a warning before it is sent.
+
 ### The author gets to respond — that is the point
 
 A refusal is **legible**, so the app can act on it. `capDisabled` today produces
@@ -3175,11 +3229,11 @@ itself:
 - **The about.html sentence.** Whether "no tracking" still reads as true beside
   an ad depends on what the ad request carries — which is undecided above. The
   copy question and the mechanism question are the same question.
-- **What an ads-off app may withhold, and what an ad request may carry.** Both
-  are policy, and neither has been set. "Turn ads on or pay" is a legitimate
-  business; whether unsigned apps may earn at all, whether an app may pass
-  targeting signals, and where the line sits between gating and nagging are
-  decisions for whoever writes the store policy, not defaults to assume.
+- **What an ads-off app may withhold.** "Turn ads on or pay" is a legitimate
+  business; whether unsigned apps may earn at all, and where the line sits
+  between gating and nagging, are decisions for whoever writes the store policy,
+  not defaults to assume. (What the request *carries* is settled above: the
+  user's own sentence, and whatever a request reveals by existing.)
 - **How the refusal is shaped.** Distinguishable outcomes mean the broker
   returns a result rather than throwing, which is a small departure from how
   `capDisabled` reports today. Worth settling once, for every capability.
