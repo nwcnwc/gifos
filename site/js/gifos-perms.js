@@ -162,20 +162,27 @@
         return manifest && manifest.capabilities && manifest.capabilities[k];
       });
       var hasNet = !!(policy && policy.hasNetwork());
+      /* A handoff is a thing to be told about, so it has to be able to raise
+       * the sheet ON ITS OWN. The Retirement Calculator declares db and
+       * multiplayer and nothing else — neither of which is a chip — so without
+       * this it would pick up your finances with no screen anywhere saying it
+       * could. Caught by e2e-handoff.js, which mounted an app whose only
+       * declaration was a handoff and found no sheet to read. */
+      var hands = handoffKinds(manifest, 'offers').concat(handoffKinds(manifest, 'takes'));
       // An app with no abilities and no network still gets the sheet when a
       // link is asking it to do something — that ask is the whole reason the
       // sheet exists here, and it is never covered by a stored acknowledgement
       // (the words are different every time, so consent has to be too).
-      if (!hasNet && !caps.length && !asked.length) { chipEl.style.display = 'none'; return; }
+      if (!hasNet && !caps.length && !asked.length && !hands.length) { chipEl.style.display = 'none'; return; }
       var capSig = 'gifos_capack_' + ((manifest && manifest.appId) || 'app');
-      var sig = caps.join(',') + '|' + apiNames(manifest).join(',') + '|' + aiRoles(manifest).join(',') + '|' + poolHosts(manifest).join(',');
+      var sig = caps.join(',') + '|' + apiNames(manifest).join(',') + '|' + aiRoles(manifest).join(',') + '|' + poolHosts(manifest).join(',') + '|' + hands.join(',');
       function capAcked() { try { return ls().getItem(capSig) === sig; } catch (e) { return false; } }
       function ackCaps() { try { ls().setItem(capSig, sig); } catch (e) {} }
       function paintChip() {
         var unsafe = hasNet && policy.unsafe();
         chipEl.style.display = '';
         chipEl.className = 'perms ' + (unsafe ? 'unsafe' : 'ok');
-        chipEl.textContent = unsafe ? '⚠ Unsafe' : (hasNet ? 'Internet' : 'Abilities');
+        chipEl.textContent = unsafe ? '⚠ Unsafe' : (hasNet ? 'Internet' : (caps.length ? 'Abilities' : 'Sharing'));
         chipEl.title = unsafe
           ? 'Unsafe: this app can reach any website. Tap to see why, or to stop it.'
           : (hasNet ? 'This app can reach the internet. Tap to see or change what it can reach.'
@@ -301,7 +308,7 @@
           // so the link's ask had somewhere to live. Settled, it has nothing
           // to say, and a permanent "Abilities" button that opens an empty
           // sheet is worse than no button.
-          if (!hasNet && !caps.length) chipEl.style.display = 'none';
+          if (!hasNet && !caps.length && !hands.length) chipEl.style.display = 'none';
         }
         // THE SHEET GOES FIRST, THEN THE APP STARTS.
         //
