@@ -1,0 +1,366 @@
+/*
+ * gifos-pay-broker.js — the OS side of gifos.charge(): verify, ask, move, record.
+ *
+ * The app asks, the OS asks the human, the OS moves the money
+ * (docs/payments.md). This file is the trusted middle: it runs ONLY on the OS
+ * page (run.html), never in an app frame. What the sandbox can cause is a
+ * request; everything that decides — the signature gate, the ceiling, the
+ * trusted display, the rail, the record — happens here, out of its reach.
+ *
+ * The DECISIONS are not made here either: gifos-charge.js (eligibility,
+ * validation, the sheet's contents) and gifos-purse.js (entitlements, ledger)
+ * are pure and unit-tested; this file wires them to the DOM, the purse store,
+ * and the two settlement rails:
+ *
+ *   PAYPAL  the pay Worker creates an order paying the app's SIGNING IDENTITY
+ *           (derived — payments@<domain> or the signing email) and hands back
+ *           an approval URL. The human finishes in PayPal's own window. Proof
+ *           is an Ed25519-signed receipt from the Worker, verified here
+ *           against /gifos.key — the purse never takes the browser's word.
+ *   X402    testnet USDC on Base Sepolia. The broker builds the 97/3 split
+ *           itself — TWO transfers from ONE approval, no splitter contract —
+ *           and hands them to the wallet adapter (GifOS.payWallet) to sign.
+ *           Until the Base Account connection lands, no adapter is present in
+ *           production and the rail says so instead of pretending.
+ *
+ * TEST RAILS ONLY. The Worker speaks PayPal sandbox; the chain is Base
+ * Sepolia, pinned in gifos-charge.js/gifos-x402.js. Nothing here can reach a
+ * mainnet asset.
+ *
+ * Attaches to `GifOS.payBroker`.
+ */
+(function (root) {
+  const GifOS = (root.GifOS = root.GifOS || {});
+  if (GifOS.payBroker) return;
+
+  // ---- config ----------------------------------------------------------------
+  const WORKER_KEY = 'gifos_pay_worker';           // localStorage override, for tests/self-hosters
+  const DEFAULT_WORKER = 'https://pay.gifos.app';
+  const POLICY_KEY = 'gifos_pay_policy';           // { "<appId>": { maxAmount: "<units>" } }
+  // The per-call ceiling an app gets before anyone touches Settings. $20 in
+  // USDC base units (6 decimals) — high enough for real unlocks, low enough
+  // that the worst a hostile app can ASK for (a human still approves every
+  // cent) is bounded. Settings can raise or lower it per app.
+  const DEFAULT_MAX = '20000000';
+  // GifOS's 3% (Nathan's 97/3, docs/payments.md). On PayPal the WORKER applies
+  // it (platform_fees) — the client never computes fiat fees. On x402 the
+  // split is built here, because the broker constructs the payment.
+  const FEE_BPS = 300n;
+  // Where the x402 fee lands. A Base Sepolia TEST address — replace alongside
+  // the mainnet flag day, never before (docs/payments.md "What this does NOT do").
+  const TREASURY = '0x1111111111111111111111111111111111111111';
+
+  const ls = () => root.localStorage;
+
+  // ---- the purse, over localStorage ------------------------------------------
+  // localStorage is deliberate, not a shortcut: the desktop backup GIF packs
+  // IndexedDB (items/files/states) and NOTHING else, so a purse here can never
+  // travel inside a shared or backed-up GIF — the redaction rule of
+  // gifos-purse.js holds by construction. Keys keep the purse's own pay.*
+  // prefixes so isExportable() answers correctly if an export path ever asks.
+  const store = {
+    get(k) { try { const v = ls().getItem(k); return v == null ? undefined : JSON.parse(v); } catch (e) { return undefined; } },
+    set(k, v) { ls().setItem(k, JSON.stringify(v)); },
+    del(k) { ls().removeItem(k); },
+    keys() { const out = []; try { for (let i = 0; i < ls().length; i++) { const k = ls().key(i); if (/^pay\./.test(k)) out.push(k); } } catch (e) {} return out; },
+  };
+  const purse = () => GifOS.purse.make(store);
+
+  function maxAmountFor(appId) {
+    try {
+      const p = JSON.parse(ls().getItem(POLICY_KEY) || '{}');
+      const e = p && p[appId];
+      if (e && /^[0-9]+$/.test(String(e.maxAmount))) return String(e.maxAmount);
+    } catch (e) {}
+    return DEFAULT_MAX;
+  }
+  function setMaxAmount(appId, units) {
+    if (!/^[0-9]+$/.test(String(units))) throw new Error('ceiling must be a decimal integer string of base units');
+    let p = {}; try { p = JSON.parse(ls().getItem(POLICY_KEY) || '{}') || {}; } catch (e) {}
+    p[appId] = Object.assign(p[appId] || {}, { maxAmount: String(units) });
+    ls().setItem(POLICY_KEY, JSON.stringify(p));
+  }
+  function workerBase() {
+    try { const v = (ls().getItem(WORKER_KEY) || '').trim(); if (v) return v.replace(/\/+$/, ''); } catch (e) {}
+    return DEFAULT_WORKER;
+  }
+
+  // ---- money display ---------------------------------------------------------
+  // Base units are USDC's 6 decimals on BOTH rails ($1 = 1000000), so the app
+  // API has one unit space. PayPal can only move whole cents, so that rail
+  // demands amount % 10000 == 0 — refused per rail, never rounded: rounding
+  // money silently is how a display and a charge come to disagree.
+  const CENT = 10000n;
+  function fmtUsd(units) {
+    const n = BigInt(units);
+    const cents = n / CENT, sub = n % CENT;
+    const d = cents / 100n, c = cents % 100n;
+    let out = '$' + d + '.' + String(c).padStart(2, '0');
+    if (sub !== 0n) out += ' (+' + sub + ' millionths)';
+    return out;
+  }
+  const wholeCents = (units) => BigInt(units) % CENT === 0n;
+
+  // ---- the signature verdict, once per mount ---------------------------------
+  // verify() fetches the author's published key, so it is cached per appId for
+  // the session. A charge re-verifies only what this page loaded — the bytes
+  // that are RUNNING — which is exactly the thing the payee derives from.
+  const verdicts = new Map();
+  function verdictFor(manifest, appBytes) {
+    const key = (manifest && manifest.appId) || '?';
+    if (!verdicts.has(key)) {
+      verdicts.set(key, Promise.resolve().then(() => GifOS.sign.verify(appBytes)).catch((e) => ({ status: 'unverified', detail: String(e && e.message || e) })));
+    }
+    return verdicts.get(key);
+  }
+
+  // ---- receipt verification --------------------------------------------------
+  // The Worker signs the exact JSON STRING it returns; we verify those UTF-8
+  // bytes against this site's own /gifos.key (the same key that certifies the
+  // app catalog) before a cent is recorded. The purse never takes a redirect's
+  // word — or this page's word — that money moved.
+  let keyPromise = null;
+  function receiptKey() {
+    if (!keyPromise) keyPromise = fetch('/gifos.key').then(async (r) => {
+      if (!r.ok) throw new Error('no /gifos.key on this site (HTTP ' + r.status + ')');
+      const b64 = (await r.text()).trim().replace(/^-----BEGIN[^-]*-----/, '').replace(/-----END[^-]*-----$/, '').trim();
+      const bytes = GifOS.sign._b64ToBytes(b64);
+      if (bytes.length !== 32) throw new Error('/gifos.key is not a 32-byte Ed25519 key');
+      return bytes;
+    });
+    return keyPromise;
+  }
+  async function verifyReceipt(receiptJson, sigB64) {
+    const pub = await receiptKey();
+    const ok = await GifOS.ed.verify(pub, GifOS.sign._b64ToBytes(sigB64), new TextEncoder().encode(receiptJson));
+    if (!ok) throw new Error('the payment receipt does not verify against this site’s key — refusing to record it');
+    return JSON.parse(receiptJson);
+  }
+
+  // ---- the approval sheet ----------------------------------------------------
+  // A WebAuthn/PayPal window says only "approve" — it never shows WHAT is
+  // being paid, to whom, from which app. This modal is the trusted display
+  // (docs/payments.md §Consent), and it must be answered before either rail
+  // is touched. Decline is a button, not an error.
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+  function showSheet(sheetData) {
+    const doc = root.document;
+    if (!doc || !doc.body) return Promise.reject(new Error('no display to ask the human on — payments need a visible page'));
+    return new Promise((resolve) => {
+      const old = doc.getElementById('gifos-pay-sheet'); if (old) old.remove();
+      const bg = doc.createElement('div'); bg.id = 'gifos-pay-sheet';
+      bg.setAttribute('style', 'position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1.2rem;');
+      const box = doc.createElement('div');
+      box.setAttribute('style', 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.8rem;max-width:24rem;width:100%;padding:1.2rem;font:15px/1.55 system-ui,-apple-system,sans-serif;');
+      const walletReady = !!(GifOS.payWallet && typeof GifOS.payWallet.signTransfers === 'function');
+      const canPaypal = !!sheetData.rails.paypal && wholeCents(sheetData.amount);
+      const canX402 = !!sheetData.rails.x402;
+      box.innerHTML =
+        '<h3 style="margin:0 0 .35rem;font-size:1.1rem">' + esc(sheetData.app || 'This app') + ' asks you to pay</h3>' +
+        '<p style="margin:0 0 .8rem;color:#b6b6cf;font-size:.9rem">' + esc(sheetData.reason) + '</p>' +
+        '<div style="background:#0e0e17;border:1px solid #23233a;border-radius:.6rem;padding:.8rem .9rem;margin-bottom:.9rem">' +
+          '<div style="display:flex;justify-content:space-between;gap:.6rem"><span style="color:#9a9ab5">Amount</span><b id="gp-amt-show">' + esc(fmtUsd(sheetData.amount)) + '</b></div>' +
+          (sheetData.editable ? '<div style="margin:.5rem 0 0"><input id="gp-amt" type="number" min="0.01" step="0.01" value="' + esc((Number(BigInt(sheetData.amount) / 10000n) / 100).toFixed(2)) + '" style="width:100%;box-sizing:border-box;background:#14141f;border:1px solid #2a2a3f;border-radius:.4rem;color:#e8e8f4;padding:.45rem .6rem;font:inherit"><div style="color:#9a9ab5;font-size:.78rem;margin-top:.25rem">You choose the amount — this is a tip.</div></div>' : '') +
+          '<div style="display:flex;justify-content:space-between;gap:.6rem;margin-top:.45rem"><span style="color:#9a9ab5">Paying</span><span><b>' + esc(sheetData.payingTo) + '</b> <span style="color:#7ddb91">✓ verified</span></span></div>' +
+          (sheetData.unlocks ? '<div style="display:flex;justify-content:space-between;gap:.6rem;margin-top:.45rem"><span style="color:#9a9ab5">Unlocks</span><span>' + esc(sheetData.sku) + ' (on this computer)</span></div>' : '') +
+          '<div style="color:#9a9ab5;font-size:.78rem;margin-top:.55rem">Test rails — no real money moves. GifOS keeps 3%; the author gets the rest.</div>' +
+        '</div>' +
+        '<div id="gp-buttons" style="display:flex;flex-direction:column;gap:.5rem">' +
+          (canPaypal ? '<button id="gp-paypal" style="padding:.6rem 1rem;border-radius:.5rem;border:none;background:#ffc439;color:#111;cursor:pointer;font:inherit;font-weight:600">Pay with PayPal (sandbox)</button>' : '') +
+          (canX402 ? '<button id="gp-x402" ' + (walletReady ? '' : 'disabled ') + 'style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:' + (walletReady ? '#1652f0' : '#20203255') + ';color:' + (walletReady ? '#fff' : '#9a9ab5') + ';cursor:' + (walletReady ? 'pointer' : 'default') + ';font:inherit">Pay with USDC — Base Sepolia' + (walletReady ? '' : ' (no wallet connected yet)') + '</button>' : '') +
+          '<button id="gp-decline" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">No thanks</button>' +
+        '</div>' +
+        '<div id="gp-status" style="display:none;color:#b6b6cf;font-size:.9rem;margin-top:.8rem"></div>';
+      bg.appendChild(box); doc.body.appendChild(bg);
+
+      const amountNow = () => {
+        if (!sheetData.editable) return BigInt(sheetData.amount);
+        const v = Number(box.querySelector('#gp-amt').value);
+        if (!isFinite(v) || v <= 0) return null;
+        return BigInt(Math.round(v * 100)) * CENT; // whole cents, exactly
+      };
+      const done = (result) => { bg.remove(); resolve(result); };
+
+      box.querySelector('#gp-decline').onclick = () => done({ declined: true });
+      const pp = box.querySelector('#gp-paypal');
+      if (pp) pp.onclick = () => {
+        const amt = amountNow();
+        if (amt == null) return;
+        // The popup MUST open inside this click — a blocker eats anything later.
+        const win = root.open('about:blank', 'gifos-pay', 'width=480,height=640');
+        done({ rail: 'paypal', amount: amt, win });
+      };
+      const xb = box.querySelector('#gp-x402');
+      if (xb && !xb.disabled) xb.onclick = () => {
+        const amt = amountNow();
+        if (amt == null) return;
+        done({ rail: 'x402', amount: amt });
+      };
+      bg.addEventListener('click', (e) => { if (e.target === bg) done({ declined: true }); });
+    });
+  }
+
+  // A second, minimal modal for the in-flight state (the first closed when a
+  // rail was chosen so its promise could resolve; this one owns the wait).
+  function showBusy(msg) {
+    const doc = root.document;
+    const old = doc.getElementById('gifos-pay-busy'); if (old) old.remove();
+    const bg = doc.createElement('div'); bg.id = 'gifos-pay-busy';
+    bg.setAttribute('style', 'position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1.2rem;');
+    const box = doc.createElement('div');
+    box.setAttribute('style', 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.8rem;max-width:22rem;width:100%;padding:1.1rem;font:15px/1.55 system-ui,-apple-system,sans-serif;');
+    box.innerHTML = '<p id="gpb-msg" style="margin:0">' + esc(msg) + '</p>' +
+      '<div style="text-align:right;margin-top:.8rem"><button id="gpb-cancel" style="padding:.4rem 1rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">Cancel</button></div>';
+    bg.appendChild(box); doc.body.appendChild(bg);
+    let cancelled = false;
+    box.querySelector('#gpb-cancel').onclick = () => { cancelled = true; };
+    return {
+      say(m) { const el = box.querySelector('#gpb-msg'); if (el) el.textContent = m; },
+      cancelled: () => cancelled,
+      close() { bg.remove(); },
+    };
+  }
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // ---- the PayPal rail -------------------------------------------------------
+  async function payWithPaypal(manifest, sheetData, amount, win) {
+    const base = workerBase();
+    const busyUi = showBusy('Starting the PayPal checkout…');
+    try {
+      const r = await fetch(base + '/checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appId: manifest.appId,
+          amount: String(amount),
+          sku: sheetData.sku || null,
+          reason: sheetData.reason,
+        }),
+      });
+      if (!r.ok) throw new Error('checkout failed (HTTP ' + r.status + '): ' + (await r.text()).slice(0, 200));
+      const co = await r.json(); // { id, approveUrl }
+      if (!co.id || !co.approveUrl) throw new Error('checkout answered without an order');
+      if (win && !win.closed) win.location = co.approveUrl;
+      busyUi.say('Finish the payment in the PayPal window…');
+      // Poll for the signed receipt. PayPal may land the capture moments after
+      // the window closes, so a closed window narrows the patience rather than
+      // aborting: the receipt, not the window, is the truth.
+      const deadline = Date.now() + 5 * 60 * 1000;
+      let closedAt = 0;
+      while (Date.now() < deadline) {
+        if (busyUi.cancelled()) throw new Error(GifOS.charge.DECLINED);
+        if (win && win.closed && !closedAt) closedAt = Date.now();
+        if (closedAt && Date.now() - closedAt > 15000) throw new Error(GifOS.charge.DECLINED);
+        const rr = await fetch(base + '/receipt/' + encodeURIComponent(co.id)).catch(() => null);
+        if (rr && rr.ok) {
+          const body = await rr.json(); // { status, receiptJson, sig }
+          if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
+            const receipt = await verifyReceipt(body.receiptJson, body.sig);
+            if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId) {
+              throw new Error('the signed receipt does not match this payment — refusing to record it');
+            }
+            return receipt;
+          }
+        }
+        await sleep(1500);
+      }
+      throw new Error('the payment was not completed in time');
+    } finally {
+      busyUi.close();
+      if (win && !win.closed) { try { win.close(); } catch (e) {} }
+    }
+  }
+
+  // ---- the x402 rail ---------------------------------------------------------
+  // TWO transfers from ONE approval — the 97/3 split needs no contract because
+  // this broker constructs the payment (docs/payments.md). The wallet adapter
+  // signs; the Worker's facilitator endpoint settles. Testnet only.
+  async function payWithX402(manifest, sheetData, amount) {
+    const wallet = GifOS.payWallet;
+    if (!wallet || typeof wallet.signTransfers !== 'function') throw new Error('no wallet is connected on this computer');
+    const base = workerBase();
+    const busyUi = showBusy('Asking your wallet to sign…');
+    try {
+      const fee = (amount * FEE_BPS) / 10000n;
+      const toAuthor = amount - fee;
+      const x = GifOS.x402;
+      const network = x.ALLOWED.networks[0];
+      const asset = x.ALLOWED.assets[network][0];
+      const transfers = [
+        { to: sheetData.rails.x402.address, amount: String(toAuthor), asset, network },
+      ];
+      if (fee > 0n) transfers.push({ to: TREASURY, amount: String(fee), asset, network });
+      const payloads = await wallet.signTransfers(transfers); // human authenticates HERE (passkey)
+      if (busyUi.cancelled()) throw new Error(GifOS.charge.DECLINED);
+      busyUi.say('Settling on Base Sepolia…');
+      const r = await fetch(base + '/x402/settle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appId: manifest.appId, sku: sheetData.sku || null, amount: String(amount), transfers, payloads }),
+      });
+      if (!r.ok) throw new Error('settlement failed (HTTP ' + r.status + '): ' + (await r.text()).slice(0, 200));
+      const body = await r.json(); // { status, receiptJson, sig }
+      if (body.status !== 'COMPLETED' || !body.receiptJson || !body.sig) throw new Error('settlement did not complete');
+      const receipt = await verifyReceipt(body.receiptJson, body.sig);
+      if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId) {
+        throw new Error('the signed receipt does not match this payment — refusing to record it');
+      }
+      return receipt;
+    } finally { busyUi.close(); }
+  }
+
+  // ---- gifos.charge(), brokered ---------------------------------------------
+  async function charge(manifest, appBytes, req, appName) {
+    if (!manifest || !manifest.capabilities || !manifest.capabilities.pay) {
+      throw new Error('This app did not declare the "pay" capability.');
+    }
+    const verdict = await verdictFor(manifest, appBytes);
+    const elig = GifOS.charge.eligibility(verdict, manifest);
+    if (!elig.allowed) throw new Error(elig.reason);
+    const p = purse();
+    const request = GifOS.charge.validateRequest(req, {
+      maxAmount: maxAmountFor(manifest.appId),
+      entitled: (sku) => p.entitled(manifest.appId, sku),
+    });
+    const sheetData = GifOS.charge.sheet(elig, request, appName || manifest.name);
+    if (!sheetData.rails.paypal && !sheetData.rails.x402) throw new Error('this app has no rail it can be paid on');
+
+    const choice = await showSheet(sheetData);
+    if (choice.declined) throw new Error(GifOS.charge.DECLINED);
+
+    // An edited (tip) amount still honors the app's ceiling — the human can
+    // lower or raise a SUGGESTION, never outspend the app's own cap.
+    const cap = BigInt(maxAmountFor(manifest.appId));
+    if (choice.amount <= 0n) throw new Error(GifOS.charge.DECLINED);
+    if (choice.amount > cap) throw new Error('that amount is over this app’s ceiling (' + fmtUsd(cap) + ')');
+    sheetData.amount = String(choice.amount);
+
+    const receipt = choice.rail === 'paypal'
+      ? await payWithPaypal(manifest, sheetData, choice.amount, choice.win)
+      : await payWithX402(manifest, sheetData, choice.amount);
+
+    // Record: entitlement (if a sku), then the ledger line. The receipt the
+    // APP gets back is the pure-module shape — it never sees the Worker's raw
+    // signed object, which names the payee account.
+    const out = GifOS.charge.receipt(sheetData, receipt.tx || receipt.orderId || null, receipt.at || Date.now(), choice.rail);
+    if (request.sku) p.grant(manifest.appId, request.sku, out);
+    p.record(manifest.appId, { amount: String(choice.amount), rail: choice.rail, sku: request.sku || null, reason: request.reason, payeeId: sheetData.payingTo, tx: out.tx, at: out.at });
+    return out;
+  }
+
+  function entitled(manifest, sku) {
+    if (!manifest || !manifest.capabilities || !manifest.capabilities.pay) {
+      return Promise.reject(new Error('This app did not declare the "pay" capability.'));
+    }
+    if (typeof sku !== 'string' || !sku.trim()) return Promise.reject(new Error('entitled() needs a sku'));
+    return Promise.resolve(purse().entitled(manifest.appId, sku));
+  }
+
+  GifOS.payBroker = {
+    charge, entitled,
+    // The Settings surface reads and writes through these — the panel owns no
+    // storage of its own.
+    purse, maxAmountFor, setMaxAmount, fmtUsd,
+    DEFAULT_MAX, WORKER_KEY, POLICY_KEY,
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
