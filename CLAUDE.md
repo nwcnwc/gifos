@@ -187,6 +187,21 @@ stale clones, hosts that degrade after ~20 guests, interleaving A/Bs — is in
 **test/README.md → "ONE BOX CANNOT ANSWER…"**. Read it before building anything
 new; then build freely if the bug needs machinery that isn't there.
 
+## Everything you write here is public
+
+This repo, its commit messages, and the pages Pages serves are on the open web.
+Write for that reader.
+
+- **A commit message states the change**: what moved, the constraint that forced
+  it, the file and symbol names, the test result. It is a record, not a
+  narration — no deliberation, no alternatives weighed and discarded, no
+  running commentary on the work of finding the answer. The same goes for code
+  comments and docs: explain the mechanism and why it is that way, never the
+  process of deciding.
+- The reason is the same one behind the topology rule above: a pushed message
+  can only be corrected by rewriting history, and that cost has already been
+  paid once here.
+
 ## Conventions that bite
 
 - `site/versions/<x.y.z>/` are FROZEN archived builds — never edit them.
