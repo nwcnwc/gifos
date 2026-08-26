@@ -27,6 +27,14 @@ year 50.
 - **Both risks on one axis.** *Rich, broke, or gone* puts the chance of running
   out beside the chance of not being there, from the SSA period life table.
 - **Saved plans.** Name them, keep as many as you like, put two side by side.
+  One **Invite** and someone else is in the same set of plans, live.
+- **Light or dark**, selected rather than inverted — each palette validated
+  against its own surface.
+- **College and other spans.** An event runs for as many years as you say, so
+  four years of tuition is one row.
+- **Spending need not be flat.** *Spend less as I get older* uses Blanchett's
+  retirement spending smile instead of a straight line. Off by default, because
+  it makes every plan look better.
 
 ## Which `gifos.*` it uses
 
@@ -79,16 +87,28 @@ thirds better and throw nothing; that is what those checks are for.
 ## Testing
 
 ```bash
-node test/unit/retirement.js                    # 73 assertions, ~8s, no browser
+node test/unit/retirement.js                    # 86 assertions, ~10s, no browser
 python3 -m http.server 8099 -d site
 node test/browser/e2e-retirement.js             # the real GIF in the real sandbox
+node test/servers/relay-local.js
+node test/browser/e2e-retirement-mp.js          # two people, one Invite link
 ```
 
-Both are discovered by `test/batteries/release.sh`, so they are gated from the
-day they land. The unit suite pins the arithmetic against published sources; the
-browser suite proves the part the arithmetic cannot — saving a plan, reopening
-it with its numbers intact, comparing two, and surviving a reload — and watches
-the wire to confirm a full re-run touches no outside host.
+All three are discovered by `test/batteries/release.sh`, so they are gated from
+the day they land.
+
+- **unit** pins the arithmetic against published sources — Trinity, Bengen, the
+  Bogleheads VPW table, Vanguard's band, the SSA life table — and re-simulates
+  every suggestion the advice engine makes.
+- **e2e** proves what the arithmetic cannot: saving a plan, reopening it with its
+  numbers intact, comparing two, surviving a reload. It also guards the defects
+  that got past review — that a redraw replaces its chart rather than stacking
+  another one, that the headline tiles REFUSE for strategies which cannot fail
+  instead of printing $185B, that an empty income row is worth nothing, and that
+  no part of the input rail hides in a nested scroller. And it watches the wire:
+  a full re-run touches no outside host.
+- **mp** drives the listing's Invite claim through two browsers and a relay, and
+  counts `getUserMedia` to prove no camera is opened.
 
 ```bash
 node apps/retirement/tools/shot.js --gif           # look at it in the sandbox
