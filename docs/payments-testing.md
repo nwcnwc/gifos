@@ -34,7 +34,7 @@ a test catalog (8798) — signs an app in-browser with a fresh domain key, and
 walks the whole surface: acknowledgement, sheet, PayPal approval window,
 capture, signed receipt verified against the (route-intercepted) site key,
 entitlement, ledger, the x402 97/3 two-transfer settle via a stub wallet,
-and the refusals (unsigned, double-buy, over-ceiling, decline). 17 checks.
+the refusals (unsigned, double-buy, over-ceiling, decline), and the receipt-file lifecycle — mint, lazy Purchases folder, and the fresh-computer restore-by-opening. 25 checks.
 
 The paragraph below was the spec it was built to; kept for the parts
 (hostile quotes on the buying direction) not yet exercised. `test/servers/fake-x402.js` plays a paid
