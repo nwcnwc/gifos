@@ -170,7 +170,7 @@ one step down; at or below 50% is the bottom rung), a phone whose charger is los
 camera that stays off for 20s releases the sensor itself, and a phone nobody
 has touched or spoken into for a few minutes lets its screen rest (we release
 our wake lock — the screen-off decision stays the OS's, and screen
-*brightness* is always yours; we never touch it).
+*brightness* is yours; we do not touch it).
 
 ---
 

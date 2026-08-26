@@ -291,7 +291,7 @@ bytes ever diverge from the catalog's.
   measured returning EMPTY content when thinking ate the caller's whole token
   budget.
 
-  All three provide the SAME `cheapest` role. GifOS never auto-assigns, so a
+  All three provide the SAME `cheapest` role. GifOS does not auto-assign, so a
   user installs any or all and switches in Settings → AI models. Each carries
   a different prompt format, and each is guarded independently in
   `e2e-providers.js`.

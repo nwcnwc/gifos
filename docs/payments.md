@@ -323,7 +323,7 @@ The decisions:
 - **PayPal + x402, sharing the entitlement spine.** Cards and PayPal balances
   via a PayPal-hosted window; micro-amounts and bankless payees via x402.
 - **The author is always paid direct, and GifOS takes 3% per transaction**
-  (Nathan's 97/3, 2026-08-25). GifOS never custodies sale proceeds on either
+  (Nathan's 97/3, 2026-08-25). GifOS does not custody sale proceeds on either
   rail, and the author — not GifOS — is the seller of record.
 - **Both rails stay on TEST rails** until the OS surface is proven end to end.
   Base Sepolia stays pinned in code; PayPal runs in sandbox mode. Nothing here
@@ -376,7 +376,7 @@ is an annual flat fee — **the amount is deliberately NOT set yet** — which
 is the industry-honest inversion of Apple's model: they charge $99/yr AND
 commission AND claim a cut of payments they never processed (the most
 resented policy in the industry); we price ACCESS to rails we run and take
-no cut of money we never touch. The fee-collecting rails (PayPal, x402)
+no cut of money we do not touch. The fee-collecting rails (PayPal, x402)
 need no registration and stay open to every signed app, so casual authors
 ride commission-only and committed sellers buy the flat rate — the
 self-selection is the design. `gifos.app` itself carries `until: null`
