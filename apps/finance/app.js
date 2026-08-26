@@ -299,7 +299,14 @@
         // A liability is stored as what you owe, positive. Somebody who types
         // -2000 for a card means the same thing as somebody who types 2000.
         rec.balance = M.KIND[kind.value].sign < 0 ? Math.abs(parsed) : parsed;
-        if (!existing || rec.balance !== a.balance) rec.balanceDate = M.todayISO();
+        if (!existing || rec.balance !== a.balance) {
+          rec.balanceDate = M.todayISO();
+          /* TYPED BY HAND, AND THEREFORE AN ESTIMATE. It is stamped today
+           * because that is when the person asserted it — but that stamp must
+           * not then outrank a bank statement from last week, which is a
+           * record rather than a recollection. See doImport. */
+          rec.manual = true;
+        }
       }
       db.accounts.put(rec).then(function (saved) {
         var i = state.accounts.findIndex(function (x) { return x.id === saved.id; });
@@ -528,7 +535,7 @@
        * running balance column, and only when it is newer than what is
        * already recorded. A balance invented by adding up transactions
        * would silently disagree with the bank. */
-      var upd = Promise.resolve();
+      var upd = Promise.resolve(), balNote = '';
       if (acct && im.cols.balance !== undefined && out.tx.length) {
         var rows = im.sn.body.slice();
         var newest = null, newestDate = '';
@@ -537,10 +544,27 @@
           var b = C.parseMoney(row[im.cols.balance], im.sn.decimal);
           if (d && b !== null && d >= newestDate) { newestDate = d; newest = b; }
         });
-        if (newest !== null && (!acct.balanceDate || newestDate >= acct.balanceDate)) {
-          acct.balance = M.isDebt(acct) ? Math.abs(newest) : newest;
-          acct.balanceDate = newestDate;
-          upd = db.accounts.put(acct);
+        /* WHICH NUMBER WINS. A statement's running balance is a RECORD; a
+         * balance somebody typed is an ESTIMATE, stamped today only because
+         * that is when they typed it. So a statement always beats a hand-typed
+         * figure, and otherwise the newer of the two wins — which keeps last
+         * month's statement from undoing this morning's SimpleFIN refresh.
+         *
+         * The reason this is written down: with a plain date comparison, the
+         * ordinary first-run — type a rough balance, then import the statement
+         * that has the real one — left the estimate in place and said nothing.
+         * Caught by e2e-finance.js. */
+        if (newest !== null) {
+          var fresher = acct.manual || !acct.balanceDate || newestDate >= acct.balanceDate;
+          if (fresher) {
+            acct.balance = M.isDebt(acct) ? Math.abs(newest) : newest;
+            acct.balanceDate = newestDate;
+            acct.manual = false;
+            upd = db.accounts.put(acct);
+            balNote = ', balance now ' + money(acct.balance);
+          } else {
+            balNote = '; your balance is newer than this statement, so it was left alone';
+          }
         }
       }
       return upd.then(function () {
@@ -549,7 +573,7 @@
         $('file').value = '';
         paintAll();
         show('money');
-        flash(r.added + ' added' + (r.duplicate ? ', ' + r.duplicate + ' already here' : ''));
+        flash(r.added + ' added' + (r.duplicate ? ', ' + r.duplicate + ' already here' : '') + balNote);
       });
     }).catch(function (e) {
       $('btnDoImport').disabled = false;
@@ -625,6 +649,7 @@
         } else updated++;
         mine.balance = M.KIND[mine.kind].sign < 0 ? Math.abs(sa.balance) : sa.balance;
         mine.balanceDate = sa.balanceDate || M.todayISO();
+        mine.manual = false;   // the bank said so
         return db.accounts.put(mine).then(function (saved) {
           var i = state.accounts.findIndex(function (x) { return x.id === saved.id; });
           if (i >= 0) state.accounts[i] = saved; else state.accounts.push(saved);
