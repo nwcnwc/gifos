@@ -36,7 +36,7 @@ is a test hook because the real one happens in a bank's own app) — signs an ap
 walks the whole surface: acknowledgement, sheet, PayPal approval window,
 capture, signed receipt verified against the (route-intercepted) site key,
 entitlement, ledger, the x402 97/3 two-transfer settle via a stub wallet,
-the refusals (unsigned, double-buy, over-ceiling, decline), the receipt-file lifecycle — mint, lazy Purchases folder, the fresh-computer restore-by-opening — and all FOUR rails: PayPal, x402, the dust-unique wallet transfer (wrong amount never claimed), and the FedNow RfP against the registered account. 32 checks.
+the refusals (unsigned, double-buy, over-ceiling, decline), the receipt-file lifecycle — mint, lazy Purchases folder, the fresh-computer restore-by-opening — and all FOUR rails: PayPal, x402, the dust-unique wallet transfer (wrong amount never claimed), the FedNow RfP against the registered account, and the rails REGISTRY (unregistered and expired identities refused the fee-free rails plainly; current ones served). 36 checks.
 
 The paragraph below was the spec it was built to; kept for the parts
 (hostile quotes on the buying direction) not yet exercised. `test/servers/fake-x402.js` plays a paid

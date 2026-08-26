@@ -58,14 +58,26 @@ async function until(url, ms) {
   // publishes one, carrying the test app under its test signing identity.
   const catalog = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ apps: [{ appId: 'paytest', slug: 'paytest', signature: { type: 'domain', id: SIGN_DOMAIN }, pay: { to: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' } }] }));
+    if (/registry/.test(req.url)) {
+      // The rails registry: paytest is current; expired.example.com lapsed
+      // last year; unregistered.example.com was never on it.
+      return res.end(JSON.stringify({ registered: {
+        [SIGN_DOMAIN]: { until: '2027-01-01' },
+        'expired.example.com': { until: '2025-01-01' },
+      } }));
+    }
+    res.end(JSON.stringify({ apps: [
+      { appId: 'paytest', slug: 'paytest', signature: { type: 'domain', id: SIGN_DOMAIN }, pay: { to: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' } },
+      { appId: 'payfree', slug: 'payfree', signature: { type: 'domain', id: 'unregistered.example.com' }, pay: { to: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' } },
+      { appId: 'payold', slug: 'payold', signature: { type: 'domain', id: 'expired.example.com' }, pay: { to: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' } },
+    ] }));
   }).listen(8798);
 
   serve('fake-paypal', [path.join(ROOT, 'test', 'servers', 'fake-paypal.js')]);
   serve('fake-facilitator', [path.join(ROOT, 'test', 'servers', 'fake-facilitator.js')]);
   serve('fake-chain', [path.join(ROOT, 'test', 'servers', 'fake-chain.js')]);
   serve('fake-fednow', [path.join(ROOT, 'test', 'servers', 'fake-fednow.js')]);
-  serve('pay-local', [path.join(ROOT, 'test', 'servers', 'pay-local.js')], { CATALOG_URL: 'http://127.0.0.1:8798/index.json' });
+  serve('pay-local', [path.join(ROOT, 'test', 'servers', 'pay-local.js')], { CATALOG_URL: 'http://127.0.0.1:8798/index.json', REGISTRY_URL: 'http://127.0.0.1:8798/registry.json' });
   await until('http://127.0.0.1:8795/_state');
   await until('http://127.0.0.1:8797/_state');
   await until('http://127.0.0.1:8799/_state');
@@ -287,6 +299,21 @@ async function until(url, ms) {
   await fr.locator('#out').filter({ hasText: /ok:|err:/ }).waitFor({ timeout: 15000 });
   check('the bank approval settles it — same receipt shape, fee honestly marked uncollected',
     (await fr.locator('#out').textContent()) === 'ok:fednow:3000000', await fr.locator('#out').textContent());
+
+  // ---- the rails REGISTRY: the fee-free rails are registered-only -----------
+  // These rails collect no cut, so they are open only to identities on the
+  // published registry (fee not yet set). Refusals are PLAIN and name the
+  // policy — and the fee-collecting rails stay open to everyone.
+  const invUnreg = await fetch(PAY + '/transfer/invoice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appId: 'payfree', amount: '3000000', sku: null, reason: 'x' }) });
+  check('an UNREGISTERED identity is refused the transfer rail, plainly',
+    invUnreg.status === 403 && /not registered for the fee-free rails/.test((await invUnreg.json()).error));
+  const rfpUnreg = await fetch(PAY + '/fednow/rfp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appId: 'payfree', amount: '3000000', sku: null, reason: 'x' }) });
+  check('…and the FedNow rail', rfpUnreg.status === 403 && /not registered for the fee-free rails/.test((await rfpUnreg.json()).error));
+  const invOld = await fetch(PAY + '/transfer/invoice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appId: 'payold', amount: '3000000', sku: null, reason: 'x' }) });
+  check('an EXPIRED registration is refused with its lapse date and the way back',
+    invOld.status === 403 && /expired on 2025-01-01/.test((await invOld.json()).error));
+  const invReg = await fetch(PAY + '/transfer/invoice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appId: 'paytest', amount: '3000000', sku: null, reason: 'x' }) });
+  check('a CURRENT registration still gets its invoice', invReg.status === 200 && !!(await invReg.json()).token);
 
   // ---- the receipt is a FILE: minted, placed, restorable --------------------
   // The broker minted a receipt GIF per payment and queued it; the DESKTOP tab

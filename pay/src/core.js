@@ -138,6 +138,27 @@ export function makeCore(cfg) {
     return app.pay.to;
   }
 
+  // ---- the rails registry ---------------------------------------------------
+  // The fee-free rails (wallet transfer, FedNow) collect no per-transaction
+  // cut, so they are open only to signing identities REGISTERED on the
+  // published registry (docs/payments.md §Registration — an annual flat fee,
+  // amount not yet set). The fee-collecting rails need none of this. Absent
+  // or expired -> a plain refusal naming the policy, never a pretend rail.
+  let registryCache = { at: 0, reg: null };
+  async function assertRegistered(identity) {
+    if (!cfg.registryUrl) throw new Error('the rails registry is not configured on this deployment');
+    if (!registryCache.reg || Date.now() - registryCache.at > 60 * 1000) {
+      const r = await F(cfg.registryUrl, { headers: { Accept: 'application/json' } });
+      if (!r.ok) throw new Error('rails registry unreachable (HTTP ' + r.status + ')');
+      registryCache = { at: Date.now(), reg: (await r.json()).registered || {} };
+    }
+    const e = registryCache.reg[identity.id];
+    if (!e) throw new Error('"' + identity.id + '" is not registered for the fee-free rails — see gifos.app/pay (registration is annual; the PayPal and USDC rails need no registration)');
+    if (e.until != null && Date.now() > Date.parse(e.until)) {
+      throw new Error('the rails registration for "' + identity.id + '" expired on ' + e.until + ' — renew it, or use the PayPal / USDC rails, which need no registration');
+    }
+  }
+
   // ---- signed invoice tokens ------------------------------------------------
   // STATELESS invoices: the token IS the state, signed with the same key as
   // the receipts and verified here before it is honored. The client can hold
@@ -385,7 +406,10 @@ export function makeCore(cfg) {
     if (!/^[\w.\-]{1,64}$/.test(appId)) return bad('bad appId');
     if (typeof body.amount !== 'string' || !/^[0-9]+$/.test(body.amount) || BigInt(body.amount) <= 0n) return bad('bad amount');
     let payTo;
-    try { payTo = await chainPayeeFor(appId); } catch (e) { return bad(String(e.message || e), 403); }
+    try {
+      payTo = await chainPayeeFor(appId);
+      await assertRegistered((await identityFor(appId)).identity);
+    } catch (e) { return bad(String(e.message || e), 403); }
     const dustBytes = new Uint8Array(2); crypto.getRandomValues(dustBytes);
     const dust = (dustBytes[0] * 256 + dustBytes[1]) % 10000;          // < one cent
     const expected = String(BigInt(body.amount) + BigInt(dust));
@@ -449,7 +473,10 @@ export function makeCore(cfg) {
     if (typeof body.amount !== 'string' || !/^[0-9]+$/.test(body.amount)) return bad('bad amount');
     let value; try { value = usdValue(body.amount); } catch (e) { return bad(e.message); }
     let identity;
-    try { identity = (await identityFor(appId)).identity; } catch (e) { return bad(String(e.message || e), 403); }
+    try {
+      identity = (await identityFor(appId)).identity;
+      await assertRegistered(identity);
+    } catch (e) { return bad(String(e.message || e), 403); }
     const account = (cfg.fednowPayees || {})[identity.id];
     if (!account) return bad('"' + identity.id + '" is not registered for bank payments — this rail is not available for it', 403);
     const r = await F(cfg.fednowApi + '/rfp', {

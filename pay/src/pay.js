@@ -18,6 +18,8 @@
  *                          itself has no public API); absent -> 501
  *   FEDNOW_KEY             (secret) the provider's API key
  *   FEDNOW_PAYEES          JSON: signing identity -> provider account id
+ *   REGISTRY_URL           the rails registry (site/pay/registry.json) — the
+ *                          fee-free rails refuse identities not on it
  *   GIFOS_PAY_SIGN_JWK     Ed25519 private key as a JWK JSON string (wrangler
  *                          secret; its PUBLIC half must be site/gifos.key —
  *                          receipts verify against the site's published key)
@@ -47,6 +49,7 @@ async function init(env) {
     fednowApi: env.FEDNOW_API || null,
     fednowKey: env.FEDNOW_KEY || null,
     fednowPayees: env.FEDNOW_PAYEES ? JSON.parse(env.FEDNOW_PAYEES) : {},
+    registryUrl: env.REGISTRY_URL || null,
     signKey: { privateKey, publicKey },
   });
 }

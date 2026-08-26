@@ -337,8 +337,8 @@ The decisions:
 |---|---|---|---|---|
 | **PayPal** | every card holder | nothing | a PayPal account claiming the derived email | collected (`platform_fees`) |
 | **x402** (connected wallet) | Base Account / injected wallets | a connected wallet with USDC | `manifest.pay.to` in the signed manifest | collected (the 97/3 split) |
-| **wallet transfer** | **RockWallet and EVERY self-custody wallet** | any wallet holding USDC — no connection, no adapter | `manifest.pay.to` | **NOT collected** (`feeCollected:false` in the receipt) |
-| **FedNow** | any US bank account | approving an RfP in their own banking app | registration with the provider (`FEDNOW_PAYEES`) | **NOT collected** (`feeCollected:false`) |
+| **wallet transfer** | **RockWallet and EVERY self-custody wallet** | any wallet holding USDC — no connection, no adapter | `manifest.pay.to` + **rails registration** | flat annual registration instead (amount TBD) |
+| **FedNow** | any US bank account | approving an RfP in their own banking app | provider registration (`FEDNOW_PAYEES`) + **rails registration** | flat annual registration instead (amount TBD) |
 
 **The wallet-transfer rail** exists because RockWallet — like most consumer
 wallets — has no developer API, no WalletConnect, no merchant surface. The
@@ -365,12 +365,23 @@ catalog (`index.json` `pay.to`, from the signed manifest), exactly as it
 binds the PayPal payee to the signing identity, and `/x402/settle` checks
 the author leg against the same authority.
 
-**Fee honesty:** a direct wallet send cannot split, and routing it through a
-GifOS account would be custody; the provider rail's split waits on provider
-capability. So on these two rails the 3% is simply NOT collected yet, and
-the receipt says so (`feeCollected:false`) rather than pretending. The
-convenience rails (PayPal, x402) carry the fee; the universal rails ride
-free until a non-custodial split exists. Deliberate, recorded, revisitable.
+**Fee honesty, and REGISTRATION (ratified 2026-08-26):** a direct wallet
+send cannot split, and routing it through a GifOS account would be custody;
+the provider rail's split waits on provider capability. So on these two
+rails the 3% is NOT collected per transaction — instead, **the fee-free
+rails are open only to signing identities on the published rails registry**
+(`site/pay/registry.json`, fetched by the Worker like the catalog; absent or
+expired → a plain refusal naming the policy and the way back). Registration
+is an annual flat fee — **the amount is deliberately NOT set yet** — which
+is the industry-honest inversion of Apple's model: they charge $99/yr AND
+commission AND claim a cut of payments they never processed (the most
+resented policy in the industry); we price ACCESS to rails we run and take
+no cut of money we never touch. The fee-collecting rails (PayPal, x402)
+need no registration and stay open to every signed app, so casual authors
+ride commission-only and committed sellers buy the flat rate — the
+self-selection is the design. `gifos.app` itself carries `until: null`
+(perpetual, reserved for the platform's own identity). Receipts on these
+rails still record `feeCollected:false` — honest bookkeeping either way.
 
 ### THE PAYEE RULE — money goes to the signing identity, derived, not declared
 
