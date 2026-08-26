@@ -377,7 +377,7 @@ is the industry-honest inversion of Apple's model: they charge $99/yr AND
 commission AND claim a cut of payments they never processed (the most
 resented policy in the industry); we price ACCESS to rails we run and take
 no cut of money we do not touch. The fee-collecting rails (PayPal, x402)
-need no registration and stay open to every signed app, so casual authors
+need no registration and are open to every signed app, so casual authors
 ride commission-only and committed sellers buy the flat rate — the
 self-selection is the design. `gifos.app` itself carries `until: null`
 (perpetual, reserved for the platform's own identity). Receipts on these

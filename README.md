@@ -218,7 +218,7 @@ GIF is the perfect container:
 - **Universal** — every platform displays GIFs natively.
 - **A filesystem in disguise** — a `GIFOS1.0` Application Extension block stores a whole deflate-compressed directory (code, assets, saved state) while the visible frames stay a real animated image.
 - **Shareable** — send via chat, email, social. It looks like an image because it *is* an image.
-- **Durable** — no one strips GIFs. They survive every platform.
+- **Durable** — platforms that re-encode other formats generally pass GIFs through intact.
 
 Someone sends you a GIF in a group chat. It looks like an animated icon. Drop it on your desktop and double-click — it **becomes** that app, loaded with their data. Share your work by sharing a file. Fork someone's project by dropping their GIF. It's git for normal people.
 
