@@ -412,7 +412,17 @@ button.row-del svg { width: 16px; height: 16px; }
 .card-head .sub { margin: .15rem 0 0; color: var(--muted); font-size: .8rem; }
 
 .chart-host { position: relative; width: 100%; }
-svg.chart { display: block; width: 100%; overflow: visible; }
+svg.chart {
+  display: block; width: 100%; overflow: visible;
+  /* pan-y, NOT none. The page must still scroll vertically when a thumb starts
+   * on a chart — a chart is most of the screen on a phone, and `none` here is
+   * the same mistake that once made Home Screen icons swallow every scroll.
+   * Horizontal movement is ours, and that is what the crosshair reads. */
+  touch-action: pan-y;
+  /* A long press was starting a text selection instead of holding the readout. */
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+}
 
 .rule { stroke: var(--grid); stroke-width: 1; }
 .rule-zero { stroke: var(--axis); stroke-width: 1; }
@@ -442,7 +452,7 @@ svg.chart { display: block; width: 100%; overflow: visible; }
 
 .crosshair { stroke: var(--ink); stroke-opacity: 0; stroke-width: 1; pointer-events: none; }
 .crosshair.on { stroke-opacity: .35; }
-.hit { cursor: crosshair; }
+.hit { cursor: crosshair; touch-action: pan-y; }
 
 .chart-tip {
   position: absolute; z-index: 20; pointer-events: none;

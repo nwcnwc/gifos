@@ -87,6 +87,12 @@
     this.opts = opts || {};
     this.pad = this.opts.pad || { t: 14, r: 14, b: 26, l: 52 };
     host.classList.add('chart-host');
+    // Drop the previous frame's document-level listener with it, or a chart
+    // redrawn fifty times leaves fifty dismiss handlers behind.
+    if (host.__frame && host.__frame.dismiss) {
+      document.removeEventListener('pointerdown', host.__frame.dismiss, true);
+    }
+    host.__frame = this;
     // EMPTY THE HOST FIRST. Every chart here is redrawn on every keystroke, and
     // appending without clearing stacks a fresh SVG and a fresh tooltip on top
     // of the last one — the app grew a second copy of its own hero chart the
@@ -162,6 +168,25 @@
   /* The hover layer. A vertical hairline snaps to the nearest x index, so the
    * reader aims at an age and never at a 2px line, and the same readout appears
    * on keyboard focus with the arrow keys.
+   *
+   * TOUCH IS NOT A SLOW MOUSE, and treating it as one broke this completely.
+   * The first version bound pointerdown/pointermove to show and `pointerleave`
+   * to hide, which is correct for a cursor and useless for a finger:
+   *
+   *   - With no `touch-action` declared, the browser holds every touch as a
+   *     possible pan and CANCELS the pointer the instant it claims the gesture.
+   *     The readout appeared and vanished in the same frame.
+   *   - Lifting a finger fires pointerleave, so even when it survived, the
+   *     value disappeared at exactly the moment you stopped covering it with
+   *     your hand and could finally read it.
+   *   - Holding still to compensate started a text selection instead, because
+   *     nothing said the chart was not prose.
+   *
+   * So: `touch-action: pan-y` (the page still scrolls vertically over a chart —
+   * `none` is what broke scrolling on the Home Screen, and the same trap applies
+   * here), the pointer is CAPTURED for the duration of a drag, and on touch the
+   * readout STAYS UP after the finger lifts until you tap somewhere else. A
+   * cursor still gets hide-on-leave, because a cursor can hover.
    */
   Frame.prototype.hover = function (n, onIndex) {
     var self = this;
@@ -197,15 +222,56 @@
       line.classList.remove('on');
       self.tip.classList.remove('on');
     }
+    self.hideReadout = hide;
     function at(ev) {
       var r = self.svg.getBoundingClientRect();
       var v = self.xInv(ev.clientX - r.left);
       show(self.nearest ? self.nearest(v) : Math.round(v));
     }
-    hit.addEventListener('pointermove', at);
-    hit.addEventListener('pointerdown', at);
-    this.svg.addEventListener('pointerleave', hide);
+    var touching = false;    // a finger is down right now
+    var parked = false;      // a finger LIFTED and left the readout on screen
+
+    hit.addEventListener('pointerdown', function (ev) {
+      if (ev.pointerType !== 'mouse') {
+        touching = true;
+        parked = false;
+        // Capture, or a drag that strays outside the plot stops reporting and
+        // the crosshair freezes half way across.
+        try { hit.setPointerCapture(ev.pointerId); } catch (e) {}
+      }
+      at(ev);
+    });
+    hit.addEventListener('pointermove', function (ev) {
+      if (ev.pointerType !== 'mouse' && !touching) return;
+      at(ev);
+    });
+    function release(ev) {
+      if (ev.pointerType === 'mouse') return;
+      touching = false;
+      // LEAVE IT UP. The whole point of the readout is to be read, and on touch
+      // the moment you can read it is the moment your finger is no longer on it.
+      parked = self.idx >= 0;
+      try { hit.releasePointerCapture(ev.pointerId); } catch (e) {}
+    }
+    hit.addEventListener('pointerup', release);
+    hit.addEventListener('pointercancel', release);
+
+    this.svg.addEventListener('pointerleave', function (ev) {
+      if (ev.pointerType && ev.pointerType !== 'mouse') return;
+      hide();
+    });
     this.svg.addEventListener('blur', hide);
+
+    // A tap anywhere else puts it away — including on another chart, so two
+    // readouts are never up at once claiming different ages.
+    var dismiss = function (ev) {
+      if (!parked) return;
+      if (self.host.contains(ev.target)) return;
+      parked = false;
+      hide();
+    };
+    document.addEventListener('pointerdown', dismiss, true);
+    this.dismiss = dismiss;
     this.svg.addEventListener('keydown', function (e) {
       if (e.key === 'ArrowRight') { show(self.idx < 0 ? 0 : Math.min(n - 1, self.idx + 1)); e.preventDefault(); }
       else if (e.key === 'ArrowLeft') { show(self.idx < 0 ? n - 1 : Math.max(0, self.idx - 1)); e.preventDefault(); }

@@ -5511,7 +5511,7 @@
         229
       ],
       "cover": "/apps/retirement/cover.jpg",
-      "bytes": 393405,
+      "bytes": 395240,
       "download": 0,
       "provides": null,
       "signature": {
@@ -5519,7 +5519,7 @@
         "id": "gifos.app",
         "ts": "2026-08-26"
       },
-      "sha256": "911d93ca3feef8c14ee3852ba3f3a66a809453ed4cd8c68dbf68af926633f4b6"
+      "sha256": "b84f372877a48aa67aa0520d38752a19fd16cf2e45a5a7a152e1386c6b61eeea"
     },
     {
       "slug": "reversi",

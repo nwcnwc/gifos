@@ -431,6 +431,124 @@ const txt = (fr, id) => fr.evaluate((i) => {
 
   check('no uncaught errors anywhere in the run', errors.length === 0, errors.slice(0, 4));
 
+  // ---- 7. a finger is not a slow mouse -------------------------------------
+  //
+  // The charts were built and judged with a cursor, and on touch they were
+  // unusable: the readout appeared and vanished in the same frame, because with
+  // no `touch-action` declared the browser holds every touch as a possible pan
+  // and cancels the pointer the moment it claims the gesture. Lifting hid it
+  // too — at exactly the moment your hand stopped covering it. Holding still to
+  // compensate started a text selection.
+
+  {
+    const tctx = await browser.newContext({
+      viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true
+    });
+    const tp = await tctx.newPage();
+    // A fresh context is a fresh browser profile with its own storage, so the
+    // fid installed above does not exist here. Install it again.
+    await tp.goto(BASE + '/index.html');
+    await tp.waitForSelector('.icon', { timeout: 60000 });
+    const tfid = await tp.evaluate(async (b) => {
+      const bin = atob(b); const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const id = GifOS.store.uid('file');
+      await GifOS.store.putFile({ id, name: 'retirement.gif', bytes, kind: 'gif', isApp: true, appId: 'retirement', mime: 'image/gif' });
+      await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: id, name: 'Retirement Calculator.gif', parent: null, x: 120, y: 120, iconSize: 64 });
+      return id;
+    }, b64);
+    await tp.goto(BASE + '/run.html#id=' + tfid);
+    await tp.waitForSelector('#appmount iframe', { timeout: 60000 });
+    const tf = await (await tp.$('#appmount iframe')).contentFrame();
+    await tf.waitForFunction(
+      () => { const h = document.getElementById('vHead'); return h && !/Working it out/.test(h.textContent); },
+      null, { timeout: 40000 }
+    );
+    await sleep(2000);
+
+    const ifb = await tp.locator('#appmount iframe').boundingBox();
+    await tf.evaluate(() => document.querySelector('#chartFan svg.chart').scrollIntoView({ block: 'center' }));
+    await sleep(600);
+    const r = await tf.evaluate(() => {
+      const b = document.querySelector('#chartFan svg.chart').getBoundingClientRect();
+      return { x: b.x, y: b.y, w: b.width, h: b.height };
+    });
+    const cx = ifb.x + r.x + r.w * 0.6, cy = ifb.y + r.y + r.h * 0.5;
+    const readout = () => tf.evaluate(() => {
+      const t = document.querySelector('#chartFan .chart-tip');
+      return { on: t.classList.contains('on'), text: (t.textContent || '').trim() };
+    });
+
+    await tp.touchscreen.tap(cx, cy);
+    await sleep(200);
+    const tapped = await readout();
+    check('a tap shows the readout', tapped.on && /Age/.test(tapped.text), tapped);
+
+    await sleep(1400);
+    const still = await readout();
+    check('...and it is STILL there a moment later, so it can be read',
+      still.on && still.text === tapped.text, still);
+
+    const cdp = await tctx.newCDPSession(tp);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cx, y: cy }] });
+    await sleep(1400);
+    const selected = await tf.evaluate(() => String(window.getSelection()));
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    check('holding does not start a text selection', selected === '', selected);
+
+    // Drag across, then lift, and the value must survive the lift.
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cx, y: cy }] });
+    for (const f of [0.08, 0.16, 0.24]) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: cx + r.w * f, y: cy }] });
+      await sleep(110);
+    }
+    const during = await readout();
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await sleep(400);
+    const afterLift = await readout();
+    check('dragging a finger scrubs the chart', during.on && during.text !== tapped.text, during);
+    check('...and lifting does not throw the answer away',
+      afterLift.on && afterLift.text === during.text, afterLift);
+
+    await tp.touchscreen.tap(ifb.x + 40, ifb.y + 60);
+    await sleep(400);
+    check('a tap somewhere else puts it away', !(await readout()).on);
+
+    // THE TRAP: `touch-action: none` would fix all of the above and make the
+    // page unscrollable wherever a chart is, which on a phone is most of it.
+    const before = await tf.evaluate(() => (document.scrollingElement || document.documentElement).scrollTop);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cx, y: cy }] });
+    for (let i = 1; i <= 5; i++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: cx, y: cy - i * 40 }] });
+      await sleep(70);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await sleep(600);
+    const after = await tf.evaluate(() => (document.scrollingElement || document.documentElement).scrollTop);
+    check('the page still scrolls with a thumb resting on a chart', after > before, { before, after });
+
+    await tctx.close();
+  }
+
+  // ---- 8. and a mouse is still a mouse --------------------------------------
+
+  {
+    const box = await page.locator('#appmount iframe').boundingBox();
+    const g = await fr.evaluate(() => {
+      const b = document.querySelector('#chartFan svg.chart').getBoundingClientRect();
+      return { x: b.x, y: b.y, w: b.width, h: b.height };
+    });
+    await page.mouse.move(box.x + g.x + g.w * 0.5, box.y + g.y + g.h * 0.5);
+    await sleep(300);
+    const on = await fr.evaluate(() =>
+      document.querySelector('#chartFan .chart-tip').classList.contains('on'));
+    await page.mouse.move(box.x + 5, box.y + 5);
+    await sleep(400);
+    const off = await fr.evaluate(() =>
+      document.querySelector('#chartFan .chart-tip').classList.contains('on'));
+    check('a cursor still shows on hover and hides on leave', on && !off, { on, off });
+  }
+
   await browser.close();
   console.log(failures ? '\n' + failures + ' FAILED' : '\nall good');
   process.exit(failures ? 1 : 0);
