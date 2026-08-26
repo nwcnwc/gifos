@@ -513,3 +513,14 @@ button.row-del svg { display: block; pointer-events: none; }
 
 /* The build this page is running — a fact, not a control: muted, non-interactive,
    and never a tab stop. The version belongs in the page, not in the URL. */
+
+/* Settings → Payments (paySectionHtml in desktop.js). A window onto the
+   purse: per-app spend, entitlements, the per-charge ceiling. */
+.pay-app { border: 1px solid var(--border); border-radius: .55rem; padding: .55rem .6rem; margin-bottom: .55rem; }
+.pay-head { display: flex; justify-content: space-between; gap: .6rem; align-items: baseline; }
+.pay-dim { color: var(--muted, #9a9ab5); font-size: .82rem; }
+.pay-led-row { font-size: .85rem; margin-top: .3rem; }
+.pay-ents { margin-top: .35rem; font-size: .85rem; }
+.pay-ent { display: inline-flex; align-items: center; gap: .25rem; border: 1px solid var(--border); border-radius: .4rem; padding: .1rem .35rem; }
+.pay-cap-row { margin-top: .45rem; font-size: .85rem; }
+.pay-cap { width: 5.5rem; padding: .25rem .4rem; font: inherit; }
