@@ -19,6 +19,7 @@
   var S = root.RetireSim;
 
   function clone(p) { return JSON.parse(JSON.stringify(p)); }
+  function assign(a, b) { for (var k in b) if (Object.prototype.hasOwnProperty.call(b, k)) a[k] = b[k]; return a; }
   function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
   function round(v, to) { return Math.round(v / to) * to; }
 
@@ -38,7 +39,11 @@
    */
   function suggest(plan, now, target, opts) {
     opts = opts || {};
-    var fast = { mode: plan.mode, step: opts.step || 3, paths: 300 };
+    // fast = searching; fine = the number that goes in the sentence. Anything
+    // asserted on screen is measured against every cycle, not a sample of them.
+    var sched = opts.sched || S.schedule(plan);
+    var fast = { mode: plan.mode, step: opts.step || 3, paths: 300, sched: sched };
+    var fine = { mode: plan.mode, step: 1, paths: 1000, sched: sched };
     var out = [];
     var strat = S.STRATEGIES[plan.strategy] || S.STRATEGIES.constant;
 
@@ -49,8 +54,9 @@
     var short = now < target;
 
     // ---- spend less / spend more -------------------------------------------
-    var solved = S.solveSpend(plan, target, { mode: plan.mode, step: opts.step || 3, iters: 14 });
-    var solvedR = round(solved, 100);
+    // solveSpend settles its own answer at full resolution and returns it
+    // already rounded, so it is true as printed.
+    var solvedR = S.solveSpend(plan, target, { mode: plan.mode, step: opts.step || 3, iters: 14, sched: sched });
     var gap = solvedR - plan.annualSpend;
     if (Math.abs(gap) >= 500) {
       out.push({
@@ -71,7 +77,7 @@
 
     // ---- retire later / earlier --------------------------------------------
     if (plan.retireAge > plan.currentAge) {
-      var age = S.solveRetireAge(plan, target, { mode: plan.mode, step: opts.step || 3 });
+      var age = S.solveRetireAge(plan, target, { mode: plan.mode, step: 1, sched: sched });
       if (age !== null && age !== plan.retireAge) {
         var yrs = age - plan.retireAge;
         out.push({
@@ -92,14 +98,16 @@
 
     // ---- save more ----------------------------------------------------------
     if (short && plan.retireAge > plan.currentAge) {
-      var need = solveSavings(plan, target, fast);
+      var need = solveSavings(plan, target, fine);
       if (need !== null && need > plan.annualSavings) {
-        var extra = round(need - plan.annualSavings, 100);
+        // Round UP. This one is a floor — "save at least this much" — so
+        // rounding down would print a number that does not clear the bar.
+        var extra = Math.ceil((need - plan.annualSavings) / 100) * 100;
         out.push({
           id: 'save',
           kind: 'fix',
           title: 'Put away ' + m(extra) + ' more a year',
-          detail: 'Saving ' + m(round(need, 100)) + ' a year until ' + plan.retireAge
+          detail: 'Saving ' + m(plan.annualSavings + extra) + ' a year until ' + plan.retireAge
             + ' clears ' + pc(target) + ' — ' + m(extra / 12) + ' a month more than you are now.',
           to: target,
           cost: extra
@@ -109,6 +117,7 @@
 
     // ---- the mix ------------------------------------------------------------
     var best = null;
+    var glided = plan.glidepath && isFinite(plan.glidepath.to);
     for (var s = 0.3; s <= 1.001; s += 0.1) {
       var p = clone(plan);
       p.stocks = Math.round(s * 100) / 100;
@@ -116,15 +125,20 @@
       var r = rate(p, fast);
       if (!best || r > best.rate) best = { stocks: p.stocks, rate: r };
     }
+    if (best) best.rate = rate(assign(clone(plan), { stocks: best.stocks }), fine);
     if (best && best.rate > now + MEANINGFUL) {
       out.push({
         id: 'mix',
         kind: 'fix',
-        title: 'Hold ' + Math.round(best.stocks * 100) + '% shares instead of ' + Math.round(plan.stocks * 100) + '%',
+        title: (glided ? 'Start at ' : 'Hold ')
+          + Math.round(best.stocks * 100) + '% shares instead of ' + Math.round(plan.stocks * 100) + '%',
         detail: 'That alone moves it from ' + pc(now) + ' to ' + pc(best.rate) + '. '
-          + (best.stocks > plan.stocks
-            ? 'Over a retirement this long, the risk that actually bites is inflation outliving a cautious portfolio — not a crash.'
-            : 'A calmer mix rides the first ten years better, and the first ten years are the ones that decide it.'),
+          + (glided
+            ? 'Your glidepath still drifts you down to ' + Math.round(plan.glidepath.to * 100)
+              + '% by ' + plan.glidepath.byAge + ' — this changes where the drift STARTS, not where it ends.'
+            : best.stocks > plan.stocks
+              ? 'Over a retirement this long, the risk that actually bites is inflation outliving a cautious portfolio — not a crash.'
+              : 'A calmer mix rides the first ten years better, and the first ten years are the ones that decide it.'),
         to: best.rate,
         cost: 0
       });
@@ -136,7 +150,7 @@
     if (plan.strategy === 'constant') {
       var g = clone(plan);
       g.strategy = 'guardrails';
-      var gr = rate(g, fast);
+      var gr = rate(g, fine);
       if (gr > now + MEANINGFUL) {
         var lean = leanest(g, fast);
         out.push({
@@ -145,7 +159,7 @@
           title: 'Agree now to trim spending after a bad year',
           detail: 'Guardrails — cut 10% after a bad run, take a 10% raise after a good one — '
             + 'moves this from ' + pc(now) + ' to ' + pc(gr) + ' without saving another penny. '
-            + (lean !== null
+            + (lean !== null && lean > 1000
               ? 'The price is real: in the worst runs the leanest year pays about ' + m(lean) + '.'
               : ''),
           to: gr,
@@ -158,7 +172,7 @@
     if (plan.fees > 0.0015) {
       var f = clone(plan);
       f.fees = 0.0005;
-      var fr = rate(f, fast);
+      var fr = rate(f, fine);
       var yearsLeft = plan.endAge - plan.currentAge;
       var drag = 1 - Math.pow(1 - (plan.fees - 0.0005), yearsLeft);
       out.push({
@@ -184,7 +198,7 @@
       var from = inc.from, to2 = 70;
       inc.from = to2;
       inc.amount = inc.amount * deferFactor(from, to2);
-      var dr = rate(d, fast);
+      var dr = rate(d, fine);
       if (dr > now + MEANINGFUL) {
         out.push({
           id: 'defer',
@@ -244,7 +258,10 @@
       var inc = list[i];
       if (!inc || !inc.amount) continue;
       if (inc.cola === false) continue;                 // only the indexed one
-      if (!/social|state pension|security/i.test(inc.label || '')) continue;
+      // US rules only. An earlier version matched "State Pension" too and then
+      // applied a 67 full-retirement-age and 8%-a-year credits to it — the UK
+      // scheme defers at about 5.8% a year and cannot be claimed early at all.
+      if (!/social\s*security/i.test(inc.label || '')) continue;
       if (inc.from >= 70) continue;
       if (inc.to !== null && inc.to !== undefined && isFinite(inc.to)) continue;
       return { i: i, inc: inc };

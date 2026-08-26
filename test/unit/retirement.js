@@ -181,10 +181,20 @@ const base = (o) => Object.assign({
   const ends = S.runAll(base({ annualSpend: 0, incomes: [{ label: 'p', amount: 12000, from: 65, to: 75, cola: true }] }));
   check('an income with an end date stops', ends.runs[0].incomes[15] === 0, ends.runs[0].incomes[15]);
 
-  // A one-off lands in its own year and nowhere else.
+  // A one-off lands in its own year, IN the balance that year's strategy reads.
+  // It used to be added after the year's paycheck had already been decided, so
+  // a percentage-of-portfolio retiree spent an inheritance a year late.
   const lump = S.runCycle(base({ annualSpend: 0, portfolio: 0, stocks: 0, events: [{ label: 'sale', amount: 100000, at: 70 }] }), 0);
-  check('a one-off arrives at the age it is dated', lump.balances[5] === 0 && lump.balances[6] > 90000,
-    [lump.balances[5], Math.round(lump.balances[6])]);
+  check('nothing arrives before the year it is dated', lump.balances[4] === 0, lump.balances[4]);
+  check('a one-off is in the balance the year it arrives', lump.balances[5] === 100000, lump.balances[5]);
+
+  // ...and a balance-derived paycheck must SEE it that year.
+  const rich = S.runCycle(base({
+    strategy: 'percent', percentRate: 0.05,
+    events: [{ label: 'inheritance', amount: 1000000, at: 70, years: 1 }]
+  }), (1990 - 1871) * 12);
+  check('a strategy that reads the balance spends the windfall the year it lands',
+    rich.spends[5] > rich.spends[4] * 1.5, [Math.round(rich.spends[4]), Math.round(rich.spends[5])]);
 }
 
 {
@@ -265,6 +275,17 @@ const base = (o) => Object.assign({
   let bad = 0;
   for (const [age, stk, want] of table) if (!near(cell(age, stk), want, 0.06)) bad++;
   check('VPW reproduces the published Bogleheads table (9 cells)', bad === 0, bad + ' cells off');
+  // The table is NOT capped at 10%. An earlier version capped it, which broke
+  // every cell past 88 and left a third of the portfolio unspent at the end —
+  // making the strategy's own promise, that nothing is left over, false.
+  check('...including past 88, where a 10% cap used to break it',
+    near(cell(90, 0.6), 11.74, 0.05) && near(cell(95, 0.6), 21.50, 0.05),
+    [cell(90, 0.6).toFixed(2), cell(95, 0.6).toFixed(2)]);
+  {
+    const o = S.runAll(base({ strategy: 'vpw', endAge: 100, stocks: 0.6, annualSpend: 50000 }));
+    check('...and "nothing is left over" is true of what it actually does',
+      o.medianFinal < 20000, Math.round(o.medianFinal));
+  }
 
   // A strategy whose paycheck comes OUT of the balance cannot run out, and must
   // never be scored as if it could. This was wrong once: VPW read 48.8% failure

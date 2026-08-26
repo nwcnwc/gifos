@@ -573,11 +573,15 @@
     read.textContent = '';
     var end = st[n - 1];
     var whoWord = state.who === 'm' ? 'a man your age' : state.who === 'f' ? 'a woman your age' : 'at least one of a couple your age';
+    // The wedges are JOINT probabilities — broke AND still alive — because they
+    // have to sum to 100% for the picture to work. The failure rate is not that
+    // number: quoting the wedge said "2% of these retirements have run out"
+    // directly beneath a verdict that said 10% of them did.
     add(read, 'By ' + end.age + ', ');
-    addB(read, Math.round(end.broke * 100) + '%');
-    add(read, ' of these retirements have run out of money — and ');
+    addB(read, pctWord(1 - r.successRate, true));
+    add(read, ' of these retirements have run out of money at some point. But ');
     addB(read, Math.round(end.dead * 100) + '%');
-    add(read, ' of the time ' + whoWord + ' is no longer alive to mind. ');
+    add(read, ' of the time ' + whoWord + ' is no longer alive to mind, which is why the red band is so much thinner than the grey one. ');
     var cross = null;
     for (var i = 1; i < n; i++) if (st[i].dead > st[i].broke && cross === null && st[i].broke > 0) cross = st[i].age;
     if (cross !== null && cross < end.age) {
@@ -687,31 +691,45 @@
       $('vSub').textContent = 'Across ' + runsWord + ', the leanest year paid '
         + money(lean.p5) + ' and the typical year ' + money(lean.median)
         + ', against the ' + money(p.annualSpend) + ' you asked for.';
-    } else if (rate >= 0.999) {
+    } else if (!r.failures) {
+      // NOT `rate >= 0.999`. One failure in 1,508 is 99.934%, which cleared that
+      // bar and printed "every single time" — followed by "the worst of them
+      // ended with $0", because r.worst is the run that failed.
       $('vHead').textContent = 'Your money lasted every single time.';
       $('vSub').textContent = 'All ' + runsWord + ' got you to ' + p.endAge
-        + ' with money left — the worst of them ended with ' + money(r.worst.final) + '.';
+        + ' with money left — the leanest of them ended with ' + money(r.worst.final) + '.';
     } else if (rate >= p.target) {
       $('vHead').textContent = 'Your money lasts.';
-      $('vSub').textContent = pctWord(rate) + ' of ' + runsWord + ' got you to ' + p.endAge
+      $('vSub').textContent = pctWord(rate, true) + ' of ' + runsWord + ' got you to ' + p.endAge
         + '. The ' + (r.failures === 1 ? 'one that did not' : r.failures + ' that did not')
         + ' ran dry at ' + Math.floor(r.worst.failAge) + '.';
     } else if (rate >= 0.5) {
       $('vHead').textContent = 'This is tighter than it looks.';
-      $('vSub').textContent = pctWord(rate) + ' of ' + runsWord + ' made it, against the '
+      $('vSub').textContent = pctWord(rate, true) + ' of ' + runsWord + ' made it, against the '
         + Math.round(p.target * 100) + '% you asked for. The rest ran out — the earliest at '
         + Math.floor(r.worst.failAge) + '.';
     } else {
       $('vHead').textContent = 'On this plan, the money usually runs out.';
-      $('vSub').textContent = 'Only ' + pctWord(rate) + ' of ' + runsWord
+      $('vSub').textContent = 'Only ' + pctWord(rate, true) + ' of ' + runsWord
         + ' lasted. The worst ran dry at ' + Math.floor(r.worst.failAge) + '.';
     }
   }
 
-  function pctWord(x) {
-    if (x >= 0.999) return '100%';
+  /* Never round ACROSS the bar.
+   *
+   * 94.96% rounds to "95%", and the app then printed "95% of 1,508 real
+   * retirements made it, against the 95% you asked for" — beside an amber dot,
+   * in a sentence whose whole point was that it fell short. `floor` is passed
+   * whenever the number is being compared to something it did not reach.
+   */
+  function pctWord(x, floor) {
+    if (x >= 1 - 1e-12) return '100%';
     if (x <= 0.001) return 'none';
     var v = x * 100;
+    if (floor) {
+      var f = Math.floor(v * 10) / 10;
+      return (f >= 99.5 ? f.toFixed(1) : Math.floor(v)) + '%';
+    }
     return (v >= 99.5 ? v.toFixed(1) : Math.round(v)) + '%';
   }
 
@@ -1050,9 +1068,9 @@
         addB(note, 'A crash that ends quickly is survivable.');
         add(note, ' Fifteen years of inflation eating a portfolio you are already drawing on is what actually empties it, which is why this app keeps every number in today’s money.');
       } else if (yr >= 1925 && yr <= 1934) {
-        add(note, 'The Crash and the Depression. Worth knowing: for a retiree this was ');
-        addB(note, 'not');
-        add(note, ' the worst case — prices FELL for years afterwards, so a fixed budget bought more each year. The inflation of the 1960s and 70s did more damage to more retirements.');
+        add(note, 'The Crash and the Depression — a real-terms fall of about ');
+        addB(note, '77%');
+        add(note, ' in under three years. What saved the retirees who survived it is the part nobody expects: prices FELL for years afterwards, so a fixed budget bought MORE each year. That is why a plan can come through 1929 and still be emptied by the 1960s.');
       } else if (yr >= 1998 && yr <= 2010) {
         add(note, 'Two crashes eight years apart, at the start of a retirement, is the shape that does the damage — the losses land while the withdrawals are still coming out of a full-sized portfolio.');
       } else {

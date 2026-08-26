@@ -5466,11 +5466,11 @@
         229
       ],
       "cover": "/apps/retirement/cover.jpg",
-      "bytes": 382796,
+      "bytes": 385514,
       "download": 0,
       "provides": null,
       "signature": null,
-      "sha256": "2097ce06765f97f9776f33aee5549c242644dfb97b6b8a47508f75cbc499dd77"
+      "sha256": "7df90c6490a0f8823962f6b676b0abff4b9a8d24af656ab12f960f955188f9af"
     },
     {
       "slug": "reversi",
