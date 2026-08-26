@@ -169,16 +169,21 @@
    * and saying so is the only honest move. Callers show it and let the person
    * choose; they can see their own statement. */
   function sniffDateOrder(values) {
-    var dayFirst = 0, monthFirst = 0, any = false;
+    var dayFirst = 0, monthFirst = 0, any = false, iso = 0, slashy = 0;
     values.forEach(function (v) {
       var p = dateParts(v);
       if (!p) return;
       any = true;
-      if (p.iso) return;
+      if (p.iso) { iso++; return; }
+      slashy++;
       if (p.a > 12) dayFirst++;
       if (p.b > 12) monthFirst++;
     });
     if (!any) return { order: 'iso', ambiguous: false, proven: false };
+    // 2026-07-02 and "12 Jan 2026" say which part is which. A column of
+    // nothing but those has no ambiguity to report, and reporting one would
+    // be noise on the files that are already unambiguous.
+    if (!slashy) return { order: 'iso', ambiguous: false, proven: true };
     if (dayFirst && monthFirst) return { order: 'mdy', ambiguous: true, conflict: true, proven: false };
     if (dayFirst) return { order: 'dmy', ambiguous: false, proven: true };
     if (monthFirst) return { order: 'mdy', ambiguous: false, proven: true };
@@ -199,21 +204,40 @@
 
   // ---- 4. which column is which -------------------------------------------
 
-  // Ordered: the first pattern that matches a header wins the role, so
-  // "Transaction Date" is a date before "Transaction" is a description.
+  /* Every role, with a RANK. Lower wins.
+   *
+   * Ranks exist because of one real export: Chase writes
+   * "Details,Posting Date,Description,Amount,Type,Balance", where Details
+   * holds DEBIT or CREDIT and Description holds the payee. Taking the first
+   * column that matched put "DEBIT" in the description of every row. So a
+   * column picks its own best role first (Details is a debit/credit marker
+   * before it is a description), and only then does each role pick its best
+   * column. */
   var ROLES = [
-    ['id', /^(transaction\s*id|trans(action)?\s*(no|ref|reference)|reference\s*(no|number)?|fitid|unique\s*id)$/i],
-    ['date', /(^|\b)(transaction|posting|posted|post|effective|value|booking|completed|trade)\s*date\b/i],
-    ['date', /^date\b|^date$|\bdate\b/i],
-    ['debit', /^(debit|withdrawal|withdrawals|money\s*out|paid\s*out|amount\s*debit|charges?|spent)/i],
-    ['credit', /^(credit|deposit|deposits|money\s*in|paid\s*in|amount\s*credit|received)/i],
-    ['amount', /^(amount|value|transaction\s*amount|amt|net)/i],
-    ['balance', /balance|^(running\s*)?bal\.?$|\bbal\b/i],
-    ['drcr', /^(type|transaction\s*type|dr\/cr|debit\/credit|indicator|d\/c)$/i],
-    ['desc', /^(description|payee|name|merchant|details?|narrative|particulars|memo|reference|note|transaction)/i],
-    ['category', /^(category|categories|classification)/i],
-    ['currency', /^(currency|ccy)/i],
+    ['id', /^(transaction\s*id|trans(action)?\s*(no|ref|reference)|reference\s*(no|number)?|fitid|unique\s*id)$/i, 0],
+    ['date', /(^|\b)(transaction|posting|posted|post|effective|value|booking|completed|trade)\s*date\b/i, 0],
+    ['date', /^date$/i, 1],
+    ['date', /\bdate\b/i, 2],
+    ['debit', /^(debit|withdrawal|withdrawals|money\s*out|paid\s*out|amount\s*debit|charges?|spent)/i, 0],
+    ['credit', /^(credit|deposit|deposits|money\s*in|paid\s*in|amount\s*credit|received)/i, 0],
+    ['amount', /^(amount|transaction\s*amount|amt)$/i, 0],
+    ['amount', /^(amount|value|net)/i, 1],
+    ['balance', /balance|^(running\s*)?bal\.?$|\bbal\b/i, 0],
+    ['drcr', /^(type|transaction\s*type|dr\/cr|debit\/credit|indicator|d\/c|details)$/i, 0],
+    ['desc', /^(description|payee|merchant|narrative|particulars)/i, 0],
+    ['desc', /^(details?|memo|reference|name|note|transaction)/i, 1],
+    ['category', /^(category|categories|classification)/i, 0],
+    ['currency', /^(currency|ccy)/i, 0],
   ];
+  // The best role for one heading: lowest rank, then earliest listed.
+  function roleOf(name) {
+    var best = null;
+    for (var i = 0; i < ROLES.length; i++) {
+      if (!ROLES[i][1].test(name)) continue;
+      if (!best || ROLES[i][2] < best.rank) best = { role: ROLES[i][0], rank: ROLES[i][2] };
+    }
+    return best;
+  }
 
   function looksLikeHeader(row) {
     var hits = 0, nonEmpty = 0;
@@ -239,18 +263,34 @@
       var h = looksLikeHeader(rows[r]);
       if (h > bestHits) { bestHits = h; headerRow = r; }
     }
+    /* A header whose words none of the patterns know — a German or French
+     * export, or a bank that invented its own vocabulary — scores zero hits
+     * and looks headerless, which then feeds its own heading row to the
+     * data-guesser as though it were a transaction. So: if row 0 is all words
+     * and row 1 has a date and an amount in it, row 0 is a header. The names
+     * mean nothing to us, but skipping the row does. */
+    if (headerRow < 0 && rows.length > 1) {
+      var wordy = rows[0].filter(function (c) { return String(c || '').trim(); });
+      var textOnly = wordy.length >= 2 && wordy.every(function (c) {
+        return !dateParts(c) && parseMoney(c, '.') === null;
+      });
+      var next = rows[1] || [];
+      var hasDate = next.some(function (c) { return dateParts(c); });
+      var hasMoney = next.some(function (c) { return parseMoney(c, '.') !== null || parseMoney(c, ',') !== null; });
+      if (textOnly && hasDate && hasMoney) headerRow = 0;
+    }
     var cols = {}, header = null;
     if (headerRow >= 0) {
       header = rows[headerRow].map(function (c) { return String(c || '').trim(); });
+      var claims = {};
       header.forEach(function (name, idx) {
         if (!name) return;
-        for (var i = 0; i < ROLES.length; i++) {
-          if (!ROLES[i][1].test(name)) continue;
-          var role = ROLES[i][0];
-          if (cols[role] === undefined) cols[role] = idx;
-          return;
-        }
+        var b = roleOf(name);
+        if (!b) return;
+        var cur = claims[b.role];
+        if (!cur || b.rank < cur.rank) claims[b.role] = { idx: idx, rank: b.rank };
       });
+      Object.keys(claims).forEach(function (r) { cols[r] = claims[r].idx; });
     }
     var body = rows.slice(headerRow >= 0 ? headerRow + 1 : 0).filter(function (row) {
       return row.some(function (c) { return String(c || '').trim(); });

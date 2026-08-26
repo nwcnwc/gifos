@@ -1,0 +1,27 @@
+{
+  "tagline": "Every account you have, in one place, on your own computer.",
+  "description": "You have money in more places than you can hold in your head. A tracker's job is to be the one page that knows where all of it is — and since Mint closed, the free ones either stopped working or started asking for your bank passwords.\n\nThis one never asks for a password. Start by writing down the accounts: what it is, where it is, and a link straight to the login. That list alone is worth having, and the balances can catch up afterwards. Then fill it in whichever way suits each account — hand a CSV to it, or connect SimpleFIN and let the balances arrive on their own.\n\nAny bank's CSV works, including the ones exported by banks that seem to have invented their own format. It reads the file, works out which column is which and which way round the dates are, and shows you every one of those guesses as something you can change before a single row is saved. Import the same file twice by accident and nothing is duplicated.\n\nIt tracks the whole picture, not just the parts a bank knows about. The house, the car, what you still owe on both, the pension you never look at, money a friend owes you. Net worth is everything you own less everything you owe, and it is charted over time — with the part you could actually retire on kept separate from the part you live in.\n\nMoney moved between your own accounts is found and excluded, so paying a credit card does not show up as spending and moving savings does not show up as income. Every pair it found is listed, because those matches decide your whole savings rate and you should be able to look at them.\n\nWhen you want to know what it all means, it works out the numbers a retirement calculator asks for and hands them straight to the Retirement Calculator app — with GifOS showing you the summary and asking first.\n\nNothing is uploaded. Your accounts, balances and transactions are saved inside this app's own picture and go nowhere else. If you use SimpleFIN, that connection is set up in GifOS itself and this app never sees the credential.",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-08-25",
+  "categories": [
+    "Productivity",
+    "Utilities"
+  ],
+  "tags": [
+    "money",
+    "finance",
+    "budget",
+    "net worth",
+    "banking",
+    "csv",
+    "simplefin",
+    "mint"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/finance",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

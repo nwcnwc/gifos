@@ -1,0 +1,25 @@
+{
+  "gifos": "1.0",
+  "appId": "finance",
+  "name": "Financial Tracker",
+  "shortName": "Finance",
+  "version": "1.0",
+  "minBuild": 2087,
+  "description": "Every account you have, in one place. Import any bank's CSV, or pull balances automatically with SimpleFIN, and watch your net worth.",
+  "entry": "index.html",
+  "help": "help.md",
+  "accent": [26, 160, 120],
+  "capabilities": {
+    "db": true,
+    "api": ["simplefin"]
+  },
+  "data": {
+    "accounts": { "visibility": "private" },
+    "ledger": { "visibility": "private" },
+    "snapshots": { "visibility": "private" },
+    "prefs": { "visibility": "private" }
+  },
+  "handoff": {
+    "offers": ["finance.plan"]
+  }
+}
