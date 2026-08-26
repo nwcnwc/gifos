@@ -3013,48 +3013,45 @@ be answered before a line of this is built.
 - **Apps** — an ad slot an App GIF may opt into, drawn by the SHELL around the
   app frame, with the revenue splitting to the app's author.
 
-### The constraint that shapes every part of this
+### What the architecture already forces, and what is still open
 
 `site/about.html` says, today, on the internet: *"Everything lives in your
 browser (IndexedDB). No accounts, no sync, no tracking."* That sentence is about
-**tracking**, and it stays. GifOS has never promised there would be no ads, and
-the few places that had drifted into saying so were removed on 2026-08-26 — but
-an ad network that is a *tracking* network detonates the only thing GifOS is
-selling. So the doctrine, in the same spirit as THE COVER RULE:
+**tracking**. GifOS has never promised there would be no ads, and the few places
+that had drifted into saying so were removed on 2026-08-26.
 
-- **No third-party ad JavaScript, on any surface, ever.** The desktop is the
-  trusted OS page — it holds every file in IndexedDB, the signature verdicts and
-  the invite links. A `<script>` from an ad exchange there is not a privacy
-  quibble, it is total compromise. Inside an app it is not even possible: the
-  sandbox CSP is `default-src 'none'; connect-src 'none'` and the peer
-  constructors are hard-deleted (docs/threat-model.md). **Relaxing that CSP to
-  admit an ad tag is off the table** — it is the wall the whole app model
-  stands on.
-- **Creative is DATA, not code.** An ad is a picture, a line of text and a link,
-  fetched as JSON from a first-party endpoint and painted by our own renderer —
-  precisely how the store paints `cover.jpg` instead of embedding a live GIF.
-  Guard it the way `e2e-app-store.js` guards covers: **count network requests**
-  and assert zero third-party origins and zero script loads. A source scan would
-  sail past a CSS background or a preload hint; a request count does not.
-- **Untargeted by construction.** The only signals in play are ones the client
-  already has and never sends — which app is open, which store category is on
-  screen. Contextual, never behavioral. No cookie (an app frame has no storage
-  at all), no device id, no profile, no impression callback that carries
-  anything about the person.
-- **Counting is the honest tension.** An ad business needs impressions and
-  clicks, and a count is a request. The acceptable shape is aggregate and
-  unlinkable: a fire-and-forget POST of `{slot, creativeId}` to our own
-  endpoint, no id, no cookie, `Referrer-Policy: no-referrer`. If that cannot be
-  sold, the answer is flat-rate sponsorships priced per period — the shape §6's
-  "Feature this listing" already uses — **not** a tracker.
+**Forced by what is already built** (not new policy):
 
-**Why the obvious networks are the wrong shape.** AdSense, Carbon and the game
-networks (Playwire, Nitropay) all require their tag in the page, which is
-exactly the thing that cannot happen. What fits is a server that returns a
-creative as JSON on a contextual, cookieless basis — EthicalAds is the closest
-existing model. Realistically the first cut is **first-party**: house ads for
-our own apps (an honest bootstrap that is useful even at zero revenue), then
-direct sponsorships, then a network only if one will serve plain data.
+- **An app cannot fetch an ad.** The sandbox CSP is `default-src 'none';
+  connect-src 'none'` and the peer constructors are hard-deleted
+  (docs/threat-model.md). Ad code cannot run inside an app, so any in-app ad
+  arrives through the bridge as data or not at all.
+- **A third-party script on the desktop page has the run of the machine.** That
+  page holds every file in IndexedDB, the signature verdicts and the invite
+  links. This is the reason to prefer a data-shaped ad on that surface too, and
+  it is a security fact whatever the commercial decision turns out to be.
+- **Creative as data is cheap to guard.** If ads are a picture, a line of text
+  and a link painted by our own renderer, `e2e-app-store.js`'s technique applies
+  directly: **count network requests** rather than scan source, since a CSS
+  background or a preload hint sails past a source scan.
+
+**Not decided — do not write any of this into copy until it is:**
+
+- Whether ads are contextual only, or may use signals the client holds; what (if
+  anything) an impression or click callback carries; whether we accept a network
+  whose terms require its own tag on the desktop surface, or refuse on the
+  security ground above.
+- Whether the desktop strip is sold by us, by a network, or filled with house
+  ads for our own apps at first — the last of which is useful at zero revenue
+  and is the obvious way to start.
+- Whether any of it is worth the revenue at current traffic. Brand deals (§23)
+  and IAP may simply be better business.
+
+**Note on the obvious networks.** AdSense, Carbon and the game networks
+(Playwire, Nitropay) all require their tag in the page, which is the shape the
+security fact above argues against and which an app frame cannot execute at all.
+A server that returns a creative as JSON fits without argument — EthicalAds is
+the closest existing model.
 
 ### The desktop slot, and the problem with "the bottom"
 
@@ -3080,33 +3077,47 @@ every time an icon lands. So the strip is chrome, not content:
 
 ### A tip turns the desktop strip off — for the desktop only
 
-Any tip, of any size, through the existing **Tip GifOS Creators** app turns off
-the Home Screen strip. It is the whole opt-out: no plan, no tier, no "premium".
+Any tip, of any size, through the **Tip GifOS Creators** app turns off the Home
+Screen strip. No plan, no tier, no "premium".
 
-- **It buys the GifOS surface, and nothing else.** Ads inside an app are the
-  app author's arrangement with their own user, and a tip to us cannot switch
-  off another author's revenue. An app's ads are governed by its `ads` Ability
-  and the per-app toggle in the Abilities sheet — a separate control, on a
-  separate screen, that the user already has.
-- **The OS records it, not the app.** The receipt lands on the GifOS payment
-  sheet, which is the OS's own screen; the flag is written there. The tip app
-  itself still stores nothing, which keeps `build.mjs`'s "it remembers nothing"
-  assertion true and keeps the app's own promise intact.
-- **The flag is local, like everything else**: this browser, this device. It
-  does not follow you to your phone, and erasing the site erases it. That is
-  the same honesty rule the desktop already applies to every other saved thing
-  — say "on this device", never imply a synced entitlement.
-- **It is a courtesy, not DRM.** With no account there is nothing to verify
-  against, so anyone who wants the strip gone without paying can have it.
-  Enforcing it would require exactly the account GifOS does not have. Do not
-  build a check; do not phone anything home.
-- **Copy to fix when this ships:** the tip app currently promises "There is no
+**It is the purchase machinery that already exists**, not a new one:
+
+- A payment already mints a **receipt App GIF into the Purchases folder**
+  (`gifos-pay-broker.js` `mintReceiptFile`, placed by `desktop.js`
+  `ensurePurchasesFolder`), signed by gifos.app. Opening that file on any GifOS
+  computer verifies the signature and re-grants the purchase there — the restore
+  story, with no account.
+- `entitled(appId, sku)` (`gifos-purse.js`, exposed to apps as
+  `gifos.entitled(sku)`) is how anything asks whether a purchase exists. The
+  desktop reads the same purse directly.
+- **The one change needed:** a tip currently charges with **no sku**
+  (`apps/tip-creators/app.js`), so `grant()` is never called and the receipt
+  carries nothing to re-grant (`gifos-pay-broker.js` re-grants only when
+  `receipt.sku` is set). Giving the tip a sku makes it an ordinary entitlement —
+  restorable from the receipt file, queryable by the desktop, and queryable by
+  the tip app itself for the purchase it asked for.
+- **The tip app can hold its own copy of the receipt** and show it. It asked for
+  the purchase; the receipt is the user's file and lives in Purchases where the
+  user sees it as one thing. Nothing about the purse forbids the app knowing what
+  it sold.
+
+**Scope:** it removes the GifOS strip. Ads inside an app are that app's
+arrangement with its user, governed by its `ads` Ability and its own toggle in
+the Abilities sheet — a tip to us does not reach into another author's revenue.
+
+**Open questions.**
+
+- Entitlements are app-scoped (`pay.ent:<appId>:<sku>`). A desktop-wide effect
+  keyed to `tip-creators`'s sku works, but it is the first time an OS surface
+  reads an entitlement belonging to an app — worth deciding whether that is a
+  named OS-level sku instead.
+- Receipts are deliberately **bearer** artifacts: sharing one shares the
+  license. For a tip that means a shared receipt turns the strip off for someone
+  who did not tip. Probably fine at this stake; state it rather than discover it.
+- `apps/tip-creators/listing.json` and `help.md` currently say *"There is no
   subscription hiding in here, nothing to unlock, and the app is exactly the
-  same before and after you tip" (`apps/tip-creators/listing.json`,
-  `help.md`). That becomes false the day a tip removes the strip. New wording
-  has to say plainly what a tip does and does not do — the app is unchanged,
-  the desktop loses its ad strip on this device — and the GIF is rebuilt and
-  re-signed with it.
+  same before and after you tip."* If a tip removes the strip, that copy needs
+  rewriting, and the GIF rebuilt and re-signed with it.
 
 ### The app slot: a declared Ability, fetched through the broker
 
@@ -3144,41 +3155,31 @@ then do any of:
   already shipped) and unlock permanently,
 - or simply say what it needs and stop.
 
-That is the flexibility half. **The transparency half is not optional and is
-enforced mechanically:**
+That is the flexibility half. The transparency half comes from the declaration
+itself:
 
-- The **store listing must say** the app is ad-supported, and must say whether
-  turning ads off restricts it — a badge beside the capability chips, generated
-  from `capabilities.ads` in the manifest so it cannot be omitted by a
-  forgetful listing. A shopper decides before installing, not after.
-- The Abilities sheet's description says the same in the second place the user
-  looks, and says it before first run.
-- An app may gate features on ads being on; it may **not** pretend the ad
-  failed, nag on a loop, or hide the fact that a paid alternative exists. The
-  refusal path has to be a screen the user can read and act on.
-- **No user data reaches the ad request.** The app supplies no targeting
-  parameters; there is no field for them. Whatever context exists (the app's own
-  category) comes from the signed manifest, not from the running app.
-- The **payee is derived, not declared** (`gifos-charge.js` PAYEE RULE): signed
-  by a domain → `payments@<domain>`, signed by an email → that email. Ad revenue
-  routes to the app's verified signing identity, so redirecting it means taking
-  over that identity. **Unsigned apps earn nothing**, exactly as unsigned apps
-  cannot charge.
-- **Offline is the normal case for a GIF.** A failed fetch collapses the slot to
-  nothing — no reserved space, no broken box on a plane — and it reports as
-  "nothing to show", never as "the user refused".
+- The declaration is **in the manifest**, which the store already reads. A badge
+  generated from `capabilities.ads` says an app is ad-supported without the
+  listing having to remember to mention it, and the Abilities sheet says it
+  again before first run.
+- **Offline is the normal case for a GIF.** A failed fetch has to collapse the
+  slot rather than reserve space for an ad that will not arrive, and "nothing to
+  show" is a different outcome from "you turned ads off".
+- **Revenue can route by the existing PAYEE RULE** (`gifos-charge.js`): signed
+  by a domain → `payments@<domain>`, signed by an email → that email, derived
+  rather than declared. That is what an ad payee would most naturally reuse; it
+  is not yet a decision.
 
 **Open questions.**
 
-- **The about.html sentence.** "No tracking" stays literally true if ads carry
-  no id — but printed next to an ad it reads as a lie to exactly the reader we
-  want. Decide the copy BEFORE the code: plain sentences, no disclaimer block,
-  the mechanism in one line (store copy voice).
-- **What an ads-off app is allowed to withhold.** "Turn ads on or pay" is
-  legitimate; a store full of apps that install free and then refuse to run is
-  how a catalog loses its reputation. The lever is the listing badge and the
-  curation bar, not a rule inside the runtime — but the wording of that badge
-  decides how it reads.
+- **The about.html sentence.** Whether "no tracking" still reads as true beside
+  an ad depends on what the ad request carries — which is undecided above. The
+  copy question and the mechanism question are the same question.
+- **What an ads-off app may withhold, and what an ad request may carry.** Both
+  are policy, and neither has been set. "Turn ads on or pay" is a legitimate
+  business; whether unsigned apps may earn at all, whether an app may pass
+  targeting signals, and where the line sits between gating and nagging are
+  decisions for whoever writes the store policy, not defaults to assume.
 - **How the refusal is shaped.** Distinguishable outcomes mean the broker
   returns a result rather than throwing, which is a small departure from how
   `capDisabled` reports today. Worth settling once, for every capability.
@@ -3187,9 +3188,10 @@ enforced mechanically:**
 - **Frozen snapshots.** `site/versions/<x.y.z>/` never changes, so an archived
   build would fetch today's creatives from a URL baked in forever. That endpoint
   must be permanent, cheap, and safe to 404 into a collapsed slot.
-- **Consent.** Untargeted, idless, cookieless is the only version that needs no
-  consent dialog anywhere. That is a hard design requirement — a cookie banner
-  on GifOS would be an embarrassment, and it is what "just use a network" buys.
+- **Consent.** An untargeted, idless, cookieless ad needs no consent dialog
+  anywhere; most network terms do not describe that ad. Whichever way that goes,
+  the consequence — a cookie banner on GifOS or none — should be chosen
+  deliberately, since it is the visible half of the decision.
 - **Is it worth the pitch?** A strip on a small audience earns very little. The
   honest ordering may be brand deals (§23) and IAP first, with a slot only once
   traffic justifies the cost to the story.
@@ -3262,8 +3264,9 @@ the brand mark separate honestly — the copy is no longer "by &lt;brand&gt;".
   Realistically their IT will not mint an Ed25519 key on request, so we need a
   "signed by gifos.app, made for &lt;brand&gt;" fallback that does **not** read as
   the brand having signed. That distinction is binary in the UI today.
-- **Do branded games carry ads (§22)?** No. The game IS the ad; stacking a
-  network slot on a sponsored artifact insults both parties.
+- **Do branded games carry ads (§22)?** Unresolved. A sponsored artifact
+  carrying a third party's ad is an odd pairing, but that is the sponsor's call
+  as much as ours.
 - **Perpetuity is the default.** When the deal ends the GIF keeps working, in
   every browser that has it, forever. There is no recall — delisting is the only
   lever and it retrieves nothing. Every contract has to be written knowing that.
