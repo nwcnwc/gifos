@@ -240,6 +240,18 @@ self.addEventListener('activate', function (e) {
     await Promise.all(keys.map(function (k) {
       if (k.indexOf('gifos-shell-') === 0 && k !== CACHE) return caches.delete(k);
     }));
+    // Sweep the catalog twins the old cache-busted launch fetch left behind (see
+    // the /apps/index.json rule above). The rule stops new ones landing; this
+    // reclaims the ones already sitting on a device — one per app launch since
+    // the nudge shipped. The bare key is kept, so an offline store still opens.
+    try {
+      var shell = await caches.open(CACHE);
+      var reqs = await shell.keys();
+      await Promise.all(reqs.map(function (r) {
+        var u; try { u = new URL(r.url); } catch (err) { return; }
+        if (u.pathname === '/apps/index.json' && u.search) return shell.delete(r);
+      }));
+    } catch (err) { /* a cache that won't open just keeps its twins */ }
     await self.clients.claim();
   })());
 });
@@ -263,6 +275,32 @@ self.addEventListener('fetch', function (e) {
       if (r && r.ok) { var c = r.clone(); caches.open(CACHE).then(function (ch) { ch.put(url.pathname, c); }); }
       return r;
     }).catch(function () { return caches.match(url.pathname); }));
+    return;
+  }
+
+  // The App Store catalog is the same KIND of data — read to decide whether to
+  // OFFER an update, never to change the running shell — with one difference
+  // that earns it its own rule: it is fetched at every app LAUNCH
+  // (app-update.js), not only when someone browses the store. So it gets ONE
+  // normalized cache key, whatever query string a caller carries.
+  //
+  // The catch-all below caches by full URL. A launch fetch carrying a `?ts=`
+  // cache-buster is therefore a NEW key every time, and left another 181 KB
+  // copy of the catalog in the shell cache, forever, on a phone (measured
+  // 2026-08-25: 543 KB after three launches, growing without bound). Worse, the
+  // offline/slow fallback matches with ignoreSearch, so it then answered from an
+  // ARBITRARY one of those copies: a launch on a link too slow for the 4 s race
+  // compared against a STALE catalog and said nothing about an update that was
+  // really there. One key is bounded, and its fallback is the LAST GOOD catalog.
+  if (url.pathname === '/apps/index.json') {
+    e.respondWith((async function () {
+      var cache = await caches.open(CACHE);
+      var fresh = await revalidate(url.pathname, cache, 4000);
+      if (fresh) return fresh;
+      var cached = await cache.match(url.pathname);
+      if (cached) return cached;                   // offline → the last catalog we saw
+      return degrade(req, url, cache);
+    })());
     return;
   }
 

@@ -34,8 +34,16 @@
   const CATALOG = '/apps/index.json';
   const VERSIONS = '/version.json';
 
+  // NO cache-buster in the URL, deliberately. `cache: 'no-store'` already
+  // defeats the HTTP cache; a unique `?ts=` defeats the SERVICE WORKER instead,
+  // which caches by request — so every launch left another 181 KB copy of the
+  // catalog in the shell cache forever, and sw.js's offline fallback (which
+  // matches with ignoreSearch) then answered from an arbitrary old one. That is
+  // a launch on a slow link comparing against a STALE catalog and saying
+  // nothing. store.js has always asked for the catalog under its bare path; so
+  // does this. sw.js normalizes both of these paths to one key regardless.
   function fetchJson(url) {
-    return fetch(url + '?ts=' + Date.now(), { cache: 'no-store' })
+    return fetch(url, { cache: 'no-store' })
       .then((r) => (r && r.ok ? r.json() : null)).catch(() => null);
   }
 
