@@ -129,6 +129,7 @@ mandatory; everything else defaults sensibly.
      "data": { ... },             // per-collection visibility (see "Multiplayer")
      "lead": [ ... ],             // optional leader/communal toggle (see "Multiplayer")
      "launch": { ... },           // optional link arguments (see "Sharing")
+     "handoff": { ... },          // app->app documents (see gifos.handoff)
      "provides": { "ai": [...] }, // Provider apps only (see "Provider apps")
      "assets": [ ... ]            // big hash-pinned downloads (see "Big files")
    }
@@ -343,6 +344,28 @@ THIRD-PARTY APIs — gifos.api  [capabilities.api: ["<name>", ...]]
    ("new accounts include free credit") appends below GifOS's own text.
    Never write your own "go to Settings and type this URL" copy — GifOS
    knows the provider and the screen, and says it consistently.
+
+APP -> APP HANDOFF — gifos.handoff  [manifest "handoff", not "capabilities"]
+   One structured document, produced by one app, picked up by another on the
+   same computer. Neither app can read the other's gifos.db — that has never
+   been possible and this does not change it; the document sits on a shelf the
+   OS owns. Declare the kinds you use:
+     "handoff": { "offers": ["finance.plan"], "takes": ["finance.plan"] }
+   await gifos.handoff.offer(kind, doc)
+     -> { ok:true } | { ok:false, reason:'declined' }
+     Raises a GifOS sheet SHOWING THE DOCUMENT, every time — there is no
+     remembered consent, because the numbers differ every time. Refused on a
+     guest mount (only the computer the app belongs to may hand anything over).
+   await gifos.handoff.take(kind)
+     -> { kind, doc, from:{appId,name}, at } | null   (null on a guest mount)
+   THE KINDS AND THEIR FIELDS ARE THE OS's. GifOS rebuilds the document from
+   its own field list before showing or storing it, so a key it did not ask
+   for is dropped rather than carried — do not try to smuggle extras. One
+   document per kind (a second offer replaces the first), no history, no
+   notification, and no way to answer. Kinds that exist today:
+     finance.plan — currentAge, netWorth, portfolio, illiquid, debts,
+                    annualSavings, annualSpend, asOf
+   Adding a kind is an edit to GifOS itself: docs/app-handoff.md.
 
 PROVIDERS — gifos.provider.serve  [manifest "provides", not "capabilities"]
    See "Provider apps" below.

@@ -291,6 +291,18 @@
         // drawing something.
         launch: function(){ return rpc({type:'launch'}); },
         setName: function(n){ return rpc({type:'setName', name:n}); },
+        // APP -> APP HANDOFF (manifest "handoff", docs/app-handoff.md). One
+        // structured document, of a kind GifOS itself names, put on a shelf
+        // the OS owns so another app can pick it up. Neither app can read the
+        // other's storage — that has never been possible and still isn't.
+        //   offer(kind, doc) -> { ok:true } | { ok:false, reason:'declined' }
+        //     raises a sheet showing the document before anything is written.
+        //   take(kind)       -> { kind, doc, from:{appId,name}, at } | null
+        // Declare the kinds you use: "handoff": { "offers":[], "takes":[] }.
+        handoff: {
+          offer: function(kind, doc){ return rpc({type:'handoffOffer', kind:kind, doc:doc}); },
+          take:  function(kind){ return rpc({type:'handoffTake', kind:kind}); }
+        },
         // Brokered device capture. The app never touches the camera/mic: it asks
         // the GifOS computer for a CLIP, which records it behind a visible
         // indicator and hands back { bytes:ArrayBuffer, mime, durationMs }.
@@ -2179,6 +2191,14 @@
     // of REST (deepgramListenWS below) — no CORS proxy, key straight to the
     // API's own host. desktop.js KNOWN_API_SHAPES mirrors this; keep in step.
     deepgram: { label: 'Deepgram', url: 'https://api.deepgram.com', auth: 'token', ws: ['/v1/listen'] },
+    // SimpleFIN: the post-Mint bank aggregator, and the only one in its class
+    // that fits a static site (Plaid/Teller/MX all need a server-side secret).
+    // The base URL is the user's OWN claimed access URL — a different host per
+    // user, and self-hosted servers exist — so unlike the others there is no
+    // fixed url here, only the auth shape. `only` because Basic is the sole
+    // scheme SimpleFIN speaks: a wrong dropdown must not be able to break a
+    // correct credential.
+    simplefin: { label: 'SimpleFIN', auth: 'basic', only: true },
     maptiler: { label: 'MapTiler', url: 'https://api.maptiler.com', auth: 'query', authName: 'key',
                 only: true,   // MapTiler accepts exactly this shape — no entry setting can improve on it
                 probePath: '/tiles/satellite-v2/tiles.json' },
@@ -2390,6 +2410,155 @@
     } catch (e) { /* no DOM host — the coded rejection still reaches the app */ }
   }
 
+  // ---- app -> app handoff: a typed document on a shelf the OS owns ---------
+  // docs/app-handoff.md. Two apps that have never heard of each other need a
+  // way to pass ONE structured thing: the Financial Tracker knows what you have
+  // and what you spend, and the Retirement Calculator opens by asking for
+  // exactly those numbers. Neither may read the other's storage — an app's db
+  // is its own, and nothing here changes that.
+  //
+  // So the OS keeps a SHELF. A producing app OFFERS a document of a declared
+  // KIND; a consuming app TAKES the newest one of a kind it declared. One
+  // document per kind, per computer, in the OS's own state — never in either
+  // app's storage, and never in a shared backup of somebody else's room.
+  //
+  // Four rules, and each one is load-bearing:
+  //
+  //  1. THE KINDS ARE THE OS's, NOT THE APP's. HANDOFF_KINDS is a fixed
+  //     vocabulary with first-party words, exactly as the capability sheet is
+  //     (docs/providers.md: "third-party text does not get to define what a
+  //     checkbox means"). An app that could name its own kind would be writing
+  //     the sentence the user reads before agreeing to it.
+  //  2. THE OS NAMES THE FIELDS TOO, and the document is REBUILT from that
+  //     list before it is shown or stored. Anything the app put in that GifOS
+  //     did not ask for is dropped, not carried. This is what makes the sheet
+  //     honest by construction rather than by review: the sheet cannot
+  //     under-report the payload, because the payload IS what the sheet lists.
+  //  3. AN OFFER IS A VISIBLE ACT. Every offer raises a sheet the runtime owns,
+  //     naming the app and showing the document itself, before a byte is
+  //     written. There is no silent publish and no remembered consent — the
+  //     numbers differ every time, so "don't ask again" would be agreeing to
+  //     something not yet written.
+  //  4. OWNER MOUNTS ONLY. A guest looking at a mirror of someone else's app
+  //     may neither read this computer's shelf nor write to it. An invite link
+  //     is not a way to ask a stranger's computer what it is worth.
+  const HANDOFF_KEY = 'sys::handoff';
+  const HANDOFF_KINDS = {
+    'finance.plan': {
+      label: 'a retirement plan summary',
+      never: 'No account numbers, no institution names, and none of your transactions.',
+      // [field, the words the user reads, 'money' | 'age' | 'text']
+      fields: [
+        ['currentAge', 'Your age', 'age'],
+        ['netWorth', 'Net worth', 'money'],
+        ['portfolio', 'Savings and investments', 'money'],
+        ['illiquid', 'Property and other things you own', 'money'],
+        ['debts', 'What you owe', 'money'],
+        ['annualSavings', 'Put away each year', 'money'],
+        ['annualSpend', 'Spent each year', 'money'],
+        ['asOf', 'As of', 'text'],
+      ],
+    },
+  };
+  const HANDOFF_KIND_ERR = (k) => '"' + k + '" is not a kind of document GifOS hands between apps.';
+  function handoffDeclares(manifest, dir, kind) {
+    const h = (manifest && manifest.handoff) || {};
+    const list = Array.isArray(h[dir]) ? h[dir] : [];
+    return list.indexOf(kind) >= 0;
+  }
+  // Rule 2: the stored document is BUILT FROM the OS's field list, never
+  // copied from the app's object. An unknown key cannot survive this.
+  function handoffShape(spec, doc) {
+    const out = {};
+    if (!doc || typeof doc !== 'object') return out;
+    for (const f of spec.fields) {
+      const v = doc[f[0]];
+      if (v === undefined || v === null || v === '') continue;
+      if (f[2] === 'text') out[f[0]] = String(v).slice(0, 120);
+      else { const n = Number(v); if (isFinite(n)) out[f[0]] = n; }
+    }
+    return out;
+  }
+  function handoffRow(f, v) {
+    if (f[2] === 'text') return escHtml(String(v));
+    if (f[2] === 'age') return escHtml(String(Math.round(v)));
+    const neg = v < 0;
+    const s = '$' + Math.round(Math.abs(v)).toLocaleString('en-US');
+    return escHtml(neg ? '-' + s : s);
+  }
+  // The sheet. Owned by the runtime (real origin), so the app can neither fake
+  // it nor suppress it, and it shows the document rather than describing it.
+  function askHandoff(manifest, spec, doc) {
+    return new Promise((resolve) => {
+      const doc_ = root.document;
+      if (!doc_ || !doc_.body) { resolve(false); return; }   // no surface = no consent
+      const old = doc_.getElementById('gifos-handoff-modal'); if (old) old.remove();
+      const rows = spec.fields.filter((f) => doc[f[0]] !== undefined).map((f) =>
+        '<tr><td style="padding:.18rem .8rem .18rem 0;color:#b6b6cf">' + escHtml(f[1]) + '</td>' +
+        '<td style="padding:.18rem 0;text-align:right;font-variant-numeric:tabular-nums;font-weight:600">' + handoffRow(f, doc[f[0]]) + '</td></tr>').join('');
+      const bg = doc_.createElement('div'); bg.id = 'gifos-handoff-modal'; bg.className = 'perm-modal';
+      bg.setAttribute('style', 'position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1.2rem;');
+      const box = doc_.createElement('div'); box.className = 'perm-box';
+      box.setAttribute('style', 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.8rem;max-width:24rem;width:100%;padding:1.2rem;font:15px/1.55 system-ui,-apple-system,sans-serif;');
+      box.innerHTML =
+        '<h3 style="margin:0 0 .5rem;font-size:1.1rem">Hand this to your other apps?</h3>' +
+        '<p style="color:#b6b6cf;font-size:.9rem;margin:0 0 .8rem"><b>' + escHtml(manifest.name || 'This app') +
+          '</b> wants to put ' + escHtml(spec.label) + ' where your other apps can pick it up.</p>' +
+        (rows ? '<table style="width:100%;border-collapse:collapse;font-size:.88rem;margin:0 0 .8rem;' +
+          'background:#0f0f18;border:1px solid #2a2a3f;border-radius:.5rem;padding:.5rem">' + rows + '</table>'
+              : '<p style="color:#ff9d9d;font-size:.88rem">There is nothing in it.</p>') +
+        '<p style="color:#9a9ab5;font-size:.82rem;margin:0 0 1rem">That is the whole of it — ' + escHtml(spec.never) +
+          ' It stays on this computer, and only an app that asks for this exact kind of summary can read it.</p>' +
+        '<div style="display:flex;gap:.5rem;justify-content:flex-end">' +
+        '<button id="gifos-handoff-no" style="padding:.5rem 1rem;border-radius:.5rem;border:1px solid #3a3a52;background:transparent;color:#e8e8f4;cursor:pointer;font:inherit">Not now</button>' +
+        '<button id="gifos-handoff-yes" style="padding:.5rem 1.3rem;border-radius:.5rem;border:none;background:#7b5cff;color:#fff;cursor:pointer;font:inherit">Hand it over</button></div>';
+      bg.appendChild(box); doc_.body.appendChild(bg);
+      let done = false;
+      const finish = (v) => { if (done) return; done = true; bg.remove(); resolve(v); };
+      box.querySelector('#gifos-handoff-yes').onclick = () => finish(true);
+      box.querySelector('#gifos-handoff-no').onclick = () => finish(false);
+      bg.addEventListener('click', (e) => { if (e.target === bg) finish(false); });
+    });
+  }
+  function handoffGuard(manifest, dir, kind) {
+    const spec = HANDOFF_KINDS[kind];
+    if (!spec) throw new Error(HANDOFF_KIND_ERR(kind));
+    if (!handoffDeclares(manifest, dir, kind)) {
+      throw new Error('This app\'s manifest does not declare handoff.' + dir + ' ["' + kind + '"].');
+    }
+    return spec;
+  }
+  function brokerHandoffOffer(manifest, db, d) {
+    const kind = String(d.kind || '');
+    let spec;
+    try { spec = handoffGuard(manifest, 'offers', kind); } catch (e) { return Promise.reject(e); }
+    if (!(db && db.owner)) {
+      return Promise.reject(new Error('Only the computer this app belongs to can hand a document to another app.'));
+    }
+    const doc = handoffShape(spec, d.doc);
+    if (!Object.keys(doc).length) return Promise.reject(new Error('There is nothing GifOS recognises in that document.'));
+    return askHandoff(manifest, spec, doc).then((yes) => {
+      if (!yes) return { ok: false, reason: 'declined' };
+      return store.getState(HANDOFF_KEY).catch(() => null).then((shelf) => {
+        shelf = (shelf && typeof shelf === 'object') ? shelf : {};
+        shelf[kind] = { doc, from: { appId: manifest.appId || '', name: manifest.name || '' }, at: new Date().toISOString() };
+        return store.setState(HANDOFF_KEY, shelf).then(() => ({ ok: true }));
+      });
+    });
+  }
+  function brokerHandoffTake(manifest, db, d) {
+    const kind = String(d.kind || '');
+    try { handoffGuard(manifest, 'takes', kind); } catch (e) { return Promise.reject(e); }
+    // A guest reads nothing. Not an error — there simply is no shelf here that
+    // is theirs, and an app booting into a shared room should carry on.
+    if (!(db && db.owner)) return Promise.resolve(null);
+    return store.getState(HANDOFF_KEY).catch(() => null).then((shelf) => {
+      const rec = shelf && shelf[kind];
+      if (!rec || !rec.doc) return null;
+      return { kind, doc: rec.doc, from: rec.from || {}, at: rec.at || '' };
+    });
+  }
+
   // ---- Deepgram's WebSocket door, REST-shaped -------------------------------
   // Opens ws(s)://<configured host>/v1/listen?<the app's own query>, sends the
   // clip as binary frames + {"type":"CloseStream"}, collects every is_final
@@ -2488,6 +2657,13 @@
     if (key) {
       if (at === 'bearer') headers.Authorization = 'Bearer ' + key;
       else if (at === 'token') headers.Authorization = 'Token ' + key;      // Deepgram-style
+      // HTTP Basic. The user pastes "user:password" as the key — and for
+      // SimpleFIN that is what its access URL literally hands them, embedded in
+      // the URL as https://<user>:<pass>@host/…. It has to be lifted out and
+      // re-sent as a header because a browser fetch() REJECTS a URL carrying
+      // credentials outright (TypeError, before any request is made); Settings
+      // does the splitting when the entry is saved.
+      else if (at === 'basic') headers.Authorization = 'Basic ' + btoa(key);
       else if (at === 'header' && an) headers[an] = key;                    // e.g. x-api-key
       else if (at === 'query' && an) u.searchParams.set(an, key);
     }
@@ -2738,6 +2914,10 @@
       else if (d.type === 'launch') launchGate.then((result) => reply({ ok: true, result }));
       else if (d.type === 'asset') replyAsset(files, mountFileId, manifest, d, (p, t) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
+      // App -> app handoff. Both directions are refused unless the manifest
+      // declared this exact kind, and an offer always raises the sheet.
+      else if (d.type === 'handoffOffer') brokerHandoffOffer(manifest, db, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      else if (d.type === 'handoffTake') brokerHandoffTake(manifest, db, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       // Payments. Only in a NORMAL app mount — the provider service-mount
       // handler refuses every unknown type, which is exactly the doctrine:
       // a hidden mount has no surface to show a human what they are approving.

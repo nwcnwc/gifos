@@ -72,6 +72,24 @@
     pay: 'Lets the app ask you to pay for something — an unlock, an item, a tip. Every payment shows you a GifOS sheet first: the amount, what it is for, and the app’s <b>verified author</b> — and nothing is charged unless you approve it there. The money goes to the author (GifOS keeps 3%); the app never sees your card, wallet, or balance. Only signed, verified apps can charge at all.',
     agent: 'Adds a GifOS assistant bar that can read and click/type on <b>this app’s screen</b> for you (driven by your Smartest AI). It only ever touches this one app — never GifOS or your other apps — and never sees your key. You start it, and can stop it any time.'
   };
+  // App -> app handoff (manifest "handoff", docs/app-handoff.md). MIRRORS
+  // HANDOFF_KINDS in runtime.js — the runtime is where these are enforced;
+  // this is only where they are said out loud. Not a checkbox: nothing is
+  // handed over without its own sheet at the moment it happens, showing the
+  // document itself, so a toggle here would be a second, weaker consent for
+  // something the user is going to be asked about anyway.
+  var HANDOFF_LABELS = {
+    'finance.plan': {
+      offers: 'Hand your other apps a retirement plan summary',
+      takes: 'Pick up a retirement plan summary from your other apps',
+      desc: 'Your age, what you are worth, what you put away and what you spend — the numbers a retirement calculator asks for. No account numbers, no institution names, and none of your transactions. It never leaves this computer, and you are shown the whole summary and asked, every single time.'
+    }
+  };
+  function handoffKinds(manifest, dir) {
+    var h = (manifest && manifest.handoff) || {};
+    var l = Array.isArray(h[dir]) ? h[dir] : [];
+    return l.filter(function (k) { return HANDOFF_LABELS[k]; });
+  }
   var AI_ROLE_LABELS = { smartest: 'Smartest text LLM', cheapest: 'Cheapest text LLM', tts: 'Text → speech', stt: 'Speech → text', image: 'Text → image', image_to_video: 'Image → video', video: 'Text → video' };
   // Hosts an app has asked to POOL. A subset of its declared network hosts, and
   // never one of its keyed API hosts — see poolHosts() in runtime.js, which is
@@ -203,6 +221,19 @@
           return capRow(k, CAP_LABELS[k], CAP_DESC[k]);
         }).join('');
       }
+      // Both directions, in one place, so "which of my apps can see this"
+      // is answered on the sheet the user actually reads.
+      function handoffBlock() {
+        var out = '';
+        ['offers', 'takes'].forEach(function (dir) {
+          handoffKinds(manifest, dir).forEach(function (k) {
+            var h = HANDOFF_LABELS[k];
+            out += '<div class="perm-row"><span><span class="host">' + escapeText(h[dir]) + '</span>' +
+              '<br><span class="desc">' + h.desc + '</span></span></div>';
+          });
+        });
+        return out;
+      }
       function openModal() {
         var bg = doc.createElement('div'); bg.className = 'perm-modal';
         var appName = (manifest && manifest.name) || 'This app';
@@ -247,7 +278,7 @@
           ? escapeText(appName) + ' is about to open on something'
           : escapeText(appName) + ' would like to…';
         bg.innerHTML = '<div class="perm-box"><h3>' + title + '</h3>' +
-          launchBlock + capBlock() + netBlock +
+          launchBlock + capBlock() + handoffBlock() + netBlock +
           '<p class="foot">You’re in control. It only ever gets the <b>result</b> — a clip, a photo, an answer — never your live camera, microphone, or keys. You can change this later from the app’s Abilities chip.</p>' +
           buttons + '</div>';
         doc.body.appendChild(bg);
