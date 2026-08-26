@@ -12,7 +12,7 @@ This is **not** a table tool. It returns words in reading order, not a spreadshe
 4. Tap **Read text**.
 5. Edit the result if you need to. **Copy** puts it on the clipboard. **Save .txt** downloads a text file.
 
-The first read downloads English (about 15 MB). After that it stays on this computer and later pages start faster. A progress bar runs while it works.
+The first read downloads English (about 15 MB). After that it stays on this device and later pages start faster. A progress bar runs while it works.
 
 ## Layout
 

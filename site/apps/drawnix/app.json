@@ -41,14 +41,14 @@
   "cover": "/apps/drawnix/cover.jpg",
   "screenshots": [],
   "gif": "/apps/drawnix/drawnix.gif",
-  "bytes": 2234078,
+  "bytes": 2234094,
   "download": 0,
   "provides": null,
-  "sha256": "a8046142c8066d205f3817309abd47c673a611ebd80bbf7adfb628ad3e5177f4",
+  "sha256": "32fdc7c3b0bd96332f4fa9f7ae243bb39d4d381ab3b276226a868cd054b39ffc",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-26"
   },
   "porter": {
     "name": "GifOS",

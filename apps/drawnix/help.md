@@ -23,7 +23,7 @@ Bottom (or side) bar:
 
 The **app menu** (top) is Open, Save, Save As, export **PNG / SVG / JPG**, language, theme, and Clear Board. Undo and redo sit with the board; **Cmd/Ctrl+Z** and **Shift+Cmd/Ctrl+Z** work too.
 
-A first-run tutorial (title, where the tools live, that data stays on this computer) is Drawnix’s own — not a second Help.
+A first-run tutorial (title, where the tools live, that data stays on this device) is Drawnix’s own — not a second Help.
 
 ## Zoom, pan, select
 

@@ -15,7 +15,7 @@ app sandbox. **Not** a table tool — that is
 | OSD / other languages | not shipped | — |
 
 The GIF stays small on purpose. English downloads the first time you read a
-page, hash-verified by GifOS, and then lives on the computer. The app has no
+page, hash-verified by GifOS, and then lives on this device. The app has no
 network of its own (`connect-src` is blob/data only, for the wasm hatch).
 
 OSD is not here: orientation-and-script detection is a Legacy-engine feature,

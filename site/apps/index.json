@@ -1482,15 +1482,15 @@
         230
       ],
       "cover": "/apps/drawnix/cover.jpg",
-      "bytes": 2234078,
+      "bytes": 2234094,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-26"
       },
-      "sha256": "a8046142c8066d205f3817309abd47c673a611ebd80bbf7adfb628ad3e5177f4"
+      "sha256": "32fdc7c3b0bd96332f4fa9f7ae243bb39d4d381ab3b276226a868cd054b39ffc"
     },
     {
       "slug": "drawphone",
@@ -1877,7 +1877,7 @@
         120
       ],
       "cover": "/apps/finance/cover.jpg",
-      "bytes": 347087,
+      "bytes": 347089,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1885,7 +1885,7 @@
         "id": "gifos.app",
         "ts": "2026-08-26"
       },
-      "sha256": "fb09eac3142817e1597e839179d0a823a5c4834d1123c8bae00dc2185985b4ee"
+      "sha256": "163f316cc34183e7ade7fb7dca6d6e060b2aba592f70ca1d9200729f3287ade2"
     },
     {
       "slug": "finger-pool",
@@ -4079,7 +4079,7 @@
         255
       ],
       "cover": "/apps/offline-tts-kokoro/cover.jpg",
-      "bytes": 18707460,
+      "bytes": 18537479,
       "download": 163234740,
       "provides": {
         "ai": [
@@ -4089,9 +4089,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-26"
       },
-      "sha256": "a782fb1009875fcfb7ca8bdb10997d93859b75c51255e0a00c01135b4fae2972"
+      "sha256": "7854af6b7284ced26f3f2d1f5193acc192d7343090c2fcca34140d437cd3bd33"
     },
     {
       "slug": "offline-tts-neural",
@@ -4126,7 +4126,7 @@
         76
       ],
       "cover": "/apps/offline-tts-neural/cover.jpg",
-      "bytes": 12530374,
+      "bytes": 12423417,
       "download": 24369971,
       "provides": {
         "ai": [
@@ -4136,9 +4136,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-26"
       },
-      "sha256": "5a37dd3a8523224b4a6455f40dd29ddd060b985090e81030e27a4c4b5b3fe71c"
+      "sha256": "86a25baafc1de31906ba8cbdf2f6b3307d5ffb92ff7b0e98bb0c4d7b7c96c844"
     },
     {
       "slug": "one-stroke",
@@ -6559,15 +6559,15 @@
         48
       ],
       "cover": "/apps/tesseract/cover.jpg",
-      "bytes": 1699679,
+      "bytes": 1699712,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-26"
       },
-      "sha256": "e85bc79c88b6ff54b0e5cdeb344027a5ab3dca25b92fb315e337b4ec22da9fa7"
+      "sha256": "6c5b5080fb8e4d323a15522383c667a3bbfed794a3a59238a262d785622c3cc0"
     },
     {
       "slug": "texgen",
@@ -7386,15 +7386,15 @@
         148
       ],
       "cover": "/apps/vocal-remover/cover.jpg",
-      "bytes": 12582550,
+      "bytes": 12486426,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-26"
       },
-      "sha256": "0456fc4cd0330950bdf986d262fca4e37d537c7b688a4b02d29950455070611c"
+      "sha256": "6c21712c63096417b2a9c3f08cf800433e6887cd18a6c1067298a58083341a2d"
     },
     {
       "slug": "waveforms",
