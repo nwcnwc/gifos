@@ -985,4 +985,11 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+
+  /* The same debug surface the Retirement Calculator exposes, and for the same
+   * reason: tools/shot.js drives this app in a real browser to photograph it,
+   * and a screenshot of an empty app is worth nothing. Seeding through here
+   * means the picture is the REAL screens painting REAL numbers through the
+   * real code path — never a mock-up of what the app might look like. */
+  window.FinanceApp = { state: state, paintAll: paintAll, show: show, applyTheme: applyTheme };
 })();

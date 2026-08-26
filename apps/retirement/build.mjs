@@ -70,6 +70,18 @@ if (!manifest.data || manifest.data.scenarios.visibility !== 'read-write') {
 if (manifest.data.prefs.visibility !== 'private') {
   throw new Error('prefs must be private — a guest keeps their own view');
 }
+/* It TAKES the Financial Tracker's summary and offers nothing back
+ * (docs/app-handoff.md). minBuild stays 947 deliberately: gifos.handoff shipped
+ * in 2087, but every call to it is guarded and an older GifOS simply never sees
+ * the offer. minBuild is the oldest build the app WORKS on, not the newest
+ * feature it can use — claiming 2087 would refuse the install to computers the
+ * calculator runs on perfectly. */
+if (!manifest.handoff || (manifest.handoff.takes || []).indexOf('finance.plan') < 0) {
+  throw new Error('manifest must declare handoff.takes ["finance.plan"]');
+}
+if (manifest.handoff.offers) {
+  throw new Error('the calculator consumes a plan summary; it does not produce one');
+}
 
 // ---- the listing is a promise to the reader ---------------------------------
 

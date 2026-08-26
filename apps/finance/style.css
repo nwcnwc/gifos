@@ -26,6 +26,12 @@ html[data-theme="light"] {
 }
 
 * { box-sizing: border-box; }
+/* THE hidden ATTRIBUTE HAS TO WIN.
+ * `[hidden] { display: none }` is a user-agent rule and loses to any class
+ * that sets display — so `.modal { display: flex }` and `.view { display:
+ * block }` both painted while carrying `hidden`. Every tab was drawn at once
+ * under a full-screen dim, which is exactly what the first cover shot caught. */
+[hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; }
 body {
   background: var(--bg); color: var(--ink);
@@ -66,7 +72,8 @@ i { font-style: italic; }
 }
 #tabs::-webkit-scrollbar { display: none; }
 #tabs button {
-  flex: 0 0 auto; background: none; border: 0; border-bottom: 2px solid transparent;
+  flex: 0 0 auto; background: none; border: 0; border-radius: 0;
+  border-bottom: 2px solid transparent;
   color: var(--dim); font: inherit; font-weight: 600; padding: .65rem .8rem; cursor: pointer;
 }
 #tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
