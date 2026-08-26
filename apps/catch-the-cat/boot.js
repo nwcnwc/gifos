@@ -142,19 +142,25 @@
       // Your own cat finishing does NOT finish your round: the walls you keep
       // laying are what pens everyone else's. Only the room's verdict stops
       // the board, and that arrives through onResult.
-      if (res.state === 'caught') setStatus('Your cat is penned. Keep walling for the others.', 'win');
-      else if (res.state === 'gone') setStatus('Your cat reached the rim.', 'lose');
+      if (res.state === 'caught') {
+        announce(function () { GifCat.view.celebrate(GifCat.rules.myCat(), GifCat.rules.pen()); });
+        setStatus('Your cat is penned. Keep walling for the others.', 'win');
+      } else if (res.state === 'gone') setStatus('Your cat reached the rim.', 'lose');
       else setStatus('Tap the dots. Wall the cats in.');
       return;
     }
     if (res.state === 'caught') {
       stopTaps();
       announce(function () {
-        // Solo, the round IS over the moment your cat is penned, so the pen
-        // shuts here. In a race it waits for the room's verdict — a board that
-        // celebrated before the others had finished would be celebrating a
-        // round you might not have won.
-        if (!racing) GifCat.view.celebrate(GifCat.rules.myCat(), GifCat.rules.pen());
+        // THE PEN SHUTS ON YOUR OWN BOARD, in every mode. It was gated on solo
+        // at first, on the reasoning that a race should wait for the room's
+        // verdict — but the red is a statement about YOUR cat, not about the
+        // round, and gating it meant the commonest case of all never saw it: a
+        // player alone in a room is 'racing' as far as net.js is concerned, and
+        // a round with one player in it never scores, so the verdict that would
+        // have shut the pen never came. The round result still waits; it has
+        // its own words.
+        GifCat.view.celebrate(GifCat.rules.myCat(), GifCat.rules.pen());
         setStatus('The cat is walled in — ' + taps(res.clicks) + '.' + (racing ? ' Waiting on the others.' : ''), 'win');
         if (!racing) { flash('Walled in — ' + taps(res.clicks) + '.', 'win'); armAgain(true); }
       });
