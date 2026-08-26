@@ -40,14 +40,26 @@ check('an unknown verdict shape is refused, not treated as fine', (() => {
 
 check('a SIGNED app may charge, and the human is shown the verified IDENTITY', (() => {
   const e = C.eligibility(VALID, manifest());
-  return e.allowed === true && e.identity.id === 'nathan.example.com' && e.identity.verified === true && e.payee.to === PAYEE;
+  return e.allowed === true && e.identity.id === 'nathan.example.com' && e.identity.verified === true
+    && e.payee.to === PAYEE && e.paypal === 'payments@nathan.example.com';
 })());
 
-// ---- the payee comes out of the signed manifest -----------------------------
-check('no manifest.pay block => cannot be paid', (() => {
+// ---- the payee: chain from the signed manifest, fiat DERIVED ----------------
+// THE PAYEE RULE (docs/payments.md, 2026-08-25): manifest.pay is optional now —
+// an app with no block still sells on the PayPal rail, paid to its SIGNING
+// IDENTITY. What must never happen is a malformed block passing as "no rail".
+check('no manifest.pay block => fiat rail only, derived from the identity', (() => {
   const e = C.eligibility(VALID, { appId: 'x' });
-  return e.allowed === false && /declares no payee/.test(e.reason);
+  return e.allowed === true && e.payee === null && e.paypal === 'payments@nathan.example.com';
 })());
+check('a DOMAIN identity derives payments@<domain>',
+  C.paypalPayeeOf({ verified: true, type: 'domain', id: 'gifos.app' }) === 'payments@gifos.app');
+check('an EMAIL identity derives the email itself',
+  C.paypalPayeeOf({ verified: true, type: 'email', id: 'author@example.com' }) === 'author@example.com');
+check('an UNVERIFIED identity derives NOTHING — that would pay whoever forged it',
+  refuses(() => C.paypalPayeeOf({ verified: false, type: 'email', id: 'a@b.co' }), /VERIFIED signing identity only/));
+check('an unknown identity type derives nothing',
+  refuses(() => C.paypalPayeeOf({ verified: true, type: 'hex', id: 'deadbeef' }), /unknown signing identity type/));
 check('a non-address payee is refused', (() => {
   const e = C.eligibility(VALID, manifest({ pay: { to: 'nathan@example.com' } }));
   return e.allowed === false && /not an address/.test(e.reason);
@@ -94,9 +106,19 @@ check('the sheet shows identity, amount, reason and what it unlocks',
   s.payingTo === 'nathan.example.com' && s.verified === true && s.amount === '2000000'
   && s.reason === 'Unlock the full app' && s.unlocks === true && s.chain === 'Base Sepolia',
   [s.payingTo, s.amount, s.chain].join(' / '));
+check('the sheet carries BOTH rails: derived PayPal payee and the signed chain address',
+  s.rails.paypal === 'payments@nathan.example.com' && s.rails.x402.address === PAYEE);
+check('a fiat-only app\'s sheet offers NO chain rail (never a rail with a null payee)',
+  (() => { const e2 = C.eligibility(VALID, { appId: 'x' }); const s2 = C.sheet(e2, ok, 'X');
+           return s2.rails.x402 === null && s2.rails.paypal === 'payments@nathan.example.com'; })());
 
 const r = C.receipt(s, '0xabc', 1786000000001);
 check('the receipt records payee identity, sku and tx', r.ok && r.payeeId === 'nathan.example.com' && r.sku === 'pro' && r.tx === '0xabc');
+check('an x402 receipt names the chain and the address', r.rail === 'x402' && r.chain === 'eip155:84532' && r.payee === PAYEE);
+check('a PAYPAL receipt names the rail and the derived payee, and no chain', (() => {
+  const rp = C.receipt(s, 'PAYID-1', 1786000000002, 'paypal');
+  return rp.rail === 'paypal' && rp.chain === null && rp.payee === 'payments@nathan.example.com';
+})());
 
 check('a decline is a named, normal outcome', C.DECLINED === 'DECLINED_BY_USER');
 
