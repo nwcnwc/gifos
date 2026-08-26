@@ -2654,6 +2654,7 @@
   const AUTH_TYPES = [
     { v: 'bearer', label: 'Bearer  (Authorization: Bearer …)' },
     { v: 'token', label: 'Token  (Authorization: Token …) — Deepgram' },
+    { v: 'basic', label: 'Basic  (Authorization: Basic …) — SimpleFIN' },
     { v: 'header', label: 'Custom header  (e.g. x-api-key)' },
     { v: 'query', label: 'Query parameter  (?apikey=…)' },
   ];
@@ -2699,6 +2700,11 @@
     // (runtime.js deepgramListenWS) — no CORS proxy — so when the REST base
     // won't answer a browser, Test must probe the WS door, not the proxy.
     deepgram: { auth: 'token', ws: '/v1/listen' },
+    // SimpleFIN. No fixed url: the base IS the user's own claimed access URL,
+    // which differs per user and may be a self-hosted server. probePath is
+    // /accounts?balances-only=1 — the cheapest call that proves host and
+    // credential together without pulling a year of transactions.
+    simplefin: { auth: 'basic', only: true, probePath: '/accounts?balances-only=1' },
     maptiler: { auth: 'query', authName: 'key', only: true, probePath: '/tiles/satellite-v2/tiles.json' },
   };
   function knownShape(name) { return KNOWN_API_SHAPES[String(name || '').toLowerCase()] || null; }
@@ -2720,6 +2726,7 @@
     if (key) {
       if (at === 'bearer') headers.Authorization = 'Bearer ' + key;
       else if (at === 'token') headers.Authorization = 'Token ' + key;
+      else if (at === 'basic') headers.Authorization = 'Basic ' + btoa(key);
       else if (at === 'header' && an) headers[an] = key;
       else if (at === 'query' && an) u.searchParams.set(an, key);
     }
@@ -2778,8 +2785,24 @@
 
     const setSt = (st, msg, cls) => { st.textContent = msg; st.className = 'ai-status api-status' + (cls ? ' ' + cls : ''); };
 
+    // CREDENTIALS IN THE URL. SimpleFIN's access URL is one string with the
+    // username and password embedded — https://<user>:<pass>@host/… — and that
+    // is exactly what the user is given to paste. A browser fetch() REJECTS a
+    // URL carrying credentials (TypeError, before any request goes out), so it
+    // has to be split. Doing it here means the user pastes the one thing they
+    // were handed into the one box, instead of being told to perform surgery
+    // on it; anything with an embedded credential is handled, not just
+    // SimpleFIN, because the browser's refusal is not SimpleFIN-specific.
+    const splitCreds = (c) => {
+      let u; try { u = new URL(c.url); } catch (e) { return c; }
+      if (!u.username) return c;
+      const key = decodeURIComponent(u.username) + ':' + decodeURIComponent(u.password || '');
+      u.username = ''; u.password = '';
+      return Object.assign({}, c, { url: u.toString().replace(/\/+$/, ''), key: key, authType: 'basic' });
+    };
+
     async function testAndSave(row, st) {
-      const c = readRow(row);
+      const c = splitCreds(readRow(row));
       if (!c.name) return setSt(st, 'give it a short name', 'bad');
       if (!c.url) return setSt(st, 'add the base URL', 'bad');
       if (!c.key) return setSt(st, 'paste your API key', 'bad');
