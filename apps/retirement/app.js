@@ -49,6 +49,10 @@
       fees: 0.001,
       strategy: 'constant',
       percentRate: 0.04,
+      // OFF by default. A plan that quietly assumes you will want less as you
+      // age is flattering itself; flat is the conservative assumption and the
+      // reader should be the one who decides to leave it.
+      smile: false,
       // The average US retired worker's benefit in 2026 is $2,071 a month.
       // Leaving it out entirely makes the savings required look absurd, so it
       // is here, named, and one tap from being deleted by anyone it does not
@@ -119,6 +123,7 @@
       ? { to: clamp(num($('fGlideTo').value, 40) / 100, 0, 1), byAge: clamp(Math.round(num($('fGlideBy').value, 70)), p.currentAge + 1, 110) }
       : null;
     p.percentRate = clamp(num($('fRate').value, 40) / 1000, 0.005, 0.15);
+    p.smile = $('fSmile').checked;
     p.target = clamp(num($('fTarget').value, 95) / 100, 0.5, 1);
     return p;
   }
@@ -142,6 +147,7 @@
       $('fGlideBy').value = p.glidepath.byAge;
     }
     $('fRate').value = Math.round(p.percentRate * 1000);
+    $('fSmile').checked = !!p.smile;
     $('fTarget').value = Math.round(p.target * 100);
     renderStrategyPicker();
     renderModePicker();
@@ -179,10 +185,18 @@
       : 'none';
 
     var st = S.STRATEGIES[p.strategy] || S.STRATEGIES.constant;
-    $('sumStrategy').textContent = st.label;
+    $('sumStrategy').textContent = st.label + (p.smile ? ' · easing off with age' : '');
     $('hintStrategy').textContent = st.blurb;
     var needsRate = p.strategy === 'percent' || p.strategy === 'dynamic';
     $('rateRow').hidden = !needsRate;
+    $('hintSmile').textContent = p.smile
+      ? 'Real spending drifts down through your sixties and seventies, bottoms out around 79, '
+        + 'and turns back up late as health costs arrive — the shape David Blanchett found in '
+        + 'household data and called the retirement spending smile. It is an approximation of a '
+        + 'published curve, and it makes the plan look better, so it is off unless you ask.'
+      : 'Most plans assume you spend the same, in real terms, at 90 as at 65. Households mostly '
+        + 'do not: spending drifts down through the seventies and turns back up late. Ticking '
+        + 'this uses that shape instead of a flat line.';
 
     $('sumTest').textContent = (p.mode === 'bootstrap' ? 'History reshuffled' : 'Real history')
       + ' · safe at ' + Math.round(p.target * 100) + '%';
@@ -1523,6 +1537,7 @@
       dragBind($(id));
     });
     $('fGlideBy').addEventListener('input', touched);
+    $('fSmile').addEventListener('change', touched);
     $('fGlide').addEventListener('change', function () {
       $('glideRow').hidden = !$('fGlide').checked;
       touched();
