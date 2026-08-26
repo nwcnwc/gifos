@@ -6859,6 +6859,44 @@
       "sha256": "905a5d73626398b18cf048fc6a8acb226d36df6f6d155bbb19539c9b088739d6"
     },
     {
+      "slug": "tip-creators",
+      "appId": "tip-creators",
+      "name": "Tip GifOS Creators",
+      "shortName": "Tip",
+      "version": "1.0",
+      "tagline": "Like GifOS? Buy the people who make it a coffee.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-25",
+      "updated": "2026-08-25",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "tip",
+        "support",
+        "donate",
+        "thanks",
+        "paypal",
+        "usdc"
+      ],
+      "accent": [
+        255,
+        196,
+        57
+      ],
+      "cover": "/apps/tip-creators/cover.jpg",
+      "bytes": 183979,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "b4478d2b626b767bd592e1eccf2565d79f6fbf7a91f53797e9ee2314ca65041b"
+    },
+    {
       "slug": "tosios",
       "appId": "tosios",
       "name": "TOSIOS",

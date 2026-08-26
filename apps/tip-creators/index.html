@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tip GifOS Creators</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <div class="coin" aria-hidden="true">♥</div>
+  <h1>Tip GifOS Creators</h1>
+  <p class="lead">GifOS is free, has no ads, and asks for no account.
+  If it's been useful to you, this is the tip jar.</p>
+
+  <div class="amounts" id="amounts">
+    <button class="amt" data-usd="3">$3</button>
+    <button class="amt" data-usd="5">$5</button>
+    <button class="amt sel" data-usd="10">$10</button>
+    <button class="amt" data-usd="25">$25</button>
+  </div>
+  <div class="custom">
+    <label for="custom-usd">or your own amount</label>
+    <div class="custom-row">
+      <span class="dollar">$</span>
+      <input id="custom-usd" type="number" min="3" step="1" placeholder="3 or more" inputmode="numeric">
+    </div>
+  </div>
+
+  <button id="send" class="send">Send a $10 tip</button>
+  <p class="note" id="note">You'll approve the payment on the next screen — it names
+  who receives it, and you can still change the amount or say no there.</p>
+
+  <div id="thanks" class="thanks" hidden>
+    <h2>Thank you! 💛</h2>
+    <p id="thanks-line"></p>
+    <button id="again" class="ghost">Tip again</button>
+  </div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

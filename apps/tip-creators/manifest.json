@@ -1,0 +1,14 @@
+{
+  "gifos": "1.0",
+  "appId": "tip-creators",
+  "name": "Tip GifOS Creators",
+  "shortName": "Tip",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Say thanks with a few dollars. Every payment shows you exactly who gets it before anything is charged.",
+  "entry": "index.html",
+  "accent": [255, 196, 57],
+  "capabilities": {
+    "pay": true
+  }
+}
