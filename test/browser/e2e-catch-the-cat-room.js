@@ -167,6 +167,36 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('a race board is private — your wall is not on my board',
     !(await B().evaluate(([i, j]) => window.GifCat.rules.isWall(i, j), free)), free);
 
+  // ------------------------------------ your pen shuts on your own board
+  //
+  // The red ring is a statement about YOUR cat, not about the round, so it must
+  // not wait for the room. It was gated on solo once, and the commonest case of
+  // all never saw it: a player alone in a room is 'racing' as far as net.js is
+  // concerned, and a one-player round never scores — so the verdict that would
+  // have shut the pen never came, and the walls stayed green forever.
+  {
+    const penned = await A().evaluate(() => {
+      const R = window.GifCat.rules, E = window.GifCat.engine;
+      const me = R.myCat();
+      const nbs = E.neighbours(me.i, me.j).filter((n) => E.inside(n.i, n.j));
+      const last = nbs.find((n) => !R.isWall(n.i, n.j));
+      nbs.forEach((n) => { if (n !== last) E.setWall(n.i, n.j, true); });
+      const h = document.querySelector('.cell .hit[data-i="' + last.i + '"][data-j="' + last.j + '"]');
+      h.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, clientX: 5, clientY: 5 }));
+      document.getElementById('stage').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, clientX: 5, clientY: 5 }));
+      return R.state();
+    });
+    await sleep(900);
+    check('a race pens your cat on your own board', penned === 'caught', { penned });
+    const ring = await A().evaluate(() => document.querySelectorAll('.cell.wall.pen').length);
+    check('...and the ring goes red without waiting for the room', ring === 6, { redStones: ring });
+    check('...while the other player, still chasing, sees no red at all',
+      await B().evaluate(() => !document.getElementById('plate').classList.contains('penned')));
+    // Everyone back to a live board for the co-op half.
+    await A().evaluate(() => window.CTCNet.startRound(0x77, 'race'));
+    await sleep(900);
+  }
+
   // ------------------------------------------------------------------ co-op
   await A().evaluate(() => window.CTCNet.startRound(0x5eed, 'coop'));
   await sleep(900);
