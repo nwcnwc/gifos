@@ -30,10 +30,10 @@
   // sandbox (runtime.js SYSTEM_PAGES). They wear a SYSTEM badge, and the value
   // here is the tooltip explaining what extra power that page holds.
   const SYSTEM_LAUNCHERS = {
-    meet: 'Built into GifOS — it may use your camera and microphone. Apps you install never can.',
-    video: 'Built into GifOS — it may use your camera and microphone. Apps you install never can.',
-    broadcast: 'Built into GifOS — it may use your camera and microphone. Apps you install never can.',
-    appstore: 'Built into GifOS — it may put new apps on your Home Screen. Apps you install never can.',
+    meet: 'Built into GifOS — it may use your camera and microphone. Apps you install cannot.',
+    video: 'Built into GifOS — it may use your camera and microphone. Apps you install cannot.',
+    broadcast: 'Built into GifOS — it may use your camera and microphone. Apps you install cannot.',
+    appstore: 'Built into GifOS — it may put new apps on your Home Screen. Apps you install cannot.',
   };
 
   let latestVersion = VERSION;      // version.json.current — the LIVE release everyone gets
@@ -2738,7 +2738,7 @@
     const cfg = apiCfgAll();
     const rows = Object.keys(cfg).map((n, i) => apiRowHtml(i, n, cfg[n])).join('');
     return '<details class="adv"><summary>Third-party APIs</summary>' +
-      '<p class="add-help">Beyond OpenAI-shaped models, wire up <b>any keyed API</b> — Deepgram, a trading API, whatever. Give it a short <b>name</b>, its base URL, how it authenticates, and your key, then hit <b>Test &amp; save</b>. GifOS tries the call <b>directly</b> first. Deepgram needs no proxy at all — GifOS speaks its WebSocket protocol natively, so your key goes straight to Deepgram. For other sites that block browser calls (most brokerages), it retries through a stateless CORS proxy (<span class="mono">' + escapeHtml(API_PROXY_DEFAULT) + '</span>) and remembers that. Honesty note: requests routed that way <b>pass through that proxy in flight</b> — it stores and logs nothing, but if you’d rather nothing of yours transit GifOS infrastructure, put your own proxy URL under Advanced (the one-file Worker is in the repo, <span class="mono">cors-proxy/</span>). It only saves if a test succeeds. Your key only ever travels toward that API’s own host (directly or via the proxy you chose), never to the app, and stays out of a shared backup.</p>' +
+      '<p class="add-help">Beyond OpenAI-shaped models, wire up <b>any keyed API</b> — Deepgram, a trading API, whatever. Give it a short <b>name</b>, its base URL, how it authenticates, and your key, then hit <b>Test &amp; save</b>. GifOS tries the call <b>directly</b> first. Deepgram needs no proxy at all — GifOS speaks its WebSocket protocol natively, so your key goes straight to Deepgram. For other sites that block browser calls (most brokerages), it retries through a stateless CORS proxy (<span class="mono">' + escapeHtml(API_PROXY_DEFAULT) + '</span>) and remembers that. Honesty note: requests routed that way <b>pass through that proxy in flight</b> — it stores and logs nothing, but if you’d rather nothing of yours transit GifOS infrastructure, put your own proxy URL under Advanced (the one-file Worker is in the repo, <span class="mono">cors-proxy/</span>). It only saves if a test succeeds. Your key travels only toward that API’s own host (directly or via the proxy you chose), not to the app, and stays out of a shared backup.</p>' +
       '<div class="api-rows">' + rows + '</div>' +
       '<button class="widebtn" id="api-add">＋ Add a third-party API</button>' +
       '</details>';
@@ -3220,7 +3220,7 @@
           '<span class="vspacer"></span>' +
           '<button class="vbtn' + (onEdge && !newerEdge ? ' ghost' : '') + '" id="set-edge">' + edgeLabel + '</button>' +
         '</summary>' +
-        '<div class="vnotes"><p class="add-help">The unreleased build at the site root, ahead of every release. It carries a build number that bumps on every change; you can always jump to the latest, but edge builds aren’t archived — you can’t pin or roll back to a specific one.</p></div>' +
+        '<div class="vnotes"><p class="add-help">The unreleased build at the site root, ahead of every release. It carries a build number that bumps on every change; you can jump to the latest, but edge builds aren’t archived — you can’t pin or roll back to a specific one.</p></div>' +
       '</details>';
 
     // ---- RELEASE rows: newest first, each with its release notes FOLDED behind

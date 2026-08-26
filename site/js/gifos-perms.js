@@ -62,16 +62,16 @@
   var CAP_DESC = {
     wasm: 'Lets the app run a compiled (WebAssembly) engine — like a chess engine or a codec — in a background worker on your device, so it can do heavy computation fast without freezing. It still cannot reach the internet: the engine runs entirely offline, sealed inside this app.',
     gpu: 'Lets the app run computations on your device’s graphics chip (GPU) via WebGPU — for fast on-device AI, image, or physics work. It still cannot reach the internet: the GPU has no network path, and everything runs offline, sealed inside this app.',
-    microphone: 'Lets the app record short audio clips — only when you tap to record, with a recorder shown the whole time. It gets the finished clip, never a live microphone feed.',
-    camera: 'Lets the app take a photo or short video — only when you tap, with an indicator shown while it happens. It gets the finished shot, never a live camera feed.',
+    microphone: 'Lets the app record short audio clips — only when you tap to record, with a recorder shown the whole time. It gets the finished clip, not a live microphone feed.',
+    camera: 'Lets the app take a photo or short video — only when you tap, with an indicator shown while it happens. It gets the finished shot, not a live camera feed.',
     motion: 'Lets the app read how you tilt and move your device (for tilt games, levels, and the like). It cannot see your camera or your location.',
-    pointer: 'Lets the app hide the cursor and read your mouse as movement — how far you moved, not where you are — the way a first-person game aims. You start it by clicking, and pressing <b>Esc</b> always gives the pointer straight back. It reads no keystrokes outside the app, and gains no way to reach the internet.',
+    pointer: 'Lets the app hide the cursor and read your mouse as movement — how far you moved, not where you are — the way a first-person game aims. You start it by clicking, and pressing <b>Esc</b> gives the pointer straight back. It reads no keystrokes outside the app, and gains no way to reach the internet.',
     fullscreen: 'Lets the app take the whole screen while you play, and — on a phone — keep the picture landscape so a first-person game is not squeezed into a strip. You start it by tapping, and it always ends the way your device already ends fullscreen: <b>Esc</b>, Back, or the swipe down from the edge. Letting go of the screen lets go of the rotation with it. It still sees only its own window — never the rest of your screen, your other apps, or the internet.',
-    ai: 'Lets the app use an AI model you set up in Settings: it sends text and gets an answer back. Your API key stays in this browser — the app never sees it. A role assigned to a Provider app is answered entirely on this device.',
-    api: 'Lets the app use one of your own accounts you set up in Settings. GifOS attaches your key and sends the request only to that service — the app never sees the key.',
+    ai: 'Lets the app use an AI model you set up in Settings: it sends text and gets an answer back. Your API key stays in this browser — the app does not see it. A role assigned to a Provider app is answered entirely on this device.',
+    api: 'Lets the app use one of your own accounts you set up in Settings. GifOS attaches your key and sends the request only to that service — the app does not see the key.',
     pool: 'When you are in a room with other people, this app shares what it downloads from the sites below with them, and uses what they downloaded instead of fetching it again. It is how ten people in one place cost a donated map server one download instead of ten. Two things to know: the others learn WHICH addresses you fetched (in a shared world that is where everyone already is, but it is not nothing), and what arrives comes from them rather than from the site — this app treats it as data, not as instructions. Your keyed accounts are never pooled.',
     pay: 'Lets the app ask you to pay for something — an unlock, an item, a tip. Every payment shows you a GifOS sheet first: the amount, what it is for, and the app’s <b>verified author</b> — and nothing is charged unless you approve it there. The money goes to the author (GifOS keeps 3%); the app never sees your card, wallet, or balance. Only signed, verified apps can charge at all.',
-    agent: 'Adds a GifOS assistant bar that can read and click/type on <b>this app’s screen</b> for you (driven by your Smartest AI). It only ever touches this one app — never GifOS or your other apps — and never sees your key. You start it, and can stop it any time.'
+    agent: 'Adds a GifOS assistant bar that can read and click/type on <b>this app’s screen</b> for you (driven by your Smartest AI). It touches this one app only — not GifOS, not your other apps — and does not see your key. You start it, and can stop it any time.'
   };
   // App -> app handoff (manifest "handoff", docs/app-handoff.md). MIRRORS
   // HANDOFF_KINDS in runtime.js — the runtime is where these are enforced;
@@ -83,7 +83,7 @@
     'finance.plan': {
       offers: 'Hand your other apps a retirement plan summary',
       takes: 'Pick up a retirement plan summary from your other apps',
-      desc: 'Your age, what you are worth, what you put away and what you spend — the numbers a retirement calculator asks for. No account numbers, no institution names, and none of your transactions. It never leaves this device, and you are shown the whole summary and asked, every single time.'
+      desc: 'Your age, what you are worth, what you put away and what you spend — the numbers a retirement calculator asks for. No account numbers, no institution names, and none of your transactions. It stays on this device, and you are shown the whole summary and asked, every single time.'
     }
   };
   function handoffKinds(manifest, dir) {
@@ -295,7 +295,7 @@
           : escapeText(appName) + ' would like to…';
         bg.innerHTML = '<div class="perm-box"><h3>' + title + '</h3>' +
           launchBlock + capBlock() + handoffBlock() + netBlock +
-          '<p class="foot">You’re in control. It only ever gets the <b>result</b> — a clip, a photo, an answer — never your live camera, microphone, or keys. You can change this later from the app’s Abilities chip.</p>' +
+          '<p class="foot">You’re in control. It gets the <b>result</b> only — a clip, a photo, an answer — not your live camera, microphone, or keys. You can change this later from the app’s Abilities chip.</p>' +
           buttons + '</div>';
         doc.body.appendChild(bg);
         bg.addEventListener('change', function (ev) {
@@ -392,7 +392,7 @@
             + '.</span></span></div>';
         }).join('');
         bg.innerHTML = '<div class="perm-box"><h3>' + escapeText(appName) + ' needs setup to run</h3>' +
-          '<p class="lead">This app can’t do its job until you set the following up. Your keys stay in this browser — the app never sees them.</p>' +
+          '<p class="lead">This app can’t do its job until you set the following up. Your keys stay in this browser — the app does not see them.</p>' +
           rows +
           '<div class="perm-btns"><button class="ghost" id="req-leave">Close</button><button class="done" id="req-recheck">I’ve set it up</button></div></div>';
         doc.body.appendChild(bg);
