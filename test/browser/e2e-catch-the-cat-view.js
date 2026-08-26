@@ -218,6 +218,33 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       { before: before.v, after: after.v });
     check('...and a drag is never a move', after.c === before.c, [before.c, after.c]);
 
+    // THE BOARD TURNS UNDER THE FINGER. Stated as what a finger can see, not
+    // as a sign on a variable: put the pointer on a hex and drag, and THAT HEX
+    // must go the way the finger went. The two halves of a tilted board move
+    // opposite ways under any turn, so a fixed sign is right for one half and
+    // backwards for the other — this asks both.
+    for (const [half, j] of [['near', 9], ['far', 1]]) {
+      await page.click('#recenter');
+      await sleep(600);
+      const grab = await hexPoint(5, j);
+      const drag = async (ddx, ddy) => {
+        const was = await hexPoint(5, j);
+        await page.mouse.move(grab.x, grab.y);
+        await page.mouse.down();
+        for (let n = 1; n <= 10; n++) { await page.mouse.move(grab.x + ddx * n / 10, grab.y + ddy * n / 10); await sleep(10); }
+        await page.mouse.up();
+        await sleep(80);
+        const now = await hexPoint(5, j);
+        return { dx: now.x - was.x, dy: now.y - was.y };
+      };
+      const right = await drag(70, 0);
+      check('a ' + half + ' hex pushed RIGHT goes right', right.dx > 8, { half, moved: right });
+      await page.click('#recenter');
+      await sleep(600);
+      const down = await drag(0, 60);
+      check('a ' + half + ' hex pulled DOWN comes down', down.dy > 6, { half, moved: down });
+    }
+
     const spot = await freeHex();
     const pt = await hexPoint(spot[0], spot[1]);
     await page.mouse.click(pt.x, pt.y);
@@ -267,8 +294,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       await new Promise((r) => setTimeout(r, 80));
       return { flat, turned: readAll(), home: home, spin: V.state().spin };
     });
+    // Either way round: which way a drag turns the board depends on which half
+    // of it the finger landed on, and this drag starts at the centre. The claim
+    // is a QUARTER TURN, not a direction — the direction has its own checks.
     const turnedBy = (((facing.spin - facing.home) % 360) + 360) % 360;
-    check('the drag turned the board about a quarter turn', Math.abs(turnedBy - 90) < 25,
+    check('the drag turned the board about a quarter turn',
+      Math.abs(turnedBy - 90) < 25 || Math.abs(turnedBy - 270) < 25,
       { home: facing.home, spin: facing.spin, turnedBy });
     // The stage here is wide, so the home view is unturned — asserted, not
     // assumed, because a conditional version of the next check would be a
