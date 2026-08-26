@@ -3114,10 +3114,10 @@ the Abilities sheet — a tip to us does not reach into another author's revenue
 - Receipts are deliberately **bearer** artifacts: sharing one shares the
   license. For a tip that means a shared receipt turns the strip off for someone
   who did not tip. Probably fine at this stake; state it rather than discover it.
-- `apps/tip-creators/listing.json` and `help.md` currently say *"There is no
-  subscription hiding in here, nothing to unlock, and the app is exactly the
-  same before and after you tip."* If a tip removes the strip, that copy needs
-  rewriting, and the GIF rebuilt and re-signed with it.
+- The tip app's "nothing to unlock" copy was removed on 2026-08-26, so the
+  listing no longer rules this out. What it says instead is that a tip is a
+  one-off with no subscription — which stays true if a tip turns the strip off.
+  Whatever a tip does end up doing has to be said there plainly.
 
 ### The app slot: a declared Ability, fetched through the broker
 

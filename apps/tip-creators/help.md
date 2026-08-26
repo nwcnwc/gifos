@@ -27,8 +27,8 @@ Nothing. It keeps no history, no total, no name. When a tip goes through it
 says thank you, and when you close it, it has forgotten you were here. If you
 tip twice, it does not know about the first time.
 
-There is nothing to unlock: GifOS is the same before and after you tip, and
-so is this app.
+A tip is a one-off. There is no subscription here, and nothing signs you up
+for anything.
 
 ## Why every payment looks like this
 

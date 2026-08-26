@@ -7,7 +7,7 @@
   "version": "1.0",
   "minBuild": 947,
   "tagline": "Like GifOS? Buy the people who make it a coffee.",
-  "description": "GifOS is free and asks for no account. If it has been useful to you, this is the tip jar.\n\nPick an amount — three dollars or more, or type your own — and pay with PayPal or with USDC. Before anything is charged, your computer shows you the amount and exactly who receives it, and nothing happens unless you approve it there. You can change the amount on that screen too.\n\nThe money goes to the people who build GifOS. There is no subscription hiding in here, nothing to unlock, and the app is exactly the same before and after you tip. It remembers nothing about you: no history, no account, no tracking.\n\nEvery app that takes money on GifOS works the way this one does — the payment screen is your computer's, not the app's, and it names the verified author being paid. If you want to see what that feels like before buying something in another app, a three dollar tip here is the tour.",
+  "description": "GifOS is free and asks for no account. If it has been useful to you, this is the tip jar.\n\nPick an amount — three dollars or more, or type your own — and pay with PayPal or with USDC. Before anything is charged, your computer shows you the amount and exactly who receives it, and nothing happens unless you approve it there. You can change the amount on that screen too.\n\nThe money goes to the people who build GifOS. A tip is a one-off — there is no subscription here, and you are not signing up for anything. It remembers nothing about you: no history, no account, no tracking.\n\nEvery app that takes money on GifOS works the way this one does — the payment screen is your computer's, not the app's, and it names the verified author being paid. If you want to see what that feels like before buying something in another app, a three dollar tip here is the tour.",
   "author": {
     "name": "GifOS",
     "url": "https://gifos.app"
@@ -39,13 +39,13 @@
   "cover": "/apps/tip-creators/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tip-creators/tip-creators.gif",
-  "bytes": 184228,
+  "bytes": 184214,
   "download": 0,
   "provides": null,
   "pay": {
     "to": "0x1111111111111111111111111111111111111111"
   },
-  "sha256": "a0cfa00cfbf366d5ef2122971196cef8c021098ee510bd78d0ae1133bf024623",
+  "sha256": "a0fc040110b60322afe273244b4b06fe9176fa440b53a0e0bc6288ed40b4b284",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
