@@ -2667,6 +2667,13 @@ wasm chunks, or they take the small GPU segment, and the host's own ladder
 
 ## 17. Shared CORS proxy: keyed-traffic refusal (staged)
 
+> **Reframed 2026-08-25 by §20 (personal private infrastructure).** The
+> self-hosted proxy this section treats as an advanced escape hatch is now the
+> intended destination. Stage 3's wall — "refusing keyed traffic strands the
+> user" — mostly dissolves once a personal proxy is the default wiring. The
+> staging below is still the right order; §20 is what makes the last stage
+> cheap.
+
 **The problem.** `cors-proxy.gifos.app` is the one place a user's API key and
 request plaintext can transit GifOS-operated infrastructure in readable form.
 The relay is zero-knowledge; the proxy is not. It stores and logs nothing, but
@@ -2845,3 +2852,148 @@ full A/V under the meeting's rules, unchanged.
 right key for an app room's E2E re-key; what "owner-away freezes" means for a
 call in an owned room.
 
+
+## 20. Personal private infrastructure: your proxy, your relay
+
+Ratified 2026-08-25 (Nathan). Supersedes the "self-hosted proxy is the
+advanced escape hatch" framing in §17 — the escape hatch becomes the
+**intended destination**.
+
+**What.** Every user gets, or deploys, their **own** single-tenant edge
+worker that does two jobs GifOS currently does centrally:
+
+1. **CORS proxy** — what `cors-proxy.gifos.app` does now (§17), but yours.
+   No shared allow-list to petition, no keyed-traffic refusal to stage,
+   and no "trust us, we log nothing" — because there is no us in the path.
+2. **Fallback media relay / TURN** — the paid-assist path §5b and §5b-1
+   describe, and the always-on relay §1 REJECTED as a free default. As
+   personal infrastructure it stops being a GifOS-operated product with a
+   billing story and becomes a thing you own, which is why it can be
+   default-on without violating the meeting footer's promise.
+
+**Why it fits, and why it changes the shape of three other items.** The two
+non-negotiables at the top of this file are *no accounts* and *no server that
+sees plaintext*. A shared proxy has always sat awkwardly against the second:
+§17 exists entirely to shrink what it may carry. Personal infrastructure
+dissolves the problem instead of shrinking it — a server you own seeing your
+own plaintext is not a trust boundary at all. Consequences:
+
+- **§17 Stage 3 (the refusal) gets much cheaper.** Refusing keyed traffic on
+  the shared proxy is a wall only while the shared proxy is the sole option.
+  With a personal proxy as the default wiring, the shared one can retreat to
+  keyless public-data hosts without stranding anyone.
+- **§1 can be revisited.** "No GifOS-operated media relay on free Meet" stays
+  true; a *personal* relay is not GifOS-operated.
+- **§5b/§5b-1 become the fallback for people who will not deploy anything,**
+  rather than the only answer.
+- **Arbitrary hosts become reachable.** The shared allow-list is the reason a
+  self-hosted SimpleFIN server, a small bank's API, or any long-tail host is
+  currently unreachable. A personal proxy has an allow-list of one user's
+  choosing. §21 depends on this.
+
+**Sketch.** The one-file Worker in `cors-proxy/` is already the artifact; what
+is missing is everything around it.
+
+- **Deployment that a non-programmer completes.** A "Deploy to Cloudflare"
+  button is the obvious candidate (free tier covers a household's traffic by
+  orders of magnitude). The output the user brings back is one URL.
+- **One place to put that URL.** Today it is per-API under Settings →
+  Third-party APIs → Advanced, plus `window.GIFOS_CORS_PROXY` for a
+  self-hosted GifOS. It needs to become a single computer-wide setting —
+  "your proxy" — that every proxied path defaults to, with the shared proxy
+  as the explicit fallback rather than the default.
+- **Auth.** As §17 Stage 3 notes, there is no standard protocol for captive
+  CORS proxies. A deploy-time secret in `x-gifos-proxy-key`, stored next to
+  the URL, is the honest answer for a single-tenant Worker.
+- **TURN is a different protocol from CORS proxying** and probably a different
+  artifact (Cloudflare Calls / coturn), even if it is the same deploy button
+  and the same settings row. Do not assume one Worker does both.
+
+**Open questions.**
+
+- Does GifOS *host* a deploy flow (a page that scripts the Cloudflare API with
+  the user's own token) or only *document* one? The first is far better UX and
+  is the first time GifOS would ask for a third-party credential that is not
+  an API key for an app.
+- What happens on a phone, where nobody is deploying anything? Probably: a
+  household deploys once and the URL travels in the computer backup.
+- Cost honesty — free tiers have limits, and a personal TURN that relays a
+  four-way call for an hour is not free everywhere. Say the number.
+- Does the personal proxy become the place the **fetch bridge** routes by
+  default too, not just `proxy: true` calls? That would make `capabilities.
+  network` allow-lists advisory rather than load-bearing — think before doing.
+
+## 21. Personal finance: your accounts, your computer
+
+Ratified 2026-08-25 (Nathan).
+
+**What.** A **Financial Tracker** app that holds the list of every account you
+have, ingests their data by **CSV export** (universal) and **SimpleFIN**
+(automatic, where the institution is covered), tracks net worth over time, and
+hands a summary to the **Retirement Calculator**.
+
+### Why NOT the providers pattern (settled — do not re-litigate)
+
+The obvious-looking design is one Provider app per institution — a Bank of
+America GIF that logs in, scrapes, and serves `finance.*` to every other app,
+exactly as an offline LLM serves `cheapest`. It is the wrong shape, for
+reasons that are structural rather than a matter of effort:
+
+- **The sandbox cannot hold a logged-in session.** `gifos.fetch` sends
+  `credentials: 'omit'` (`bridgeFetch`, runtime.js) — deliberately, because
+  attaching ambient cookies would make the bridge a confused deputy for every
+  site the user is signed into. An allow-listed bank host would be reached as
+  an anonymous stranger, never as you.
+- **Banks send no `Access-Control-Allow-Origin`,** so even the trusted OS page
+  is blocked. §20's personal proxy fixes the CORS half — and only the CORS
+  half. It does not produce a session.
+- **THE HARD RULE** (docs/providers.md): a manifest with `provides` may not
+  declare `network` or `api` — refused mechanically by `providerNetworky`.
+  A credential-holding, network-reaching provider is the exfiltration machine
+  that rule exists to make impossible, and a bank login is the worst possible
+  candidate for the first exception.
+- **Scraping is a treadmill even when it works.** MFA, push approval, device
+  fingerprinting and active bot detection are why Mint needed a standing paid
+  team and a large part of why Intuit shut it down rather than fix it. Fifty
+  institution scrapers is fifty things that break without warning, silently,
+  in the app that tells you what your money is doing.
+
+Note what is NOT being rejected: the *consumer* side of the pattern is fine,
+and if a `finance.*` provider family is ever built it should be for
+**normalization**, not for fetching. The reason to write this down is that the
+idea is attractive enough to be proposed again.
+
+### What ships instead
+
+- **CSV, for everything.** Every institution exports it, no login is involved,
+  and the file is on the user's disk already. The work is a dialect detector —
+  column names, date formats, sign conventions, debit/credit column pairs,
+  the pending flag — plus a deduplicating ledger, because the whole point is
+  importing overlapping exports every month without creating duplicates.
+- **SimpleFIN, for the covered accounts.** It exists precisely because Mint
+  died: the user creates a token, claims it once into an access URL, and that
+  URL returns every account's balances and transactions as JSON. It is the
+  only aggregator in this class that fits a static site — Plaid, Teller and MX
+  all require a server-side secret GifOS has nowhere to put.
+- **Net worth as the first-class number**, not a byproduct of transactions:
+  assets that no transaction feed will ever mention (a house, a car, a private
+  investment) are typed in and marked to market by hand, and liabilities
+  (mortgage, loans) count against.
+- **A handoff to the Retirement Calculator**, so the six numbers that
+  calculator opens with stop being guesses.
+
+**Open questions.**
+
+- SimpleFIN's access URL carries HTTP Basic credentials in the URL itself.
+  Browsers reject `fetch()` on a URL with embedded credentials, so it must be
+  split into an `Authorization: Basic` header — which means a `basic` auth
+  type in `gifos.api`, and that shared-proxy transit is exactly the keyed
+  traffic §17 Stage 3 wants gone. §20's personal proxy is the real answer;
+  until it lands, SimpleFIN through the shared proxy must be labelled plainly.
+- Categorization (the other half of what made Mint useful) is not in the first
+  cut. Rules the user writes are the honest version; a `cheapest`-role AI pass
+  over descriptions is the tempting version and would send the transaction
+  list into whatever model is wired up. If it is ever built it is opt-in, and
+  the ack sheet has to say so.
+- Multi-currency is deferred. SimpleFIN reports a currency per account and the
+  app records it, but net worth assumes one.
