@@ -3016,10 +3016,11 @@ be answered before a line of this is built.
 ### The constraint that shapes every part of this
 
 `site/about.html` says, today, on the internet: *"Everything lives in your
-browser (IndexedDB). No accounts, no sync, no tracking."* The store's pitch for
-our own apps is the same shape — chess with *"no account, no ads, no move
-limit"*. An ad network that is a tracking network detonates the only thing
-GifOS is selling. So the doctrine, in the same spirit as THE COVER RULE:
+browser (IndexedDB). No accounts, no sync, no tracking."* That sentence is about
+**tracking**, and it stays. GifOS has never promised there would be no ads, and
+the few places that had drifted into saying so were removed on 2026-08-26 — but
+an ad network that is a *tracking* network detonates the only thing GifOS is
+selling. So the doctrine, in the same spirit as THE COVER RULE:
 
 - **No third-party ad JavaScript, on any surface, ever.** The desktop is the
   trusted OS page — it holds every file in IndexedDB, the signature verdicts and
@@ -3076,26 +3077,65 @@ every time an icon lands. So the strip is chrome, not content:
 - **Arrange mode hides the menubar; it hides this too.** Root only — never
   inside a folder, never on `run.html`, never in a meeting.
 
-### The app slot
+### The app slot: a declared Ability, fetched through the broker
 
-An App GIF **cannot fetch**, so an app can never fetch an ad, and that is the
-feature. The manifest opts in (`ads: true`); the **shell** draws the slot
-outside the app frame, in the chrome where the shield and identity pill already
-live, and fetches the creative itself. The app receives nothing: no callback
-with a user in it, no ad code, no CSP relaxation.
+An App GIF **cannot fetch** — `connect-src 'none'` — so an app can never fetch
+an ad itself, and that is the whole design, not an obstacle to it. Ads join the
+capability system exactly as every other power does:
 
-- **Revenue routes by the existing PAYEE RULE** (`gifos-charge.js`,
-  docs/payments.md): signed by a domain → `payments@<domain>`, signed by an
-  email → that email. Nothing new is declared, so nothing new can be tampered
-  with — redirecting an app's ad revenue means taking over its signing identity.
-- **Offline is the normal case for a GIF.** The slot collapses to zero height
-  when the fetch fails. It never reserves space for an ad that will not arrive,
-  and it never shows a broken box on a plane.
-- **The listing must say so** — a badge beside the capability chips. The
-  catalog's current pitch is "no ads"; an ad-supported app that hides it is the
-  first dishonest listing in the store.
-- **"Pay once, no ads" is the obvious first IAP** and a good first real load on
-  the §6 x402 rail.
+- **Declared in the manifest as `capabilities.ads`**, so it appears in the
+  **Abilities** sheet before the app runs (`gifos-perms.js` `CAP_LABELS` /
+  `CAP_DESC` — "Show you ads", with a plain description of what is and isn't
+  sent). An app that shows an ad without declaring the Ability is a broken app,
+  the same way an undeclared camera call is.
+- **Fetched through the broker**, a new op on the fixed postMessage set beside
+  `ai` / `api` / `capture` / `pay`: the app asks, GifOS makes the request from
+  the trusted page and hands back a creative as **data** — picture, text, link.
+  No ad code enters the sandbox, no CSP relaxation, no third-party origin the
+  app chose. The app renders it in its own layout (games want it on a
+  between-levels screen, not in a strip we picked).
+- **Turn-off-able per app, and it actually works.** Unticking the Ability writes
+  the cap name into `gifos_capoff_<appId>` and `capDisabled()` makes the broker
+  refuse — the same mechanism that already stops an app calling your AI or your
+  mic. There is no path around it, because the app never had the network.
+
+### The author gets to respond — that is the point
+
+A refusal is **legible**, so the app can act on it. `capDisabled` today produces
+a thrown error (`CAP_OFF_MSG`); the ads broker needs a **distinguishable
+outcome** — "you turned ads off" is a different fact from "nothing to show" or
+"you are offline", and the three call for different app behaviour. An author may
+then do any of:
+
+- carry on unchanged (the generous default),
+- limit what is available until ads are turned back on,
+- offer a purchase or subscription instead (§6's x402 rail, or the PayPal rail
+  already shipped) and unlock permanently,
+- or simply say what it needs and stop.
+
+That is the flexibility half. **The transparency half is not optional and is
+enforced mechanically:**
+
+- The **store listing must say** the app is ad-supported, and must say whether
+  turning ads off restricts it — a badge beside the capability chips, generated
+  from `capabilities.ads` in the manifest so it cannot be omitted by a
+  forgetful listing. A shopper decides before installing, not after.
+- The Abilities sheet's description says the same in the second place the user
+  looks, and says it before first run.
+- An app may gate features on ads being on; it may **not** pretend the ad
+  failed, nag on a loop, or hide the fact that a paid alternative exists. The
+  refusal path has to be a screen the user can read and act on.
+- **No user data reaches the ad request.** The app supplies no targeting
+  parameters; there is no field for them. Whatever context exists (the app's own
+  category) comes from the signed manifest, not from the running app.
+- The **payee is derived, not declared** (`gifos-charge.js` PAYEE RULE): signed
+  by a domain → `payments@<domain>`, signed by an email → that email. Ad revenue
+  routes to the app's verified signing identity, so redirecting it means taking
+  over that identity. **Unsigned apps earn nothing**, exactly as unsigned apps
+  cannot charge.
+- **Offline is the normal case for a GIF.** A failed fetch collapses the slot to
+  nothing — no reserved space, no broken box on a plane — and it reports as
+  "nothing to show", never as "the user refused".
 
 **Open questions.**
 
@@ -3103,6 +3143,16 @@ with a user in it, no ad code, no CSP relaxation.
   no id — but printed next to an ad it reads as a lie to exactly the reader we
   want. Decide the copy BEFORE the code: plain sentences, no disclaimer block,
   the mechanism in one line (store copy voice).
+- **What an ads-off app is allowed to withhold.** "Turn ads on or pay" is
+  legitimate; a store full of apps that install free and then refuse to run is
+  how a catalog loses its reputation. The lever is the listing badge and the
+  curation bar, not a rule inside the runtime — but the wording of that badge
+  decides how it reads.
+- **How the refusal is shaped.** Distinguishable outcomes mean the broker
+  returns a result rather than throwing, which is a small departure from how
+  `capDisabled` reports today. Worth settling once, for every capability.
+- **"Pay once, ads off" is the obvious first IAP** and a good first real load on
+  the §6 x402 rail.
 - **Frozen snapshots.** `site/versions/<x.y.z>/` never changes, so an archived
   build would fetch today's creatives from a URL baked in forever. That endpoint
   must be permanent, cheap, and safe to 404 into a collapsed slot.

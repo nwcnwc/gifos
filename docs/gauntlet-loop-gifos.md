@@ -142,7 +142,7 @@ that has ever existed.
 | `jspaint` | Paint on Windows 11 / Photopea | the drawing and the app travel as one file you can hand to anyone |
 | `squoosh` | squoosh.app | works on a plane; nothing ever uploads anywhere |
 | `vocal-remover` | the UVR desktop app | no install, no Python, no GPU setup — one GIF, same weights |
-| `chess-grandmaster` | chess.com play-vs-computer | full-strength Stockfish offline, no account, no ads, no move limit |
+| `chess-grandmaster` | chess.com play-vs-computer | full-strength Stockfish offline, no account, no move limit |
 | `anyroad` | Hop.Earth | races with friends from one link, no server; progression that survives updates |
 
 For a utility, "feel" includes first-run clarity and error honesty, not just
