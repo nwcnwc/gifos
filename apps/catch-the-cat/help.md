@@ -26,6 +26,18 @@ A tap and a drag are told apart on release: anything that travelled more than a 
 
 The cat takes about six tenths of a second to walk a hex, and you can watch it do it — that is the point of the animation. Tapping again while it walks does not skip the step; the cat breaks into a run and catches up.
 
+## When it is over
+
+Close the last way out and **the stones that shut it in turn red** — only those,
+in a wave running outward from the cat. Every other wall you laid is one it
+walked round, and those stay green. Light spreads across the table, and the cat
+sits down with its back to you and starts washing a paw, as though none of it
+had been very interesting.
+
+(Usually the pen is the six hexes around the cat. Not always: the cat gives up
+when there is no route to the rim at all, so it can be caught in a pocket it can
+still walk around inside — and then the red is the outline of the pocket.)
+
 ## Scoring
 
 Your **tap count** is how many walls you added — not counting the eight that were already there. Lower is better. There are no lives.

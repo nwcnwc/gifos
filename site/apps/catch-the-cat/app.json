@@ -7,7 +7,7 @@
   "version": "1.2.0",
   "minBuild": 947,
   "tagline": "Tap the dots. Wall the cat in — alone, against a friend, or together.",
-  "description": "A black cat sits in the middle of a honeycomb of dots. Each tap turns a dot into a wall; after every tap the cat takes a step, always toward the way out. Wall it in and you win. Let it reach the rim and it runs.\n\nThe board is a real table, not a picture of one. Drag to turn it, pinch to move in — it is a proper dolly, so the closer you get the deeper the perspective. Walls stand up off the surface, and the cat stays on its feet however you turn it. Flat looks straight down, which is how the game was originally drawn.\n\nThe cat takes about six tenths of a second to walk a hex, and you can watch it do it. Tap again while it walks and it breaks into a run rather than skipping the step.\n\nSend the invite and a Race / Team switch appears.\n\nRACE. Everyone gets the same starting walls and plays their own private copy — your walls never appear on anybody else's board. Fewest taps takes the round. Under the board is the running table: rankings, rounds won, a crown on whoever is ahead, a flame for a run of them.\n\nTEAM. One board, one cat each, and nobody takes turns. Your taps move only your cat, whenever you make them — but the wall you lay pens everyone's cat, not just yours. You clear the round when every cat is walled in, and you lose it the moment any one of them reaches the rim.\n\nAn unofficial port of Catch The Cat by ganlvtech. The cat, the honeycomb and the chase are theirs. The table, the walk and the two ways to play it with other people are ours.",
+  "description": "A black cat sits in the middle of a honeycomb of dots. Each tap turns a dot into a wall; after every tap the cat takes a step, always toward the way out. Wall it in and you win. Let it reach the rim and it runs.\n\nThe board is a real table, not a picture of one. Drag to turn it, pinch to move in — it is a proper dolly, so the closer you get the deeper the perspective. Walls stand up off the surface, and the cat stays on its feet however you turn it. Flat looks straight down, which is how the game was originally drawn.\n\nThe cat takes about six tenths of a second to walk a hex, and you can watch it do it. Tap again while it walks and it breaks into a run rather than skipping the step.\n\nClose the last way out and the stones that shut it in turn red — only those, in a wave running outward from the cat; every other wall you laid is one it walked round. Light spreads across the table, and the cat sits down with its back to you and starts washing a paw, as though none of it had been very interesting.\n\nSend the invite and a Race / Team switch appears.\n\nRACE. Everyone gets the same starting walls and plays their own private copy — your walls never appear on anybody else's board. Fewest taps takes the round. Under the board is the running table: rankings, rounds won, a crown on whoever is ahead, a flame for a run of them.\n\nTEAM. One board, one cat each, and nobody takes turns. Your taps move only your cat, whenever you make them — but the wall you lay pens everyone's cat, not just yours. You clear the round when every cat is walled in, and you lose it the moment any one of them reaches the rim.\n\nAn unofficial port of Catch The Cat by ganlvtech. The cat, the honeycomb and the chase are theirs. The table, the walk and the two ways to play it with other people are ours.",
   "author": {
     "name": "ganlvtech",
     "url": "https://github.com/ganlvtech/phaser-catch-the-cat"
@@ -41,10 +41,10 @@
   "cover": "/apps/catch-the-cat/cover.jpg",
   "screenshots": [],
   "gif": "/apps/catch-the-cat/catch-the-cat.gif",
-  "bytes": 614322,
+  "bytes": 618684,
   "download": 0,
   "provides": null,
-  "sha256": "75d6005317ca85480a966cdbd3a8700d762a4af2b67d2cc24cc2c88ce9c79ee4",
+  "sha256": "ba7915aa233163a8629026ed778a5d1513c616a851fa746e9e53e90ef6bd2ebf",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

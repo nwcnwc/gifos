@@ -224,6 +224,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // opposite ways under any turn, so a fixed sign is right for one half and
     // backwards for the other — this asks both.
     for (const [half, j] of [['near', 9], ['far', 1]]) {
+      // A fresh round first. The drills above are allowed to have ended one —
+      // and a finished board stops taking taps and dims itself — so starting
+      // from whatever they left behind makes this check depend on how they
+      // happened to go, which is how a guard becomes a coin toss.
+      await page.click('#again');
+      await sleep(700);
       await page.click('#recenter');
       await sleep(600);
       const grab = await hexPoint(5, j);
@@ -247,11 +253,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
     const spot = await freeHex();
     const pt = await hexPoint(spot[0], spot[1]);
+    const wasC = await page.evaluate(() => window.GifCat.rules.clicks());
     await page.mouse.click(pt.x, pt.y);
     await sleep(150);
     const tapped = await page.evaluate(([i, j]) => ({ c: window.GifCat.rules.clicks(), wall: window.GifCat.rules.isWall(i, j) }), spot);
     check('a tap on a turned board still walls the hex under the finger',
-      tapped.wall === true && tapped.c === after.c + 1, { spot, tapped, was: after.c });
+      tapped.wall === true && tapped.c === wasC + 1, { spot, tapped, was: wasC });
 
     await page.mouse.move(mid.x, mid.y);
     await page.mouse.wheel(0, -400);
@@ -276,9 +283,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       // from a board somebody has already turned proves nothing.
       document.getElementById('recenter').click();
       await new Promise((r) => setTimeout(r, 520));
+      // A walk in flight OWNS the cat's heading, so setCats will not overrule
+      // it — read the sprite while one is running and you are reading the walk,
+      // not the answer to the question being asked.
+      while (!V.idle()) await new Promise((r) => setTimeout(r, 60));
       const home = V.state().spin;
-      // Park the cat facing board-left and stop it walking.
+      // Park the cat facing board-left, on a board with no walk in it. calm()
+      // is what the shell does for a new board: it drops the cat views, so the
+      // next setCats places the cat rather than walking it there — and a walk
+      // in flight owns the heading, which is the thing being read.
       R.reset({ seed: 7, mode: 'solo', me: { id: 'me', name: 'You' } });
+      V.calm();
       V.setWalls(R.isWall);
       V.setCats(R.cats().map((c) => Object.assign({}, c, { dir: 0 })));
       await new Promise((r) => setTimeout(r, 60));
@@ -306,9 +321,125 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // check that passes by not asking anything.
     check('this stage shape puts the home view square on', facing.home === 0, facing);
     check('a cat facing board-left is drawn in profile on the home view',
-      facing.flat.name === 'left' && facing.flat.flip === false, facing.flat);
+      facing.flat.name === 'left' && facing.flat.flip === false, facing);
     check('...and is NOT still in profile once the board is turned a quarter turn',
       facing.turned.name !== 'left', { flat: facing.flat, turned: facing.turned, spin: facing.spin });
+  }
+
+  // ------------------------------------------------- 5. the pen shuts, and sulks
+  //
+  // The board says WHICH STATE IT IS IN with colour, so the colour has to be
+  // load-bearing rather than decorative: green while you are still building,
+  // red only once the cat has nowhere to go. A board that went red early would
+  // be telling you the round was over while you were still playing it.
+  {
+    // Through the New board button, not through rules.reset(): the checks
+    // below all run through the SHELL's tap handler, and the shell stops taking
+    // taps once a round has ended — which the drills above have every right to
+    // have done. Reaching into the rules would leave the shell still holding a
+    // finished round and every tap here would be dropped on the floor.
+    await page.click('#again');
+    await sleep(700);
+    const hueOf = (sel) => page.evaluate((sel) => {
+      const cap = document.querySelector(sel);
+      if (!cap) return null;
+      const m = /rgb\((\d+), *(\d+), *(\d+)\)/.exec(getComputedStyle(cap).backgroundImage);
+      return m ? [+m[1], +m[2], +m[3]] : null;
+    }, sel);
+    const wallHue = () => hueOf('.cell.wall .cap');
+    // One real wall down and the round still running: the board must stay
+    // green. Asked AFTER a tap, not before — before a tap it would be green
+    // even in a build that reddened the board on every move.
+    const first = await freeHex();
+    const fp = await hexPoint(first[0], first[1]);
+    await page.mouse.click(fp.x, fp.y);
+    await sleep(1000);
+    const green = await wallHue();
+    check('a board still being played has green walls', green && green[1] > green[0], { rgb: green });
+    check('...and is not wearing the finished state',
+      !(await page.evaluate(() => document.getElementById('plate').classList.contains('penned'))));
+
+    // Wall the cat in for real. The ring is SCAFFOLDING placed straight on the
+    // engine — penning a cat by play is the game, and what is under test here
+    // is what the board does once it is penned — but the closing wall is a real
+    // tap through the shell, so the whole verdict path runs.
+    const penned = await page.evaluate(() => {
+      const R = window.GifCat.rules, E = window.GifCat.engine;
+      const me = R.myCat();
+      const nbs = E.neighbours(me.i, me.j).filter((n) => E.inside(n.i, n.j));
+      const last = nbs.find((n) => !R.isWall(n.i, n.j));
+      nbs.forEach((n) => { if (n !== last) E.setWall(n.i, n.j, true); });
+      // Walls well away from the cat, so there is something that ISN'T the pen
+      // for the check below to be about.
+      for (let k = 0; k < 14; k++) {
+        const i = 1 + ((k * 5 + 2) % 9), j = 1 + ((k * 3 + 1) % 9);
+        if (R.isWall(i, j)) continue;
+        if (i === me.i && j === me.j) continue;
+        if (nbs.some((n) => n.i === i && n.j === j)) continue;
+        E.setWall(i, j, true);
+      }
+      const h = document.querySelector('.cell .hit[data-i="' + last.i + '"][data-j="' + last.j + '"]');
+      h.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, clientX: 5, clientY: 5 }));
+      document.getElementById('stage').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, clientX: 5, clientY: 5 }));
+      return R.state();
+    });
+    check('the closing wall pens the cat', penned === 'caught', { penned });
+    await sleep(500);
+    // ONLY the stones that shut it in. Every other wall is a stone the cat
+    // walked round, and a board that reddened those too would be claiming they
+    // were part of the trap.
+    const pen = await hueOf('.cell.wall.pen .cap');
+    const notPen = await hueOf('.cell.wall:not(.pen) .cap');
+    check('...and the stones that shut it in go red', pen && pen[0] > pen[1] && pen[0] > pen[2], { rgb: pen });
+    check('...while the walls it walked round stay green',
+      notPen && notPen[1] > notPen[0], { rgb: notPen });
+    check('...and the pen is the ring around the cat, not the whole board',
+      await page.evaluate(() => {
+        const R = window.GifCat.rules, E = window.GifCat.engine, me = R.myCat();
+        const ring = E.neighbours(me.i, me.j).filter((n) => E.inside(n.i, n.j))
+          .map((n) => n.i * 100 + n.j).sort((a, b) => a - b);
+        const worn = [...document.querySelectorAll('.cell.pen .hit')]
+          .map((h) => +h.dataset.i * 100 + +h.dataset.j).sort((a, b) => a - b);
+        return JSON.stringify(ring) === JSON.stringify(worn);
+      }));
+    check('...with light spreading from where the cat is standing',
+      await page.evaluate(() => !!document.querySelector('.bloom')));
+
+    const cat = await page.evaluate(() => {
+      const art = window.GifCat.engine.art().frames;
+      const src = document.querySelector('.cat .art').src;
+      let key = '?';
+      for (const k in art) if (art[k].url === src) key = k;
+      const pose = document.querySelector('.cat .pose');
+      return {
+        cls: document.querySelector('.cat').className, key,
+        anim: getComputedStyle(pose).animationName,
+        // the wrapper MUST keep its own 3D context: a flattening element inside
+        // one is composited into a texture the size of its own box, and this
+        // box is 0x0 — which rendered the sitting cat as a sliver of its own
+        // drop-shadow.
+        style3d: getComputedStyle(pose).transformStyle,
+        painted: document.querySelector('.cat .art').getBoundingClientRect().height,
+      };
+    });
+    check('the cat sits down', /\bsitting\b/.test(cat.cls) && cat.key === 'top_left_1', cat);
+    check('...with its back to you, and starts washing', cat.anim === 'ctc-groom', cat);
+    // Asserted as the MECHANISM, because the failure is invisible to geometry:
+    // the box stayed the right size and only the PAINT was clipped, so a rect
+    // check reported a healthy cat that was a two-pixel sliver on screen.
+    check('...inside a wrapper that keeps its own 3D context, or it paints as a sliver',
+      cat.style3d === 'preserve-3d' && cat.painted > 40, cat);
+
+    // A new board is a new board.
+    await page.click('#again');
+    await sleep(700);
+    const after = await page.evaluate(() => ({
+      penned: document.getElementById('plate').classList.contains('penned'),
+      cls: document.querySelector('.cat').className,
+      bloom: !!document.querySelector('.bloom'),
+    }));
+    check('a new board is green again, with the cat back on its feet',
+      !after.penned && !/\bsitting\b/.test(after.cls) && !after.bloom, after);
   }
 
   check('no page errors', errors.length === 0, errors);

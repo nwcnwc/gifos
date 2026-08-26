@@ -793,7 +793,7 @@
         90
       ],
       "cover": "/apps/catch-the-cat/cover.jpg",
-      "bytes": 614322,
+      "bytes": 618684,
       "download": 0,
       "provides": null,
       "signature": {
@@ -801,7 +801,7 @@
         "id": "gifos.app",
         "ts": "2026-08-26"
       },
-      "sha256": "75d6005317ca85480a966cdbd3a8700d762a4af2b67d2cc24cc2c88ce9c79ee4"
+      "sha256": "ba7915aa233163a8629026ed778a5d1513c616a851fa746e9e53e90ef6bd2ebf"
     },
     {
       "slug": "checkers",

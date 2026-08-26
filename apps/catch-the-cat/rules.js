@@ -228,8 +228,39 @@
     return out;
   }
 
+  // WHICH STONES ARE THE WALL. Not "every wall on the board" — most of those
+  // are misses, and a board that reddened them all would be claiming they were
+  // all part of the trap. The pen is the BOUNDARY of the sealed region the cat
+  // is standing in: flood the free hexes it can still reach, and every wall
+  // touching that region is a stone that shut it in.
+  //
+  // Usually the region is one hex and the pen is its six neighbours. It is not
+  // always: upstream's solver gives up when no route to the rim exists at all,
+  // so a cat can be caught in a POCKET it can still walk around inside. Then
+  // the wall that caught it is the pocket's outline, and that is what turns.
+  function pen() {
+    if (myState !== 'caught') return null;
+    var seen = {}, wall = {}, q = [[myCat.i, myCat.j]];
+    seen[key(myCat.i, myCat.j)] = 1;
+    for (var head = 0; head < q.length && head < E.w * E.h; head++) {
+      var nbs = E.neighbours(q[head][0], q[head][1]);
+      for (var d = 0; d < nbs.length; d++) {
+        var n = nbs[d];
+        if (!E.inside(n.i, n.j)) continue;
+        var k = key(n.i, n.j);
+        if (E.isWall(n.i, n.j)) { wall[k] = 1; continue; }
+        if (E.onRim(n.i, n.j)) return null;   // not sealed after all
+        if (seen[k]) continue;
+        seen[k] = 1;
+        q.push([n.i, n.j]);
+      }
+    }
+    return Object.keys(wall).map(Number);
+  }
+
   GifCat.rules = {
     SEATS: SEATS, TONES: TONES,
+    pen: pen,
     reset: reset,
     tap: tap,
     undo: undo,
