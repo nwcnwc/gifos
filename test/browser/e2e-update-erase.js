@@ -140,6 +140,50 @@ async function assertServingThisTree() {
     fs.writeFileSync(verPath, verOrig);
   }
 
+  // ---- 5. the App Store catalog gets ONE cache key, whatever the query ----
+  // /apps/index.json is fetched at every app LAUNCH (app-update.js's nudge), not
+  // just when someone browses the store. Under the catch-all revalidate rule it
+  // was cached by FULL URL, so a launch fetch carrying a `?ts=` cache-buster
+  // left another 181 KB copy of the catalog in the shell cache every time,
+  // forever, on a phone — 543 KB after three launches when this was measured.
+  // And because the offline fallback matches with ignoreSearch, the check then
+  // answered from an ARBITRARY one of those copies: a launch on a link too slow
+  // for the race compared against a STALE catalog and said nothing about an
+  // update that was really there. Asking WITH a query is the point of the test —
+  // it must not be able to mint a second key however a caller spells the URL.
+  const catalogKeys = async () => page.evaluate(async () => {
+    let hits = [];
+    for (const n of await caches.keys()) {
+      const c = await caches.open(n);
+      hits = hits.concat((await c.keys()).map((r) => r.url).filter((u) => /\/apps\/index\.json/.test(u)));
+    }
+    return hits;
+  });
+  await page.evaluate(async () => {
+    for (let i = 0; i < 3; i++) await fetch('/apps/index.json?ts=' + (Date.now() + i), { cache: 'no-store' }).catch(() => {});
+    await fetch('/apps/index.json', { cache: 'no-store' }).catch(() => {});
+  });
+  const keys = await catalogKeys();
+  check('the catalog holds ONE cache key however it is asked for',
+    keys.length === 1 && /\/apps\/index\.json$/.test(keys[0]), keys.length + ' key(s): ' + keys.join(' '));
+
+  // The launch nudge must ask under the bare path — a cache-buster there is what
+  // minted the extra keys, and no cache rule can undo a caller that insists.
+  const upSrc = fs.readFileSync('site/js/app-update.js', 'utf8');
+  // The quoted form is the CODE (`'?ts=' + Date.now()`); the prose around it
+  // spells the same thing in backticks and must not trip the guard.
+  check('app-update.js asks for the catalog with no cache-buster', !/'\?ts='/.test(upSrc));
+
+  // Offline, the fallback is the LAST GOOD catalog, so the nudge still knows
+  // there is an update instead of silently deciding there is none.
+  await ctx.setOffline(true);
+  const offline = await page.evaluate(async () => {
+    const r = await fetch('/apps/index.json?ts=' + Date.now(), { cache: 'no-store' }).then((x) => x.json()).catch(() => null);
+    return r && Array.isArray(r.apps) ? r.apps.length : -1;
+  });
+  await ctx.setOffline(false);
+  check('offline, the catalog still answers from the last good copy', offline > 0, 'apps=' + offline);
+
   await ctx.close();
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAIL') : '\nALL PASS');
