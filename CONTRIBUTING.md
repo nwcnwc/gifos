@@ -36,9 +36,24 @@ complete reference for humans too.
 
 Shipping needs nobody's approval: host the GIF anywhere with CORS and the link
 `https://gifos.app/?run=<url-to-your-gif>` runs it for anyone, in a sandbox, in
-about a second. Want it in the App Store catalog? A listing is a pull request —
-one folder under `apps/<slug>/` — and the full contributor doc is
-[`apps/README.md`](apps/README.md).
+about a second.
+
+### Get your app into the App Store
+
+Built something good? **Send it in — we want your app in the store.** A
+listing is a pull request: one folder under `apps/<slug>/` with the source,
+`manifest.json`, a `listing.json`, a screenshot, a `help.md`, and a build
+script. The complete layout is [`apps/README.md`](apps/README.md), and every
+existing `apps/<slug>/` folder is a worked example.
+
+Two honest notes to set expectations. The store is a *catalog, not a gate* —
+your `?run=` link ships with or without us, so a listing adds discovery and
+certification, never permission. And listing is **curated**: a PR is a
+submission, not an acceptance — we read them, and we won't merge everything.
+The criteria, the review process, and whether listing will ever cost anything
+are still being worked out; submitting now is how you get in early, and the
+early submissions are what will shape those rules. Worst case, your app stays
+exactly as shippable as it already was.
 
 ## Contribute to the operating system
 
