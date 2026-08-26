@@ -101,7 +101,7 @@ extrapolated from one statement is a guess wearing a number's clothes. The
 balance-sheet figures are ready immediately.
 
 GifOS shows you the whole summary and asks before anything moves, every time.
-It stays on this computer.
+It stays on this device.
 
 ## What it does not do
 

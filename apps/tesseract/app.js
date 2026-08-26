@@ -109,7 +109,7 @@
 
   function loadLang() {
     if (langReady) return Promise.resolve();
-    setStatus('Loading English… the first time this downloads ' + (LANG_BYTES / 1e6).toFixed(1) + ' MB, then it stays on this computer.');
+    setStatus('Loading English… the first time this downloads ' + (LANG_BYTES / 1e6).toFixed(1) + ' MB, then it stays on this device.');
     setBar(0.18);
     return bootEngine().then(function () {
       return assetBytes(LANG_ASSET);

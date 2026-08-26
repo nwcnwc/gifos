@@ -12,7 +12,7 @@ It works on anything this browser can play: mp3, wav, flac, m4a, ogg.
 
 ## First run
 
-The first time you press **Separate** for a job, this app downloads the model that job needs (about 67 MB for the main split, about 53 MB more for karaoke). That happens once, then the model lives on this computer. Open it while you have a connection the first time.
+The first time you press **Separate** for a job, this app downloads the model that job needs (about 67 MB for the main split, about 53 MB more for karaoke). That happens once, then the model lives on this device. Open it while you have a connection the first time.
 
 If the models are not here yet, a banner says so and the app will only pass the audio back unchanged. That is a test, not a split.
 

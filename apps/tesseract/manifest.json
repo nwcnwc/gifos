@@ -5,7 +5,7 @@
   "shortName": "OCR",
   "version": "1.0",
   "minBuild": 1381,
-  "description": "A photo or a page in, the words out, entirely on this device. Unofficial port of Tesseract.js: the Tesseract OCR engine compiled to WebAssembly, reading English. The engine rides inside this GIF; English downloads the first time you read a page (~15 MB, hash-pinned) and then stays on the computer. Nothing is uploaded — there is no network path out of this browser. Not a table tool: for tables in a PDF see Scanned PDF Tables → Excel.",
+  "description": "A photo or a page in, the words out, entirely on this device. Unofficial port of Tesseract.js: the Tesseract OCR engine compiled to WebAssembly, reading English. The engine rides inside this GIF; English downloads the first time you read a page (~15 MB, hash-pinned) and then stays on this device. Nothing is uploaded — there is no network path out of this browser. Not a table tool: for tables in a PDF see Scanned PDF Tables → Excel.",
   "entry": "index.html",
   "accent": [224, 152, 48],
   "capabilities": {
