@@ -170,6 +170,13 @@ const plans = (fr) => fr.evaluate(async () => (await gifos.db('scenarios').getAl
   ).catch(() => noVerdict('the app never became a room — relay reachable but no session'));
   const link = await host.page.evaluate(() => document.getElementById('share-url').value);
   check('Invite turned the running app into a room, on the same page', !!link, link);
+
+  // RE-ACQUIRE THE HOST'S FRAME. Invite flips the page into a room in place,
+  // and the app is re-mounted behind that — so the frame handle taken before
+  // the Invite is pointing at a document that no longer exists. Reusing it
+  // throws "Target page, context or browser has been closed" three assertions
+  // later, which reads like a dead browser and is nothing of the kind.
+  hostFr = await appFrame(host.page);
   check('the call layer stayed DARK — planning a retirement is not a video call',
     await host.page.evaluate(() => !document.body.classList.contains('call-on')));
 
