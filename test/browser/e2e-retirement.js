@@ -82,8 +82,16 @@ const txt = (fr, id) => fr.evaluate((i) => {
 
   const head = await txt(fr, 'vHead');
   check('the verdict is a sentence, not a number', !!head && /\w+\s+\w+/.test(head), head);
-  check('the verdict names how many real retirements were run',
-    /\d[\d,]*\s+(real retirements|reshuffled)/.test(await txt(fr, 'vSub')), await txt(fr, 'vSub'));
+  // It must name the evidence, and name it HONESTLY. "1,268 real retirements"
+  // reads as 1,268 independent data points; they are overlapping windows, one
+  // per starting month, with about a hundred non-overlapping ones behind them.
+  {
+    const sub = await txt(fr, 'vSub');
+    check('the verdict names how much history was run',
+      /\d[\d,]*\s+(real \d+-year stretches|reshuffled)/.test(sub), sub);
+    check('...without claiming they are independent retirements',
+      !/real retirements/.test(sub), sub);
+  }
 
   await fr.waitForFunction(() => {
     const e = document.getElementById('vSpend');
@@ -151,6 +159,84 @@ const txt = (fr, id) => fr.evaluate((i) => {
     }
   }
 
+  // ---- 2a. the headline must refuse rather than invent ---------------------
+
+  {
+    // A strategy whose paycheck comes out of the balance can never fail, so
+    // "the most you could spend and still clear 95%" has no answer — every
+    // amount clears. The solver used to walk its ceiling up and print what it
+    // reached: the app shipped "Could spend a year: $185B" in the largest type
+    // on the page, for two of its five strategies.
+    for (const name of ['Fixed percentage', 'Spend it down']) {
+      await fr.evaluate((n) => {
+        const b = Array.prototype.slice.call(document.querySelectorAll('#stratPick button'))
+          .filter((x) => x.textContent === n)[0];
+        if (b) b.click();
+      }, name);
+      await sleep(4500);
+      const tiles = await fr.evaluate(() => ({
+        spend: document.getElementById('vSpend').textContent.trim(),
+        retire: document.getElementById('vRetire').textContent.trim(),
+        why: document.getElementById('statSpend').title
+      }));
+      check(name + ': the tiles refuse instead of inventing a number',
+        tiles.spend === '—' && tiles.retire === '—', tiles);
+      check(name + ': ...and say why', /never run out/i.test(tiles.why), tiles.why);
+    }
+    await fr.evaluate(() => {
+      const b = Array.prototype.slice.call(document.querySelectorAll('#stratPick button'))
+        .filter((x) => x.textContent === 'Steady paycheck')[0];
+      if (b) b.click();
+    });
+    await sleep(3500);
+  }
+
+  {
+    // "Only none of 1,244 real retirements lasted" was a shipped sentence.
+    await fr.evaluate(() => {
+      const e = document.getElementById('fSpend');
+      e.value = '$10,000,000';
+      e.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await sleep(3500);
+    const v = await txt(fr, 'vSub');
+    check('a plan that always fails is described in English', !/Only none/i.test(v || ''), v);
+    await fr.evaluate(() => {
+      const e = document.getElementById('fSpend');
+      e.value = '$75,000';
+      e.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await sleep(3000);
+  }
+
+  {
+    // Clicking Add and touching nothing used to be worth $12,000 a year indexed
+    // for life, which flipped the verdict without the reader typing a character.
+    const before = await txt(fr, 'vSub');
+    await fr.evaluate(() => document.getElementById('btnAddIncome').click());
+    await sleep(3500);
+    check('an empty income row is worth nothing', (await txt(fr, 'vSub')) === before, before);
+    await fr.evaluate(() => {
+      const b = document.querySelector('#incomeList .row-del');
+      if (b) b.click();
+    });
+    await sleep(2500);
+  }
+
+  {
+    // Half the app used to live below the fold of a nested scroller with no
+    // scrollbar and no fade, on the desktop layout only.
+    const rail = await fr.evaluate(() => {
+      const i = document.getElementById('inputs');
+      return { hidden: i.scrollHeight - i.clientHeight, overflowY: getComputedStyle(i).overflowY };
+    });
+    check('no part of the input rail is hidden in a nested scroller',
+      rail.hidden <= 1, rail);
+  }
+
+  check('the app itself says it does not do tax',
+    /does not work out your tax/i.test(await txt(fr, 'footTax') || ''), await txt(fr, 'footTax'));
+
   // ---- 2b. the light theme is a SELECTED theme, not an inverted one --------
 
   {
@@ -209,6 +295,29 @@ const txt = (fr, id) => fr.evaluate((i) => {
     }, [spend, retire]);
     await sleep(2200);
   }
+
+  /* "New" is two steps now: it asks whether to start from a copy or from the
+   * defaults, THEN asks for a name. The old flow reached straight for the name
+   * field, which no longer exists at that moment. */
+  async function newPlan(fr, name, blank) {
+    await fr.evaluate(() => document.getElementById('btnNew').click());
+    await sleep(500);
+    await fr.evaluate((wantBlank) => {
+      const bs = Array.prototype.slice.call(document.querySelectorAll('#modalBody .menu-item'));
+      const b = bs.filter((x) => /Blank/.test(x.textContent))[0];
+      const c = bs.filter((x) => /Copy/.test(x.textContent))[0];
+      (wantBlank ? (b || c) : (c || b)).click();
+    }, !!blank);
+    await sleep(500);
+    await fr.evaluate((n) => {
+      const i = document.getElementById('nameField');
+      i.value = n;
+      i.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('modalOk').click();
+    }, name);
+    await sleep(1400);
+  }
+
   async function saveAs(name) {
     await fr.evaluate(() => document.getElementById('btnSave').click());
     await sleep(400);
@@ -230,15 +339,7 @@ const txt = (fr, id) => fr.evaluate((i) => {
     await txt(fr, 'scenLabel'));
 
   // A second, deliberately different plan.
-  await fr.evaluate(() => document.getElementById('btnNew').click());
-  await sleep(400);
-  await fr.evaluate(() => {
-    const i = document.getElementById('nameField');
-    i.value = 'Comfortable at 67';
-    i.dispatchEvent(new Event('input', { bubbles: true }));
-    document.getElementById('modalOk').click();
-  });
-  await sleep(1200);
+  await newPlan(fr, 'Comfortable at 67', true);
   await setPlan(95000, 67);
   await saveAs('Comfortable at 67');
 

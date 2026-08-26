@@ -17,6 +17,7 @@
       <svg viewBox="0 0 16 16" class="chev" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <span id="dirty" class="dirty" hidden>unsaved</span>
+    <button type="button" id="btnUndo" class="btn ghost small-btn" hidden>Undo</button>
   </div>
   <div class="scen-right">
     <button type="button" id="btnSave" class="btn">Save</button>
@@ -183,6 +184,12 @@
         <input id="fTarget" class="range" type="range" min="50" max="100" step="1" value="95">
         <p class="hint">The bar the two numbers at the top are solved against.</p>
       </div>
+      <div class="field">
+        <p class="hint">Each run is a real stretch of history starting in a
+          different month, so they overlap &mdash; there are roughly a hundred
+          fully independent ones behind the number you see. And <em>no tax is
+          worked out</em>: add what you expect to pay to your yearly spending.</p>
+      </div>
     </details>
 
     <p class="reset-line"><button type="button" id="btnReset" class="linky">Reset this plan to the defaults</button></p>
@@ -229,7 +236,9 @@
     <section class="card chart-card" id="cardStates">
       <div class="card-head">
         <h2>Rich, broke, or gone</h2>
-        <p class="sub">Every year of the plan, split by where you actually end up &mdash; including not being here.</p>
+        <p class="sub">Every year of the plan, split by where you actually end up &mdash;
+          including not being here. Your money has to last as long as whoever lives
+          longest, which is why <em>a couple</em> is the default.</p>
         <div class="segmented small" id="whoPick" role="radiogroup" aria-label="Whose odds of living">
           <button type="button" data-v="couple" role="radio" aria-checked="true">A couple</button>
           <button type="button" data-v="f" role="radio" aria-checked="false">A woman</button>
@@ -263,6 +272,10 @@
 
 <footer id="foot">
   <p id="footData"></p>
+  <p id="footTax"><strong>It does not work out your tax.</strong> Every figure
+    here is money you spend, so add what you expect to pay to your yearly
+    spending. Neither do FIRECalc, cFIREsim or FI Calc &mdash; but it is the
+    easiest thing on this page to assume and be wrong about.</p>
   <p class="fine">Not financial advice. This is arithmetic on what markets have
     already done, which is the best guide anyone has and still not a promise.</p>
 </footer>

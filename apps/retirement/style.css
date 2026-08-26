@@ -54,6 +54,15 @@
   --tap: 44px;
 }
 
+/* Touch: the bar buttons sit at the very top of a phone screen and were 32px,
+ * and the one checkbox the app's own hint calls "worth tens of thousands over a
+ * retirement" was 18px square. */
+@media (pointer: coarse) {
+  .btn { min-height: 40px; }
+  .row-item .r-check input { width: 24px; height: 24px; }
+  .checkline input { width: 24px; height: 24px; }
+}
+
 /* LIGHT — selected, and measured against #fcfcfb as its own set. */
 :root[data-theme="light"] {
   color-scheme: light;
@@ -156,6 +165,7 @@ h2 { font-size: 1rem; }
   background: transparent; color: var(--ink-2); border-color: var(--line);
 }
 .btn.wide { width: 100%; margin-top: .4rem; }
+.small-btn { min-height: 26px; padding: .1rem .45rem; font-size: .78rem; }
 .icon-btn { padding: .3rem .45rem; display: grid; place-items: center; }
 .icon-btn svg { width: 17px; height: 17px; display: block; }
 .icon-btn .ico-sun { display: none; }
@@ -557,6 +567,8 @@ svg.chart { display: block; width: 100%; overflow: visible; }
 
 #foot { padding: .5rem .9rem 1.6rem; color: var(--muted); font-size: .75rem; }
 #foot p { margin: .25rem 0; }
+#footTax { color: var(--ink-2); }
+#footTax strong { color: var(--ink); }
 #foot .fine { opacity: .8; }
 
 /* ------------------------------------------------------------- wide screens */
@@ -575,7 +587,19 @@ svg.chart { display: block; width: 100%; overflow: visible; }
     padding: 1rem; gap: 1rem;
     max-width: 1500px; margin: 0 auto; width: 100%;
   }
-  #inputs { grid-area: inputs; position: sticky; top: 118px; max-height: calc(100vh - 132px); overflow-y: auto; padding: 2px 6px 2px 2px; }
+  /* NO NESTED SCROLLER.
+   *
+   * This used to be `position: sticky` with `overflow-y: auto` and a max-height
+   * of the viewport, which pinned it and hid everything past about 730px inside
+   * a scroll area with no scrollbar and no fade: Other income, one-offs and
+   * college, Investments, How you take the money and How it is tested were all
+   * below the fold of a box nobody could see was a box. Scrolling the page did
+   * not reveal them — the rail just stayed pinned showing You and Money. A
+   * tester asked to add a pension reported there was "no visible evidence that
+   * pensions are a thing this app does".
+   *
+   * Keeping the inputs on screen is worth less than being able to find them. */
+  #inputs { grid-area: inputs; align-self: start; }
   #cardFan { grid-area: fan; }
   #charts { grid-area: charts; }
   #foot { max-width: 1500px; margin: 0 auto; padding-left: 1rem; }

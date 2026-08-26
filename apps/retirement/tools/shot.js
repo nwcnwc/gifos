@@ -36,28 +36,38 @@ const OUT = path.resolve(val('--out', COVER
   ? path.join(__dirname, '..', 'screenshot.png')
   : path.join('/tmp', 'retirement' + (PHONE ? '-phone' : '') + (USE_GIF ? '-gif' : '') + '.png')));
 
-/* The cover is shot NARROW on purpose.
+/* The cover is shot CLOSE, and LIGHT, and on the states chart.
  *
- * The store card is 248px wide with `aspect-ratio: 16/10; object-fit: cover;
- * object-position: top center`. A full 1400px-wide desktop screenshot squeezed
- * into that is a 5.6x reduction: every piece of type falls under 4px and the
- * card is grey mush. Rendering the catalog's existing covers at 248px shows
- * exactly which ones survive — the ones with LARGE elements (jspaint's house,
- * civiclock's city, contrast-ratio's big figure) — and which do not (any dense
- * full-screen shot).
+ * The store card is 248px wide (`aspect-ratio: 16/10; object-fit: cover;
+ * object-position: top center`), and what decides whether anything on it reads
+ * is the ratio of CSS pixels to card pixels. deviceScaleFactor cannot help —
+ * that only adds sharpness to something still too small.
  *
- * What decides legibility is the ratio of CSS pixels to card pixels, and
- * deviceScaleFactor cannot help with that — it only adds sharpness. So the app
- * is shot at 840 CSS px, BELOW its two-column breakpoint, where it lays out in
- * one column: no input rail eating half the frame, the chart at full width, and
- * type ~3.4x rather than 5.6x down at card size.
+ * Two rejected covers got us here. A full 1400px desktop screenshot is a 5.6x
+ * reduction and the card is grey mush. Reshooting at 840px and clipping to the
+ * verdict plus the fan got it to 3.4x — necessary and still insufficient, and a
+ * blind ranking put it last of ten against this catalog's own covers.
  *
- * The frame is then clipped to the verdict plus the fan chart, which comes out
- * at 1.61:1 against the card's 1.60 — so the card crops essentially nothing and
- * the listing hero shows the same picture whole.
+ * Three changes, all of which keep the rule that the art is THE APP, mid-use,
+ * with its own real numbers — no composed marketing image, no invented copy:
+ *
+ *   THE STATES CHART, NOT THE FAN. "Rich, broke, or gone" is 100%-stacked, so
+ *   it fills its plot edge to edge with four flat saturated masses. That
+ *   survives any reduction. The fan is thin lines over translucent bands and
+ *   does not. It is also the better idea to lead with — the most-linked page in
+ *   this entire category is called "Rich, Broke or Dead".
+ *
+ *   LIGHT. In dark, the grey "not here any more" band merges into the
+ *   background at exactly the point the story turns. In light it stands as its
+ *   own mass — and the catalog grid is overwhelmingly dark, so a light card
+ *   pops in it.
+ *
+ *   CLOSER. 640 CSS px, so the app's own type lands around 13px on the card
+ *   instead of 5px. Same app, same live numbers, framed at a size where the
+ *   card can do its job.
  */
 const VIEW = PHONE ? { width: 390, height: 844 }
-  : COVER ? { width: 840, height: 700 }
+  : COVER ? { width: 640, height: 720 }
     : { width: 1280, height: 860 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -123,52 +133,71 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
 
   if (COVER) {
-    // The store master has to catch the app MID-USE. A cold first boot is a
-    // wall of default UI and sells nothing; what sells this app is the verdict,
-    // the fan of every retirement in the record, and the fact that it ends with
-    // something to do about it — all on screen at once, with a live readout
-    // hanging off the chart so it reads as a thing being used.
+    // The store master has to catch the app MID-USE, with its own real numbers
+    // on screen — never a cold first boot, which is a wall of default UI and
+    // sells nothing.
     await frame.waitForFunction(
       () => document.querySelectorAll('#adviceList .advice').length > 0,
       null, { timeout: 60000 }
     ).catch(() => {});
+    await frame.evaluate(() => {
+      if (document.documentElement.getAttribute('data-theme') !== 'light') {
+        document.getElementById('btnTheme').click();
+      }
+    });
+    await sleep(1800);
     await frame.evaluate(() => window.scrollTo(0, 0));
     await sleep(400);
 
-    // Park the crosshair on a real age so the tooltip is up in the shot.
-    const box = await (USE_GIF ? page.locator('#appmount iframe') : page).boundingBox();
-    const svg = await frame.evaluate(() => {
-      const s = document.querySelector('#chartFan svg.chart');
-      if (!s) return null;
-      const r = s.getBoundingClientRect();
-      return { x: r.x, y: r.y, w: r.width, h: r.height };
-    });
-    if (svg) {
-      await page.mouse.move((box ? box.x : 0) + svg.x + svg.w * 0.74,
-                            (box ? box.y : 0) + svg.y + svg.h * 0.45);
-      await sleep(500);
-    }
-
-    // Clip to the verdict and the fan. The reading paragraph below is the first
-    // thing the card would crop anyway, and leaving it in only shrinks
-    // everything that matters.
-    const clip = await frame.evaluate(() => {
-      const a = document.getElementById('verdict');
-      const b = document.getElementById('legFan');
-      if (!a || !b) return null;
-      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
-      return { x: ra.left, y: ra.top, w: rb.right - ra.left, h: rb.bottom - ra.top };
-    });
-    if (clip && box) {
-      await page.screenshot({
-        path: OUT,
-        clip: { x: box.x + clip.x, y: box.y + clip.y, width: clip.w, height: clip.h }
+    // Verdict on top, states chart under it — composited from two ELEMENT
+    // screenshots rather than one clipped viewport.
+    //
+    // Clipping needs both elements on screen at once, and they are 3,400px
+    // apart in a document whose header is position:sticky — so the verdict's
+    // rect stays pinned at the top while the chart is far below it, and the
+    // naive clip between the two asks for a 640x3288 image. Scrolling one to
+    // meet the other turned out to depend on which element is the scroller and
+    // on when the theme switch finishes re-rendering, which is exactly the kind
+    // of thing that works on one box and produces a blank cover on another.
+    //
+    // Element screenshots scroll themselves into view and cannot miss. Sharp is
+    // a devDependency of the catalog, not of the app, so nothing here ships.
+    const sharp = require('sharp');
+    // The reading paragraph and the table drawer are the first things the card
+    // crops anyway, and leaving them in only makes everything above them
+    // smaller. Hiding them is a crop, not a fabrication — every pixel that
+    // remains is the running app.
+    await frame.evaluate(() => {
+      var c = document.getElementById('cardStates');
+      // Everything the card would crop anyway, plus the chrome that is not
+      // content: the subtitle, the who-picker, the reading paragraph and the
+      // table drawer. What is left is the verdict, the chart's own title and
+      // the chart. Hiding is a crop, not a fabrication — every pixel that
+      // remains is the running app with its real numbers in it.
+      ['.sub', '.read', '.tabledrop', '.segmented'].forEach(function (sel) {
+        var e = c.querySelector(sel);
+        if (e) e.style.display = 'none';
       });
-      await browser.close();
-      console.log('wrote ' + OUT + '  (' + Math.round(clip.w) + 'x' + Math.round(clip.h)
-        + ' css, ' + (clip.w / clip.h).toFixed(2) + ':1 — the card is 1.60:1)');
-      process.exit(0);
-    }
+    });
+    await sleep(300);
+    const fl = USE_GIF ? page.frameLocator('#appmount iframe') : page;
+    const top = await fl.locator('#verdict').screenshot();
+    const mid = await fl.locator('#cardStates').screenshot();
+    const a = await sharp(top).metadata();
+    const bmeta = await sharp(mid).metadata();
+    const W = Math.max(a.width, bmeta.width);
+    const H = a.height + bmeta.height;
+    const plane = await frame.evaluate(() =>
+      getComputedStyle(document.body).backgroundColor);
+    await sharp({
+      create: { width: W, height: H, channels: 3, background: plane || '#f2f2ee' }
+    })
+      .composite([{ input: top, left: 0, top: 0 }, { input: mid, left: 0, top: a.height }])
+      .png().toFile(OUT);
+    await browser.close();
+    console.log('wrote ' + OUT + '  (' + W + 'x' + H + ', '
+      + (W / H).toFixed(2) + ':1 — the card is 1.60:1)');
+    process.exit(0);
   }
 
   const state = await frame.evaluate(() => {
