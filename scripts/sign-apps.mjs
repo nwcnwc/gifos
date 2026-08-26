@@ -6,6 +6,14 @@
  *   node scripts/sign-apps.mjs --dry-run    # list, write nothing
  *   node scripts/sign-apps.mjs --force      # re-sign even if already gifos.app
  *   node scripts/sign-apps.mjs fluence      # just those slugs
+ *   node scripts/sign-apps.mjs --remix-doc  # also seal llms.txt into each GIF
+ *
+ * --remix-doc packs site/llms.txt into the app filesystem, the same guide the
+ * OS packer now puts in every app it builds (gifos-gif.js "remix doc"), so a
+ * store app someone unpacks is as remixable as one built in the browser. It is
+ * OPT-IN because it is not free: the listed GIFs predate the packer change, so
+ * turning it on rewrites and re-signs all of them — every one a new blob in a
+ * repo whose site/apps/ is already ~220 MB. Worth doing deliberately, once.
  *
  * THE KEY NEVER GOES TO GITHUB. GitHub Actions can store a secret and sign
  * in CI — that is how most "automated code signing" works, and it is the
@@ -39,6 +47,7 @@ const DOMAIN = 'gifos.app';
 const argv = process.argv.slice(2);
 const DRY = argv.includes('--dry-run');
 const FORCE = argv.includes('--force');
+const REMIX_DOC = argv.includes('--remix-doc');
 const slugsWanted = argv.filter((a) => !a.startsWith('--'));
 const KEY_PATH = process.env.GIFOS_SIGN_KEY || '';
 
@@ -119,15 +128,25 @@ const gif = globalThis.GifOS.gif;
 // so the Help screen's credit is signed bytes, not a store record. repack
 // swaps only the data block — every pixel of the artwork stays. A GIF whose
 // packed credits already match is left byte-identical (and keeps its sig).
+const REMIX_DOC_PATH = gif.REMIX_DOC;   // 'llms.txt'
+const remixDocText = () => fs.readFileSync(path.join(ROOT, 'site', REMIX_DOC_PATH), 'utf8');
+
 async function withCredits(slug, bytes) {
   const want = creditsJson(JSON.parse(fs.readFileSync(path.join(SRC, slug, 'listing.json'), 'utf8')), slug);
   const archive = await gif.decode(bytes);
   if (!archive || !archive.files) throw new Error(slug + ': not a GifOS app GIF');
   const have = archive.files[CREDITS_PATH] ? Buffer.from(archive.files[CREDITS_PATH]).toString('utf8') : '';
-  if (have === want) return { bytes, changed: false };
+  // The build guide rides under the same seal, for the same reason credits do:
+  // an app someone unpacks should carry everything needed to repack it, and
+  // signed bytes are the only version that can't have been swapped in transit.
+  const doc = REMIX_DOC ? remixDocText() : null;
+  const haveDoc = archive.files[REMIX_DOC_PATH] ? Buffer.from(archive.files[REMIX_DOC_PATH]).toString('utf8') : '';
+  const needDoc = !!doc && haveDoc !== doc;
+  if (have === want && !needDoc) return { bytes, changed: false };
   const files = Object.assign({}, archive.files);
   files[CREDITS_PATH] = want;
-  return { bytes: await gif.repack(bytes, files), changed: true };
+  if (needDoc) files[REMIX_DOC_PATH] = doc;
+  return { bytes: await gif.repack(bytes, files), changed: true, doc: needDoc };
 }
 async function creditsState(slug, bytes) {
   try {
@@ -198,7 +217,9 @@ for (const slug of slugs) {
   const packed = await withCredits(slug, new Uint8Array(raw));
   const bytes = packed.bytes;
   const claim = claimOf(Buffer.from(bytes));
-  if (packed.changed) console.log('credits ' + slug + '  packed ' + CREDITS_PATH + ' — re-signing');
+  if (packed.changed) {
+    console.log('pack  ' + slug + '  ' + [CREDITS_PATH, packed.doc ? REMIX_DOC_PATH : null].filter(Boolean).join(' + ') + ' — re-signing');
+  }
   if (!packed.changed && !FORCE && claim && claim.type === 'domain' && claim.id === DOMAIN) {
     const chHex = Buffer.from(await sign.contentHash(bytes)).toString('hex');
     const st = sign.statement('domain', DOMAIN, chHex);
