@@ -18,7 +18,7 @@
       "name": "2048",
       "shortName": "2048",
       "version": "1.2",
-      "tagline": "Race a friend to 2048 — and never lose a board again.",
+      "tagline": "Race a friend to 2048 — and come back to the board you left.",
       "author": {
         "name": "Gabriele Cirulli",
         "url": "https://github.com/gabrielecirulli/2048"
@@ -51,15 +51,15 @@
         46
       ],
       "cover": "/apps/2048/cover.jpg",
-      "bytes": 320342,
+      "bytes": 320331,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-26"
       },
-      "sha256": "76dfe9cffe3fd00cc959cc80e1aa409935f5762c588aa9edc81bab2e6b5ad09c"
+      "sha256": "4942aa92b36a6ded5a0393836389f51dd8fe365788f175c3c896a3198541b501"
     },
     {
       "slug": "aim-and-shoot",
@@ -558,7 +558,7 @@
       "name": "BIP39",
       "shortName": "BIP39",
       "version": "1.0",
-      "tagline": "Recovery words on this device. They never leave.",
+      "tagline": "Recovery words on this device. They stay put.",
       "author": {
         "name": "iancoleman",
         "url": "https://github.com/iancoleman/bip39"
@@ -592,15 +592,15 @@
         48
       ],
       "cover": "/apps/bip39/cover.jpg",
-      "bytes": 2141267,
+      "bytes": 2143984,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-26"
       },
-      "sha256": "ffc0d995609ffc7601489489ff5e7d5ee661531bf7a355edcb60f8183cfc3f13"
+      "sha256": "1b3028f9d440b22bce8acce0dc0f045b825fa6cf48d58d44340f477b6d9063de"
     },
     {
       "slug": "bitsy",
@@ -2820,7 +2820,7 @@
       "name": "JSON Crack",
       "shortName": "JSON",
       "version": "1.0",
-      "tagline": "Paste JSON, see it as a graph. Your data never leaves your device.",
+      "tagline": "Paste JSON, see it as a graph. Your data stays on your device.",
       "author": {
         "name": "Aykut Saraç",
         "url": "https://github.com/AykutSarac/jsoncrack.com"
@@ -2855,15 +2855,15 @@
         241
       ],
       "cover": "/apps/json-crack/cover.jpg",
-      "bytes": 198852,
+      "bytes": 198839,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-26"
       },
-      "sha256": "fb7a4782d80f5bca956d7cea8d0fe9f6b515cca419aa6d2add6155a7caabb23d"
+      "sha256": "16bea7b61fce913d289bb7d1c35a2b5b6e397a54067de20c22bfb58916cd91a1"
     },
     {
       "slug": "json-diff",
@@ -3113,7 +3113,7 @@
       "name": "KeeWeb",
       "shortName": "KeeWeb",
       "version": "1.0",
-      "tagline": "A KeePass vault on this device. Copy a password, never fill another site.",
+      "tagline": "A KeePass vault on this device. Copy a password; it does not fill other sites.",
       "author": {
         "name": "Antelle",
         "url": "https://github.com/keeweb/keeweb"
@@ -3148,15 +3148,15 @@
         88
       ],
       "cover": "/apps/keeweb/cover.jpg",
-      "bytes": 262764,
+      "bytes": 263258,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-26"
       },
-      "sha256": "ccf8216a484ba14c80775a43d3f865944bdbf426f17c7e2e3918584a5ad5ca95"
+      "sha256": "bd50d1aa7040d2950abd7937baa64a445a4255a3a549400254a685df10743c73"
     },
     {
       "slug": "koil",
@@ -7661,7 +7661,7 @@
       "name": "Yopass",
       "shortName": "Yopass",
       "version": "1.0",
-      "tagline": "Share a secret face to face: it goes device to device, never a server.",
+      "tagline": "Share a secret face to face: it goes device to device, not a server.",
       "author": {
         "name": "Johan Haals",
         "url": "https://github.com/jhaals/yopass"
@@ -7695,15 +7695,15 @@
         210
       ],
       "cover": "/apps/yopass/cover.jpg",
-      "bytes": 256927,
+      "bytes": 256937,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-26"
       },
-      "sha256": "7838d5056c2f18d45f0c4d7ff6605a1b0391f84960900af06b6b9927ec16da09"
+      "sha256": "2d5b977b3da4c5992c17c5ce04ba8f6fcf72b866006d37fe3c4c82a52be6c821"
     }
   ]
 }

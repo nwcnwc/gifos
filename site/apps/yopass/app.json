@@ -6,8 +6,8 @@
   "shortName": "Yopass",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Share a secret face to face: it goes device to device, never a server.",
-  "description": "Type a password, a note, an API token. It is encrypted on this device and never touches a server in the clear. Press Invite in the bar above the app: whoever opens the link is in the one-time room and can read it. Optionally burn it after the first look, optionally a passphrase they still have to type, optionally a 1 hour / 1 day / 1 week timer.\n\nThe encrypted text stays in your copy of the app, and in the room only while people are connected.\n\nAn unofficial port of Yopass by Johan Haals. Same job — share a secret without putting it in a chat in the clear. Not their backend, and not their OpenPGP bytes.",
+  "tagline": "Share a secret face to face: it goes device to device, not a server.",
+  "description": "Type a password, a note, an API token. It is encrypted on this device and does not touch a server in the clear. Press Invite in the bar above the app: whoever opens the link is in the one-time room and can read it. Optionally burn it after the first look, optionally a passphrase they still have to type, optionally a 1 hour / 1 day / 1 week timer.\n\nThe encrypted text stays in your copy of the app, and in the room only while people are connected.\n\nAn unofficial port of Yopass by Johan Haals. Same job — share a secret without putting it in a chat in the clear. Not their backend, and not their OpenPGP bytes.",
   "author": {
     "name": "Johan Haals",
     "url": "https://github.com/jhaals/yopass"
@@ -40,15 +40,15 @@
   "cover": "/apps/yopass/cover.jpg",
   "screenshots": [],
   "gif": "/apps/yopass/yopass.gif",
-  "bytes": 256927,
+  "bytes": 256937,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "7838d5056c2f18d45f0c4d7ff6605a1b0391f84960900af06b6b9927ec16da09",
+  "sha256": "2d5b977b3da4c5992c17c5ce04ba8f6fcf72b866006d37fe3c4c82a52be6c821",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-26"
   },
   "porter": {
     "name": "GifOS",

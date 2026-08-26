@@ -6,8 +6,8 @@
   "shortName": "JSON",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Paste JSON, see it as a graph. Your data never leaves your device.",
-  "description": "Paste JSON on the left and it becomes a graph of cards on the right: each object or array is a card, nested values hang off to the side, primitives stay on the parent. The last document is remembered, and your data never leaves this device.\n\nOn a phone, Text and Graph swap so the keyboard does not cover the cards. Drag to pan, pinch or the +/− buttons to zoom. A bad paste shows a short error; the last good graph stays until you fix it. Tap a row to copy that value. Format, minify, or open a file from this device.\n\nPress Invite in the GifOS bar to show the same document in a meeting. Either of you can type; you both see the graph.\n\nAn unofficial port of JSON Crack by Aykut Saraç. Graph view only.",
+  "tagline": "Paste JSON, see it as a graph. Your data stays on your device.",
+  "description": "Paste JSON on the left and it becomes a graph of cards on the right: each object or array is a card, nested values hang off to the side, primitives stay on the parent. The last document is remembered, and your data stays on this device.\n\nOn a phone, Text and Graph swap so the keyboard does not cover the cards. Drag to pan, pinch or the +/− buttons to zoom. A bad paste shows a short error; the last good graph stays until you fix it. Tap a row to copy that value. Format, minify, or open a file from this device.\n\nPress Invite in the GifOS bar to show the same document in a meeting. Either of you can type; you both see the graph.\n\nAn unofficial port of JSON Crack by Aykut Saraç. Graph view only.",
   "author": {
     "name": "Aykut Saraç",
     "url": "https://github.com/AykutSarac/jsoncrack.com"
@@ -41,15 +41,15 @@
   "cover": "/apps/json-crack/cover.jpg",
   "screenshots": [],
   "gif": "/apps/json-crack/json-crack.gif",
-  "bytes": 198852,
+  "bytes": 198839,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "fb7a4782d80f5bca956d7cea8d0fe9f6b515cca419aa6d2add6155a7caabb23d",
+  "sha256": "16bea7b61fce913d289bb7d1c35a2b5b6e397a54067de20c22bfb58916cd91a1",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-26"
   },
   "porter": {
     "name": "GifOS",

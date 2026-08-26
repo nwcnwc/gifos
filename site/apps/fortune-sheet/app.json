@@ -7,7 +7,7 @@
   "version": "1.0",
   "minBuild": 947,
   "tagline": "An Excel-like spreadsheet. Your workbook is saved on your device, not a cloud.",
-  "description": "A full spreadsheet: cells, formulas, formatting, freeze, sort, filter, comments, and as many sheets as you need. Type a budget, a roster, a grade book — it stays on this device, inside the app — your numbers never visit anyone's server.\n\nIt opens on a small demo sheet so you can see formulas working, then it is yours. Every edit is saved a moment after you make it; close the app and come back, the grid is where you left it. New workbook wipes the grid, not the app.\n\nAn unofficial port of FortuneSheet by ruilisi, MIT-licensed. Their live collaboration is not in this app.",
+  "description": "A full spreadsheet: cells, formulas, formatting, freeze, sort, filter, comments, and as many sheets as you need. Type a budget, a roster, a grade book — it stays on this device, inside the app — your numbers do not visit anyone's server.\n\nIt opens on a small demo sheet so you can see formulas working, then it is yours. Every edit is saved a moment after you make it; close the app and come back, the grid is where you left it. New workbook wipes the grid, not the app.\n\nAn unofficial port of FortuneSheet by ruilisi, MIT-licensed. Their live collaboration is not in this app.",
   "author": {
     "name": "ruilisi",
     "url": "https://github.com/ruilisi/fortune-sheet"

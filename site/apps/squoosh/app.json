@@ -7,7 +7,7 @@
   "version": "1.0",
   "minBuild": 1178,
   "tagline": "Make images smaller, on this device. Nothing is uploaded.",
-  "description": "Drop a photo and it comes back smaller. Pick JPEG, WebP, AVIF, JPEG XL, PNG or QOI, drag the quality, and watch the file size change next to a side-by-side of before and after. The encoders doing the work are the ones from Squoosh, running in this browser.\n\nAn unofficial port of Squoosh by GoogleChromeLabs. The picture you drop in never leaves this device.\n\nThe first time you pick AVIF or JPEG XL it can take a moment on a phone; JPEG and WebP are ready immediately. Resize if you want, then download. What you choose — format, quality, resize — stays in the app so the next photo starts where you left off.",
+  "description": "Drop a photo and it comes back smaller. Pick JPEG, WebP, AVIF, JPEG XL, PNG or QOI, drag the quality, and watch the file size change next to a side-by-side of before and after. The encoders doing the work are the ones from Squoosh, running in this browser.\n\nAn unofficial port of Squoosh by GoogleChromeLabs. The picture you drop in stays on this device.\n\nThe first time you pick AVIF or JPEG XL it can take a moment on a phone; JPEG and WebP are ready immediately. Resize if you want, then download. What you choose — format, quality, resize — stays in the app so the next photo starts where you left off.",
   "author": {
     "name": "GoogleChromeLabs",
     "url": "https://github.com/GoogleChromeLabs/squoosh"

@@ -7,7 +7,7 @@
   "version": "1.1",
   "minBuild": 947,
   "tagline": "Glitch a photo on your device and save the result.",
-  "description": "Corrupt a still so it tears, blooms and bands. Four sliders — amount, seed, iterations, quality — smash the JPEG in this tab. The picture never leaves the device.\n\nThe last picture and the last slider values are remembered. Close it, open it later, they are still here, smashed with the same recipe — not glitched twice.\n\nA thumb can work the sliders. Take a still from the camera, or open a picture already on the phone. Hold the picture to see the original. If a smash decodes as a grey smear, try Random seed.\n\nAn unofficial port of jpg-glitch by snorpey.",
+  "description": "Corrupt a still so it tears, blooms and bands. Four sliders — amount, seed, iterations, quality — smash the JPEG in this tab. The picture stays on the device.\n\nThe last picture and the last slider values are remembered. Close it, open it later, they are still here, smashed with the same recipe — not glitched twice.\n\nA thumb can work the sliders. Take a still from the camera, or open a picture already on the phone. Hold the picture to see the original. If a smash decodes as a grey smear, try Random seed.\n\nAn unofficial port of jpg-glitch by snorpey.",
   "author": {
     "name": "snorpey",
     "url": "https://github.com/snorpey/jpg-glitch"

@@ -1,5 +1,5 @@
 {
-  "tagline": "Race a friend to 2048 — and never lose a board again.",
+  "tagline": "Race a friend to 2048 — and come back to the board you left.",
   "description": "Press Play a friend, then Invite in the bar above the app, and send the link. You both start from the same tiles. First to 2048 wins.\n\nOn your own it is the original 2048. Swipe or use the arrow keys. When two tiles with the same number touch, they merge into one. Close it, come back, the board is where you left it.\n\nEvery game you play is kept. Press Games for the list — newest first, each with a picture of the board as you left it — and tap one to sit back down at it. New Game deals a fresh board instead of erasing the last, and the game you reached 4096 on is still there years later. Nothing removes a game but you.\n\nEach of you plays your own board in a race. Live scores as you go. If someone runs out of moves, the other can keep going — highest score takes it once every board is stuck.\n\nAn unofficial port of 2048 by Gabriele Cirulli.",
   "author": {
     "name": "Gabriele Cirulli",
