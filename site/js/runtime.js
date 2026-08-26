@@ -391,7 +391,19 @@
         // Origin-wide storage usage/quota in bytes, so an app can warn a user
         // before they fill the computer up. Shared across all apps on this
         // origin (they live in one IndexedDB), not per-app.
-        storage: function(){ return rpc({type:'storage'}); }
+        storage: function(){ return rpc({type:'storage'}); },
+        // Payments (capabilities.pay, docs/payments.md). charge() asks the OS,
+        // which shows ITS OWN sheet — verified author, amount, reason — and
+        // moves the money only if the human approves. Resolves with a receipt;
+        // REJECTS with "DECLINED_BY_USER" when they say no, which is a normal
+        // outcome an app must handle, not an error to report. amount is a
+        // decimal integer STRING of USDC base units ($1 = '1000000').
+        // entitled(sku) answers from the OS's own record of what was bought on
+        // THIS computer — the app must not keep its own copy in gifos.db,
+        // because app state travels inside the shared GIF and a purchase must
+        // not travel with it.
+        charge: function(o){ return rpc(Object.assign({type:'charge'}, o||{})); },
+        entitled: function(sku){ return rpc({type:'entitled', sku:sku}); }
       };
     })();`;
   }
@@ -2726,6 +2738,17 @@
       else if (d.type === 'launch') launchGate.then((result) => reply({ ok: true, result }));
       else if (d.type === 'asset') replyAsset(files, mountFileId, manifest, d, (p, t) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
+      // Payments. Only in a NORMAL app mount — the provider service-mount
+      // handler refuses every unknown type, which is exactly the doctrine:
+      // a hidden mount has no surface to show a human what they are approving.
+      else if (d.type === 'charge') {
+        (GifOS.payBroker ? GifOS.payBroker.charge(manifest, originalBytes, d, manifest.name) : Promise.reject(new Error('Payments are not available on this computer.')))
+          .then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      }
+      else if (d.type === 'entitled') {
+        (GifOS.payBroker ? GifOS.payBroker.entitled(manifest, d.sku) : Promise.reject(new Error('Payments are not available on this computer.')))
+          .then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      }
       else if (d.type === 'storage') {
         const est = root.navigator && root.navigator.storage && root.navigator.storage.estimate;
         (est ? root.navigator.storage.estimate() : Promise.resolve({}))
