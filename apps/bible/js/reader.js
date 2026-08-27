@@ -67,8 +67,11 @@
 
   /* ---------------- painting ---------------- */
 
-  Reader.prototype.paint = function () {
+  Reader.prototype.paint = function (opts) {
+    opts = opts || {};
     var cols = document.getElementById('cols');
+    var page = document.getElementById('page');
+    var hold = opts.keepScroll && page ? page.scrollTop : null;
     var self = this;
     clear(cols);
     cols.className = this.columns.length === 1 ? 'one' : '';
@@ -88,9 +91,11 @@
       cols.appendChild(this.paintColumn(i));
     }
 
-    // Arrival from a chapter change lands at the top, or at the verse asked for.
-    var page = document.getElementById('page');
-    if (this.at.verse > 1) {
+    // A highlight rewrite must not yank the chapter back to the top (or to
+    // `at.verse`). Navigation still lands at the verse asked for.
+    if (hold != null) {
+      page.scrollTop = hold;
+    } else if (this.at.verse > 1) {
       var target = cols.querySelector('.v[data-v="' + this.at.verse + '"]');
       if (target) {
         target.scrollIntoView({ block: 'center' });
@@ -532,23 +537,74 @@
   }
 
   Reader.prototype.applySpanHighlights = function (body, pack, code, chapter) {
-    var groups = Object.create(null);
+    var recs = [];
     for (var k in this.marks) {
       var rec = this.marks[k];
       if ((rec.kind !== 'span' && rec.kind !== 'fn') || !rec.colour) continue;
       if (rec.code !== code || rec.chapter !== chapter) continue;
       if (rec.pack && rec.pack !== pack.id) continue;
       if (rec.fn != null) continue;
-      var key = String(rec.verse);
-      (groups[key] || (groups[key] = [])).push(rec);
+      recs.push(rec);
     }
-    for (var verse in groups) {
-      var els = body.querySelectorAll('.v[data-v="' + verse + '"]');
-      if (!els.length) continue;
-      var recs = mergeTouching(groups[verse]);
-      recs.sort(function (a, b) { return b.start - a.start; });
-      for (var i = 0; i < recs.length; i++) {
-        Render.wrapOffsetsMany(els, recs[i].start, recs[i].end, recs[i].colour, recs[i].id);
+    if (root.GifosBibleStore && root.GifosBibleStore.mergeSpanRecords) {
+      recs = root.GifosBibleStore.mergeSpanRecords(recs);
+    }
+    recs.sort(function (a, b) {
+      var aE = a.verseEnd != null ? a.verseEnd : a.verse;
+      var bE = b.verseEnd != null ? b.verseEnd : b.verse;
+      if (aE !== bE) return bE - aE;
+      if (a.end !== b.end) return b.end - a.end;
+      return b.verse - a.verse;
+    });
+    for (var i = 0; i < recs.length; i++) this._paintSpan(body, recs[i]);
+  };
+
+  Reader.prototype._paintSpan = function (body, rec) {
+    var v0 = rec.verse;
+    var v1 = rec.verseEnd != null ? rec.verseEnd : rec.verse;
+    var vs = body.querySelectorAll('.v');
+    var verseOff = Object.create(null);
+    var chunks = [];
+    var i, v, t;
+    for (i = 0; i < vs.length; i++) {
+      v = +vs[i].getAttribute('data-v');
+      if (v < v0 || v > v1) continue;
+      t = Render.collectText(vs[i]);
+      if (verseOff[v] == null) verseOff[v] = 0;
+      chunks.push({ el: vs[i], verse: v, vOffset: verseOff[v], length: t.length });
+      verseOff[v] += t.length;
+    }
+    var ranges = [];
+    for (i = 0; i < chunks.length; i++) {
+      var c = chunks[i];
+      var from = c.verse === v0 ? rec.start : 0;
+      var to = c.verse === v1 ? rec.end : Infinity;
+      var a = Math.max(from, c.vOffset);
+      var b = Math.min(to, c.vOffset + c.length);
+      if (b > a) ranges.push({ el: c.el, localStart: a - c.vOffset, localEnd: b - c.vOffset });
+    }
+    var runs = [], run = null;
+    for (i = 0; i < ranges.length; i++) {
+      var el = ranges[i].el;
+      if (!run || run.parent !== el.parentNode) {
+        run = { parent: el.parentNode, els: [], local: [] };
+        runs.push(run);
+      }
+      run.els.push(el);
+      run.local.push({ start: ranges[i].localStart, end: ranges[i].localEnd });
+    }
+    for (i = runs.length - 1; i >= 0; i--) {
+      var r = runs[i];
+      var pos = 0, catStart = -1, catEnd = -1;
+      for (var j = 0; j < r.els.length; j++) {
+        var len = Render.collectText(r.els[j]).length;
+        var loc = r.local[j];
+        if (catStart < 0) catStart = pos + loc.start;
+        catEnd = pos + loc.end;
+        pos += len;
+      }
+      if (catEnd > catStart) {
+        Render.wrapOffsetsAcross(r.els, catStart, catEnd, rec.colour, rec.id);
       }
     }
   };
@@ -608,28 +664,33 @@
     if (!pack) return null;
 
     var vs = chapter.querySelectorAll('.v');
-    var byI = Object.create(null), order = [];
-    for (var i = 0; i < vs.length; i++) {
+    var firstEl = null, lastEl = null, i;
+    for (i = 0; i < vs.length; i++) {
       if (!this._rangeTouches(range, vs[i])) continue;
-      var id = vs[i].getAttribute('data-i');
-      if (!byI[id]) { byI[id] = []; order.push(id); }
-      byI[id].push(vs[i]);
+      if (!firstEl) firstEl = vs[i];
+      lastEl = vs[i];
     }
-    if (!order.length) return null;
-    var specs = [];
-    for (var o = 0; o < order.length; o++) {
-      var els = byI[order[o]];
-      var clip = this._clipToEls(range, els);
-      if (!clip) continue;
-      var ref = pack.refOf(+els[0].getAttribute('data-i'));
-      if (!ref) continue;
-      specs.push({
-        kind: 'span', pack: pack.id, code: ref.code, chapter: ref.chapter, verse: ref.verse,
-        start: clip.start, end: clip.end, quote: quote
-      });
+    if (!firstEl) return null;
+    var firstI = +firstEl.getAttribute('data-i');
+    var lastI = +lastEl.getAttribute('data-i');
+    var firstEls = [], lastEls = [];
+    for (i = 0; i < vs.length; i++) {
+      var id = +vs[i].getAttribute('data-i');
+      if (id === firstI) firstEls.push(vs[i]);
+      if (id === lastI) lastEls.push(vs[i]);
     }
-    if (!specs.length) return null;
-    return { quote: quote, rect: range.getBoundingClientRect(), specs: specs };
+    var startClip = this._clipToEls(range, firstEls);
+    var endClip = firstI === lastI ? startClip : this._clipToEls(range, lastEls);
+    if (!startClip || !endClip) return null;
+    var ref0 = pack.refOf(firstI);
+    var ref1 = pack.refOf(lastI);
+    if (!ref0 || !ref1) return null;
+    var spec = {
+      kind: 'span', pack: pack.id, code: ref0.code, chapter: ref0.chapter,
+      verse: ref0.verse, start: startClip.start, end: endClip.end, quote: quote
+    };
+    if (ref1.verse !== ref0.verse) spec.verseEnd = ref1.verse;
+    return { quote: quote, rect: range.getBoundingClientRect(), specs: [spec] };
   };
 
   Reader.prototype._rangeTouches = function (range, el) {
@@ -698,7 +759,7 @@
     if (rec) {
       spec = {
         kind: rec.kind, pack: rec.pack || (pack && pack.id), code: rec.code,
-        chapter: rec.chapter, verse: rec.verse, fn: rec.fn,
+        chapter: rec.chapter, verse: rec.verse, verseEnd: rec.verseEnd, fn: rec.fn,
         start: rec.start, end: rec.end, quote: rec.quote || mark.textContent, id: rec.id
       };
     } else {

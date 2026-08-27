@@ -42,7 +42,7 @@
         b.setAttribute('aria-pressed', mark.colour === c ? 'true' : 'false');
         b.addEventListener('click', function () {
           var next = mark.colour === c ? '' : c;
-          self.store.setHighlight(ref, next).then(function () { self.paint(); });
+          self.store.setHighlight(ref, next).then(function () { self.paint({ keepScroll: true }); });
           self.closeSheets();
         });
         sw.appendChild(b);
@@ -52,7 +52,7 @@
     none.type = 'button';
     none.title = 'No highlight';
     none.addEventListener('click', function () {
-      self.store.setHighlight(ref, '').then(function () { self.paint(); });
+      self.store.setHighlight(ref, '').then(function () { self.paint({ keepScroll: true }); });
       self.closeSheets();
     });
     sw.appendChild(none);

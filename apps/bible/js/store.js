@@ -135,25 +135,98 @@
     }).catch(function (e) { self.onError && self.onError(e); return null; });
   };
 
-  // A Kindle-style highlight is a RANGE, not a verse. `fn` is the translators'
-  // footnote index when the selection was in a note; omitted in the verse.
+  // A Kindle-style highlight is a RANGE, not a verse. It may run across
+  // consecutive verses in the same chapter (`verse`..`verseEnd`). `fn` is the
+  // translators' footnote index when the selection was in a note.
+  function spanEndVerse(spec) {
+    return spec.verseEnd != null ? spec.verseEnd : spec.verse;
+  }
   function spanId(spec) {
+    var v1 = spanEndVerse(spec);
     var head = (spec.fn != null ? 'fn.' : 's.') + spec.pack + '.' + spec.code + '.' +
       spec.chapter + '.' + spec.verse + (spec.fn != null ? '.' + spec.fn : '');
+    if (v1 !== spec.verse) head += '-' + v1;
     return head + '.' + spec.start + '.' + spec.end;
   }
-  function sameLocus(a, b) {
-    if (a.code !== b.code || a.chapter !== b.chapter || a.verse !== b.verse) return false;
+  function sameSpanLocus(a, b) {
+    if (a.code !== b.code || a.chapter !== b.chapter) return false;
     if (a.pack && b.pack && a.pack !== b.pack) return false;
     if ((a.fn != null) !== (b.fn != null)) return false;
-    if (a.fn != null && a.fn !== b.fn) return false;
+    if (a.fn != null && (a.fn !== b.fn || a.verse !== b.verse)) return false;
     return true;
   }
+  function coverageOnVerse(span, v) {
+    var v0 = span.verse, v1 = spanEndVerse(span);
+    if (v < v0 || v > v1) return null;
+    return { from: v === v0 ? span.start : 0, to: v === v1 ? span.end : Infinity };
+  }
   function spansOverlap(a, b) {
-    return sameLocus(a, b) && a.start < b.end && b.start < a.end;
+    if (!sameSpanLocus(a, b)) return false;
+    var lo = Math.max(a.verse, b.verse);
+    var hi = Math.min(spanEndVerse(a), spanEndVerse(b));
+    for (var v = lo; v <= hi; v++) {
+      var ca = coverageOnVerse(a, v), cb = coverageOnVerse(b, v);
+      if (ca && cb && ca.from < cb.to && cb.from < ca.to) return true;
+    }
+    return false;
   }
   function spansTouch(a, b) {
-    return sameLocus(a, b) && a.start <= b.end && b.start <= a.end;
+    if (!sameSpanLocus(a, b)) return false;
+    var lo = Math.max(a.verse, b.verse);
+    var hi = Math.min(spanEndVerse(a), spanEndVerse(b));
+    var v;
+    for (v = lo; v <= hi; v++) {
+      var ca = coverageOnVerse(a, v), cb = coverageOnVerse(b, v);
+      if (ca && cb && ca.from <= cb.to && cb.from <= ca.to) return true;
+    }
+    // Same colour on neighbouring verses is one run — the gap at the verse
+    // number is not a reason to split.
+    if (spanEndVerse(a) + 1 === b.verse || spanEndVerse(b) + 1 === a.verse) return true;
+    return false;
+  }
+  function mergeSpanBounds(want, r) {
+    var w1 = spanEndVerse(want), r1 = spanEndVerse(r);
+    var verse = want.verse, start = want.start;
+    if (r.verse < want.verse || (r.verse === want.verse && r.start < want.start)) {
+      verse = r.verse;
+      start = r.start;
+    }
+    var verseEnd = w1, end = want.end;
+    if (r1 > w1 || (r1 === w1 && r.end > want.end)) {
+      verseEnd = r1;
+      end = r.end;
+    }
+    want.verse = verse;
+    want.start = start;
+    want.end = end;
+    if (verseEnd !== verse) want.verseEnd = verseEnd;
+    else delete want.verseEnd;
+  }
+  function copySpan(r) {
+    return {
+      id: r.id, kind: r.kind, pack: r.pack, code: r.code, chapter: r.chapter,
+      verse: r.verse, start: r.start, end: r.end, verseEnd: r.verseEnd,
+      fn: r.fn, quote: r.quote, colour: r.colour
+    };
+  }
+  function mergeSpanRecords(recs) {
+    var list = recs.slice().sort(function (a, b) {
+      if (a.colour !== b.colour) return a.colour < b.colour ? -1 : 1;
+      if (a.verse !== b.verse) return a.verse - b.verse;
+      return a.start - b.start;
+    });
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      var last = out[out.length - 1];
+      if (last && last.colour === r.colour && spansTouch(last, r)) {
+        mergeSpanBounds(last, r);
+        if ((r.quote || '').length > (last.quote || '').length) last.quote = r.quote;
+      } else {
+        out.push(copySpan(r));
+      }
+    }
+    return out;
   }
 
   Store.prototype.setSpan = function (spec, colour) {
@@ -164,14 +237,14 @@
       pack: spec.pack, code: spec.code, chapter: spec.chapter, verse: spec.verse,
       start: spec.start, end: spec.end, fn: spec.fn, quote: spec.quote || ''
     };
+    if (spec.verseEnd != null && spec.verseEnd !== spec.verse) want.verseEnd = spec.verseEnd;
     return c.getAll().then(function (rows) {
       var ops = [];
       for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
         if (r.kind !== 'span' && r.kind !== 'fn') continue;
         if (colour && r.colour === colour && spansTouch(r, want)) {
-          want.start = Math.min(want.start, r.start);
-          want.end = Math.max(want.end, r.end);
+          mergeSpanBounds(want, r);
           if ((r.quote || '').length > (want.quote || '').length) want.quote = r.quote;
           ops.push(c.delete(r.id));
         } else if (spansOverlap(r, want)) {
@@ -266,5 +339,9 @@
   Store.prototype.savePlan = function (rec) { return this.collection('plans').put(rec); };
   Store.prototype.dropPlan = function (id) { return this.collection('plans').delete(id); };
 
-  root.GifosBibleStore = { Store: Store, DEFAULTS: DEFAULTS, markId: markId };
+  root.GifosBibleStore = {
+    Store: Store, DEFAULTS: DEFAULTS, markId: markId,
+    spanEndVerse: spanEndVerse, spansTouch: spansTouch, spansOverlap: spansOverlap,
+    mergeSpanBounds: mergeSpanBounds, mergeSpanRecords: mergeSpanRecords
+  };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
