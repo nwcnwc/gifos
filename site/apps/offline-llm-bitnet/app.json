@@ -43,6 +43,7 @@
   "gif": "/apps/offline-llm-bitnet/offline-llm-bitnet.gif",
   "bytes": 10227608,
   "download": 1105874048,
+  "requiredCount": 1,
   "provides": {
     "ai": [
       "cheapest"

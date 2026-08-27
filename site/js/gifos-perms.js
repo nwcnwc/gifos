@@ -58,7 +58,7 @@
   }
 
   function escapeText(s) { var d = doc.createElement('div'); d.textContent = s; return d.innerHTML; }
-  var CAP_LABELS = { microphone: 'Record short voice clips', camera: 'Take photos and short videos', motion: 'Sense how you tilt your phone', ai: 'Use your AI', api: 'Use your account with', agent: 'Let an AI assistant operate this app', wasm: 'Run a compiled engine on your device', gpu: 'Use your device’s graphics chip (GPU)', pointer: 'Take over the mouse pointer while you play', fullscreen: 'Fill the whole screen, and hold your phone’s picture sideways', pool: 'Pool downloads with the room', pay: 'Ask you to pay for things' };
+  var CAP_LABELS = { microphone: 'Record short voice clips', camera: 'Take photos and short videos', motion: 'Sense how you tilt your phone', ai: 'Use your AI', api: 'Use your account with', agent: 'Let an AI assistant operate this app', wasm: 'Run a compiled engine on your device', gpu: 'Use your device’s graphics chip (GPU)', pointer: 'Take over the mouse pointer while you play', fullscreen: 'Fill the whole screen, and hold your phone’s picture sideways', pool: 'Pool downloads with the room', pay: 'Ask you to pay for things', assets: 'Download extra files when you pick them' };
   var CAP_DESC = {
     wasm: 'Lets the app run a compiled (WebAssembly) engine — like a chess engine or a codec — in a background worker on your device, so it can do heavy computation fast without freezing. It still cannot reach the internet: the engine runs entirely offline, sealed inside this app.',
     gpu: 'Lets the app run computations on your device’s graphics chip (GPU) via WebGPU — for fast on-device AI, image, or physics work. It still cannot reach the internet: the GPU has no network path, and everything runs offline, sealed inside this app.',
@@ -71,8 +71,14 @@
     api: 'Lets the app use one of your own accounts you set up in Settings. GifOS attaches your key and sends the request only to that service — the app does not see the key.',
     pool: 'When you are in a room with other people, this app shares what it downloads from the sites below with them, and uses what they downloaded instead of fetching it again. It is how ten people in one place cost a donated map server one download instead of ten. Two things to know: the others learn WHICH addresses you fetched (in a shared world that is where everyone already is, but it is not nothing), and what arrives comes from them rather than from the site — this app treats it as data, not as instructions. Your keyed accounts are never pooled.',
     pay: 'Lets the app ask you to pay for something — an unlock, an item, a tip. Every payment shows you a GifOS sheet first: the amount, what it is for, and the app’s <b>verified author</b> — and nothing is charged unless you approve it there. The money goes to the author (GifOS keeps 3%); the app never sees your card, wallet, or balance. Only signed, verified apps can charge at all.',
-    agent: 'Adds a GifOS assistant bar that can read and click/type on <b>this app’s screen</b> for you (driven by your Smartest AI). It touches this one app only — not GifOS, not your other apps — and does not see your key. You start it, and can stop it any time.'
+    agent: 'Adds a GifOS assistant bar that can read and click/type on <b>this app’s screen</b> for you (driven by your Smartest AI). It touches this one app only — not GifOS, not your other apps — and does not see your key. You start it, and can stop it any time.',
+    assets: 'Lets the app download extra files the first time you open them — a translation, a language pack, a model. Each file is hash-pinned in the app’s listing, arrives only when you pick it, and then stays on this device. Nothing downloads at install for these. Uncheck to block those downloads. Files that already came with install are not this toggle.'
   };
+  function optionalPins(manifest) {
+    var as = manifest && manifest.assets;
+    if (!Array.isArray(as)) return [];
+    return as.filter(function (a) { return a && a.optional; });
+  }
   // App -> app handoff (manifest "handoff", docs/app-handoff.md). MIRRORS
   // HANDOFF_KINDS in runtime.js — the runtime is where these are enforced;
   // this is only where they are said out loud. Not a checkbox: nothing is
@@ -160,6 +166,9 @@
       var caps = Object.keys(CAP_LABELS).filter(function (k) {
         if (k === 'api') return apiNames(manifest).length;
         if (k === 'pool') return poolHosts(manifest).length;
+        if (k === 'assets') {
+          return optionalPins(manifest).length || !!(manifest && manifest.capabilities && manifest.capabilities.assets);
+        }
         return manifest && manifest.capabilities && manifest.capabilities[k];
       });
       var hasNet = !!(policy && policy.hasNetwork());
@@ -233,6 +242,17 @@
             var ph = poolHosts(manifest);
             return capRow(k, CAP_LABELS.pool, CAP_DESC.pool
               + '<br><span class="cap-name">Pooled: <b>' + escapeText(ph.join(', ')) + '</b></span>');
+          }
+          if (k === 'assets') {
+            var pins = optionalPins(manifest);
+            var n = pins.length;
+            var bytes = 0;
+            pins.forEach(function (a) { bytes += Number(a.bytes) || 0; });
+            var size = bytes >= 1048576 ? (bytes / 1048576).toFixed(bytes < 10485760 ? 1 : 0) + ' MB' : (bytes ? Math.round(bytes / 1024) + ' KB' : '');
+            var who = n === 1 ? '1 extra file' : n + ' extra files';
+            return capRow(k, CAP_LABELS.assets, CAP_DESC.assets
+              + (n ? '<br><span class="cap-name">This app lists <b>' + escapeText(who) + '</b>'
+                + (size ? ', about <b>' + escapeText(size) + '</b> if you take every one' : '') + '.</span>' : ''));
           }
           return capRow(k, CAP_LABELS[k], CAP_DESC[k]);
         }).join('');

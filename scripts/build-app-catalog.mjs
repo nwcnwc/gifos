@@ -496,7 +496,7 @@ async function buildApp(slug) {
   // of them would make every reader download Burmese to open John. The 8 MB
   // floor therefore applies to required assets only.
   const ASSET_MIN_BYTES = 8 * 1024 * 1024;
-  let download = 0;
+  let download = 0, optionalDownload = 0, requiredCount = 0, optionalCount = 0;
   if (m.assets && !Array.isArray(m.assets)) fail(slug + ': manifest.assets must be an array');
   for (const a of (Array.isArray(m.assets) ? m.assets : [])) {
     const tag = slug + ' asset "' + ((a && a.path) || '?') + '"';
@@ -506,6 +506,10 @@ async function buildApp(slug) {
     const url = String(a.url || '');
     const rel = /^\/[^/]/.test(url);
     if (!rel && !/^https:\/\//.test(url)) { fail(tag + ': url must be https:// or origin-relative /…'); continue; }
+    const count = (n) => {
+      if (a.optional) { optionalCount++; optionalDownload += n; }
+      else { requiredCount++; download += n; }
+    };
     if (rel) {
       const p = path.join(ROOT, 'site', url);
       if (!fs.existsSync(p)) { fail(tag + ': pinned file missing at site' + url); continue; }
@@ -514,11 +518,11 @@ async function buildApp(slug) {
       if (hex !== String(a.sha256).toLowerCase()) fail(tag + ': site' + url + ' does not match the pinned sha256 — re-pin the manifest or restore the file');
       if (a.bytes && Number(a.bytes) !== b.length) fail(tag + ': declared bytes ' + a.bytes + ' ≠ actual ' + b.length);
       if (!a.optional && b.length < ASSET_MIN_BYTES) fail(tag + ': ' + b.length + ' bytes is small enough to ride INSIDE the GIF — pack it (assets are reserved for big model weights, docs/providers.md)');
-      if (!a.optional) download += b.length;
+      count(b.length);
     } else {
       if (!(Number(a.bytes) > 0)) { fail(tag + ': an absolute-URL asset must declare its true bytes (the store quotes the download, and the size floor needs it)'); continue; }
       if (!a.optional && Number(a.bytes) < ASSET_MIN_BYTES) fail(tag + ': ' + a.bytes + ' bytes is small enough to ride INSIDE the GIF — pack it (assets are reserved for big model weights, docs/providers.md)');
-      if (!a.optional) download += Number(a.bytes);
+      count(Number(a.bytes));
     }
   }
 
@@ -558,14 +562,19 @@ async function buildApp(slug) {
     copyright: creditsOf(l, slug).copyright || '',
     homepage: l.homepage || '',
     accent: m.accent || null,
-    capabilities: m.capabilities || {},
+    capabilities: optionalCount
+      ? Object.assign({}, m.capabilities || {}, { assets: true })
+      : (m.capabilities || {}),
     cover: '/apps/' + slug + '/cover.jpg',
     screenshots: (l.screenshots || []).map((_, i) => '/apps/' + slug + '/shot-' + (i + 1) + '.jpg'),
     gif: '/apps/' + slug + '/' + slug + '.gif',
     bytes: gifBytes.length,
-    // Extra install-time download the OS fetches and seals (0 for most apps) —
-    // the store can honestly say "+N MB download" before Install.
+    // Extra downloads the OS fetches and seals. `download` is REQUIRED pins
+    // (at install). Optional pins are a later pick — the listing must say
+    // both, or a library of translations looks like a 4 MB install.
     download,
+    ...(requiredCount ? { requiredCount } : {}),
+    ...(optionalCount ? { optionalCount, optionalDownload } : {}),
     provides: m.provides || null,
     // The app's on-chain payee, straight from the signed manifest. The pay
     // Worker treats THIS as the authority for where a wallet-transfer or x402
@@ -647,7 +656,9 @@ const index = {
     offline: !hasNetwork(r.capabilities),
     releaseDate: r.releaseDate, updated: r.updated,
     categories: r.categories, tags: r.tags, accent: r.accent,
-    cover: r.cover, bytes: r.bytes, download: r.download, provides: r.provides, signature: r.signature,
+    cover: r.cover, bytes: r.bytes, download: r.download,
+    ...(r.optionalCount ? { optionalCount: r.optionalCount, optionalDownload: r.optionalDownload } : {}),
+    provides: r.provides, signature: r.signature,
     // pay BELONGS IN THE INDEX for the same reason sha256 does: the pay
     // Worker resolves an appId to its authoritative chain payee from ONE
     // fetch of the index — never from a client-sent address (see the rec
