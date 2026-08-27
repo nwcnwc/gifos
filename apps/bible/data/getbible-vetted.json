@@ -1,0 +1,905 @@
+{
+ "note": "Verdicts on getbible v2 texts researched title-by-title. ACCEPT only where the underlying translation is verifiably public domain; the reason names the deciding fact and the source is where it was verified. The eBible.org corpus is vetted separately by its own catalog field.",
+ "candidates": [
+  {
+   "id": "polgdanska",
+   "language": "Polish",
+   "title": "Biblia Gdanska",
+   "year": 1632,
+   "verdict": "ACCEPT",
+   "reason": "First published 1632 and reissued by the BFBS in 1881; translators Daniel Mikolajewski (d. 1633) and Jan Turnowski (d. 1629) and the 19th-century revisers are centuries dead, and no publisher asserts rights.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/polgdanska.conf"
+  },
+  {
+   "id": "polugdanska",
+   "language": "Polish",
+   "title": "Uwspolczesniona Biblia Gdanska (UBG)",
+   "year": 2017,
+   "verdict": "REJECT",
+   "reason": "Copyright (c) 2017 Fundacja Wrota Nadziei / Gate of Hope Foundation, distributed under CC BY-ND 4.0, which is a licence and not a public-domain dedication.",
+   "source": "https://ebible.org/find/details.php?id=polubg"
+  },
+  {
+   "id": "karoli",
+   "language": "Hungarian",
+   "title": "Karoli Biblia (revidealt 1908)",
+   "year": 1908,
+   "verdict": "ACCEPT",
+   "reason": "The shipped text is the 1908 BFBS revision whose committee (Szasz Karoly d. 1905, Baksay d. 1915, Szots d. 1918) all died over 70 years ago, and the Magyar Bibliatarsulat asserts rights only over its 1975/1990/2011 texts.",
+   "source": "https://biblia.szeroczei.hu/bible/kg1908"
+  },
+  {
+   "id": "finnish1776",
+   "language": "Finnish",
+   "title": "Biblia, Se on: Koko Pyha Raamattu (1776)",
+   "year": 1776,
+   "verdict": "ACCEPT",
+   "reason": "Published 1776 and revised by Anders Lizelius, who died in 1795; no claimant exists.",
+   "source": "http://www.blf.fi/artikel.php?id=349"
+  },
+  {
+   "id": "pyharaamattu1933",
+   "language": "Finnish",
+   "title": "Pyha Raamattu (1933/1938)",
+   "year": 1933,
+   "verdict": "REJECT",
+   "reason": "Chief translator A. F. Puukko died 1954 so the Finnish term ran to the end of 2024, the work was still protected on the URAA date and its US copyright is restored to 2029 (OT) / 2034 (NT), and Suomen Pipliaseura still stamps a copyright line on the edition.",
+   "source": "https://www.raamattu.fi/kaannokset/raa"
+  },
+  {
+   "id": "swedish",
+   "language": "Swedish",
+   "title": "Bibeln 1917",
+   "year": 1917,
+   "verdict": "ACCEPT",
+   "reason": "Published 1917 by a committee whose members died 1921-1928, and Svenska Bibelsallskapet's copyright page covers only Bibel 2000.",
+   "source": "https://www.bibeln.se/copyright"
+  },
+  {
+   "id": "swekarlxii",
+   "language": "Swedish",
+   "title": "Svenska Karl XII:s Bibel",
+   "year": 1703,
+   "verdict": "ACCEPT",
+   "reason": "Printed 1703 as a revision of the 1541 Gustav Vasa Bible; every member of the revision commission died in the early 1700s and no one claims rights.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/swekarlxii.conf"
+  },
+  {
+   "id": "swekarlxii1873",
+   "language": "Swedish",
+   "title": "Svenska Karl XII:s Bibel (1873 BFBS printing)",
+   "year": 1703,
+   "verdict": "ACCEPT",
+   "reason": "A verbatim 1873 British and Foreign Bible Society reprint of the 1703 church Bible, and a faithful reprint creates no new copyright.",
+   "source": "https://crosswire.org/sword/modules/ModInfo.jsp?modName=SweKarlXII1873"
+  },
+  {
+   "id": "danish",
+   "language": "Danish",
+   "title": "Dansk Bibel (OT 1931 / NT 1907)",
+   "year": 1931,
+   "verdict": "REJECT",
+   "reason": "The Old Testament is a new 1931 translation by an undocumented commission, so it fails the pre-1929 test outright and the last-surviving-translator date cannot be established.",
+   "source": "https://www.bibelselskabet.dk/om-bibelselskabet-menu/copyright-brug-af-bibeltekst-i-trykte-og-digitale-udgivelser"
+  },
+  {
+   "id": "danish1819",
+   "language": "Danish",
+   "title": "Det Nye Testamente 1819",
+   "year": 1819,
+   "verdict": "ACCEPT",
+   "reason": "An 1819 Bible Society revision of the 1607/1647 Resen-Svane text; every possible contributor died well over 150 years ago.",
+   "source": "https://crosswire.org/sword/modules/ModInfo.jsp?modName=DaNT1819"
+  },
+  {
+   "id": "danish1871",
+   "language": "Danish",
+   "title": "Dansk Bibel (OT 1871 / NT 1907)",
+   "year": 1871,
+   "verdict": "REJECT",
+   "reason": "The 1871 Old Testament is clear but the 1907 New Testament revision commission cannot be named from any source, so the translator-died-70-years-ago prong is unverifiable.",
+   "source": "https://www.bibelselskabet.dk/sites/default/files/files/artikel_2_bibliana_01-24.pdf"
+  },
+  {
+   "id": "bibelselskap",
+   "language": "Norwegian Bokmal",
+   "title": "Det Norske Bibelselskaps Bibel (1930)",
+   "year": 1930,
+   "verdict": "ACCEPT",
+   "reason": "Bibelselskapet's own rights page states verbatim that '1930-oversettelsen er fri', and the revision committee's last member Sigurd Odland died 1937.",
+   "source": "https://bibel.no/verbum/rettigheter-til-bruk-av-bibeltekst"
+  },
+  {
+   "id": "norsmb",
+   "language": "Norwegian Nynorsk",
+   "title": "Studentmallagsbibelen",
+   "year": 1921,
+   "verdict": "REJECT",
+   "reason": "Studentmallaget i Oslo actively asserts copyright on the text ('Det er ikkje lov a kopiere ... utan etter loyve') and roughly twenty Old Testament collaborators are unnamed, with Alexander Seippel dying only in 1938.",
+   "source": "https://bibel.smio.no/"
+  },
+  {
+   "id": "turkish",
+   "language": "Turkish",
+   "title": "Kutsal Kitap (Yeni Ceviri)",
+   "year": 2001,
+   "verdict": "REJECT",
+   "reason": "Copyright Kitab-i Mukaddes Sirketi and Yeni Yasam Yayinlari with 'butun haklari saklidir' and a written-permission requirement above 100 verses.",
+   "source": "https://api.getbible.net/v2/turkish.json"
+  },
+  {
+   "id": "turhadi",
+   "language": "Turkish",
+   "title": "Halk Dilinde Incil (HADI)",
+   "year": 2012,
+   "verdict": "REJECT",
+   "reason": "Copyright owned by Bible League International and the World Bible Translation Center, with a 400-verse quotation cap.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/turhadi.conf"
+  },
+  {
+   "id": "alb",
+   "language": "Albanian",
+   "title": "Diodati i Ri",
+   "year": 1994,
+   "verdict": "REJECT",
+   "reason": "The shipped text is verbatim the 1991-94 Diodati i Ri made by the Albanian Bible Society from the Italian Nuova Diodati 1991, not the 19th-century Kristoforidhi translation.",
+   "source": "https://en.wikipedia.org/wiki/Bible_translations_into_Albanian"
+  },
+  {
+   "id": "estonian",
+   "language": "Estonian",
+   "title": "Piibel (1968)",
+   "year": 1968,
+   "verdict": "REJECT",
+   "reason": "The module text matches the 1968 Piibel verse for verse and its translator Endel Kopp died 1996; the SWORD conf carries no distribution licence at all and the module itself says 'Copyright status unknown'.",
+   "source": "https://crosswire.org/sword/modules/ModInfo.jsp?modName=Est"
+  },
+  {
+   "id": "latvian",
+   "language": "Latvian",
+   "title": "Jauna Deriba (Strelevics)",
+   "year": 1947,
+   "verdict": "REJECT",
+   "reason": "The text is Prelate Vincents Strelevics's Vulgate-based Catholic New Testament of 1947, revised 1995, held by the Latvian Roman Catholic Church - find.bible's '1685 / public domain' label is a misidentification.",
+   "source": "https://breviars.lv/copyright.html"
+  },
+  {
+   "id": "lithuanian",
+   "language": "Lithuanian",
+   "title": "Biblija (Tikejimo Zodis)",
+   "year": 1996,
+   "verdict": "REJECT",
+   "reason": "The module conf carries CopyrightHolder 'The Church Tikejimo Zodis', CopyrightDate 1999 and permission granted to CrossWire only; translator Kostas Burbulys died 2002.",
+   "source": "https://www.spauda.lt/bible/vertimai.htm"
+  },
+  {
+   "id": "tagalog",
+   "language": "Tagalog",
+   "title": "Ang Dating Biblia",
+   "year": 1905,
+   "verdict": "ACCEPT",
+   "reason": "Complete Bible published 1905 by the American Bible Society and BFBS; principal translator Pascual H. Poblete died 1921 and the Philippine Bible Society asserts rights only over its 1978/2001 texts.",
+   "source": "https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=TagAngBiblia"
+  },
+  {
+   "id": "aov",
+   "language": "Afrikaans",
+   "title": "Die Bybel: Ou Vertaling (1933/1953)",
+   "year": 1933,
+   "verdict": "REJECT",
+   "reason": "The Bible Society of South Africa's live copyright page lists the 1933/1953 Afrikaans Bible among protected translations with fee-based licensing and a 500-verse cap.",
+   "source": "https://biblesociety.co.za/index.php/af/copyright"
+  },
+  {
+   "id": "easternarmenian",
+   "language": "Armenian",
+   "title": "Eastern Armenian (Genesis, Exodus, Gospels)",
+   "year": null,
+   "verdict": "REJECT",
+   "reason": "The module states no year, translator or edition and candidates run from Dittrich's 1835 New Testament to the 1985-91 Etchmiadzin translation, so nothing can be confirmed.",
+   "source": "https://crosswire.org/ftpmirror/pub/sword/raw/mods.d/armeastern.conf"
+  },
+  {
+   "id": "westernarmenian",
+   "language": "Armenian",
+   "title": "Western Armenian New Testament",
+   "year": 1853,
+   "verdict": "ACCEPT",
+   "reason": "Printed 1853 in Constantinople from the Zohrab base by the ABCFM circle around Elias Riggs (d. 1901); pre-1929 with all parties dead over a century.",
+   "source": "https://archive.org/details/TheHolyBibleInArmenianWestern1853NT"
+  },
+  {
+   "id": "basque",
+   "language": "Basque",
+   "title": "Iesus Christ Gure Iaunaren Testamentu Berria",
+   "year": 1571,
+   "verdict": "ACCEPT",
+   "reason": "Printed at La Rochelle in 1571 by Pierre Hautin; translator Joanes Leizarraga died 1601.",
+   "source": "https://en.wikipedia.org/wiki/Joanes_Leizarraga"
+  },
+  {
+   "id": "maori",
+   "language": "Maori",
+   "title": "Te Paipera Tapu",
+   "year": 1952,
+   "verdict": "REJECT",
+   "reason": "The module's text matches the 1952 revision word for word (John 3:16 'kia kahore ai e ngaro'), which is copyright New Zealand Bible Society, not the public-domain 1868 text.",
+   "source": "https://www.bible.com/bible/94/JHN.3.MRI1952"
+  },
+  {
+   "id": "mg1865",
+   "language": "Malagasy",
+   "title": "Baiboly Malagasy (1865)",
+   "year": 1865,
+   "verdict": "ACCEPT",
+   "reason": "David Griffiths's 1835 LMS translation as revised in 1865-66 by 19th-century LMS missionaries; Griffiths died 1863 and no successor asserts rights.",
+   "source": "https://github.com/DavidHaslam/Malagasy-Bible-1865"
+  },
+  {
+   "id": "mal1910",
+   "language": "Malayalam",
+   "title": "Sathyavedapusthakam (1910)",
+   "year": 1910,
+   "verdict": "ACCEPT",
+   "reason": "The 1910 Sathyavedapusthakam is carried by the Bible Society of India under Public Domain Mark 1.0; only the Free Bible Foundation's separate 2015 contemporary-orthography revision is claimed.",
+   "source": "https://archive.org/details/Sathyavedapusthakam_1910"
+  },
+  {
+   "id": "che1860",
+   "language": "Cherokee",
+   "title": "Cherokee New Testament (1860)",
+   "year": 1860,
+   "verdict": "ACCEPT",
+   "reason": "The 1860 American Bible Society text is public domain and the 2020 electronic edition with Sequoyah transliterations carries a CC0 1.0 waiver in its repository LICENSE file.",
+   "source": "https://github.com/CherokeeLanguage/CherokeeNewTestament.org/blob/master/LICENSE"
+  },
+  {
+   "id": "chamorro",
+   "language": "Chamorro",
+   "title": "Y Cuatro Ebangelio Sija Yan Y Checho Y Apostoles Sija",
+   "year": 1908,
+   "verdict": "ACCEPT",
+   "reason": "Translated by Francis Marion Price (1850-1937) and printed 1908 by the American Bible Society; listed on eBible.org's public-domain register.",
+   "source": "http://chamorrobible.org/francis-marion-price.htm"
+  },
+  {
+   "id": "manxgaelic",
+   "language": "Manx Gaelic",
+   "title": "Yn Vible Casherick (scripture portions)",
+   "year": 1775,
+   "verdict": "ACCEPT",
+   "reason": "The Manx scriptures were published 1748-1775 under Bishop Mark Hildesley (d. 1772), with final revision by Philip Moore (d. 1783) and John Kelly (d. 1809).",
+   "source": "https://en.wikipedia.org/wiki/Bible_translations_into_Manx"
+  },
+  {
+   "id": "gaelic",
+   "language": "Scottish Gaelic",
+   "title": "Soisgeul Mharcuis (modernised MacEachen)",
+   "year": null,
+   "verdict": "REJECT",
+   "reason": "The module is not MacEachen's 1875 text but an undated modernisation signed 'John A. Galbraith' with no licence, no waiver and no confirmable death date.",
+   "source": "https://web.archive.org/web/20061025174108/http://dialspace.dial.pipex.com/town/avenue/pa44/mkg1.htm"
+  },
+  {
+   "id": "breton",
+   "language": "Breton",
+   "title": "Testamant Nevez - Troidigezh Koad 21",
+   "year": 2004,
+   "verdict": "REJECT",
+   "reason": "The module's own copyright field reads 'Text copyright (c) 2004, 2007, 2011 Anjou Bible Society' - the shipped text is Bernicot's modern revision, not Le Coat's 1893 base.",
+   "source": "https://crosswire.org/sword/modules/ModInfo.jsp?modName=BretonNT"
+  },
+  {
+   "id": "esperanto",
+   "language": "Esperanto",
+   "title": "La Sankta Biblio (Londona Biblio)",
+   "year": 1926,
+   "verdict": "ACCEPT",
+   "reason": "Zamenhof (d. 1917) translated the Old Testament and the BFBS committee finished the New Testament in 1912, with the harmonised Londona Biblio published 1926 - all pre-1929 and listed by eBible.org as public domain.",
+   "source": "https://en.wikipedia.org/wiki/Bible_translations_into_Esperanto"
+  },
+  {
+   "id": "croatia",
+   "language": "Croatian",
+   "title": "Zagrebacka Biblija",
+   "year": 1968,
+   "verdict": "REJECT",
+   "reason": "Text comparison pins it to the 1968 Zagrebacka Biblija (John 3:16 'Uistinu, Bog je tako ljubio svijet'), whose rights sit with Krscanska sadasnjost; the SWORD 'Public Domain' tag is wrong.",
+   "source": "https://biblija.biblija-govori.hr/glava.php?prijevod=sve&knjiga=Ivan&glava=3"
+  },
+  {
+   "id": "bkr",
+   "language": "Czech",
+   "title": "Bible kralicka",
+   "year": 1613,
+   "verdict": "ACCEPT",
+   "reason": "The last Kralice edition of 1613 by a Unity of the Brethren committee all dead before 1620; orthographic normalisation of it carries no new originality.",
+   "source": "https://crosswire.org/ftpmirror/pub/sword/raw/mods.d/czebkr.conf"
+  },
+  {
+   "id": "cep",
+   "language": "Czech",
+   "title": "Cesky ekumenicky preklad",
+   "year": 1979,
+   "verdict": "REJECT",
+   "reason": "The shipped 2001 ekumenicke vydani is copyright Ekumenicka rada cirkvi v CR, with permission granted only to CrossWire.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/czecep.conf"
+  },
+  {
+   "id": "schlachter",
+   "language": "German",
+   "title": "Schlachter Bibel 1951",
+   "year": 1951,
+   "verdict": "REJECT",
+   "reason": "Copyright (c) 1951 Genfer Bibelgesellschaft, actively asserted; only Schlachter's original 1905/1913 Miniaturbibel is public domain.",
+   "source": "https://ebible.org/deu1951/copyright.htm"
+  },
+  {
+   "id": "luther1545",
+   "language": "German",
+   "title": "Luther Bibel 1545",
+   "year": 1545,
+   "verdict": "ACCEPT",
+   "reason": "Luther died 1546 and the Bolsinger electronic edition carries an explicit dedication: 'Lizenz: Public Domain (gemeinfrei)'.",
+   "source": "https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=GerBoLut"
+  },
+  {
+   "id": "elberfelder",
+   "language": "German",
+   "title": "Unrevidierte Elberfelder Bibel (1871)",
+   "year": 1871,
+   "verdict": "ACCEPT",
+   "reason": "Published 1871 by Darby (d. 1882), von Poseck (d. 1896), Carl Brockhaus (d. 1899) and Voorhoeve (d. 1901); R. Brockhaus's live rights are on the 1960-1985 revidierte Elberfelder, a different text.",
+   "source": "https://de.wikipedia.org/wiki/Elberfelder_Bibel"
+  },
+  {
+   "id": "elberfelder1905",
+   "language": "German",
+   "title": "Unrevidierte Elberfelder Bibel (1905)",
+   "year": 1905,
+   "verdict": "ACCEPT",
+   "reason": "The latest contributor Rudolf Brockhaus died 1932 so the German term expired in 2003, and CrossWire's module changelog records it 'as it has passed into the public domain' despite the stale Brockhaus line in its About text.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/gerelb1905.conf"
+  },
+  {
+   "id": "martin",
+   "language": "French",
+   "title": "La Sainte Bible, version David Martin",
+   "year": 1707,
+   "verdict": "ACCEPT",
+   "reason": "Martin's Bible of 1707 in Pierre Roques's 1744 revision; Martin died 1721 and Roques 1748.",
+   "source": "https://fr.wikipedia.org/wiki/David_Martin_(th%C3%A9ologien)"
+  },
+  {
+   "id": "darby",
+   "language": "French",
+   "title": "La Sainte Bible, version J. N. Darby",
+   "year": 1885,
+   "verdict": "ACCEPT",
+   "reason": "John Nelson Darby died 1882 and the distributor's 2024 JND v2.0 revision is declared 'Texte libre de droits. Domaine public.'",
+   "source": "https://ebible.org/find/details.php?id=frajnd"
+  },
+  {
+   "id": "ls1910",
+   "language": "French",
+   "title": "Louis Segond 1910",
+   "year": 1910,
+   "verdict": "REJECT",
+   "reason": "The Segond 1910 base text is public domain but this module is the Strong's-tagged edition whose conf reads 'Copyrighted; Permission to distribute granted to CrossWire', a permission that does not transfer to a bundled app.",
+   "source": "https://crosswire.org/sword/modules/ModInfo.jsp?modName=FreSegond1910"
+  },
+  {
+   "id": "giovanni",
+   "language": "Italian",
+   "title": "La Bibbia di Giovanni Diodati",
+   "year": 1607,
+   "verdict": "ACCEPT",
+   "reason": "First published 1607 and revised by Diodati himself in 1641; Giovanni Diodati died in 1649.",
+   "source": "https://en.wikipedia.org/wiki/Giovanni_Diodati"
+  },
+  {
+   "id": "riveduta",
+   "language": "Italian",
+   "title": "Riveduta (Luzzi)",
+   "year": 1927,
+   "verdict": "ACCEPT",
+   "reason": "Published 1924/1927 and Giovanni Luzzi died 25 January 1948, so the Italian life+70 term expired 1 January 2019; the Bible societies' live claims are on the different Nuova Riveduta (1994/2006).",
+   "source": "https://it.wikipedia.org/wiki/Giovanni_Luzzi"
+  },
+  {
+   "id": "almeida",
+   "language": "Portuguese",
+   "title": "Almeida Revista e Corrigida (1911)",
+   "year": 1911,
+   "verdict": "ACCEPT",
+   "reason": "Verified as the 1911 Revista e Corrigida by its pre-1943 orthography ('unigenito', \"n'elle\"), not the copyrighted 1959 Revista e Atualizada; Almeida died 1691 and the BFBS revisers were 19th-century.",
+   "source": "https://crosswire.org/sword/modules/ModInfo.jsp?modName=PorAlmeida1911"
+  },
+  {
+   "id": "livre",
+   "language": "Portuguese",
+   "title": "Biblia Livre",
+   "year": 2018,
+   "verdict": "REJECT",
+   "reason": "Copyright (c) 2018 Diego Santos, Mario Sergio and Marco Teles under CC BY 4.0 with mandatory attribution - a licence, not a public-domain dedication.",
+   "source": "https://ebible.org/porbr2018/copyright.htm"
+  },
+  {
+   "id": "livretr",
+   "language": "Portuguese",
+   "title": "Biblia Livre - Textus Receptus",
+   "year": 2018,
+   "verdict": "REJECT",
+   "reason": "Same rights holders and CC BY licence as Biblia Livre: copyright (c) 2018 Diego Santos, Mario Sergio and Marco Teles, attribution mandatory.",
+   "source": "https://ebible.org/porbr2018/copyright.htm"
+  },
+  {
+   "id": "rv1858",
+   "language": "Spanish",
+   "title": "Reina-Valera 1909",
+   "year": 1909,
+   "verdict": "ACCEPT",
+   "reason": "The slug is mislabelled - it serves CrossWire's SpaRV Reina-Valera 1909 (it contains Genesis, which an 1858 New Testament cannot), sourced from Wikisource and flagged Public Domain.",
+   "source": "https://crosswire.org/sword/modules/ModInfo.jsp?modName=SpaRV"
+  },
+  {
+   "id": "sse",
+   "language": "Spanish",
+   "title": "Reina-Valera 1865",
+   "year": 1865,
+   "verdict": "ACCEPT",
+   "reason": "Despite the 'Sagradas Escrituras 1569' title it is the Valera 1865 text ('desadornada y vacia'), and its 2018 orthographic layer is released under CC0 by its editor.",
+   "source": "https://github.com/MC1171611/valera1865"
+  },
+  {
+   "id": "valera",
+   "language": "Spanish",
+   "title": "Reina-Valera 1909 con numeros de Strong",
+   "year": 1909,
+   "verdict": "REJECT",
+   "reason": "The 1909 text is public domain but this file's Strong's tagging layer by Ruben Gomez is 'Copyrighted; Permission to distribute granted to CrossWire', which does not transfer to a bundled app.",
+   "source": "https://api.getbible.net/v2/translations.json"
+  },
+  {
+   "id": "synodal",
+   "language": "Russian",
+   "title": "Sinodalnyy perevod",
+   "year": 1876,
+   "verdict": "ACCEPT",
+   "reason": "Published 1876 by the four Russian theological academies; no rights survive and CrossWire flags it Public Domain.",
+   "source": "https://crosswire.org/ftpmirror/pub/sword/raw/mods.d/russynodal.conf"
+  },
+  {
+   "id": "zhuromsky",
+   "language": "Russian",
+   "title": "Novyy Zavet s nomerami Stronga (Zhuromsky)",
+   "year": 2001,
+   "verdict": "REJECT",
+   "reason": "The conf reads 'Copyright 2001-2003 year, by Victor R. Zhuromsky' with permission granted to CrossWire only; the Synodal base is public domain but the 143,457 Strong's annotations are not.",
+   "source": "https://crosswire.org/ftpmirror/pub/sword/raw/mods.d/rusvzh.conf"
+  },
+  {
+   "id": "ukranian",
+   "language": "Ukrainian",
+   "title": "Novyi Zapovit (pereklad P. Kulisha)",
+   "year": 1871,
+   "verdict": "ACCEPT",
+   "reason": "Published 1871; Panteleimon Kulish died 1897 and co-translator Ivan Puliui died 1918.",
+   "source": "https://crosswire.org/ftpmirror/pub/sword/raw/mods.d/ukrkulish.conf"
+  },
+  {
+   "id": "ukrogienko",
+   "language": "Ukrainian",
+   "title": "Bibliia v perekladi Ivana Ohiienka",
+   "year": 1962,
+   "verdict": "REJECT",
+   "reason": "Ivan Ohiienko died 29 March 1972 so the text is protected until 2043, and the complete Bible was published by the BFBS in London in 1962; the module's 'Public Domain' tag is false.",
+   "source": "https://en.wikipedia.org/wiki/Ivan_Ohiienko"
+  },
+  {
+   "id": "srkdekavski",
+   "language": "Serbian",
+   "title": "Biblija - Danicic-Karadzic (ekavski)",
+   "year": 1865,
+   "verdict": "ACCEPT",
+   "reason": "Karadzic's 1847 New Testament and Danicic's 1865 Old Testament; the ekavian form is a mechanical ije-to-e dialect conversion of identical wording, creating no fresh authorship.",
+   "source": "https://crosswire.org/ftpmirror/pub/sword/raw/mods.d/srkdekavski.conf"
+  },
+  {
+   "id": "srkdijekav",
+   "language": "Serbian",
+   "title": "Biblija - Danicic-Karadzic (ijekavski)",
+   "year": 1865,
+   "verdict": "ACCEPT",
+   "reason": "Vuk Stefanovic Karadzic (d. 1864) translated the New Testament in 1847 and Duro Danicic (d. 1882) the Old Testament in 1865, with no claimant since.",
+   "source": "https://crosswire.org/ftpmirror/pub/sword/raw/mods.d/srkdijekav.conf"
+  },
+  {
+   "id": "cornilescu",
+   "language": "Romanian",
+   "title": "Biblia Cornilescu",
+   "year": 1924,
+   "verdict": "REJECT",
+   "reason": "Copyright in the 1924 text belongs to the British and Foreign Bible Society, with the 2010/2014 revisions held by the Interconfessional Bible Society of Romania; Cornilescu died 1975.",
+   "source": "https://en.wikipedia.org/wiki/Dumitru_Cornilescu"
+  },
+  {
+   "id": "statenvertaling",
+   "language": "Dutch",
+   "title": "Statenvertaling (Jongbloed-editie)",
+   "year": 1637,
+   "verdict": "ACCEPT",
+   "reason": "The 1637 States General translation in the 1888 De Vries-Te Winkel respelling; both layers are long out of copyright and CrossWire flags it Public Domain.",
+   "source": "https://nl.wikisource.org/wiki/Bestand:Bijbel,_1888_Statenvertaling,_Jongbloed_Editie.pdf"
+  },
+  {
+   "id": "canisius",
+   "language": "Dutch",
+   "title": "Petrus Canisiusvertaling",
+   "year": 1939,
+   "verdict": "REJECT",
+   "reason": "Complete Bible published 1939 by Leo Reginald Jansen O.P. (d. 1947) plus six unnamed co-translators whose death years are unverified, and the repository's CC0 file was applied by a GitHub uploader rather than the rights holder.",
+   "source": "https://github.com/lemtom/Canisius/blob/master/LICENSE"
+  },
+  {
+   "id": "korean",
+   "language": "Korean",
+   "title": "Gaeyeok Hangeul (Korean Revised Version)",
+   "year": 1961,
+   "verdict": "REJECT",
+   "reason": "Korean Supreme Court judgment 93Da9460 (1994) held the 1961 revision a separate copyrightable derivative work owned by the Korean Bible Society, and it was still protected on the URAA date so US copyright runs to about 2056.",
+   "source": "https://www.bskorea.or.kr/bbs/board.php?bo_table=copyright_faq&wr_id=5"
+  },
+  {
+   "id": "koreankjv",
+   "language": "Korean",
+   "title": "Hangeul King James Seonggyeong",
+   "year": 1994,
+   "verdict": "REJECT",
+   "reason": "Published 1 March 1994 by the Word of God Preservation Society and expressly copyrighted by the publisher, with only free non-commercial distribution permitted.",
+   "source": "https://api.getbible.net/v2/koreankjv.json"
+  },
+  {
+   "id": "japbungo",
+   "language": "Japanese",
+   "title": "Bungo-yaku (Meiji Motoyaku OT / Taisho Kaiyaku NT)",
+   "year": 1887,
+   "verdict": "ACCEPT",
+   "reason": "Meiji Motoyaku Old Testament 1887 and Taisho-kaiyaku New Testament 1917 with committee members dead by 1940-1945; the Japan Bible Society's live claim is on its 1982 typeset edition, which this 1953-based text predates.",
+   "source": "https://ja.wikisource.org/wiki/%E6%98%8E%E6%B2%BB%E5%85%83%E8%A8%B3%E6%97%A7%E7%B4%84%E8%81%96%E6%9B%B8"
+  },
+  {
+   "id": "japkougo",
+   "language": "Japanese",
+   "title": "Kougo-yaku Seisho",
+   "year": 1954,
+   "verdict": "REJECT",
+   "reason": "Expired in Japan in 2006 under the old 50-year corporate term, but it was still protected on the 1996 URAA date so US copyright was restored and runs about 95 years from publication, to roughly 2050.",
+   "source": "https://www.bible.or.jp/read/bible_copyright.html"
+  },
+  {
+   "id": "japraguet",
+   "language": "Japanese",
+   "title": "Raguet-yaku Shinyaku Seisho",
+   "year": 1910,
+   "verdict": "ACCEPT",
+   "reason": "Published 1910 by Emile Raguet (1854-1929); Japanese Wikisource applies PD-old-80 plus PD-US to it.",
+   "source": "https://ja.wikisource.org/wiki/%E6%88%91%E4%B8%BB%E3%82%A4%E3%82%A8%E3%82%BA%E3%82%B9%E3%82%AD%E3%83%AA%E3%82%B9%E3%83%88%E3%81%AE%E6%96%B0%E7%B4%84%E8%81%96%E6%9B%B8"
+  },
+  {
+   "id": "japdenmo",
+   "language": "Japanese",
+   "title": "Denmo Seisho (Electronic Network Bible)",
+   "year": 2002,
+   "verdict": "ACCEPT",
+   "reason": "Derived from the public-domain World English Bible and carrying its author's explicit dedication that the Denmo Bible is placed in the public domain, dated 24 December 2001.",
+   "source": "https://www.cozoh.org/denmo/foreword.htm"
+  },
+  {
+   "id": "chiunl",
+   "language": "Chinese",
+   "title": "Chinese Union Version, Wenli (Sheng Jing wenli heheben)",
+   "year": 1919,
+   "verdict": "ACCEPT",
+   "reason": "Whole Bible 1919 (New Testament 1906, revised 1923) by Chalmers (d. 1899), Edkins (d. 1905), Sheffield (d. 1913) and Wherry (d. 1918); verified as the original classical punctuation rather than a modern re-punctuation.",
+   "source": "https://zh.wikisource.org/zh-hant/%E8%81%96%E7%B6%93_(%E6%96%87%E7%90%86%E5%92%8C%E5%90%88)"
+  },
+  {
+   "id": "cus",
+   "language": "Chinese",
+   "title": "Xin Biaodian Heheben (Union Version, simplified)",
+   "year": 1988,
+   "verdict": "REJECT",
+   "reason": "The shipped text is the 1988 Chinese Union Version with New Punctuation - identified by its corner-bracket quotation marks and the de-to-di change in John 3:3 - whose rights sit with the Hong Kong Bible Society, not the public-domain 1919 Union Version.",
+   "source": "https://zh.wikipedia.org/zh-tw/%E6%96%B0%E6%A8%99%E9%BB%9E%E5%92%8C%E5%90%88%E6%9C%AC"
+  },
+  {
+   "id": "cut",
+   "language": "Chinese",
+   "title": "Xin Biaodian Heheben (Union Version, traditional)",
+   "year": 1988,
+   "verdict": "REJECT",
+   "reason": "Same as the simplified module: it ships the 1988 Chinese Union Version with New Punctuation held by the Hong Kong Bible Society, not the public-domain 1919 text.",
+   "source": "https://zh.wikipedia.org/zh-tw/%E6%96%B0%E6%A8%99%E9%BB%9E%E5%92%8C%E5%90%88%E6%9C%AC"
+  },
+  {
+   "id": "cnt",
+   "language": "Chinese",
+   "title": "Chinese New Version (traditional)",
+   "year": 1992,
+   "verdict": "REJECT",
+   "reason": "Copyright (c) 1976, 1992, 1999, 2001, 2005, 2010 The Worldwide Bible Society Limited, stated in the module's own metadata.",
+   "source": "https://api.getbible.net/v2/translations.json"
+  },
+  {
+   "id": "cns",
+   "language": "Chinese",
+   "title": "Chinese New Version (simplified)",
+   "year": 1992,
+   "verdict": "REJECT",
+   "reason": "Copyright (c) 1976, 1992, 1999, 2001, 2005, 2010 The Worldwide Bible Society Limited, stated in the module's own metadata.",
+   "source": "https://api.getbible.net/v2/translations.json"
+  },
+  {
+   "id": "vietnamese",
+   "language": "Vietnamese",
+   "title": "Kinh Thanh 1934 (Ban Truyen Thong)",
+   "year": 1934,
+   "verdict": "ACCEPT",
+   "reason": "The UBS find.bible registry lists VIEVOV as Public Domain and eBible.org records the New Testament entering the public domain in 2019 and the Old Testament in 2021; note lead stylist Phan Khoi died 1959, so life+70 jurisdictions clear only in 2030.",
+   "source": "https://ebible.org/vie1934/copyright.htm"
+  },
+  {
+   "id": "thai",
+   "language": "Thai",
+   "title": "Thai King James Version",
+   "year": 2003,
+   "verdict": "REJECT",
+   "reason": "A modern work copyright 2003 by Dr Philip Pope, with CrossWire holding only a distribution permission.",
+   "source": "https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=ThaiKJV"
+  },
+  {
+   "id": "swahili",
+   "language": "Swahili",
+   "title": "Biblia Habari Njema",
+   "year": 1977,
+   "verdict": "REJECT",
+   "reason": "The text matches the Habari Njema common-language version (copyright United Bible Societies with the Bible Societies of Tanzania and Kenya), not any pre-1929 translation, and the module supplies no provenance at all.",
+   "source": "https://www.bible.com/sw/bible/74/JHN.3.16.BHN"
+  },
+  {
+   "id": "shona",
+   "language": "Shona",
+   "title": "Shona New Testament (Free Presbyterian Church of Scotland)",
+   "year": 2013,
+   "verdict": "REJECT",
+   "reason": "Copyright (c) 2013 Free Presbyterian Church of Scotland under the GFDL, with three named individual copyright holders in the per-book notices.",
+   "source": "http://bibleconsultants.nl/downloads/shona/new-testament-2013/info/information.html"
+  },
+  {
+   "id": "ndebele",
+   "language": "Ndebele",
+   "title": "Ibhayibhili Elingcwele",
+   "year": 2018,
+   "verdict": "REJECT",
+   "reason": "Copyright (c) 2010-2018 Free Presbyterian Church of Scotland under the GFDL, a copyleft licence rather than a public-domain dedication.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/ndebele.conf"
+  },
+  {
+   "id": "uma",
+   "language": "Uma",
+   "title": "The New Testament in Uma",
+   "year": 1996,
+   "verdict": "REJECT",
+   "reason": "Copyright (c) 1996 Wycliffe Bible Translators, released only for non-profit scholarly and personal use and not to be sold.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/uma.conf"
+  },
+  {
+   "id": "tausug",
+   "language": "Tausug",
+   "title": "Kitab Injil",
+   "year": 1985,
+   "verdict": "REJECT",
+   "reason": "Copyright International Bible Society 1998 with a CC BY-ND 3.0 grant, which presupposes and preserves the copyright.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/tausug.conf"
+  },
+  {
+   "id": "pohnpeian",
+   "language": "Pohnpeian",
+   "title": "Paipel (Pohnpeian Bible)",
+   "year": 2006,
+   "verdict": "REJECT",
+   "reason": "Copyright 2006 United Bible Societies, with CrossWire holding only a distribution permission negotiated through UBS Australia.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/pohnpeian.conf"
+  },
+  {
+   "id": "pohnold",
+   "language": "Pohnpeian",
+   "title": "Kadede Kap o Pjalm akan",
+   "year": 1935,
+   "verdict": "REJECT",
+   "reason": "Published after 1929 (New Testament revised 1935, printing 1953) and the translator 'A. Syring' has no findable death year, so the public-domain claim traces only to the digitiser.",
+   "source": "https://www.crosswire.org/study/fulllibrary.jsp?show=PohnOld"
+  },
+  {
+   "id": "monkjv",
+   "language": "Mongolian",
+   "title": "Mongolian King James Version",
+   "year": 2011,
+   "verdict": "REJECT",
+   "reason": "Copyright (c) 2011-2015 Mongolian Team, with permission granted to the CrossWire Bible Society specifically.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/monkjv.conf"
+  },
+  {
+   "id": "dari",
+   "language": "Dari",
+   "title": "Today's Dari Version",
+   "year": 2008,
+   "verdict": "REJECT",
+   "reason": "Copyright (c) 2008 United Bible Societies and Pamir Ministries, licensed for non-commercial use only.",
+   "source": "https://afghanbibles.org/eng/copyright"
+  },
+  {
+   "id": "arabicsv",
+   "language": "Arabic",
+   "title": "Al-Kitab al-Muqaddas (Smith and Van Dyck)",
+   "year": 1865,
+   "verdict": "REJECT",
+   "reason": "The 1865 Smith-Van Dyck text is itself public domain (Smith d. 1857, Van Dyck d. 1895), but this electronic edition is licensed for redistribution in SWORD format only and forbids conversion, so these bytes cannot be bundled - eBible.org's arb-vd is the clean public-domain substitute.",
+   "source": "https://ebible.org/Scriptures/copyright.php?id=arbvd"
+  },
+  {
+   "id": "peshitta",
+   "language": "Syriac",
+   "title": "Peshitta New Testament (BFBS)",
+   "year": 1905,
+   "verdict": "ACCEPT",
+   "reason": "The BFBS text is Pusey (d. 1880) and Gwilliam's (d. 1913) edition, completed in 1920 by J. Pinkerton; all editors are long dead and the publication is pre-1929.",
+   "source": "https://en.wikipedia.org/wiki/Peshitta"
+  },
+  {
+   "id": "coptic",
+   "language": "Coptic",
+   "title": "Coptic New Testament (Bohairic)",
+   "year": null,
+   "verdict": "REJECT",
+   "reason": "The only stated provenance is a defunct forum and an unverifiable 'Deir Anba Bishoi' attribution, so no edition, year, editor or rights holder can be identified.",
+   "source": "https://raw.githubusercontent.com/EtkAppsAdmin/Bibles-1/master/Coptic__New_Testament__coptic__LTR-copyright.html"
+  },
+  {
+   "id": "sahidic",
+   "language": "Coptic",
+   "title": "The Coptic Version of the New Testament in the Southern Dialect (Horner)",
+   "year": 1911,
+   "verdict": "ACCEPT",
+   "reason": "Edited by George William Horner (d. 1930) and published 1911; the shipped bytes were verified as Horner (abbreviated nomina sacra, Mark ending at 16:8) and not the copyrighted Sahidica edition that has also circulated under this module id.",
+   "source": "https://www.stepbible.org/version.jsp?version=CopSahHorner"
+  },
+  {
+   "id": "gothic",
+   "language": "Gothic",
+   "title": "Wulfila Gothic Bible (Streitberg edition)",
+   "year": 1919,
+   "verdict": "REJECT",
+   "reason": "Streitberg died 1925 so the text itself is public domain, but the only electronic edition, Project Wulfila's, states it is 'freely available for non-commercial use' with a mandatory source reference.",
+   "source": "https://www.wulfila.be/gothic/text/header/"
+  },
+  {
+   "id": "potawatomi",
+   "language": "Potawatomi",
+   "title": "Matthew and Acts (Lykins)",
+   "year": 1844,
+   "verdict": "ACCEPT",
+   "reason": "Johnston Lykins (1800-1876) published Matthew and Acts at Louisville in 1844.",
+   "source": "https://en.wikipedia.org/wiki/Johnston_Lykins"
+  },
+  {
+   "id": "calo",
+   "language": "Calo",
+   "title": "Embeo e Majaro Lucas",
+   "year": 1837,
+   "verdict": "ACCEPT",
+   "reason": "Translated by George Borrow (1803-1881) and published 1837; distributed as public domain via Project Gutenberg.",
+   "source": "https://www.gutenberg.org/ebooks/29470"
+  },
+  {
+   "id": "judson",
+   "language": "Burmese",
+   "title": "Judson Burmese Bible",
+   "year": 1835,
+   "verdict": "ACCEPT",
+   "reason": "Adoniram Judson died 1850 and the text is 1835/1840; CrossWire records that the Myanmar Bible Society's claim covers only a Unicode/XML format shift, and eBible.org lists the text as public domain.",
+   "source": "https://crosswire.org/ftpmirror/pub/sword/raw/mods.d/burjudson.conf"
+  },
+  {
+   "id": "burcbcm",
+   "language": "Burmese",
+   "title": "Catholic Myanmar Bible (CBCM)",
+   "year": null,
+   "verdict": "REJECT",
+   "reason": "Two live claims stack: the Catholic Bishops' Conference of Myanmar asserts 'all rights reserved' and the text was rendered from the copyrighted 1952 Revised Standard Version.",
+   "source": "https://www.catholicmyanmar.com/resource.php?resource=bible"
+  },
+  {
+   "id": "klv",
+   "language": "Klingon",
+   "title": "Klingon Language Version of the World English Bible",
+   "year": 2005,
+   "verdict": "REJECT",
+   "reason": "The author's own publication carries CC BY-NC-ND 3.0 - non-commercial and no-derivatives - contradicting CrossWire's 'Public Domain' tag.",
+   "source": "https://archive.org/metadata/TheKlingonLanguageVersionOfTheWorldEnglishBiblePsalms"
+  },
+  {
+   "id": "tpikjpb",
+   "language": "Tok Pisin",
+   "title": "King Jems Pisin Baibel",
+   "year": 2022,
+   "verdict": "REJECT",
+   "reason": "The module's DistributionLicense is Creative Commons BY-NC-ND 4.0, not a public-domain dedication.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/tpikjpb.conf"
+  },
+  {
+   "id": "moderngreek",
+   "language": "Greek",
+   "title": "I Agia Grafi (Neofytos Vamvas)",
+   "year": 1850,
+   "verdict": "ACCEPT",
+   "reason": "Neophytos Vamvas (1770-1856) began the translation in 1831 and published the complete Bible in 1850.",
+   "source": "https://en.wikipedia.org/wiki/Neophytos_Vamvas"
+  },
+  {
+   "id": "csielizabeth",
+   "language": "Church Slavonic",
+   "title": "Elizavetinskaya Bibliya",
+   "year": 1757,
+   "verdict": "ACCEPT",
+   "reason": "Published 1757 by an 18th-century Synodal committee; the electronic edition's spelling modernisation is a mechanical typographic change carrying no originality.",
+   "source": "https://en.wikipedia.org/wiki/Elizabeth_Bible"
+  },
+  {
+   "id": "wb",
+   "language": "English",
+   "title": "Webster's Bible",
+   "year": 1833,
+   "verdict": "ACCEPT",
+   "reason": "Published 1833; Noah Webster died in 1843.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/webster.conf"
+  },
+  {
+   "id": "weymouth",
+   "language": "English",
+   "title": "The New Testament in Modern Speech",
+   "year": 1912,
+   "verdict": "ACCEPT",
+   "reason": "Richard Francis Weymouth died 1902 and the third-edition editor Ernest Hampden-Cook died 1932, so the UK term expired in 2003 and the pre-1929 printing is public domain in the US.",
+   "source": "https://www.wikidata.org/wiki/Q112375456"
+  },
+  {
+   "id": "basicenglish",
+   "language": "English",
+   "title": "Bible in Basic English",
+   "year": 1949,
+   "verdict": "REJECT",
+   "reason": "Chief translator S. H. Hooke died 17 January 1968, so the work is in copyright in the UK and EU until 2039 and was still protected there on the URAA date, undermining the US no-notice public-domain claim.",
+   "source": "https://id.loc.gov/authorities/names/n83013922.html"
+  },
+  {
+   "id": "tyndale",
+   "language": "English",
+   "title": "Tyndale Bible",
+   "year": 1526,
+   "verdict": "ACCEPT",
+   "reason": "William Tyndale's 1525/1526 New Testament and 1530 Pentateuch; he died in 1536.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/tyndale.conf"
+  },
+  {
+   "id": "wycliffe",
+   "language": "English",
+   "title": "Wycliffe Bible",
+   "year": 1395,
+   "verdict": "ACCEPT",
+   "reason": "The c.1395 Middle English text in the Forshall (d. 1863) and Madden (d. 1873) edition of 1850; the module's CC BY-SA 4.0 tag is a Wikisource transcription label over a text that is itself public domain.",
+   "source": "https://ftp.crosswire.org/ftpmirror/pub/sword/raw/mods.d/wycliffe.conf"
+  }
+ ]
+}

@@ -1,0 +1,161 @@
+{
+ "note": "Every source this app ships from, with the URL it came from, the bytes that were fetched, the licence statement that permits the use, and the attribution the licence requires. Appended to by each builder; never overwritten.",
+ "sources": [
+  {
+   "id": "tsk",
+   "title": "Treasury of Scripture Knowledge",
+   "authors": "Canne, Browne, Blayney, Scott and others",
+   "published": "c.1830-1880",
+   "url": "https://raw.githubusercontent.com/narthur/tsk-cli/master/tskxref.txt",
+   "bytes": 4541772,
+   "license": "Public Domain",
+   "licenseBasis": "The TSV file is distributed inside a GPL-3.0 repository that states no grant of its own for the data. The WORK is public domain by age (published c.1880) and CrossWire's packaging of the same text records that determination: https://crosswire.org/ftpmirror/pub/sword/packages/rawzip/TSK.zip (2643739 bytes), mods.d/tsk.conf line `DistributionLicense=Public Domain`. The TSV is used for its structure; the rights basis is the c.1880 publication date and CrossWire's determination.",
+   "attribution": null,
+   "usedIn": [
+    "help-xrefs.gbx"
+   ]
+  },
+  {
+   "id": "easton",
+   "title": "Easton's Bible Dictionary",
+   "published": "1897",
+   "authors": "M. G. Easton, M.A., D.D.",
+   "url": "https://crosswire.org/ftpmirror/pub/sword/packages/rawzip/Easton.zip",
+   "bytes": 1437674,
+   "license": "Public Domain",
+   "licenseBasis": "mods.d/easton.conf: `DistributionLicense=Public Domain`; About: \"Easton's 1897 Bible Dictionary … Public Domain -- Copy Freely\".",
+   "attribution": null,
+   "usedIn": [
+    "help-dict.gbx"
+   ]
+  },
+  {
+   "id": "smith",
+   "title": "Smith's Bible Dictionary",
+   "published": "1884",
+   "authors": "Dr. William Smith",
+   "url": "https://crosswire.org/ftpmirror/pub/sword/packages/rawzip/Smith.zip",
+   "bytes": 1209292,
+   "license": "Public Domain",
+   "licenseBasis": "mods.d/smith.conf: `DistributionLicense=Public Domain`; About: \"Smith's Bible Dictionary by Dr. William Smith. (1884) Public domain.\"",
+   "attribution": null,
+   "usedIn": [
+    "help-dict.gbx"
+   ]
+  },
+  {
+   "id": "nave",
+   "title": "Nave's Topical Bible",
+   "published": "early 1900s",
+   "authors": "Orville J. Nave, A.M., D.D., LL.D.",
+   "url": "https://crosswire.org/ftpmirror/pub/sword/packages/rawzip/Nave.zip",
+   "bytes": 1300879,
+   "license": "Public Domain",
+   "licenseBasis": "mods.d/nave.conf: `DistributionLicense=Public Domain`, TextSource=https://ccel.org/ccel/n/nave/bible.xml",
+   "attribution": null,
+   "usedIn": [
+    "help-topics.gbx"
+   ]
+  },
+  {
+   "id": "torrey",
+   "title": "Torrey's New Topical Textbook",
+   "authors": "R. A. Torrey",
+   "published": "reprint of an out-of-copyright edition",
+   "url": "https://crosswire.org/ftpmirror/pub/sword/packages/rawzip/Torrey.zip",
+   "bytes": 422465,
+   "license": "Public Domain",
+   "licenseBasis": "mods.d/torrey.conf: `DistributionLicense=Public Domain`; About: \"No copyright notice appears on the book, and it is a reprint of the original edition which is out of copyright.\"",
+   "attribution": null,
+   "usedIn": [
+    "help-topics.gbx"
+   ]
+  },
+  {
+   "id": "mhcc",
+   "title": "Matthew Henry's Concise Commentary on the Whole Bible",
+   "authors": "Matthew Henry (1662-1714), with the concise edition completed after his death",
+   "url": "https://github.com/lyteword/mhenry-concise",
+   "bytes": null,
+   "license": "CC0-1.0",
+   "licenseBasis": "The repository's LICENSE file is the Creative Commons CC0 1.0 Universal public-domain dedication, verified by its opening lines \"Creative Commons Legal Code\" and \"CC0 1.0 Universal\". CrossWire's MHCC.zip (1773039 bytes, mods.d/mhcc.conf `DistributionLicense=Public Domain`) carries the same text and is the fallback; it is not used here.",
+   "attribution": null,
+   "usedIn": [
+    "help-mhcc.gbx"
+   ]
+  },
+  {
+   "id": "openbible-geo",
+   "title": "Bible place gazetteer",
+   "authors": "OpenBible.info",
+   "url": "https://www.openbible.info/geo/data/places.txt",
+   "bytes": 115249,
+   "license": "CC BY",
+   "licenseBasis": "OpenBible.info publishes its geocoding data under Creative Commons Attribution. Attribution is REQUIRED and is carried in the pack header and shown wherever a place is displayed.",
+   "attribution": "Bible place data © OpenBible.info, licensed CC BY 4.0. Source: https://www.openbible.info/geo/",
+   "usedIn": [
+    "help-places.gbx"
+   ]
+  },
+  {
+   "id": "mcheyne",
+   "title": "M'Cheyne One-Year Reading Plan",
+   "published": "1842",
+   "authors": "Robert Murray M'Cheyne",
+   "url": "https://raw.githubusercontent.com/willswire/mcheyne/main/App/PlanConstants.swift",
+   "bytes": 43470,
+   "license": "Public Domain",
+   "licenseBasis": "The 1842 plan is public domain by age. The machine-readable copy consulted sits in an Apache-2.0 repository whose licence covers that project's code, not the 1842 table; the table was transcribed into the MCHEYNE literal in apps/bible/tools/build-helps.mjs rather than vendored, so no Apache-2.0 file is redistributed.",
+   "attribution": null,
+   "usedIn": [
+    "help-plans.gbx"
+   ]
+  }
+ ],
+ "helpsPacks": {
+  "help-xrefs.gbx": {
+   "bytes": 1793044,
+   "sha256": "6a920fbc1592aff0e5f6cd3d508c367fcb9a7c33e619f16827f742685540937c",
+   "entries": 63682,
+   "verses": 29055
+  },
+  "help-dict.gbx": {
+   "bytes": 2162823,
+   "sha256": "985c101d6c397c8684d8e0dc00d522a46b43506e57247cd5c2470bf4fad0d558",
+   "easton": 3963,
+   "smith": 4639,
+   "entries": 8602
+  },
+  "help-topics.gbx": {
+   "bytes": 1324788,
+   "sha256": "7f06d58557a482ff657ee02f673a4ef4c378ccb0be5d8517f84adab4d5b9283f",
+   "nave": 5322,
+   "torrey": 628,
+   "topics": 5950,
+   "refs": 107328
+  },
+  "help-mhcc.gbx": {
+   "bytes": 1284875,
+   "sha256": "22e036b17219f496c65d45945c04cd94ddce896e1416df5c5c2c9cc69042d92d",
+   "notes": 4047,
+   "books": 66,
+   "skippedHeads": 0
+  },
+  "help-places.gbx": {
+   "bytes": 16760,
+   "sha256": "42bfba42dac225220d1d945d6b1e5779cf6258b0b821b2eaab4fa5ecf7d20385",
+   "places": 556,
+   "resolved": 234,
+   "approx": 266,
+   "dropped": 718,
+   "rows": 1274
+  },
+  "help-plans.gbx": {
+   "bytes": 8307,
+   "sha256": "b85b4e5646eac9c2bf1997246b58c031ef4630a2eb518afa2d9b9482b9e6c5ea",
+   "mcheyne": 365,
+   "psalms-proverbs": 365,
+   "whole-bible-even": 365
+  }
+ }
+}

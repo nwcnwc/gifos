@@ -172,8 +172,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
                 `${String(p.heads).padStart(5)} hd ${String(p.notes).padStart(5)} fn ${String(p.xrefs).padStart(5)} xr  ` +
                 `${(p.raw / 1048576).toFixed(1)} MB -> ${(p.bytes.length / 1048576).toFixed(2)} MB`);
   }
-  built.sort((a, b) => a.language.localeCompare(b.language) || a.id.localeCompare(b.id));
-  writeFileSync(join(dir, '..', 'data', 'packs.json'), JSON.stringify(built, null, 1) + '\n');
+  // A partial build merges into the existing index — rewriting the whole file
+  // from a --only run would silently shrink the catalog to the packs named.
+  let index = built;
+  const indexPath = join(dir, '..', 'data', 'packs.json');
+  if (only && existsSync(indexPath)) {
+    const prev = JSON.parse(readFileSync(indexPath, 'utf8'));
+    const ids = new Set(built.map((b) => b.id));
+    index = prev.filter((b) => !ids.has(b.id)).concat(built);
+  }
+  index.sort((a, b) => a.language.localeCompare(b.language) || a.id.localeCompare(b.id));
+  writeFileSync(indexPath, JSON.stringify(index, null, 1) + '\n');
   if (oddities.length) { console.log('\nODDITIES'); for (const o of oddities) console.log('  ' + o); }
   console.log(`\n${built.length} packs, ${(total / 1048576).toFixed(1)} MB, ` +
               `${new Set(built.map((b) => b.language)).size} languages`);
