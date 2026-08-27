@@ -205,10 +205,9 @@
     }
     body.appendChild(el('h3', 'lang-name', 'Your data'));
     body.appendChild(el('div', 'note-item',
-      'Highlights, notes, voice notes and reading plans are saved on this device, inside ' +
-      'this app. There is no account and no cloud. Save from the app bar to carry ' +
-      'everything in the file itself; share the file and the person you hand it to ' +
-      'opens your Bible exactly as you left it.'));
+      'Highlights, notes, voice notes and reading plans stay on this device, inside ' +
+      'this app. There is no account and no cloud. Press Save in the app bar to keep ' +
+      'them with your copy; send that copy to someone and they open your Bible as you left it.'));
   };
 
   /* ---------------- reading plans ---------------- */
