@@ -247,8 +247,56 @@
     return -1;
   }
 
+  function makeMark(colour, id) {
+    var mark = document.createElement('mark');
+    mark.className = 'hl-span';
+    mark.setAttribute('data-hl', colour || 'amber');
+    if (id) mark.setAttribute('data-hid', id);
+    return mark;
+  }
+
+  function splitAt(root, offset) {
+    var t = collectText(root);
+    for (var i = 0; i < t.pieces.length; i++) {
+      var p = t.pieces[i];
+      if (offset > p.start && offset < p.end) {
+        p.node.splitText(offset - p.start);
+        return;
+      }
+    }
+  }
+
+  // One highlight is ONE mark when the range is inline, including words of
+  // Christ, added words, and footnote stars that sit inside the selection.
+  // Wrapping each text node used to paint a mosaic (and stacked rgba on the
+  // joins, so the same colour looked randomly dark and light).
   function wrapOffsets(root, start, end, colour, id) {
     if (!root || !(end > start)) return;
+    splitAt(root, end);
+    splitAt(root, start);
+    var t = collectText(root);
+    var first = null, last = null;
+    for (var i = 0; i < t.pieces.length; i++) {
+      var p = t.pieces[i];
+      if (p.end <= start || p.start >= end) continue;
+      if (!first) first = p;
+      last = p;
+    }
+    if (!first || !last) return;
+    var range = document.createRange();
+    range.setStart(first.node, 0);
+    range.setEnd(last.node, last.node.data.length);
+    var mark = makeMark(colour, id);
+    try {
+      mark.appendChild(range.extractContents());
+      range.insertNode(mark);
+    } catch (e) {
+      wrapOffsetsPiecewise(root, start, end, colour, id);
+      unifyMarks(root, colour, id);
+    }
+  }
+
+  function wrapOffsetsPiecewise(root, start, end, colour, id) {
     var t = collectText(root);
     for (var i = t.pieces.length - 1; i >= 0; i--) {
       var p = t.pieces[i];
@@ -259,12 +307,46 @@
       var localA = a - p.start, span = b - a;
       if (localA > 0) node = node.splitText(localA);
       if (node.data.length > span) node.splitText(span);
-      var mark = document.createElement('mark');
-      mark.className = 'hl-span';
-      mark.setAttribute('data-hl', colour || 'amber');
-      if (id) mark.setAttribute('data-hid', id);
+      var mark = makeMark(colour, id);
       node.parentNode.insertBefore(mark, node);
       mark.appendChild(node);
+    }
+  }
+
+  function isOurMark(n, id) {
+    return n && n.nodeType === 1 && n.classList.contains('hl-span') &&
+      n.getAttribute('data-hid') === String(id);
+  }
+
+  function mergeSiblingMarks(parent, id) {
+    var changed = false, n = parent.firstChild;
+    while (n) {
+      if (n.nodeType === 1) mergeSiblingMarks(n, id);
+      var gap = n.nextSibling, skipped = [];
+      while (gap && (
+        (gap.nodeType === 3 && !String(gap.data).replace(/\s/g, '')) ||
+        (gap.nodeType === 1 && (gap.classList.contains('anchor') || gap.classList.contains('vn')))
+      )) {
+        skipped.push(gap);
+        gap = gap.nextSibling;
+      }
+      if (isOurMark(n, id) && isOurMark(gap, id)) {
+        var i;
+        for (i = 0; i < skipped.length; i++) n.appendChild(skipped[i]);
+        while (gap.firstChild) n.appendChild(gap.firstChild);
+        gap.parentNode.removeChild(gap);
+        changed = true;
+        continue;
+      }
+      n = n.nextSibling;
+    }
+    return changed;
+  }
+
+  function unifyMarks(root, colour, id) {
+    var guard = 0;
+    while (guard++ < 12) {
+      if (!mergeSiblingMarks(root, id)) break;
     }
   }
 

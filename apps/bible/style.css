@@ -221,15 +221,16 @@ button { background: none; border: 0; cursor: pointer; }
 .v.hasnote { border-bottom: 1px dotted var(--accent); }
 
 mark.hl-span {
-  color: inherit; border-radius: 2px; padding: 0 .04em;
+  color: inherit; padding: 0; border-radius: 0;
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
-mark.hl-span[data-hl="amber"]  { background: rgba(214,166,44,.38); }
-mark.hl-span[data-hl="rose"]   { background: rgba(211,92,102,.34); }
-mark.hl-span[data-hl="sky"]    { background: rgba(78,150,209,.34); }
-mark.hl-span[data-hl="leaf"]   { background: rgba(96,168,102,.34); }
-mark.hl-span[data-hl="violet"] { background: rgba(150,110,205,.36); }
-mark.hl-span[data-hl="under"]  { background: none; border-bottom: 2px solid var(--accent); padding: 0; }
+mark.hl-span mark.hl-span { background: transparent; }
+mark.hl-span[data-hl="amber"]  { background-color: rgba(214,166,44,.38); }
+mark.hl-span[data-hl="rose"]   { background-color: rgba(211,92,102,.34); }
+mark.hl-span[data-hl="sky"]    { background-color: rgba(78,150,209,.34); }
+mark.hl-span[data-hl="leaf"]   { background-color: rgba(96,168,102,.34); }
+mark.hl-span[data-hl="violet"] { background-color: rgba(150,110,205,.36); }
+mark.hl-span[data-hl="under"]  { background: none; border-bottom: 2px solid var(--accent); }
 
 #hl-bar {
   position: fixed; z-index: 70; left: 50%; top: 0;

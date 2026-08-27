@@ -185,6 +185,7 @@
     var markMap = {};
     for (var k in this.marks) {
       var rec = this.marks[k];
+      if (rec.kind === 'span' || rec.kind === 'fn') continue;
       if (rec.code !== m.ref.code || rec.chapter !== m.ref.chapter || !rec.colour) continue;
       var idx = pack.indexOfVerse(rec.code, rec.chapter, rec.verse);
       if (idx >= 0) markMap[idx] = rec.colour;
@@ -511,6 +512,25 @@
    * appears on top of the selection. A tap without a selection still opens
    * the verse sheet. */
 
+  function mergeTouching(recs) {
+    var list = recs.slice().sort(function (a, b) {
+      if (a.colour !== b.colour) return a.colour < b.colour ? -1 : 1;
+      return a.start - b.start;
+    });
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      var last = out[out.length - 1];
+      if (last && last.colour === r.colour && last.end >= r.start) {
+        last.end = Math.max(last.end, r.end);
+        if ((r.quote || '').length > (last.quote || '').length) last.quote = r.quote;
+      } else {
+        out.push({ id: r.id, colour: r.colour, start: r.start, end: r.end, quote: r.quote });
+      }
+    }
+    return out;
+  }
+
   Reader.prototype.applySpanHighlights = function (body, pack, code, chapter) {
     var groups = Object.create(null);
     for (var k in this.marks) {
@@ -525,7 +545,7 @@
     for (var verse in groups) {
       var els = body.querySelectorAll('.v[data-v="' + verse + '"]');
       if (!els.length) continue;
-      var recs = groups[verse];
+      var recs = mergeTouching(groups[verse]);
       recs.sort(function (a, b) { return b.start - a.start; });
       for (var i = 0; i < recs.length; i++) {
         Render.wrapOffsetsMany(els, recs[i].start, recs[i].end, recs[i].colour, recs[i].id);
@@ -542,6 +562,7 @@
       if (rec.pack && spec.pack && rec.pack !== spec.pack) continue;
       recs.push(rec);
     }
+    recs = mergeTouching(recs);
     recs.sort(function (a, b) { return b.start - a.start; });
     for (var i = 0; i < recs.length; i++) {
       Render.wrapOffsets(el, recs[i].start, recs[i].end, recs[i].colour, recs[i].id);
