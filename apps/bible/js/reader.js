@@ -301,7 +301,7 @@
     var sections = [['ot', 'Old'], ['dc', 'Apocrypha'], ['nt', 'New']];
     var table = Refs.books();
     var sectOf = {};
-    for (var t = 0; t < table.length; t++) sectOf[table[t][0]] = table[t][4];
+    for (var t = 0; t < table.length; t++) sectOf[table[t].code] = table[t].sect;
     var have = { ot: [], dc: [], nt: [] };
     for (var i = 0; i < pack.books.length; i++) {
       var b = pack.books[i];

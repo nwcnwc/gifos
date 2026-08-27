@@ -109,6 +109,9 @@
    * person's own language that is not built in, offer it in one tap. */
   function welcome(reader, prefs) {
     var suggestion = lib.suggestForLocale();
+    var cur = reader.pack(0);
+    var curMeta = cur && lib.byId[cur.id];
+    if (suggestion && curMeta && suggestion.language === curMeta.language) suggestion = null;
     if (suggestion) {
       var t = reader.toast('This Bible also comes in ' + suggestion.language + ' — tap to open it.', true);
       t.style.cursor = 'pointer';
