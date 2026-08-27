@@ -79,9 +79,12 @@ const FS = '\u0012';     // field break inside a record
 const BOOKTAB = JSON.parse(readFileSync(join(dataDir, 'books.json'), 'utf8'));
 const NAME = new Map(BOOKTAB.books.map((b) => [b[0], b[1]]));
 
-// The 66-book Protestant canon in shelf order — the only books any of these
-// sources index. A helps pack carries no deuterocanonical reference because
-// none of its sources produced one.
+// The 66-book Protestant canon in shelf order — what a pack's bcv key numbers,
+// and what the reading plans divide. It is NOT a filter on references: Smith
+// cites 1 Maccabees and Nave cites Wisdom and the Song of the Three Young Men,
+// and those citations are emitted as they stand. A reference to a book a given
+// translation does not carry is a fact about the translation, not a broken
+// reference, and dropping it would hide what the source actually said.
 const CANON = BOOKTAB.books.filter((b) => b[4] !== 'dc').map((b) => b[0]);
 const CANON_NO = new Map(CANON.map((c, i) => [c, i + 1]));   // 1..66, TSK's book_key
 
@@ -111,7 +114,7 @@ const EXTRA = {
   EZR: ['ezra'], NEH: ['neh'], EST: ['est', 'esth'], JOB: ['jb'],
   PSA: ['psalm', 'psalms', 'psa', 'pss'], PRO: ['prov', 'prv'],
   ECC: ['eccl', 'eccles', 'ecclesiastes', 'ecclesiates'],
-  SNG: ['song', 'songofsongs', 'canticles', 'sos', 'cant'],
+  SNG: ['song', 'songofsongs', 'canticles', 'sos', 'sng', 'cant', 'sol'],
   JER: ['jrm'], LAM: ['lam'], EZK: ['ezek', 'ezk'], DAN: ['dan', 'dn'],
   HOS: ['hos'], JOL: ['joel', 'jl'], AMO: ['amos'], OBA: ['obad'], JON: ['jnh', 'jonah'],
   MIC: ['micah', 'mch'], NAM: ['nah', 'nam'], HAB: ['habakkuk'], ZEP: ['zeph'],
@@ -141,12 +144,19 @@ function foldBook(s) {
   return t.replace(/[^a-z0-9]/g, '');
 }
 
+// USFM CODES ARE DELIBERATELY NOT IN THIS TABLE. `jud` is JUDGES in TSK, in
+// Smith and in Torrey, and JUD is the USFM code for JUDE — registering codes
+// first silently turned 1,247 references to Judges into references to a
+// one-chapter epistle, which resolved as `Jude 5:14` and looked like a
+// versification quarrel rather than a bug. No source spells a reference with a
+// USFM code, so the code is not an alias; only names and printed abbreviations
+// are.
 const BOOK_BY_ALIAS = new Map();
 function alias(a, code) {
   const k = foldBook(a);
   if (k && !BOOK_BY_ALIAS.has(k)) BOOK_BY_ALIAS.set(k, code);
 }
-for (const b of BOOKTAB.books) { alias(b[0], b[0]); alias(b[1], b[0]); alias(b[2], b[0]); }
+for (const b of BOOKTAB.books) { alias(b[1], b[0]); alias(b[2], b[0]); }
 CANON.forEach((code, i) => { alias(OSIS[i], code); alias(TSK_ABBR[i], code); });
 for (const code of Object.keys(EXTRA)) for (const a of EXTRA[code]) alias(a, code);
 
@@ -184,7 +194,7 @@ function parseRefList(text) {
     if (bm) {
       const c = bookOf(bm[1]);
       if (c) { code = c; chap = null; s = s.slice(bm[0].length).trim(); }
-      else if (!code) continue;                 // an unknown book with nothing in force
+      else { noteUnknownBook(bm[1]); if (!code) continue; }   // nothing in force to continue
     }
     if (!code) continue;
     // What is left is a chapter:verse tail, possibly a comma list of verses and
@@ -232,7 +242,14 @@ function parseOsis(s) {
   return [{ code: a.code, c1: a.c, v1: a.v, c2: a.c, v2: a.v }];
 }
 
-const tally = { refs: 0, unparsed: 0 };
+// A book label no table knows is counted, not swallowed. `Sng 4:8` in the
+// gazetteer matched nothing until it was, and the only symptom was one place in
+// 556 that named no verse.
+const tally = { refs: 0, unknownBooks: new Map() };
+function noteUnknownBook(label) {
+  const k = String(label).trim();
+  tally.unknownBooks.set(k, (tally.unknownBooks.get(k) || 0) + 1);
+}
 function refsToStrings(list) {
   const out = [];
   const seen = new Set();
@@ -1060,9 +1077,24 @@ const MCHEYNE = [
 // Every plan cell is normalised through the same parser as every reference, so
 // `Genesis 9-10`, `Zechariah 12:1-13:1` and `Psalm 119:1-24` all come out as
 // strings the app's reference parser reads.
-function planCell(s) {
-  const refs = parseRefList(s);
-  return refs.length ? refs.map(refString).join(' ') : '';
+//
+// A COMMA IN A PLAN CELL SEPARATES CHAPTERS, not verses. `Jeremiah 36,45` is
+// two chapters of Jeremiah; the shared parser reads a bare number after a
+// chapter as a VERSE, which is right for `ps 33:6,9` and wrong here, so the
+// pieces are split and each is given the book back before parsing. One cell in
+// the 1,460 has this shape, and it read as Jeremiah 36:45 until it was.
+function planCells(cell) {
+  const pieces = String(cell).split(',');
+  const book = (pieces[0].match(/^\s*((?:[123]\s*)?[A-Za-z][A-Za-z'.\s]*?)\s*(?=\d)/) || [])[1];
+  const out = [];
+  for (const piece of pieces) {
+    const t = piece.trim();
+    if (!t) continue;
+    for (const r of parseRefList(/[A-Za-z]/.test(t) ? t : (book || '') + ' ' + t)) {
+      out.push(refString(r));
+    }
+  }
+  return out;
 }
 
 function psalmsProverbsMonthly() {
@@ -1148,7 +1180,7 @@ function buildPlans(counts) {
       note: "Robert Murray M'Cheyne's 1842 calendar for his Dundee congregation: "
           + 'four readings a day, the Old Testament once and the New Testament '
           + 'and Psalms twice in a year.',
-      days: MCHEYNE.map((row) => row.split('|').map(planCell).filter(Boolean)) },
+      days: MCHEYNE.map((row) => row.split('|').reduce((a, c) => a.concat(planCells(c)), [])) },
     { id: 'psalms-proverbs', name: 'Psalms and Proverbs by the Month',
       origin: 'computed',
       note: 'Computed by GifOS, not a published plan: Proverbs by the day of the '
@@ -1328,4 +1360,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   const n = mergeCredits(Object.keys(built).length === 6 ? built : null);
   console.log(`\n${tally.refs} references emitted, ${n} sources credited`);
+  if (tally.unknownBooks.size) {
+    console.log('UNKNOWN BOOK LABELS  ' + [...tally.unknownBooks]
+      .sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} x${v}`).join(', '));
+  }
 }
