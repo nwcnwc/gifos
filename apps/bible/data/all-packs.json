@@ -434,20 +434,6 @@
   "sha256": "a4e3d627e815474417e5d894da901212c54341b4c4b7381c98394648323d4960"
  },
  {
-  "id": "eng-Brenton",
-  "name": "Brenton English Septuagint",
-  "title": "Brenton Septuagint Translation",
-  "language": "English",
-  "languageNative": "English",
-  "lang": "eng",
-  "dir": "ltr",
-  "books": 53,
-  "verses": 29017,
-  "bytes": 1228512,
-  "versification": "greek",
-  "sha256": "f709d51c7a03893f90cebfeba2874ae1e8598db1775aff49793d29c1c80cc104"
- },
- {
   "id": "eng-asv",
   "name": "American Standard Version (1901)",
   "title": "American Standard Version (1901)",
@@ -460,6 +446,20 @@
   "bytes": 1225583,
   "versification": "kjv",
   "sha256": "0686a4b59ebad2d72e3ab486f0243ae54c34c3909feaedc55622a285c50f909d"
+ },
+ {
+  "id": "eng-Brenton",
+  "name": "Brenton English Septuagint",
+  "title": "Brenton Septuagint Translation",
+  "language": "English",
+  "languageNative": "English",
+  "lang": "eng",
+  "dir": "ltr",
+  "books": 53,
+  "verses": 29017,
+  "bytes": 1228512,
+  "versification": "greek",
+  "sha256": "f709d51c7a03893f90cebfeba2874ae1e8598db1775aff49793d29c1c80cc104"
  },
  {
   "id": "eng-kjv",
@@ -574,62 +574,6 @@
   "sha256": "0170cf229e3e9d5749f982699e718883afef9ae9a76b56063f8669a67ed9a47b"
  },
  {
-  "id": "engBBE",
-  "name": "Bible in Basic English",
-  "title": "Bible in Basic English",
-  "language": "English",
-  "languageNative": "English",
-  "lang": "eng",
-  "dir": "ltr",
-  "books": 66,
-  "verses": 31102,
-  "bytes": 1174635,
-  "versification": "kjv",
-  "sha256": "4be44441b0601512ebbb35fbc91850247324d5f93787088a1289fa8377798ffb"
- },
- {
-  "id": "engDBY",
-  "name": "Darby Translation",
-  "title": "Darby Translation",
-  "language": "English",
-  "languageNative": "English",
-  "lang": "eng",
-  "dir": "ltr",
-  "books": 66,
-  "verses": 31102,
-  "bytes": 1228922,
-  "versification": "kjv",
-  "sha256": "fa3d8a5eeea4ee5a41f211c22213920cebd578ce8836ecf3fc898869aee72309"
- },
- {
-  "id": "engDRA",
-  "name": "Douay-Rheims 1899",
-  "title": "Douay-Rheims 1899",
-  "language": "English",
-  "languageNative": "English",
-  "lang": "eng",
-  "dir": "ltr",
-  "books": 73,
-  "verses": 35811,
-  "bytes": 1398931,
-  "versification": "greek",
-  "sha256": "13036b6ae3eaa4d1edaed44fcce649fdabb07bfdb57901a1902d05bb6bee7035"
- },
- {
-  "id": "engWycliffe",
-  "name": "Wycliffe Bible portions",
-  "title": "Wycliffe Bible",
-  "language": "English",
-  "languageNative": "Middle English",
-  "lang": "eng",
-  "dir": "ltr",
-  "books": 9,
-  "verses": 9625,
-  "bytes": 365636,
-  "versification": "kjv",
-  "sha256": "b4a0bf3989c8c7ab3ffb5b3bb73022d5e01937465f8adfd3b0a09415ac8c6c3f"
- },
- {
   "id": "engasvbt",
   "name": "ASV Byzantine Text",
   "title": "American Standard Version Byzantine Text",
@@ -644,6 +588,20 @@
   "sha256": "73b44e18452d67bd14bdc050fcd68fbe156fed9312726c2d183d9c8aa15763da"
  },
  {
+  "id": "engBBE",
+  "name": "Bible in Basic English",
+  "title": "Bible in Basic English",
+  "language": "English",
+  "languageNative": "English",
+  "lang": "eng",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31102,
+  "bytes": 1174635,
+  "versification": "kjv",
+  "sha256": "4be44441b0601512ebbb35fbc91850247324d5f93787088a1289fa8377798ffb"
+ },
+ {
   "id": "engbsb",
   "name": "English Berean Standard Bible",
   "title": "Berean Standard Bible",
@@ -656,6 +614,34 @@
   "bytes": 1354737,
   "versification": "kjv",
   "sha256": "7fbcc02b10f4a64f8a135c54ca543b9fdfc33e5aedaca0276e08db27d9f8458f"
+ },
+ {
+  "id": "engDBY",
+  "name": "Darby Translation",
+  "title": "Darby Translation",
+  "language": "English",
+  "languageNative": "English",
+  "lang": "eng",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31102,
+  "bytes": 1449821,
+  "versification": "kjv",
+  "sha256": "471955c173ab844faf95eb97149eae3a8fabdc48a9d6225dda00b09b401631b2"
+ },
+ {
+  "id": "engDRA",
+  "name": "Douay-Rheims 1899",
+  "title": "Douay-Rheims 1899",
+  "language": "English",
+  "languageNative": "English",
+  "lang": "eng",
+  "dir": "ltr",
+  "books": 73,
+  "verses": 35811,
+  "bytes": 1398931,
+  "versification": "greek",
+  "sha256": "13036b6ae3eaa4d1edaed44fcce649fdabb07bfdb57901a1902d05bb6bee7035"
  },
  {
   "id": "enggnv",
@@ -896,6 +882,20 @@
   "sha256": "8e16274bbe10948e474a92370108106e280f7fbd144ceebe868370446ccc26ee"
  },
  {
+  "id": "engWycliffe",
+  "name": "Wycliffe Bible portions",
+  "title": "Wycliffe Bible",
+  "language": "English",
+  "languageNative": "Middle English",
+  "lang": "eng",
+  "dir": "ltr",
+  "books": 9,
+  "verses": 9625,
+  "bytes": 365636,
+  "versification": "kjv",
+  "sha256": "b4a0bf3989c8c7ab3ffb5b3bb73022d5e01937465f8adfd3b0a09415ac8c6c3f"
+ },
+ {
   "id": "engylt",
   "name": "Young's Literal Translation",
   "title": "Young's Literal Translation",
@@ -952,20 +952,6 @@
   "sha256": "365893bc3d2c800ddb700b9031c67c9000b21f4bdfe7c65cba2df39250ed022f"
  },
  {
-  "id": "fraLSG",
-  "name": "French Louis Segond 1910 Bible",
-  "title": "Louis Segond 1910",
-  "language": "French",
-  "languageNative": "français",
-  "lang": "fra",
-  "dir": "ltr",
-  "books": 66,
-  "verses": 31170,
-  "bytes": 1426772,
-  "versification": "kjv",
-  "sha256": "80ca3f1e3d14c3ac796a8df0287fb9b5d66e60d427c5a95fb0af7e91e5ed62d3"
- },
- {
   "id": "fra_fob",
   "name": "French Ostervald Bible",
   "title": "La Sainte Bible",
@@ -992,6 +978,20 @@
   "bytes": 1411982,
   "versification": "hebrew",
   "sha256": "9ed2cd487c80ad76ef27dc1ca53cf3b6534e61b7d7d8d7b95c882264d87b11d5"
+ },
+ {
+  "id": "fraLSG",
+  "name": "French Louis Segond 1910 Bible",
+  "title": "Louis Segond 1910",
+  "language": "French",
+  "languageNative": "français",
+  "lang": "fra",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31170,
+  "bytes": 1426772,
+  "versification": "kjv",
+  "sha256": "80ca3f1e3d14c3ac796a8df0287fb9b5d66e60d427c5a95fb0af7e91e5ed62d3"
  },
  {
   "id": "frasbl",
@@ -1750,20 +1750,6 @@
   "sha256": "4b24a8cdbf39659c809f2bfc6de8c37e99f43b2a26962da27d7e1f3580dbc911"
  },
  {
-  "id": "spaRV1909",
-  "name": "Reina Valera 1909",
-  "title": "Santa Biblia — Reina Valera 1909",
-  "language": "Spanish",
-  "languageNative": "Español",
-  "lang": "spa",
-  "dir": "ltr",
-  "books": 66,
-  "verses": 31102,
-  "bytes": 1248141,
-  "versification": "kjv",
-  "sha256": "108adae3f71953dc26feb0d68cac759301a758257a4bb2632e1e2a814207778e"
- },
- {
   "id": "spabll",
   "name": "Spanish BLL",
   "title": "Santa Biblia libre Latinoamericano",
@@ -1790,6 +1776,20 @@
   "bytes": 1614051,
   "versification": "kjv",
   "sha256": "cf38e6c5a5f0802d3dc0c209c4012bef0443d7807c5acbc4600376bf67fdb3b4"
+ },
+ {
+  "id": "spaRV1909",
+  "name": "Reina Valera 1909",
+  "title": "Santa Biblia — Reina Valera 1909",
+  "language": "Spanish",
+  "languageNative": "Español",
+  "lang": "spa",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31102,
+  "bytes": 1248141,
+  "versification": "kjv",
+  "sha256": "108adae3f71953dc26feb0d68cac759301a758257a4bb2632e1e2a814207778e"
  },
  {
   "id": "swh1850",

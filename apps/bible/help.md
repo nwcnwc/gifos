@@ -36,7 +36,8 @@ Tap any verse:
   (Byzantine Majority, Tischendorf 8th) word by word, with parsing, and
   **Strong’s** numbers that look up in Strong’s own dictionaries.
 - Small **\*** and **†** marks in the text are the translators' own footnotes
-  and cross references — tap them.
+  and cross references — tap them. The Darby translation carries J. N. Darby's
+  own footnotes from the 1890 English Bible.
 
 Search also looks in Easton’s and Smith’s dictionaries, Nave’s and Torrey’s
 topics, and the place gazetteer. Type a Strong’s number (`H430`, `G26`) to

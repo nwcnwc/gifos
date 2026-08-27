@@ -172,6 +172,20 @@
    "usedIn": [
     "int-grctisch.gbx"
    ]
+  },
+  {
+   "id": "dtn",
+   "title": "Darby Translation Notes (J. N. Darby's footnotes)",
+   "authors": "John Nelson Darby (1800–1882); 1890 Morrish English Bible notes, via the 1961 Kingston Bible Trust / Bible Truth Publishers reprint",
+   "published": "1890 (notes); 1961 reprint of the 1890 text",
+   "url": "https://crosswire.org/ftpmirror/pub/sword/packages/rawzip/DTN.zip",
+   "bytes": 332159,
+   "license": "Public Domain",
+   "licenseBasis": "CrossWire DTN module mods.d/dtn.conf: `DistributionLicense=Public Domain` (SwordVersionDate=2002-01-01). The notes are those printed with J.N. Darby's English Bible (Morrish, 1890). Darby died in 1882; the 1890 edition is public domain by age. The electronic text is the 1961 reprint's footnotes: a condensation of the 1890 notes (1939 Stow Hill omitted Hebrew/Greek manuscript references) plus further notes taken from Darby's French and German Bibles and his collected writings. Asterisk-marked notes the 1961 editors could not identify as Darby's are omitted.",
+   "attribution": null,
+   "usedIn": [
+    "engDBY.gbp"
+   ]
   }
  ],
  "helpsPacks": {
