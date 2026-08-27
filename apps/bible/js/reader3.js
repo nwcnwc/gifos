@@ -263,10 +263,18 @@
 
   Reader.prototype.planOffers = function () {
     var offers = [];
-    var helps = root.GifosBibleHelps;
-    if (helps && helps.plans) {
-      var plans = helps.plans();
-      for (var i = 0; i < plans.length; i++) offers.push(plans[i]);
+    var App = root.GifosBibleApparatus;
+    if (App) {
+      App.start();
+      var plans = App.plans();
+      for (var i = 0; i < plans.length; i++) {
+        var p = plans[i];
+        offers.push({
+          kind: p.id, title: p.name,
+          blurb: p.note || (p.dayCount + ' days'),
+          days: p.dayCount
+        });
+      }
     }
     // These two need no dataset: they are computed from the canon itself.
     offers.push({
@@ -338,10 +346,15 @@
   // The day's readings. Dataset plans come from the helps pack; the two
   // computed plans are arithmetic over the canon.
   Reader.prototype.planReadings = function (p, day) {
-    var helps = root.GifosBibleHelps;
-    if (helps && helps.planDay) {
-      var r = helps.planDay(p.kind, day);
-      if (r) return r;
+    var App = root.GifosBibleApparatus;
+    if (App) {
+      var r = App.planDay(p.kind, day);
+      if (r && r.readings && r.readings.length) {
+        return r.readings.map(function (s) {
+          var parsed = Refs.parse(s);
+          return { label: s, ref: parsed[0] || { code: 'GEN', chapter: 1 } };
+        });
+      }
     }
     var pack = this.pack(0);
     if (p.kind === 'gospels30') {

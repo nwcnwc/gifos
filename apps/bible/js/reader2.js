@@ -141,7 +141,9 @@
   Reader.prototype.apparatusInto = function (body, ref) {
     var self = this;
     if (!root.GifosBibleApparatus) return;
+    var gen = (this._appGen = (this._appGen || 0) + 1);
     root.GifosBibleApparatus.forVerse(ref, function (section) {
+      if (self._appGen !== gen) return;
       if (!section || !section.items || !section.items.length) return;
       body.appendChild(el('h3', 'lang-name', section.title));
       for (var i = 0; i < section.items.length; i++) {
@@ -390,6 +392,105 @@
         ' in ' + (pack.name || pack.id));
     head.style.border = '0';
     results.insertBefore(head, results.firstChild);
+
+    this.searchApparatus(q, results);
+  };
+
+  // Dictionary, topics, places, and a typed Strong's number. These packs load
+  // lazily; a search that races the first download simply finds the text.
+  Reader.prototype.searchApparatus = function (q, results) {
+    var self = this;
+    var App = root.GifosBibleApparatus;
+    if (!App) return;
+    App.start();
+    var strong = App.lookupStrong(q);
+    if (strong) {
+      results.appendChild(el('h3', 'lang-name', "Strong’s " + strong.num));
+      results.appendChild(el('div', 'note-item',
+        strong.lemma + (strong.translit ? ' · ' + strong.translit : '') +
+        (strong.definition ? ' — ' + strong.definition : '')));
+    }
+    var dict = App.searchHeadwords(q, 8);
+    if (dict.length) {
+      results.appendChild(el('h3', 'lang-name', 'Dictionary'));
+      dict.forEach(function (h) {
+        var entries = App.lookup(h.headword);
+        var btn = el('button', 'res');
+        btn.type = 'button';
+        btn.appendChild(el('span', 'r-ref', h.headword));
+        btn.appendChild(document.createTextNode(
+          (h.sourceName || '') + (entries[0] && entries[0].paragraphs
+            ? ' — ' + entries[0].paragraphs[0].slice(0, 140) : '')));
+        btn.addEventListener('click', function () {
+          var body = document.getElementById('verse-body');
+          clear(body);
+          document.getElementById('verse-ref').textContent = h.headword;
+          clear(document.getElementById('swatches'));
+          clear(document.getElementById('verse-acts'));
+          entries.forEach(function (e) {
+            body.appendChild(el('h3', 'lang-name', e.sourceName || e.source));
+            (e.paragraphs || [e.text]).forEach(function (p) {
+              body.appendChild(el('div', 'note-item', p));
+            });
+            e.refs.forEach(function (r) { self.xrefButtons(body, r); });
+          });
+          self.closeSheets();
+          self.openSheet('sheet-verse');
+        });
+        results.appendChild(btn);
+      });
+    }
+    var topics = App.searchTopics(q, 8);
+    if (topics.length) {
+      results.appendChild(el('h3', 'lang-name', 'Topics'));
+      topics.forEach(function (t) {
+        var btn = el('button', 'res');
+        btn.type = 'button';
+        btn.appendChild(el('span', 'r-ref', t.topic));
+        btn.appendChild(document.createTextNode(t.sourceName || ''));
+        btn.addEventListener('click', function () {
+          var hit = App.topic(t.topic)[0];
+          if (!hit) return;
+          var body = document.getElementById('verse-body');
+          clear(body);
+          document.getElementById('verse-ref').textContent = hit.topic;
+          clear(document.getElementById('swatches'));
+          clear(document.getElementById('verse-acts'));
+          body.appendChild(el('h3', 'lang-name', hit.sourceName || ''));
+          hit.refs.forEach(function (r) { self.xrefButtons(body, r); });
+          (hit.subs || []).forEach(function (s) {
+            if (s.label) body.appendChild(el('div', 'note-item', s.label));
+            (s.refs || []).forEach(function (r) { self.xrefButtons(body, r); });
+          });
+          self.closeSheets();
+          self.openSheet('sheet-verse');
+        });
+        results.appendChild(btn);
+      });
+    }
+    var places = App.searchPlaces(q, 6);
+    if (places.length) {
+      results.appendChild(el('h3', 'lang-name', 'Places'));
+      places.forEach(function (p) {
+        var btn = el('button', 'res');
+        btn.type = 'button';
+        btn.appendChild(el('span', 'r-ref', p.name));
+        btn.appendChild(document.createTextNode(
+          (isFinite(p.lat) ? p.lat.toFixed(2) + ', ' + p.lon.toFixed(2) : '') +
+          ' — Bible place data © OpenBible.info, licensed CC BY 4.0.'));
+        btn.addEventListener('click', function () {
+          if (p.refs && p.refs[0]) {
+            var parsed = Refs.parse(p.refs[0]);
+            if (parsed[0]) {
+              self.closeSheets();
+              self.go({ code: parsed[0].code, chapter: parsed[0].chapter,
+                        verse: parsed[0].verse || 0 }, { flash: !!parsed[0].verse });
+            }
+          }
+        });
+        results.appendChild(btn);
+      });
+    }
   };
 
   // Binary search: which verse does byte offset `at` in the body fall in?

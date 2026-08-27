@@ -29,8 +29,19 @@ Tap any verse:
   recording is kept with the verse.
 - **Compare** — the same verse in every translation you have on this device,
   side by side.
+- **Treasury of Scripture Knowledge** — every cross-reference printed against
+  that verse, tap-able.
+- **Matthew Henry** — the concise commentary covering the verse.
+- **Interlinear** — the Hebrew (Westminster Leningrad Codex) or Greek
+  (Byzantine Majority, Tischendorf 8th) word by word, with parsing, and
+  **Strong’s** numbers that look up in Strong’s own dictionaries.
 - Small **\*** and **†** marks in the text are the translators' own footnotes
   and cross references — tap them.
+
+Search also looks in Easton’s and Smith’s dictionaries, Nave’s and Torrey’s
+topics, and the place gazetteer. Type a Strong’s number (`H430`, `G26`) to
+open that entry. Place data © OpenBible.info, licensed CC BY 4.0. The Hebrew
+interlinear is the Open Scriptures Hebrew Bible, CC BY 4.0.
 
 ## Reading plans
 
