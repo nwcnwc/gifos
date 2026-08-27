@@ -28,6 +28,20 @@
   "sha256": "1248cf284d6ece3d1f740fdcbfc178b5dd8dc4ffdfd45a07fe0f7decd8213d8c"
  },
  {
+  "id": "gb-westernarmenian",
+  "name": "Western Armenian NT",
+  "title": "Western Armenian New Testament",
+  "language": "Armenian",
+  "languageNative": "Հայերէն",
+  "lang": "hy",
+  "dir": "ltr",
+  "books": 27,
+  "verses": 7949,
+  "bytes": 359340,
+  "versification": "kjv",
+  "sha256": "6e6f4c2013e623edf008df674d79e95d60d0adf003d5a82bf0d864426eafd1af"
+ },
+ {
   "id": "awk",
   "name": "Awabakal Luke",
   "title": "EUANGELION UNNI TA JESU-ÚBA CHRIST-KO-BA UPATOARA LUKA-UMBA",
@@ -40,6 +54,20 @@
   "bytes": 45165,
   "versification": "kjv",
   "sha256": "60c335cc062d36969b594bb32833e4334f278199c6b0ef49a702d758cf5a0dd6"
+ },
+ {
+  "id": "gb-basque",
+  "name": "Leizarraga NT",
+  "title": "Iesus Christ Gure Iaunaren Testamentu Berria",
+  "language": "Basque",
+  "languageNative": "Euskara",
+  "lang": "eu",
+  "dir": "ltr",
+  "books": 27,
+  "verses": 7948,
+  "bytes": 320105,
+  "versification": "kjv",
+  "sha256": "532a174a85d3c343c481a415a561efd5ae60aafa8aabd417f20ab04a712256b8"
  },
  {
   "id": "bea",
@@ -112,6 +140,20 @@
   "sha256": "01269ab1fd2ac730bc67e2b3af8aae1387bef1579411774b7fb279978e4cf895"
  },
  {
+  "id": "gb-calo",
+  "name": "Embéo e Majaró Lucas",
+  "title": "Embeo e Majaro Lucas",
+  "language": "Caló",
+  "languageNative": "Caló",
+  "lang": "rmq",
+  "dir": "ltr",
+  "books": 1,
+  "verses": 1151,
+  "bytes": 45593,
+  "versification": "kjv",
+  "sha256": "a38d6467ff7837654b0ba7dfbbf56fb16cbd1a1b9f828d1fdf384ef34ca6ae06"
+ },
+ {
   "id": "cha",
   "name": "Chamorro Gospels, Acts, and Psalms",
   "title": "Y CUATRO EBANGELIO SIJA YAN Y CHECHO Y APOSTOLES YAN Y SALMO SIJA",
@@ -124,6 +166,20 @@
   "bytes": 240913,
   "versification": "kjv",
   "sha256": "72f5482491fae668879591b6ae1226fe9a1b53f20a1575f17a6bb1bd7fbe20ba"
+ },
+ {
+  "id": "gb-che1860",
+  "name": "Cherokee NT",
+  "title": "Cherokee New Testament (1860)",
+  "language": "Cherokee",
+  "languageNative": "ᏣᎳᎩ",
+  "lang": "chr",
+  "dir": "ltr",
+  "books": 27,
+  "verses": 7957,
+  "bytes": 354431,
+  "versification": "kjv",
+  "sha256": "13a4d2053f029844c88e3aedea7116c89067383fb8167aa4e745437261a9bf7a"
  },
  {
   "id": "cekak",
@@ -196,6 +252,20 @@
   "sha256": "4e37f7b0f395d814924e02fb81ce559f2fe5d465ef02db9c533cb5c436b7ad05"
  },
  {
+  "id": "gb-chiunl",
+  "name": "文理和合本",
+  "title": "Chinese Union Version, Wenli (Sheng Jing wenli heheben)",
+  "language": "Chinese",
+  "languageNative": "中文",
+  "lang": "zh",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31095,
+  "bytes": 909648,
+  "versification": "kjv",
+  "sha256": "29bad8f98ce0e9e1c5c420d78bbe78c7fa6a81d8a37d2c8b9abaa0e5903ca742"
+ },
+ {
   "id": "cmnswcb",
   "name": "World Chinese Bible",
   "title": "世界中文圣经",
@@ -208,6 +278,20 @@
   "bytes": 1255072,
   "versification": "kjv",
   "sha256": "f4a5e6d71b389a3b4e701186f863c4df9bdaa4dc6fbd45dbca8fdf171ac1d8b1"
+ },
+ {
+  "id": "gb-csielizabeth",
+  "name": "Елизаветинская Библия",
+  "title": "Elizavetinskaya Bibliya",
+  "language": "Church Slavonic",
+  "languageNative": "Церковнослав.",
+  "lang": "cu",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31307,
+  "bytes": 1367801,
+  "versification": "greek",
+  "sha256": "1c4c1d02189079b933a22c8316753f8889a67edf7a30fb4601fa2f24f83e4232"
  },
  {
   "id": "copbhc",
@@ -238,6 +322,20 @@
   "sha256": "19d46b9744c4d58bed582f1c01ecfd16b58ccded00bd9c5af51876783f824357"
  },
  {
+  "id": "gb-sahidic",
+  "name": "Sahidic NT (Horner)",
+  "title": "The Coptic Version of the New Testament in the Southern Dialect (Horner)",
+  "language": "Coptic",
+  "languageNative": "ⲙⲛ̄ⲧⲣⲙ̄ⲛ̄ⲕⲏⲙⲉ",
+  "lang": "cop",
+  "dir": "ltr",
+  "books": 27,
+  "verses": 7944,
+  "bytes": 340680,
+  "versification": "kjv",
+  "sha256": "31de1e07cc7ff865939586d2b7df84ad3b8826f9dfef0324025334bab7f23cce"
+ },
+ {
   "id": "hrv",
   "name": "Croatian Bible",
   "title": "Sveta Biblija",
@@ -266,6 +364,20 @@
   "sha256": "a543c64c7652e356f7d5dfbe305fe4a0172ebf1ad8510b771e29a7ef6697d955"
  },
  {
+  "id": "gb-danish1819",
+  "name": "Nye Testamente 1819",
+  "title": "Det Nye Testamente 1819",
+  "language": "Danish",
+  "languageNative": "Dansk",
+  "lang": "da",
+  "dir": "ltr",
+  "books": 27,
+  "verses": 7956,
+  "bytes": 298021,
+  "versification": "kjv",
+  "sha256": "572f251398d06a47c7b0ad55fe18f393c543faf97574135f71ef6237e4096a73"
+ },
+ {
   "id": "dif",
   "name": "Dieri NT",
   "title": "TESTAMENTA MARRA",
@@ -278,6 +390,20 @@
   "bytes": 274608,
   "versification": "kjv",
   "sha256": "af25f0c64a7518f082803670eee507c2485d8ac5b17460dc02a507c6a8dc81a9"
+ },
+ {
+  "id": "gb-statenvertaling",
+  "name": "Statenvertaling",
+  "title": "Statenvertaling (Jongbloed-editie)",
+  "language": "Dutch",
+  "languageNative": "Nederlands",
+  "lang": "nl",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31100,
+  "bytes": 1298299,
+  "versification": "kjv",
+  "sha256": "853c03bae61fc9924d9798eb20db3f5881ffa0f322638aa8a3d02aaaf73bb007"
  },
  {
   "id": "nld",
@@ -308,20 +434,6 @@
   "sha256": "a4e3d627e815474417e5d894da901212c54341b4c4b7381c98394648323d4960"
  },
  {
-  "id": "eng-asv",
-  "name": "American Standard Version (1901)",
-  "title": "American Standard Version (1901)",
-  "language": "English",
-  "languageNative": "English",
-  "lang": "eng",
-  "dir": "ltr",
-  "books": 66,
-  "verses": 31102,
-  "bytes": 1225583,
-  "versification": "kjv",
-  "sha256": "0686a4b59ebad2d72e3ab486f0243ae54c34c3909feaedc55622a285c50f909d"
- },
- {
   "id": "eng-Brenton",
   "name": "Brenton English Septuagint",
   "title": "Brenton Septuagint Translation",
@@ -334,6 +446,20 @@
   "bytes": 1228512,
   "versification": "greek",
   "sha256": "f709d51c7a03893f90cebfeba2874ae1e8598db1775aff49793d29c1c80cc104"
+ },
+ {
+  "id": "eng-asv",
+  "name": "American Standard Version (1901)",
+  "title": "American Standard Version (1901)",
+  "language": "English",
+  "languageNative": "English",
+  "lang": "eng",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31102,
+  "bytes": 1225583,
+  "versification": "kjv",
+  "sha256": "0686a4b59ebad2d72e3ab486f0243ae54c34c3909feaedc55622a285c50f909d"
  },
  {
   "id": "eng-kjv",
@@ -448,20 +574,6 @@
   "sha256": "0170cf229e3e9d5749f982699e718883afef9ae9a76b56063f8669a67ed9a47b"
  },
  {
-  "id": "engasvbt",
-  "name": "ASV Byzantine Text",
-  "title": "American Standard Version Byzantine Text",
-  "language": "English",
-  "languageNative": "English",
-  "lang": "eng",
-  "dir": "ltr",
-  "books": 84,
-  "verses": 37844,
-  "bytes": 1523612,
-  "versification": "kjv",
-  "sha256": "73b44e18452d67bd14bdc050fcd68fbe156fed9312726c2d183d9c8aa15763da"
- },
- {
   "id": "engBBE",
   "name": "Bible in Basic English",
   "title": "Bible in Basic English",
@@ -474,20 +586,6 @@
   "bytes": 1174635,
   "versification": "kjv",
   "sha256": "4be44441b0601512ebbb35fbc91850247324d5f93787088a1289fa8377798ffb"
- },
- {
-  "id": "engbsb",
-  "name": "English Berean Standard Bible",
-  "title": "Berean Standard Bible",
-  "language": "English",
-  "languageNative": "English",
-  "lang": "eng",
-  "dir": "ltr",
-  "books": 66,
-  "verses": 31102,
-  "bytes": 1354737,
-  "versification": "kjv",
-  "sha256": "7fbcc02b10f4a64f8a135c54ca543b9fdfc33e5aedaca0276e08db27d9f8458f"
  },
  {
   "id": "engDBY",
@@ -516,6 +614,48 @@
   "bytes": 1398931,
   "versification": "greek",
   "sha256": "13036b6ae3eaa4d1edaed44fcce649fdabb07bfdb57901a1902d05bb6bee7035"
+ },
+ {
+  "id": "engWycliffe",
+  "name": "Wycliffe Bible portions",
+  "title": "Wycliffe Bible",
+  "language": "English",
+  "languageNative": "Middle English",
+  "lang": "eng",
+  "dir": "ltr",
+  "books": 9,
+  "verses": 9625,
+  "bytes": 365636,
+  "versification": "kjv",
+  "sha256": "b4a0bf3989c8c7ab3ffb5b3bb73022d5e01937465f8adfd3b0a09415ac8c6c3f"
+ },
+ {
+  "id": "engasvbt",
+  "name": "ASV Byzantine Text",
+  "title": "American Standard Version Byzantine Text",
+  "language": "English",
+  "languageNative": "English",
+  "lang": "eng",
+  "dir": "ltr",
+  "books": 84,
+  "verses": 37844,
+  "bytes": 1523612,
+  "versification": "kjv",
+  "sha256": "73b44e18452d67bd14bdc050fcd68fbe156fed9312726c2d183d9c8aa15763da"
+ },
+ {
+  "id": "engbsb",
+  "name": "English Berean Standard Bible",
+  "title": "Berean Standard Bible",
+  "language": "English",
+  "languageNative": "English",
+  "lang": "eng",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31102,
+  "bytes": 1354737,
+  "versification": "kjv",
+  "sha256": "7fbcc02b10f4a64f8a135c54ca543b9fdfc33e5aedaca0276e08db27d9f8458f"
  },
  {
   "id": "enggnv",
@@ -756,20 +896,6 @@
   "sha256": "8e16274bbe10948e474a92370108106e280f7fbd144ceebe868370446ccc26ee"
  },
  {
-  "id": "engWycliffe",
-  "name": "Wycliffe Bible portions",
-  "title": "Wycliffe Bible",
-  "language": "English",
-  "languageNative": "Middle English",
-  "lang": "eng",
-  "dir": "ltr",
-  "books": 9,
-  "verses": 9625,
-  "bytes": 365636,
-  "versification": "kjv",
-  "sha256": "b4a0bf3989c8c7ab3ffb5b3bb73022d5e01937465f8adfd3b0a09415ac8c6c3f"
- },
- {
   "id": "engylt",
   "name": "Young's Literal Translation",
   "title": "Young's Literal Translation",
@@ -784,6 +910,20 @@
   "sha256": "a416b3ca6d6fb3e1e9f7cb758d1338980d2990bb8b2252ea29ed2dbb2e5c289b"
  },
  {
+  "id": "gb-weymouth",
+  "name": "Weymouth NT",
+  "title": "The New Testament in Modern Speech",
+  "language": "English",
+  "languageNative": "English",
+  "lang": "en",
+  "dir": "ltr",
+  "books": 27,
+  "verses": 7957,
+  "bytes": 355416,
+  "versification": "kjv",
+  "sha256": "7483629729e48e1ebd7f183350f28e9149cd95dcea2b6c2cdf4d9b3c7049cba7"
+ },
+ {
   "id": "epo",
   "name": "Esperanto Bible",
   "title": "Londona Biblio",
@@ -796,6 +936,34 @@
   "bytes": 1167692,
   "versification": "kjv",
   "sha256": "381a9f413fc782e9f546e8404af47f5e952d0c9baafa27eb5245ab92532dc598"
+ },
+ {
+  "id": "gb-finnish1776",
+  "name": "Biblia (1776)",
+  "title": "Biblia, Se on: Koko Pyha Raamattu (1776)",
+  "language": "Finnish",
+  "languageNative": "Suomi",
+  "lang": "fi",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31103,
+  "bytes": 1291220,
+  "versification": "kjv",
+  "sha256": "365893bc3d2c800ddb700b9031c67c9000b21f4bdfe7c65cba2df39250ed022f"
+ },
+ {
+  "id": "fraLSG",
+  "name": "French Louis Segond 1910 Bible",
+  "title": "Louis Segond 1910",
+  "language": "French",
+  "languageNative": "français",
+  "lang": "fra",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31170,
+  "bytes": 1426772,
+  "versification": "kjv",
+  "sha256": "80ca3f1e3d14c3ac796a8df0287fb9b5d66e60d427c5a95fb0af7e91e5ed62d3"
  },
  {
   "id": "fra_fob",
@@ -826,20 +994,6 @@
   "sha256": "9ed2cd487c80ad76ef27dc1ca53cf3b6534e61b7d7d8d7b95c882264d87b11d5"
  },
  {
-  "id": "fraLSG",
-  "name": "French Louis Segond 1910 Bible",
-  "title": "Louis Segond 1910",
-  "language": "French",
-  "languageNative": "français",
-  "lang": "fra",
-  "dir": "ltr",
-  "books": 66,
-  "verses": 31170,
-  "bytes": 1426772,
-  "versification": "kjv",
-  "sha256": "80ca3f1e3d14c3ac796a8df0287fb9b5d66e60d427c5a95fb0af7e91e5ed62d3"
- },
- {
   "id": "frasbl",
   "name": "French Free Holy Bible for the World",
   "title": "Sainte Bible libre pour le monde",
@@ -852,6 +1006,20 @@
   "bytes": 1712364,
   "versification": "kjv",
   "sha256": "f26f15f4b46cac0b7b05936675f7bf0bba8800944325435e56f1897a2604f2b5"
+ },
+ {
+  "id": "gb-martin",
+  "name": "Martin 1744",
+  "title": "La Sainte Bible, version David Martin",
+  "language": "French",
+  "languageNative": "Français",
+  "lang": "fr",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31071,
+  "bytes": 1363426,
+  "versification": "kjv",
+  "sha256": "88f9b635b07aa86c17485e7f6f05a777654d7bb9c8b6477721d36adba3bb0be7"
  },
  {
   "id": "deu1912",
@@ -894,6 +1062,48 @@
   "bytes": 1436029,
   "versification": "hebrew",
   "sha256": "02e999c1cb6955d74ef068a8554dd6654e4c8b564c47f6085ba5776e0c81e793"
+ },
+ {
+  "id": "gb-elberfelder",
+  "name": "Elberfelder 1871",
+  "title": "Unrevidierte Elberfelder Bibel (1871)",
+  "language": "German, Standard",
+  "languageNative": "Deutsch",
+  "lang": "de",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31073,
+  "bytes": 1321497,
+  "versification": "kjv",
+  "sha256": "bc437f5efee6051f1c6ec2c6579ce6b033ecb2579d8d2bba366335fbea108a26"
+ },
+ {
+  "id": "gb-elberfelder1905",
+  "name": "Elberfelder 1905",
+  "title": "Unrevidierte Elberfelder Bibel (1905)",
+  "language": "German, Standard",
+  "languageNative": "Deutsch",
+  "lang": "de",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31102,
+  "bytes": 1330146,
+  "versification": "kjv",
+  "sha256": "d471d7314a2c77877343d8b1c62a3fa7020e29b483d34bf72ab98b92218e6e2c"
+ },
+ {
+  "id": "gb-luther1545",
+  "name": "Luther 1545",
+  "title": "Luther Bibel 1545",
+  "language": "German, Standard",
+  "languageNative": "Deutsch",
+  "lang": "de",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31098,
+  "bytes": 1275622,
+  "versification": "kjv",
+  "sha256": "a723f3284ff8989aa6bcec84b835b517049546976ed54a1db6168aab07ee1fc8"
  },
  {
   "id": "grc-tisch",
@@ -1008,6 +1218,20 @@
   "sha256": "40b8facece89e62cd3d62bc6cab3eeee57d030f7e904b6d809dc4e1f4bd4cacc"
  },
  {
+  "id": "gb-moderngreek",
+  "name": "Βάμβας",
+  "title": "I Agia Grafi (Neofytos Vamvas)",
+  "language": "Greek, Modern",
+  "languageNative": "Ελληνικά",
+  "lang": "el",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31102,
+  "bytes": 1612096,
+  "versification": "kjv",
+  "sha256": "c6d6ea16d941a50920310d31372765836b04f4c2033ac261e418feece16478dc"
+ },
+ {
   "id": "hat",
   "name": "Haitian Creole Bible 1985",
   "title": "Bib La",
@@ -1106,6 +1330,20 @@
   "sha256": "54830e492cf3c36a70c9a11d586fc1a9624c9e4b682016c11e278e7bd33c3fb5"
  },
  {
+  "id": "gb-karoli",
+  "name": "Károli (1908)",
+  "title": "Karoli Biblia (revidealt 1908)",
+  "language": "Hungarian",
+  "languageNative": "Magyar",
+  "lang": "hu",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31129,
+  "bytes": 1366856,
+  "versification": "kjv",
+  "sha256": "9da4066c835279a1f3873c5f540e1de34591da2471690b46e98265c341e1cf26"
+ },
+ {
   "id": "ita1885",
   "name": "Italian Diodati Bible",
   "title": "Diodati Bibbia 1885",
@@ -1132,6 +1370,34 @@
   "bytes": 1327693,
   "versification": "kjv",
   "sha256": "97beb864bc495062ae8402c74cede1fc6f62df4b3a7604a476d0feb484337a2f"
+ },
+ {
+  "id": "gb-japbungo",
+  "name": "文語訳聖書",
+  "title": "Bungo-yaku (Meiji Motoyaku OT / Taisho Kaiyaku NT)",
+  "language": "Japanese",
+  "languageNative": "日本語",
+  "lang": "ja",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31101,
+  "bytes": 1265740,
+  "versification": "kjv",
+  "sha256": "39158f4ae764f845f0fb6e7626c706b9ebdfd74d63bec1ca8328863d2e6c1e9d"
+ },
+ {
+  "id": "gb-japraguet",
+  "name": "ラゲ訳新約聖書",
+  "title": "Raguet-yaku Shinyaku Seisho",
+  "language": "Japanese",
+  "languageNative": "日本語",
+  "lang": "ja",
+  "dir": "ltr",
+  "books": 27,
+  "verses": 7954,
+  "bytes": 315424,
+  "versification": "kjv",
+  "sha256": "17cf7dbcf05584300c9016a0e013e1eb2e50885a9feb166c970154b8ac214275"
  },
  {
   "id": "jpn1965",
@@ -1204,6 +1470,48 @@
   "sha256": "dbb050b21b281d04074ba1464fcf7ffa862c22ec9614d6aea42b2c5773815668"
  },
  {
+  "id": "gb-mg1865",
+  "name": "Baiboly 1865",
+  "title": "Baiboly Malagasy (1865)",
+  "language": "Malagasy",
+  "languageNative": "Malagasy",
+  "lang": "mg",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31163,
+  "bytes": 1189614,
+  "versification": "hebrew",
+  "sha256": "d5565965572257b309f1f0ce96568b3e90ca68b85b8bc28fcd3951d2350ba19b"
+ },
+ {
+  "id": "gb-mal1910",
+  "name": "സത്യവേദപുസ്തകം",
+  "title": "Sathyavedapusthakam (1910)",
+  "language": "Malayalam",
+  "languageNative": "മലയാളം",
+  "lang": "ml",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31094,
+  "bytes": 1557343,
+  "versification": "kjv",
+  "sha256": "7dbef7c0ae6ce309a061fc5a8e38b3d3b0d855992a6e995adc6a4d112b4091e2"
+ },
+ {
+  "id": "gb-manxgaelic",
+  "name": "Yn Vible Casherick",
+  "title": "Yn Vible Casherick (scripture portions)",
+  "language": "Manx",
+  "languageNative": "Gaelg",
+  "lang": "gv",
+  "dir": "ltr",
+  "books": 5,
+  "verses": 3316,
+  "bytes": 130550,
+  "versification": "kjv",
+  "sha256": "057a34bb8b8135803349fc1fe79da8a1afb3d17013bbb67e557019f155a4c029"
+ },
+ {
   "id": "ulk1902",
   "name": "Meriam Mir Bible",
   "title": "Meriam Mir Bible",
@@ -1230,6 +1538,20 @@
   "bytes": 14812,
   "versification": "kjv",
   "sha256": "7474cbeb938709313f39c04694f26aaf8df8ca24d524b57cb47fff7dd2e5a422"
+ },
+ {
+  "id": "gb-bibelselskap",
+  "name": "Bibelen 1930",
+  "title": "Det Norske Bibelselskaps Bibel (1930)",
+  "language": "Norwegian",
+  "languageNative": "Norsk",
+  "lang": "no",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31101,
+  "bytes": 1195945,
+  "versification": "kjv",
+  "sha256": "59a6ce817ebeda5b45d612ec8419fee31e28d8b6899946a6574390c3631630bf"
  },
  {
   "id": "pesOPV",
@@ -1274,6 +1596,34 @@
   "sha256": "950299e91119906bd68d7f038d6d19fb06e23d77e802e600bb4c85eccd23ff6c"
  },
  {
+  "id": "gb-polgdanska",
+  "name": "Biblia Gdańska",
+  "title": "Biblia Gdanska",
+  "language": "Polish",
+  "languageNative": "Polski",
+  "lang": "pl",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31073,
+  "bytes": 1319660,
+  "versification": "kjv",
+  "sha256": "ae858a89969788b07765ea368a3b425e647ffc7d47b912cc8b641eb609c04179"
+ },
+ {
+  "id": "gb-almeida",
+  "name": "Almeida 1911",
+  "title": "Almeida Revista e Corrigida (1911)",
+  "language": "Portuguese",
+  "languageNative": "Português",
+  "lang": "pt",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31101,
+  "bytes": 1224878,
+  "versification": "kjv",
+  "sha256": "b51c6452cb4c01ddfadfb2d340b881db11baaddd548c2b5894be23e4d3aac717"
+ },
+ {
   "id": "porbrbsl",
   "name": "World Portuguese Bible",
   "title": "Bíblia Portuguesa Mundial",
@@ -1286,6 +1636,20 @@
   "bytes": 1614470,
   "versification": "kjv",
   "sha256": "c807c4836cbd5bea689127515f589e12f1cd7680285f11b58ab4704856cbe31f"
+ },
+ {
+  "id": "gb-potawatomi",
+  "name": "Matthew & Acts (Lykins)",
+  "title": "Matthew and Acts (Lykins)",
+  "language": "Potawatomi",
+  "languageNative": "Neshnabémwen",
+  "lang": "pot",
+  "dir": "ltr",
+  "books": 2,
+  "verses": 2078,
+  "bytes": 88383,
+  "versification": "kjv",
+  "sha256": "8e3b50eff69e4dbb43144598abb4cec206e4b85fd025faced0ecc3b81498a02f"
  },
  {
   "id": "ron1924",
@@ -1372,6 +1736,34 @@
   "sha256": "5e63100aadb4598d2ccbc55f0ac669dcd9c42174f05b217150d1847f4974d72c"
  },
  {
+  "id": "gb-sse",
+  "name": "Valera 1865",
+  "title": "Reina-Valera 1865",
+  "language": "Spanish",
+  "languageNative": "Español",
+  "lang": "es",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31098,
+  "bytes": 1210601,
+  "versification": "kjv",
+  "sha256": "4b24a8cdbf39659c809f2bfc6de8c37e99f43b2a26962da27d7e1f3580dbc911"
+ },
+ {
+  "id": "spaRV1909",
+  "name": "Reina Valera 1909",
+  "title": "Santa Biblia — Reina Valera 1909",
+  "language": "Spanish",
+  "languageNative": "Español",
+  "lang": "spa",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31102,
+  "bytes": 1248141,
+  "versification": "kjv",
+  "sha256": "108adae3f71953dc26feb0d68cac759301a758257a4bb2632e1e2a814207778e"
+ },
+ {
   "id": "spabll",
   "name": "Spanish BLL",
   "title": "Santa Biblia libre Latinoamericano",
@@ -1400,20 +1792,6 @@
   "sha256": "cf38e6c5a5f0802d3dc0c209c4012bef0443d7807c5acbc4600376bf67fdb3b4"
  },
  {
-  "id": "spaRV1909",
-  "name": "Reina Valera 1909",
-  "title": "Santa Biblia — Reina Valera 1909",
-  "language": "Spanish",
-  "languageNative": "Español",
-  "lang": "spa",
-  "dir": "ltr",
-  "books": 66,
-  "verses": 31102,
-  "bytes": 1248141,
-  "versification": "kjv",
-  "sha256": "108adae3f71953dc26feb0d68cac759301a758257a4bb2632e1e2a814207778e"
- },
- {
   "id": "swh1850",
   "name": "Swahili Bible",
   "title": "Biblia Takatifu",
@@ -1426,6 +1804,62 @@
   "bytes": 306545,
   "versification": "kjv",
   "sha256": "219055824274e8a406411af0e54f8e5a9a59167c3d80005780047b2d530bfee8"
+ },
+ {
+  "id": "gb-swedish",
+  "name": "Bibeln 1917",
+  "title": "Bibeln 1917",
+  "language": "Swedish",
+  "languageNative": "Svenska",
+  "lang": "sv",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31075,
+  "bytes": 1353368,
+  "versification": "kjv",
+  "sha256": "3895d20f844806086f73099b00a97172c4b75b2d5d847ab7f2b0058114b82522"
+ },
+ {
+  "id": "gb-swekarlxii",
+  "name": "Karl XII:s Bibel",
+  "title": "Svenska Karl XII:s Bibel",
+  "language": "Swedish",
+  "languageNative": "Svenska",
+  "lang": "sv",
+  "dir": "ltr",
+  "books": 44,
+  "verses": 22219,
+  "bytes": 894147,
+  "versification": "kjv",
+  "sha256": "a2bd65291c02603dbb2fb68cd4ae2a4664292aa807ceae7f4df85e077118bad7"
+ },
+ {
+  "id": "gb-peshitta",
+  "name": "Peshitta NT",
+  "title": "Peshitta New Testament (BFBS)",
+  "language": "Syriac",
+  "languageNative": "ܣܘܪܝܝܐ",
+  "lang": "syc",
+  "dir": "rtl",
+  "books": 27,
+  "verses": 7956,
+  "bytes": 251752,
+  "versification": "kjv",
+  "sha256": "e5b407f095688ecceb04af93350c68c4af382f855caea455e5e6ff9008c7aee2"
+ },
+ {
+  "id": "gb-tagalog",
+  "name": "Ang Dating Biblia",
+  "title": "Ang Dating Biblia",
+  "language": "Tagalog",
+  "languageNative": "Tagalog",
+  "lang": "tl",
+  "dir": "ltr",
+  "books": 66,
+  "verses": 31102,
+  "bytes": 1266360,
+  "versification": "kjv",
+  "sha256": "6738e0099de5fecd0e61363d28748ec186fdd9f66fbd8881eba9236bd5a33eb7"
  },
  {
   "id": "thafb",

@@ -1,0 +1,35 @@
+{
+  "gifos": "1.0",
+  "appId": "bible",
+  "name": "Bible",
+  "shortName": "Bible",
+  "version": "1.0.0",
+  "minBuild": 1178,
+  "entry": "index.html",
+  "accent": [201, 162, 39],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "microphone": true,
+    "ai": ["tts"]
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "marks": { "visibility": "private" },
+    "voicenotes": { "visibility": "private" },
+    "plans": { "visibility": "private" },
+    "nav": { "visibility": "read-write" }
+  },
+  "lead": [{ "collection": "nav", "id": "cursor" }],
+  "launch": {
+    "ref": {
+      "label": "Open at a verse the link picked",
+      "detail": "A reference like John 3:16."
+    },
+    "trans": {
+      "label": "Open in a particular translation",
+      "detail": "One of the app's translation ids."
+    }
+  },
+  "assets": []
+}
