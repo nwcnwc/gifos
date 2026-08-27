@@ -142,12 +142,18 @@
       spec.chapter + '.' + spec.verse + (spec.fn != null ? '.' + spec.fn : '');
     return head + '.' + spec.start + '.' + spec.end;
   }
-  function spansOverlap(a, b) {
+  function sameLocus(a, b) {
     if (a.code !== b.code || a.chapter !== b.chapter || a.verse !== b.verse) return false;
     if (a.pack && b.pack && a.pack !== b.pack) return false;
     if ((a.fn != null) !== (b.fn != null)) return false;
     if (a.fn != null && a.fn !== b.fn) return false;
-    return a.start < b.end && b.start < a.end;
+    return true;
+  }
+  function spansOverlap(a, b) {
+    return sameLocus(a, b) && a.start < b.end && b.start < a.end;
+  }
+  function spansTouch(a, b) {
+    return sameLocus(a, b) && a.start <= b.end && b.start <= a.end;
   }
 
   Store.prototype.setSpan = function (spec, colour) {
@@ -163,7 +169,14 @@
       for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
         if (r.kind !== 'span' && r.kind !== 'fn') continue;
-        if (spansOverlap(r, want)) ops.push(c.delete(r.id));
+        if (colour && r.colour === colour && spansTouch(r, want)) {
+          want.start = Math.min(want.start, r.start);
+          want.end = Math.max(want.end, r.end);
+          if ((r.quote || '').length > (want.quote || '').length) want.quote = r.quote;
+          ops.push(c.delete(r.id));
+        } else if (spansOverlap(r, want)) {
+          ops.push(c.delete(r.id));
+        }
       }
       return Promise.all(ops);
     }).then(function () {

@@ -29,13 +29,16 @@ ok(/id="hl-bar"/.test(html) && /data-hl="amber"/.test(html) && /data-act="copy"/
    'the page carries a floating highlight bar with colours and Copy');
 ok(/user-select:\s*text/.test(css) && /#hl-bar/.test(css) && /mark\.hl-span/.test(css),
    'the chapter is selectable and span marks have colour');
-ok(/wrapOffsets:\s*wrapOffsets/.test(render) && /function collectText/.test(render),
-   'the painter can wrap a character range, skipping verse numbers');
+ok(/wrapOffsets:\s*wrapOffsets/.test(render) && /extractContents/.test(render) &&
+   /function collectText/.test(render),
+   'the painter wraps a character range as one mark, not one mark per word');
 ok(/Store\.prototype\.setSpan/.test(store) && /kind: spec\.fn != null \? 'fn' : 'span'/.test(store),
    'the store writes a span record (and a footnote range as kind fn)');
 ok(/selectionchange/.test(reader) && /showHighlightBar/.test(reader) &&
    /applySpanHighlights/.test(reader),
    'selecting text opens the bar, and painted verses wear saved spans');
+ok(/rec\.kind === 'span' \|\| rec\.kind === 'fn'/.test(reader),
+   'a span highlight does not also wash the whole verse (that stacked two opacities)');
 ok(/select any words/.test(help) && /Kindle/.test(help),
    'Help says to select words, the way a Kindle does');
 
