@@ -365,6 +365,72 @@
     }
   }
 
+  // One highlight across neighbouring verses in the same paragraph is ONE
+  // mark, so the verse number in the middle is inside the run rather than a
+  // gap. Verses that live in different blocks fall back to one wrap each.
+  function wrapOffsetsAcross(roots, start, end, colour, id) {
+    if (!roots || !roots.length || !(end > start)) return;
+    var chunks = [], pos = 0, i;
+    for (i = 0; i < roots.length; i++) {
+      var t = collectText(roots[i]);
+      chunks.push({ root: roots[i], offset: pos, length: t.length });
+      pos += t.length;
+    }
+    var used = [];
+    for (i = 0; i < chunks.length; i++) {
+      var c = chunks[i];
+      var a = Math.max(start, c.offset);
+      var b = Math.min(end, c.offset + c.length);
+      if (b > a) used.push({ root: c.root, offset: c.offset, a: a, b: b });
+    }
+    if (!used.length) return;
+    if (used.length === 1) {
+      wrapOffsets(used[0].root, used[0].a - used[0].offset, used[0].b - used[0].offset, colour, id);
+      return;
+    }
+    var sameParent = true;
+    for (i = 1; i < used.length; i++) {
+      if (used[i].root.parentNode !== used[0].root.parentNode) { sameParent = false; break; }
+    }
+    if (!sameParent) {
+      wrapOffsetsMany(roots, start, end, colour, id);
+      return;
+    }
+    var startRoot = used[0].root;
+    var endRoot = used[used.length - 1].root;
+    var localStart = used[0].a - used[0].offset;
+    var localEnd = used[used.length - 1].b - used[used.length - 1].offset;
+    splitAt(endRoot, localEnd);
+    splitAt(startRoot, localStart);
+    var tStart = collectText(startRoot);
+    var tEnd = collectText(endRoot);
+    var first = null, last = null;
+    for (i = 0; i < tStart.pieces.length; i++) {
+      if (tStart.pieces[i].end <= localStart) continue;
+      first = tStart.pieces[i];
+      break;
+    }
+    for (i = tEnd.pieces.length - 1; i >= 0; i--) {
+      if (tEnd.pieces[i].start >= localEnd) continue;
+      last = tEnd.pieces[i];
+      break;
+    }
+    if (!first || !last) {
+      wrapOffsetsMany(roots, start, end, colour, id);
+      return;
+    }
+    var range = document.createRange();
+    range.setStart(first.node, 0);
+    range.setEnd(last.node, last.node.data.length);
+    var mark = makeMark(colour, id);
+    try {
+      mark.appendChild(range.extractContents());
+      range.insertNode(mark);
+    } catch (e) {
+      wrapOffsetsMany(roots, start, end, colour, id);
+    }
+  }
+
   root.GifosBibleRender = {
     chapter: chapter,
     plain: plain,
@@ -373,6 +439,7 @@
     collectText: collectText,
     offsetOf: offsetOf,
     wrapOffsets: wrapOffsets,
-    wrapOffsetsMany: wrapOffsetsMany
+    wrapOffsetsMany: wrapOffsetsMany,
+    wrapOffsetsAcross: wrapOffsetsAcross
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

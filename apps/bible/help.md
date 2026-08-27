@@ -25,6 +25,7 @@ Tap any verse:
 
 - **Highlight** — select any words, in the page or in a footnote, and a small
   colour menu appears on the selection, the way a Kindle does. Tap a colour.
+  A run of the same colour is one highlight, even when it crosses a verse.
   Rename the colours to match your own system (Reading settings → Highlight
   names). Tap a verse number (or tap without selecting) for the whole verse.
 - **Note** — write in the margin. **Voice note** — speak into it instead; the

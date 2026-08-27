@@ -56,7 +56,7 @@
             map[rows[i].id] = rows[i];
           }
           reader.marks = map;
-          reader.paint();
+          reader.paint({ keepScroll: true });
         });
 
         reader.startFollowing();
