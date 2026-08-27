@@ -289,8 +289,13 @@
     var s = document.getElementById(id);
     s.hidden = false;
     this._sheets.push(id);
-    var input = s.querySelector('input[type="search"]');
-    if (input && window.matchMedia('(min-width: 720px)').matches) input.focus();
+    var ta = s.querySelector('textarea');
+    if (ta) {
+      setTimeout(function () { try { ta.focus(); } catch (e) {} }, 40);
+    } else {
+      var input = s.querySelector('input[type="search"]');
+      if (input && window.matchMedia('(min-width: 720px)').matches) input.focus();
+    }
   };
 
   Reader.prototype.closeSheets = function () {
@@ -835,6 +840,10 @@
       document.getElementById('follow').hidden = true;
     });
     this._bindHighlight();
+    var noteSave = document.getElementById('note-save');
+    if (noteSave) noteSave.addEventListener('click', function () { self.saveNote(); });
+    var noteRm = document.getElementById('note-remove');
+    if (noteRm) noteRm.addEventListener('click', function () { self.saveNote({ remove: true }); });
     document.addEventListener('keydown', function (ev) {
       if (ev.target && /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
       if (ev.key === 'ArrowRight') self.step(1);

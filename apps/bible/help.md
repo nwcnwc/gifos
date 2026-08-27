@@ -28,8 +28,9 @@ Tap any verse:
   A run of the same colour is one highlight, even when it crosses a verse.
   Rename the colours to match your own system (Reading settings → Highlight
   names). Tap a verse number (or tap without selecting) for the whole verse.
-- **Note** — write in the margin. **Voice note** — speak into it instead; the
-  recording is kept with the verse.
+- **Note** — tap Note on a verse and write in the sheet that opens. Save keeps
+  it with that verse, inside this app on this device. **Voice note** — speak
+  into it instead; the recording is kept with the verse.
 - **Compare** — the same verse in every translation you have on this device,
   side by side.
 - **Treasury of Scripture Knowledge** — every cross-reference printed against
