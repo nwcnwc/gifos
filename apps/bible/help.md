@@ -62,6 +62,7 @@ only the place you are reading is shared.
 
 ## Your data
 
-Highlights, notes, voice notes and plans are saved on this device, inside the
-app. There is no account and no cloud. **Save** keeps them in the file itself —
-hand that file to anyone and your whole marked-up Bible opens on their screen.
+Highlights, notes, voice notes and plans stay on this device, inside the app.
+There is no account and no cloud. **Save** keeps them with your copy of the
+app. Send that copy to someone and they open your Bible with the marks still
+in it.
