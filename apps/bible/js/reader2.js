@@ -103,7 +103,18 @@
     var vv = vd && vd.verses[ref.verse - 1];
     if (vv && vv.notes.length) {
       body.appendChild(el('h3', 'lang-name', 'Translators’ notes'));
-      for (var n = 0; n < vv.notes.length; n++) body.appendChild(el('div', 'note-item', vv.notes[n]));
+      for (var n = 0; n < vv.notes.length; n++) {
+        var item = el('div', 'note-item', vv.notes[n]);
+        item.setAttribute('data-pack', pack.id);
+        item.setAttribute('data-code', ref.code);
+        item.setAttribute('data-ch', String(ref.chapter));
+        item.setAttribute('data-v', String(ref.verse));
+        item.setAttribute('data-n', String(n));
+        body.appendChild(item);
+        this.applyFootnoteHighlights(item, {
+          pack: pack.id, code: ref.code, chapter: ref.chapter, verse: ref.verse, fn: n
+        });
+      }
     }
     if (vv && vv.xrefs.length) {
       body.appendChild(el('h3', 'lang-name', 'Cross references'));
@@ -254,7 +265,16 @@
     clear(body);
     if (kind === 'note') {
       body.appendChild(el('h3', 'lang-name', 'Translators’ note'));
-      body.appendChild(el('div', 'note-item', v.notes[n] || v.notes[0] || ''));
+      var item = el('div', 'note-item', v.notes[n] || v.notes[0] || '');
+      item.setAttribute('data-pack', pack.id);
+      item.setAttribute('data-code', ref.code);
+      item.setAttribute('data-ch', String(ref.chapter));
+      item.setAttribute('data-v', String(ref.verse));
+      item.setAttribute('data-n', String(n));
+      body.appendChild(item);
+      this.applyFootnoteHighlights(item, {
+        pack: pack.id, code: ref.code, chapter: ref.chapter, verse: ref.verse, fn: n
+      });
     } else {
       body.appendChild(el('h3', 'lang-name', 'Cross references'));
       this.xrefButtons(body, v.xrefs[n] || v.xrefs[0] || '');

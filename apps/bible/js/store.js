@@ -135,6 +135,46 @@
     }).catch(function (e) { self.onError && self.onError(e); return null; });
   };
 
+  // A Kindle-style highlight is a RANGE, not a verse. `fn` is the translators'
+  // footnote index when the selection was in a note; omitted in the verse.
+  function spanId(spec) {
+    var head = (spec.fn != null ? 'fn.' : 's.') + spec.pack + '.' + spec.code + '.' +
+      spec.chapter + '.' + spec.verse + (spec.fn != null ? '.' + spec.fn : '');
+    return head + '.' + spec.start + '.' + spec.end;
+  }
+  function spansOverlap(a, b) {
+    if (a.code !== b.code || a.chapter !== b.chapter || a.verse !== b.verse) return false;
+    if (a.pack && b.pack && a.pack !== b.pack) return false;
+    if ((a.fn != null) !== (b.fn != null)) return false;
+    if (a.fn != null && a.fn !== b.fn) return false;
+    return a.start < b.end && b.start < a.end;
+  }
+
+  Store.prototype.setSpan = function (spec, colour) {
+    var c = this.collection('marks');
+    var self = this;
+    var want = {
+      kind: spec.fn != null ? 'fn' : 'span',
+      pack: spec.pack, code: spec.code, chapter: spec.chapter, verse: spec.verse,
+      start: spec.start, end: spec.end, fn: spec.fn, quote: spec.quote || ''
+    };
+    return c.getAll().then(function (rows) {
+      var ops = [];
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        if (r.kind !== 'span' && r.kind !== 'fn') continue;
+        if (spansOverlap(r, want)) ops.push(c.delete(r.id));
+      }
+      return Promise.all(ops);
+    }).then(function () {
+      if (!colour) return null;
+      want.id = spanId(want);
+      want.colour = colour;
+      want.at = Date.now();
+      return c.put(want);
+    }).catch(function (e) { self.onError && self.onError(e); return null; });
+  };
+
   Store.prototype.setNote = function (ref, text) {
     var id = markId(ref);
     var c = this.collection('marks');
