@@ -260,32 +260,46 @@
   }
   for (i = 0; i < ONE_CHAPTER.length; i++) ONE_CH[ONE_CHAPTER[i]] = true;
 
-  var LETTER = /[A-Za-zÀ-ɏͰ-ϿЀ-ӿ֐-׿؀-ۿ]/;
-  var DIGIT = /[0-9]/;
   var SPACE = /\s/;
   // hyphen, non-breaking hyphen, figure/en/em dash, minus, and the tilde some
   // printed cross-references use for a range.
-  var DASH = '-‐‑‒–—―−~';
+  var DASH = '-\u2010\u2011\u2012\u2013\u2014\u2015\u2212~';
+
+  // What a character is to this scanner. The default for anything outside
+  // ASCII is a LETTER — a Chinese, Thai or Hebrew book name must tokenize
+  // whole, and there is no list of the world's letters to check against. Only
+  // marks the scanner has a use for, ASCII punctuation, and the two blocks
+  // that hold everyone else's quotes and stops are anything else.
+  function classify(c) {
+    var x = c.charCodeAt(0);
+    if (SPACE.test(c)) return ' ';
+    if (x >= 48 && x <= 57) return 'n';
+    if (x >= 65 && x <= 90) return 'w';
+    if (x >= 97 && x <= 122) return 'w';
+    if (c === ':' || x === 0xFF1A) return ':';
+    if (c === ';' || c === '|' || x === 0xFF1B) return ';';
+    if (c === ',' || x === 0xFF0C || x === 0x3001) return ',';
+    if (c === '.' || x === 0x3002 || x === 0xFF0E) return '.';
+    if (DASH.indexOf(c) >= 0) return '-';
+    if (x < 128) return 'x';                                    // ASCII punctuation
+    if (x >= 0x2000 && x <= 0x206F) return 'x';                 // general punctuation
+    if (x >= 0x3000 && x <= 0x303F) return 'x';                 // CJK punctuation
+    if ((x >= 0xFF01 && x <= 0xFF0F) || (x >= 0xFF1C && x <= 0xFF20)) return 'x';
+    return 'w';
+  }
 
   function tokenize(str) {
-    var toks = [], n = str.length, i = 0, j, c;
+    var toks = [], n = str.length, i = 0, j, k;
     while (i < n) {
-      c = str.charAt(i);
-      if (SPACE.test(c)) {
-        for (j = i; j < n && SPACE.test(str.charAt(j)); j++) {}
-        toks.push({ k: ' ', s: i, e: j }); i = j; continue;
+      k = classify(str.charAt(i));
+      if (k === 'n' || k === 'w' || k === ' ') {
+        for (j = i + 1; j < n && classify(str.charAt(j)) === k; j++) {}
+        if (k === 'n') toks.push({ k: 'n', v: parseInt(str.slice(i, j), 10), s: i, e: j });
+        else if (k === 'w') toks.push({ k: 'w', t: str.slice(i, j), s: i, e: j });
+        else toks.push({ k: ' ', s: i, e: j });
+        i = j; continue;
       }
-      if (DIGIT.test(c)) {
-        for (j = i; j < n && DIGIT.test(str.charAt(j)); j++) {}
-        toks.push({ k: 'n', v: parseInt(str.slice(i, j), 10), s: i, e: j }); i = j; continue;
-      }
-      if (LETTER.test(c)) {
-        for (j = i; j < n && LETTER.test(str.charAt(j)); j++) {}
-        toks.push({ k: 'w', t: str.slice(i, j), s: i, e: j }); i = j; continue;
-      }
-      toks.push({ k: c === ':' ? ':' : c === '.' ? '.' : c === ',' ? ',' :
-                     (c === ';' || c === '|') ? ';' : DASH.indexOf(c) >= 0 ? '-' : 'x',
-                  s: i, e: i + 1 });
+      toks.push({ k: k, s: i, e: i + 1 });
       i++;
     }
     // A dot is a verse mark between two numbers (`jn3.16`) and an abbreviation
@@ -436,10 +450,11 @@
     var n1 = toks[i].v, end = toks[i].e;
     var chapter = null, verse = null, verseEnd = null, chapterEnd = null;
     var j = nextSig(toks, i);
+    // A colon with nothing after it is a half-typed reference, not a broken
+    // one: `John 3:` is chapter 3 until the verse arrives.
+    var k = (j >= 0 && toks[j].k === ':') ? nextSig(toks, j) : -1;
 
-    if (j >= 0 && toks[j].k === ':') {
-      var k = nextSig(toks, j);
-      if (k < 0 || toks[k].k !== 'n') return null;
+    if (k >= 0 && toks[k].k === 'n') {
       chapter = n1; verse = toks[k].v; end = toks[k].e;
       j = nextSig(toks, k);
     } else if (sep === ',' && lastHadVerse && lastChapter != null) {
