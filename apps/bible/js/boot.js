@@ -62,6 +62,8 @@
         reader.startFollowing();
         readLaunch(reader);
 
+        if (root.GifosBibleApparatus) root.GifosBibleApparatus.start();
+
         if (!prefs.seenWelcome) welcome(reader, prefs);
       });
     }).catch(function (e) {

@@ -113,7 +113,8 @@ const manifest = JSON.parse(read('manifest.json'));
 // ---- the walls ----------------------------------------------------------
 const SCRIPTS = ['js/pack.js', 'js/render.js', 'js/library.js', 'js/refs.js',
                  'js/versify.js', 'js/store.js', 'js/catalog.js',
-                 'js/packs-builtin.js', 'js/reader.js', 'js/reader2.js',
+                 'js/packs-builtin.js', 'js/helps.js', 'js/lexicon.js',
+                 'js/apparatus.js', 'js/reader.js', 'js/reader2.js',
                  'js/reader3.js', 'js/boot.js'];
 
 const files = {
