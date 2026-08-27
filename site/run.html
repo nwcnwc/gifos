@@ -13175,6 +13175,35 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           sentLabel: vt ? String(vt.label || '') : null,
           surface,
           mainTrackIds: mainTracks,
+          // THE RESOLUTION SURFACE. A share that arrives unreadable fails none
+          // of the checks above — it is on the stage, it is a display capture,
+          // it is letterboxed — so the numbers that decide legibility are
+          // published here rather than inferred from pixels (a composited
+          // canvas cannot tell a downscale from a blurry desktop).
+          sentHint: vt ? String(vt.contentHint || '') : '',
+          // What the Stage element is ACTUALLY painting. The strip's canvas is
+          // square (one screen tile ⇒ cell x cell); the direct feed keeps the
+          // shared display's own shape. So the aspect alone says which one the
+          // viewer is looking at, and the width says at what cost.
+          stagePaint: (() => {
+            const v = stagefeedEl && stagefeedEl.querySelector('[data-row="sgs"] video');
+            return v ? { w: v.videoWidth, h: v.videoHeight } : null;
+          })(),
+          // Every outbound video sender's lane, as adapt() last left it.
+          senders: (() => {
+            const out = [];
+            for (const p of peers.values()) for (const sd of p.pc.getSenders()) {
+              if (!sd.track || sd.track.kind !== 'video') continue;
+              let prm = null; try { prm = sd.getParameters(); } catch (e) {}
+              const e0 = prm && prm.encodings && prm.encodings[0];
+              out.push({
+                stage: stageSenders.has(sd), aux: auxSenders.has(sd),
+                kbps: e0 && e0.maxBitrate ? Math.round(e0.maxBitrate / 1000) : 0,
+                deg: degOf.get(sd) || (prm && prm.degradationPreference) || '',
+              });
+            }
+            return out;
+          })(),
           shareBtnShown: !!(shareBtn && shareBtn.offsetParent !== null),
           bodyScreenOn: document.body.classList.contains('screen-on'),
         };
