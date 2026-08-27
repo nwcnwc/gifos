@@ -168,13 +168,42 @@
     });
   };
 
+  // A sandboxed app cannot raise window.prompt — the OS iframe has no
+  // allow-modals — so the note is a sheet with a textarea, not a browser dialog.
   Reader.prototype.editNote = function (ref, mark) {
+    this._noteRef = ref;
+    var pack = this.pack(0);
+    var names = pack ? this.namesOf(pack) : {};
+    document.getElementById('note-ref').textContent =
+      'Note · ' + Refs.format(ref, { names: names, style: 'short' });
+    var quote = document.getElementById('note-quote');
+    var idx = pack ? pack.indexOfVerse(ref.code, ref.chapter, ref.verse) : -1;
+    if (quote) {
+      if (idx >= 0) {
+        quote.textContent = Render.plain(pack.textAt(idx));
+        quote.hidden = false;
+      } else {
+        quote.textContent = '';
+        quote.hidden = true;
+      }
+    }
+    var ta = document.getElementById('note-text');
+    ta.value = (mark && mark.note) || '';
+    var rm = document.getElementById('note-remove');
+    if (rm) rm.hidden = !ta.value;
+    this.openSheet('sheet-note');
+  };
+
+  Reader.prototype.saveNote = function (opts) {
+    var ref = this._noteRef;
+    if (!ref) return;
     var self = this;
-    var text = prompt('Your note on ' + Refs.format(ref, { style: 'short' }), mark.note || '');
-    if (text === null) return;
+    var text = (opts && opts.remove)
+      ? ''
+      : String((document.getElementById('note-text') || {}).value || '');
     this.store.setNote(ref, text).then(function () {
       self.closeSheets();
-      self.paint();
+      self.paint({ keepScroll: true });
       self.toast(text ? 'Note saved — it lives inside this app on this device.' : 'Note removed.');
     });
   };
