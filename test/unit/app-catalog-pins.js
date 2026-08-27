@@ -10,6 +10,8 @@ const appjson = (slug) => JSON.parse(fs.readFileSync(path.join(ROOT, 'site', 'ap
 const index = JSON.parse(fs.readFileSync(path.join(ROOT, 'site', 'apps', 'index.json'), 'utf8'));
 const storeJs = fs.readFileSync(path.join(ROOT, 'site', 'js', 'store.js'), 'utf8');
 const permsJs = fs.readFileSync(path.join(ROOT, 'site', 'js', 'gifos-perms.js'), 'utf8');
+const runtimeJs = fs.readFileSync(path.join(ROOT, 'site', 'js', 'runtime.js'), 'utf8');
+const assetsJs = fs.readFileSync(path.join(ROOT, 'site', 'js', 'gifos-assets.js'), 'utf8');
 
 let failures = 0;
 function check(name, cond, detail) {
@@ -26,6 +28,13 @@ check('the store paints optional-pin copy',
 check('Abilities names extra-file downloads as a checkbox',
   /assets:\s*'Download extra files when you pick them'/.test(permsJs) &&
   /Uncheck to block those downloads/.test(permsJs));
+check('Abilities offers Download all for the extra-files row',
+  /data-dl-all/.test(permsJs) && /Download all/.test(permsJs) &&
+  /pullOptional/.test(permsJs));
+check('the runtime wires Download all to optional pins, grouped by host',
+  /optionalOnly:\s*true/.test(runtimeJs) && /parallelHosts:\s*true/.test(runtimeJs));
+check('same-server extra files download one at a time, different servers in parallel',
+  /function groupByHost/.test(assetsJs) && /opts\.parallelHosts/.test(assetsJs));
 
 const bible = appjson('bible');
 check('Bible listing records optional pins (not a 4 MB install pretending to be the whole library)',

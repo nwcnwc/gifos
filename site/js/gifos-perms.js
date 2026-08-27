@@ -50,7 +50,11 @@
     '.perm-box .foot{color:var(--muted,#6a6a86);font-size:.75rem;line-height:1.5;margin:1rem 0 1.1rem}' +
     '.perm-box .done{padding:.5rem 1.4rem;border-radius:.5rem;border:1px solid var(--accent,#7b5cff);background:var(--accent,#7b5cff);color:var(--onaccent,#fff);cursor:pointer;font:inherit}' +
     '.perm-btns{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1.1rem}' +
-    '.perm-box .ghost{padding:.5rem 1.1rem;border-radius:.5rem;border:1px solid var(--border,#2a2a3f);background:transparent;color:var(--text,#e0e0f0);cursor:pointer;font:inherit}';
+    '.perm-box .ghost{padding:.5rem 1.1rem;border-radius:.5rem;border:1px solid var(--border,#2a2a3f);background:transparent;color:var(--text,#e0e0f0);cursor:pointer;font:inherit}' +
+    '.perm-dl{margin:.35rem 0 .15rem 1.9rem;display:flex;flex-direction:column;align-items:flex-start;gap:.3rem}' +
+    '.perm-dl-all{font-size:.85rem;padding:.35rem .85rem}' +
+    '.perm-dl-all:disabled{opacity:.6;cursor:progress}' +
+    '.perm-dl-status{font-size:.8rem;color:var(--muted,#8888aa);line-height:1.35}';
   function injectCss() {
     if (!doc || doc.getElementById('gifos-perms-css')) return;
     var s = doc.createElement('style'); s.id = 'gifos-perms-css'; s.textContent = CSS;
@@ -72,7 +76,7 @@
     pool: 'When you are in a room with other people, this app shares what it downloads from the sites below with them, and uses what they downloaded instead of fetching it again. It is how ten people in one place cost a donated map server one download instead of ten. Two things to know: the others learn WHICH addresses you fetched (in a shared world that is where everyone already is, but it is not nothing), and what arrives comes from them rather than from the site — this app treats it as data, not as instructions. Your keyed accounts are never pooled.',
     pay: 'Lets the app ask you to pay for something — an unlock, an item, a tip. Every payment shows you a GifOS sheet first: the amount, what it is for, and the app’s <b>verified author</b> — and nothing is charged unless you approve it there. The money goes to the author (GifOS keeps 3%); the app never sees your card, wallet, or balance. Only signed, verified apps can charge at all.',
     agent: 'Adds a GifOS assistant bar that can read and click/type on <b>this app’s screen</b> for you (driven by your Smartest AI). It touches this one app only — not GifOS, not your other apps — and does not see your key. You start it, and can stop it any time.',
-    assets: 'Lets the app download extra files the first time you open them — a translation, a language pack, a model. Each file is hash-pinned in the app’s listing, arrives only when you pick it, and then stays on this device. Nothing downloads at install for these. Uncheck to block those downloads. Files that already came with install are not this toggle.'
+    assets: 'Lets the app download extra files the first time you open them — a translation, a language pack, a model. Each file is hash-pinned in the app’s listing, arrives only when you pick it, and then stays on this device. Nothing downloads at install for these. Tap Download all to fetch every extra file now. Uncheck to block those downloads. Files that already came with install are not this toggle.'
   };
   function optionalPins(manifest) {
     var as = manifest && manifest.assets;
@@ -153,7 +157,7 @@
   function attach(chipEl, opts) {
     opts = opts || {};
     injectCss();
-    root.__gifosPermissions = function (policy, manifest, launchReq) {
+    root.__gifosPermissions = function (policy, manifest, launchReq, hostApi) {
       // What the LINK asked the app to do (runtime.js declaredLaunch). This
       // sheet is the ONLY thing that can release it, so every path out of here
       // that does not reach the buttons must deny — including "there is no chip
@@ -163,6 +167,8 @@
       function grantLaunch() { if (launchReq && !launchDone) { launchDone = true; launchReq.grant(); } }
       function denyLaunch() { if (launchReq && !launchDone) { launchDone = true; launchReq.deny(); } }
       if (!chipEl) { denyLaunch(); return; }
+      hostApi = hostApi || {};
+      var pulling = false;
       var caps = Object.keys(CAP_LABELS).filter(function (k) {
         if (k === 'api') return apiNames(manifest).length;
         if (k === 'pool') return poolHosts(manifest).length;
@@ -250,9 +256,16 @@
             pins.forEach(function (a) { bytes += Number(a.bytes) || 0; });
             var size = bytes >= 1048576 ? (bytes / 1048576).toFixed(bytes < 10485760 ? 1 : 0) + ' MB' : (bytes ? Math.round(bytes / 1024) + ' KB' : '');
             var who = n === 1 ? '1 extra file' : n + ' extra files';
-            return capRow(k, CAP_LABELS.assets, CAP_DESC.assets
+            var canPull = n && typeof hostApi.pullOptional === 'function';
+            var extra = canPull
+              ? '<div class="perm-dl"><button type="button" class="ghost perm-dl-all" data-dl-all' +
+                (pulling ? ' disabled' : '') + '>' + (pulling ? 'Downloading…' : 'Download all') + '</button>' +
+                '<span class="perm-dl-status"' + (pulling ? '' : ' hidden') + '></span></div>'
+              : '';
+            return '<div class="perm-assets">' + capRow(k, CAP_LABELS.assets, CAP_DESC.assets
               + (n ? '<br><span class="cap-name">This app lists <b>' + escapeText(who) + '</b>'
-                + (size ? ', about <b>' + escapeText(size) + '</b> if you take every one' : '') + '.</span>' : ''));
+                + (size ? ', about <b>' + escapeText(size) + '</b> if you take every one' : '') + '.</span>' : ''))
+              + extra + '</div>';
           }
           return capRow(k, CAP_LABELS[k], CAP_DESC[k]);
         }).join('');
@@ -269,6 +282,51 @@
           });
         });
         return out;
+      }
+      function paintDl(text, running) {
+        var btn = doc.querySelector('[data-dl-all]');
+        var status = doc.querySelector('.perm-dl-status');
+        if (btn) {
+          btn.disabled = !!running;
+          btn.textContent = running ? 'Downloading…' : 'Download all';
+        }
+        if (status) {
+          if (text) { status.hidden = false; status.textContent = text; }
+          else if (!running) status.hidden = true;
+        }
+      }
+      function downloadAll() {
+        if (pulling || typeof hostApi.pullOptional !== 'function') return;
+        var cb = doc.querySelector('input[data-cap="assets"]');
+        if (cb && !cb.checked) {
+          cb.checked = true;
+          setCapEnabled('assets', true);
+        }
+        pulling = true;
+        paintDl('Starting…', true);
+        var busy = root.GifOS && root.GifOS.providerBusy;
+        if (busy && busy.start) busy.start((manifest && manifest.name) || 'This app');
+        hostApi.pullOptional(function (text, frac) {
+          paintDl(text, true);
+          if (busy && busy.note) busy.note(text, frac);
+        }).then(function (r) {
+          pulling = false;
+          if (busy && busy.end) busy.end();
+          var msg;
+          if (r && r.failed) {
+            msg = 'Saved ' + r.fetched + (r.fetched === 1 ? ' file' : ' files') +
+              ', ' + r.failed + ' failed.';
+          } else if (r && r.fetched === 0) {
+            msg = 'Already on this device.';
+          } else {
+            msg = 'All extra files are on this device.';
+          }
+          paintDl(msg, false);
+        }, function (e) {
+          pulling = false;
+          if (busy && busy.end) busy.end();
+          paintDl(e && e.message ? e.message : 'Download failed.', false);
+        });
       }
       function openModal() {
         var bg = doc.createElement('div'); bg.className = 'perm-modal';
@@ -324,6 +382,13 @@
           if (cap) { setCapEnabled(cap, cb.checked); return; } // honoured on the next brokered call
           Promise.resolve(policy.set(cb.getAttribute('data-host'), cb.checked)).then(paintChip);
           paintChip();
+        });
+        bg.addEventListener('click', function (ev) {
+          var btn = ev.target && ev.target.closest && ev.target.closest('[data-dl-all]');
+          if (!btn) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          downloadAll();
         });
         // close() settles the ABILITIES question (network + capabilities). The
         // link's ask is settled separately by whichever button was pressed —

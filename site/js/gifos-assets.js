@@ -104,14 +104,40 @@
   // missing re-fetches.
   // opts.requiredOnly — install and boot backfill: skip optional pins. They
   // arrive when gifos.assets(path) asks for that path, not before.
+  // opts.optionalOnly — Abilities "Download all": only the extra files, never
+  // the install-time pins (those already ran at boot).
   function missing(files, manifest, cache, opts) {
     const requiredOnly = !!(opts && opts.requiredOnly);
+    const optionalOnly = !!(opts && opts.optionalOnly);
     const need = list(manifest).filter((a) => {
       if (requiredOnly && a.optional) return false;
+      if (optionalOnly && !a.optional) return false;
       return !(files && files[key(a)]);
     });
     if (!cache) return Promise.resolve(need);
     return Promise.all(need.map((a) => cache.has(a.path, a))).then((have) => need.filter((_, i) => !have[i]));
+  }
+
+  function resolveUrl(url) {
+    if (/^https:\/\//.test(url)) return url;
+    const origin = (root.location && root.location.origin) || '';
+    return origin + url;
+  }
+  // Same host = one server. Origin-relative pins resolve against this page.
+  function assetHost(url) {
+    const abs = resolveUrl(url);
+    try { return new URL(abs).host.toLowerCase(); } catch (e) {
+      try { return new URL(abs, 'https://local.invalid').host.toLowerCase(); } catch (e2) { return abs; }
+    }
+  }
+  function groupByHost(pins) {
+    const groups = Object.create(null), order = [];
+    for (let i = 0; i < (pins || []).length; i++) {
+      const h = assetHost(pins[i].url);
+      if (!groups[h]) { groups[h] = []; order.push(h); }
+      groups[h].push(pins[i]);
+    }
+    return { groups, order };
   }
 
   function sha256Hex(bytes) {
@@ -160,11 +186,56 @@
     return pump();
   }
 
-  // Download every missing asset, hash-verified, into the cache. Serial on
-  // purpose: these are big files and the progress line should read one honest
-  // name at a time. Memory note: the response streams into Blob parts
-  // (disk-backed), but hashing needs one transient ArrayBuffer of the whole
-  // file — the peak is ~1× the asset size, released as soon as the digest is
+  // One pin: fetch, hash-verify, cache. say(text, frac) is the progress line
+  // for THIS file; the caller adds " — 3/148" when it has a queue.
+  function fetchPin(a, files, cache, say, ofN) {
+    const name = a.path.split('/').pop();
+    const label = name + (a.bytes ? ' (' + fmtMB(a.bytes) + ')' : '');
+    say('Downloading ' + label + ofN + '…', 0);
+    return fetch(resolveUrl(a.url), { credentials: 'omit', redirect: 'follow' })
+      .then((r) => {
+        if (!r.ok) throw new Error('the download failed (' + r.status + ')');
+        return readWithProgress(r, a.bytes, (got, total) => {
+          // The size in the label comes from the SERVER when it says so,
+          // and from the manifest otherwise — a download that quietly
+          // ran long should show it, not keep quoting the pin.
+          const shown = total ? fmtMB(total) : (a.bytes ? fmtMB(a.bytes) : '');
+          say('Downloading ' + name + (shown ? ' (' + fmtMB(got) + ' of ' + shown + ')' : '') + ofN + '…',
+            total ? Math.min(1, got / total) : null);
+        });
+      })
+      .then((blob) => {
+        if (blob.size > MAX_ASSET_BYTES) throw new Error('the file exceeds the 2 GB per-asset ceiling');
+        // Hashing a gigabyte is not instant and has no sub-steps to
+        // report, so the bar goes indeterminate rather than sitting at a
+        // full 100% pretending the work is done — the exact lie this
+        // whole change exists to stop telling.
+        say('Verifying ' + name + '…', null);
+        return blob.arrayBuffer()
+          .then((buf) => sha256Hex(buf))
+          .then((hex) => {
+            if (hex !== a.sha256) throw new Error('the bytes don’t match the app’s pinned hash — refused');
+            if (cache) return cache.put(a.path, blob, a.sha256);
+            // Session-only fallback (no store to cache into): hold the
+            // bytes in the in-memory filesystem for this mount's life.
+            return blob.arrayBuffer().then((buf2) => { files[key(a)] = new Uint8Array(buf2); });
+          });
+      })
+      .catch((e) => { throw new Error('Asset "' + a.path + '": ' + (e && e.message || e)); });
+  }
+
+  // Download every missing asset, hash-verified, into the cache.
+  //
+  // Default is serial: install/boot of required pins, and gifos.assets() of
+  // one path, read as one honest name. opts.parallelHosts (Abilities
+  // "Download all") groups by server: one file at a time FROM a given host
+  // so a 148-pack library does not open 148 sockets on gifos.app, and
+  // different hosts run together. A failure there is recorded and the rest
+  // continue — one 404 must not abandon the other 147.
+  //
+  // Memory note: the response streams into Blob parts (disk-backed), but
+  // hashing needs one transient ArrayBuffer of the whole file — the peak is
+  // ~1× the asset size per in-flight host, released as soon as the digest is
   // done.
   //
   // onStatus(text, frac) — frac is 0..1 while bytes are arriving, and null for
@@ -173,48 +244,53 @@
   // the second argument, and every existing one does.
   function ensure(files, manifest, onStatus, cache, opts) {
     return missing(files, manifest, cache, opts).then((need) => {
+      const total = list(manifest).length;
+      if (!need.length) return { changed: false, fetched: 0, failed: 0, total };
+      const sayAll = (text, frac) => { if (onStatus) { try { onStatus(text, frac); } catch (e) {} } };
+
+      if (opts && opts.parallelHosts) {
+        const split = groupByHost(need);
+        let done = 0, failed = 0;
+        const errors = [];
+        const active = Object.create(null);
+        const report = (frac) => {
+          const bits = split.order.map((h) => active[h]).filter(Boolean);
+          const ofN = need.length > 1 ? ' — ' + (done + failed) + '/' + need.length : '';
+          const nActive = bits.length;
+          sayAll((bits.join(' · ') || 'Downloading') + ofN, nActive === 1 ? frac : null);
+        };
+        const runHost = (host) => {
+          let chain = Promise.resolve();
+          split.groups[host].forEach((a) => {
+            chain = chain.then(() => fetchPin(a, files, cache, (text, frac) => {
+              active[host] = text.replace(/…$/, '');
+              report(frac);
+            }, '').then(() => {
+              done++;
+              delete active[host];
+              report(null);
+            }, (e) => {
+              failed++;
+              errors.push({ path: a.path, error: String(e && e.message || e) });
+              delete active[host];
+              report(null);
+            }));
+          });
+          return chain;
+        };
+        return Promise.all(split.order.map(runHost)).then(() => ({
+          changed: done > 0, fetched: done, failed, errors, total
+        }));
+      }
+
       let chain = Promise.resolve();
       need.forEach((a, i) => {
         chain = chain.then(() => {
-          const name = a.path.split('/').pop();
-          const label = name + (a.bytes ? ' (' + fmtMB(a.bytes) + ')' : '');
           const ofN = need.length > 1 ? ' — ' + (i + 1) + '/' + need.length : '';
-          const say = (text, frac) => { if (onStatus) { try { onStatus(text, frac); } catch (e) {} } };
-          say('Downloading ' + label + ofN + '…', 0);
-          const url = /^https:\/\//.test(a.url) ? a.url : root.location.origin + a.url;
-          return fetch(url, { credentials: 'omit', redirect: 'follow' })
-            .then((r) => {
-              if (!r.ok) throw new Error('the download failed (' + r.status + ')');
-              return readWithProgress(r, a.bytes, (got, total) => {
-                // The size in the label comes from the SERVER when it says so,
-                // and from the manifest otherwise — a download that quietly
-                // ran long should show it, not keep quoting the pin.
-                const shown = total ? fmtMB(total) : (a.bytes ? fmtMB(a.bytes) : '');
-                say('Downloading ' + name + (shown ? ' (' + fmtMB(got) + ' of ' + shown + ')' : '') + ofN + '…',
-                  total ? Math.min(1, got / total) : null);
-              });
-            })
-            .then((blob) => {
-              if (blob.size > MAX_ASSET_BYTES) throw new Error('the file exceeds the 2 GB per-asset ceiling');
-              // Hashing a gigabyte is not instant and has no sub-steps to
-              // report, so the bar goes indeterminate rather than sitting at a
-              // full 100% pretending the work is done — the exact lie this
-              // whole change exists to stop telling.
-              say('Verifying ' + name + '…', null);
-              return blob.arrayBuffer()
-                .then((buf) => sha256Hex(buf))
-                .then((hex) => {
-                  if (hex !== a.sha256) throw new Error('the bytes don’t match the app’s pinned hash — refused');
-                  if (cache) return cache.put(a.path, blob, a.sha256);
-                  // Session-only fallback (no store to cache into): hold the
-                  // bytes in the in-memory filesystem for this mount's life.
-                  return blob.arrayBuffer().then((buf2) => { files[key(a)] = new Uint8Array(buf2); });
-                });
-            })
-            .catch((e) => { throw new Error('Asset "' + a.path + '": ' + (e && e.message || e)); });
+          return fetchPin(a, files, cache, sayAll, ofN);
         });
       });
-      return chain.then(() => ({ changed: need.length > 0, fetched: need.length, total: list(manifest).length }));
+      return chain.then(() => ({ changed: true, fetched: need.length, failed: 0, total }));
     });
   }
 
@@ -246,5 +322,8 @@
     return ensure(files, one, onStatus, cache);
   }
 
-  GifOS.assets = { DIR, list, missing, ensure, ensurePath, key, normPath, assetCache, rowMatches };
+  GifOS.assets = {
+    DIR, list, missing, ensure, ensurePath, key, normPath, assetCache, rowMatches,
+    assetHost, groupByHost,
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

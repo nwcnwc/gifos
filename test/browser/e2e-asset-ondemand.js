@@ -130,6 +130,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   check('the Abilities sheet offers extra-file downloads as a checkbox',
     /Download extra files when you pick them/.test(sheet), sheet.slice(0, 180));
+  check('the Abilities sheet offers Download all for those extra files',
+    /Download all/.test(sheet), sheet.slice(0, 180));
   await p.evaluate(() => {
     const cb = document.querySelector('input[data-cap="assets"]');
     if (cb && cb.checked) { cb.checked = false; cb.dispatchEvent(new Event('change', { bubbles: true })); }
@@ -148,6 +150,43 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('unchecking extra-file downloads refuses a new optional fetch',
     /^miss:/.test(blocked) && /Abilities/.test(blocked), blocked);
   await p.close();
+
+  // Download all: the extra-files row fetches every missing optional pin
+  // without the app naming each path.
+  const d2 = await ctx.newPage();
+  await d2.goto(BASE + '/index.html');
+  await d2.waitForSelector('.icon', { timeout: 30000 });
+  const fid2 = await d2.evaluate(async ({ sha, size }) => {
+    const bytes = await GifOS.gif.encode({
+      'manifest.json': JSON.stringify({
+        gifos: '1.0', appId: 'assetdlall', name: 'Download All', entry: 'index.html', capabilities: {},
+        assets: [{ url: '/fake-optional.bin', sha256: sha, path: 'blob.bin', bytes: size, optional: true }],
+      }),
+      'index.html': '<!doctype html><meta charset="utf-8"><body>ready</body>',
+    });
+    const id = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id, name: 'DlAll.gif', bytes, kind: 'gif', isApp: true, appId: 'assetdlall', mime: 'image/gif' });
+    return id;
+  }, { sha: assetSha, size: assetBytes.length });
+  await d2.close();
+  const p2 = await ctx.newPage();
+  await p2.goto(BASE + '/run.html#id=' + fid2);
+  await p2.locator('[data-dl-all]').click({ timeout: 15000 });
+  await p2.locator('.perm-dl-status').waitFor({ state: 'visible', timeout: 15000 });
+  await p2.waitForFunction(() => {
+    const status = document.querySelector('.perm-dl-status');
+    return status && /this device/i.test(status.textContent || '');
+  }, null, { timeout: 30000 });
+  const dlAll = await p2.evaluate(async (id) => {
+    const b = await GifOS.store.getAsset(id, 'blob.bin').catch(() => null);
+    const status = document.querySelector('.perm-dl-status');
+    return { size: b ? b.size : 0, status: status ? status.textContent : '' };
+  }, fid2);
+  check('Download all fetches the optional pin from the Abilities sheet',
+    dlAll.size === assetBytes.length, JSON.stringify(dlAll));
+  check('Download all reports that the extra files are on this device',
+    /this device/i.test(dlAll.status), dlAll.status);
+  await p2.close();
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILED') : '\nALL PASS');
