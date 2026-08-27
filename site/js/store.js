@@ -56,6 +56,7 @@
   const CAP_WORDS = {
     db: 'Saves data in the icon', multiplayer: 'Multiplayer', microphone: 'Microphone',
     camera: 'Camera', wasm: 'Runs WebAssembly', gpu: 'Uses the GPU', ai: 'AI', api: 'Third-party API', network: 'Network',
+    assets: 'Downloads extra files',
   };
   function capList(caps) {
     const out = [];
@@ -439,6 +440,9 @@
             // enforces that; the pill just says it up front). Computed by the
             // catalog builder into the index as `offline`, never guessed here.
             (a.offline ? '<span class="pill offline" title="Declares no network access — runs entirely on this device">Works offline</span>' : '') +
+            (a.optionalCount
+              ? '<span class="pill" title="Extra files download the first time you open them, not at install">Extra files later</span>'
+              : '') +
           '</div>' +
           '<span class="cnote"></span>' +
           '<div class="prog cprog" style="display:none"><i></i></div>' +
@@ -568,7 +572,8 @@
         '<span class="note" id="note">' + esc(human(app.bytes)) + ' download' +
           // An app whose weights arrive separately is TWO downloads, and the
           // second one dwarfs the first. Say so before the press, not after.
-          (app.download ? ' + ' + esc(human(app.download)) + ' model' : '') + '</span>' +
+          (app.download ? ' + ' + esc(human(app.download)) + ' model' : '') +
+          (app.optionalCount ? ' · extra files later' : '') + '</span>' +
         '<span class="prog" id="prog" style="display:none"><i></i></span>' +
       '</div>' +
       // The SECOND download, with its own bar. It used to have none: the app
@@ -615,6 +620,16 @@
         (app.updated && app.updated !== app.releaseDate ? fact('Updated', esc(niceDate(app.updated))) : '') +
         fact('Category', (app.categories || []).map((c) => '<span class="pill">' + esc(c) + '</span>').join(' ')) +
         fact('Size', esc(human(app.bytes))) +
+        (app.download
+          ? fact('Downloads at install',
+              esc(human(app.download)) + ' more, fetched when you install — not inside the app file.')
+          : '') +
+        (app.optionalCount
+          ? fact('Downloads when you pick them',
+              (app.optionalCount === 1 ? '1 extra file' : app.optionalCount + ' extra files') +
+              (app.optionalDownload ? ', about ' + esc(human(app.optionalDownload)) + ' if you take every one' : '') +
+              '. None of them download at install. Each one arrives the first time you open it, then stays on this device.')
+          : '') +
         // Stated on EVERY listing, not only the ones that fail here. What an
         // app requires is a fact about the app, the same as its size — a
         // reader on a new computer still deserves to know before they pass the

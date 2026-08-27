@@ -1048,7 +1048,7 @@
   // A capability the manifest declares can still be turned OFF by the user, per
   // app, from run.html's Abilities panel — stored as a list of vetoed cap names
   // under gifos_capoff_<appId>. The brokers below honour it, so unchecking "Use
-  // your AI" (or mic/camera/API/agent) actually stops the app from using it.
+  // your AI" (or mic/camera/API/agent/extra files) actually stops the app from using it.
   function capOff(manifest) {
     try { const id = (manifest && manifest.appId) || 'app';
       const v = JSON.parse(root.localStorage.getItem('gifos_capoff_' + id) || '[]'); return Array.isArray(v) ? v : []; }
@@ -1831,6 +1831,9 @@
       : store.getAsset(fileId, p).then((blob) => (blob ? { blob: blob, bytes: blob.size } : null));
     rowP.then((row) => {
       if (row && row.blob && (!A || !A.rowMatches || A.rowMatches(row, pin))) return sendBlob(row.blob);
+      if (pin && pin.optional && capDisabled(manifest, 'assets')) {
+        return miss(CAP_OFF_MSG('extra file downloads'));
+      }
       return fetchOnce().then(after);
     }).catch(() => fetchOnce().then(after));
   }

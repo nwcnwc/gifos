@@ -46,6 +46,7 @@
   "gif": "/apps/offline-llm-gemma4/offline-llm-gemma4.gif",
   "bytes": 10228652,
   "download": 1875742368,
+  "requiredCount": 1,
   "provides": {
     "ai": [
       "cheapest"

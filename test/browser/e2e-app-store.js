@@ -303,6 +303,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check('the listing states its ' + want, facts.includes(want));
   }
   check('the listing shows the app\'s declared abilities before you install', /Abilities/.test(facts));
+
+  await page.locator('#back').click();
+  await sleep(200);
+  await page.locator('.card[data-slug="bible"]').click();
+  await page.waitForSelector('#install', { timeout: 10000 });
+  const bibleFacts = (await page.locator('.facts').textContent()) || '';
+  const bibleNote = (await page.locator('#note').textContent()) || '';
+  check('the Bible listing says extra files download later, not at install',
+    /Downloads when you pick them/.test(bibleFacts) && /None of them download at install/.test(bibleFacts),
+    bibleFacts.replace(/\s+/g, ' ').slice(0, 240));
+  check('the Bible listing names how many extra files',
+    /extra files/.test(bibleFacts) && /\d+ extra files/.test(bibleFacts));
+  check('the Bible install note says extra files later',
+    /extra files later/.test(bibleNote), bibleNote);
+  check('the Bible listing does not pretend those files are an install-time model',
+    !/Downloads at install/.test(bibleFacts));
+  await page.locator('#back').click();
+  await sleep(200);
+  const bibleCard = (await page.locator('.card[data-slug="bible"]').textContent()) || '';
+  check('the Bible card says Extra files later before you open the listing',
+    /Extra files later/.test(bibleCard), bibleCard.replace(/\s+/g, ' ').slice(0, 160));
+  await page.locator('.card[data-slug="' + target.slug + '"]').click();
+  await page.waitForSelector('#install', { timeout: 10000 });
   check('opening a listing still fetches no App GIF', gifHits.length === 0, gifHits.join(', '));
   check('Install is still free — paying is not required to get the app',
     /Install — free/.test((await page.locator('#install').textContent()) || ''),

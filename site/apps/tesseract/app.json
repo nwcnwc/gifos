@@ -36,13 +36,16 @@
   ],
   "capabilities": {
     "db": true,
-    "wasm": true
+    "wasm": true,
+    "assets": true
   },
   "cover": "/apps/tesseract/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tesseract/tesseract.gif",
   "bytes": 1699712,
   "download": 0,
+  "optionalCount": 1,
+  "optionalDownload": 15400601,
   "provides": null,
   "pay": null,
   "sha256": "6c5b5080fb8e4d323a15522383c667a3bbfed794a3a59238a262d785622c3cc0",

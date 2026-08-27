@@ -536,6 +536,8 @@
       "cover": "/apps/bible/cover.jpg",
       "bytes": 3989721,
       "download": 0,
+      "optionalCount": 148,
+      "optionalDownload": 155664816,
       "provides": null,
       "signature": {
         "type": "domain",
@@ -6602,6 +6604,8 @@
       "cover": "/apps/tesseract/cover.jpg",
       "bytes": 1699712,
       "download": 0,
+      "optionalCount": 1,
+      "optionalDownload": 15400601,
       "provides": null,
       "signature": {
         "type": "domain",
@@ -7432,6 +7436,8 @@
       "cover": "/apps/vocal-remover/cover.jpg",
       "bytes": 12486426,
       "download": 0,
+      "optionalCount": 2,
+      "optionalDownload": 119545940,
       "provides": null,
       "signature": {
         "type": "domain",

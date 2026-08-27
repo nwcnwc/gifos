@@ -148,15 +148,20 @@ app.gif
   Settings → AI models. Providers are network-less by hard rule, recognized
   only inside the Providers system folder, and mounted as hidden per-tab
   services — the full design is [providers.md](./providers.md).
-- `assets` (optional) — **install-time downloads, held by the OS**
-  (`[{ url, sha256, path, bytes }]`): the trusted origin fetches each pinned
-  URL at install (or first run), verifies the hash, caches the bytes in the
-  computer's asset store (IndexedDB `appassets`, keyed by the icon — beside
-  the GIF, deliberately not in it, so backups stay quick), and hands them to
-  the app via `gifos.assets(path)`.
-  Reserved for weights genuinely too big to ride in-GIF — public model files
-  in the tens of MB and up (the catalog enforces an 8 MB per-asset floor);
-  anything smaller packs into the GIF instead. Details in
+- `assets` (optional) — **pinned downloads, held by the OS**
+  (`[{ url, sha256, path, bytes, optional }]`): the trusted origin fetches
+  each pinned URL, verifies the hash, caches the bytes in the computer's
+  asset store (IndexedDB `appassets`, keyed by the icon — beside the GIF,
+  deliberately not in it, so backups stay quick), and hands them to the app
+  via `gifos.assets(path)`.
+  **Required** pins (no `optional`) download at install. **Optional** pins
+  download the first time the app asks for that path — a translation, a
+  language pack, a model you may never open. The store listing says both.
+  Loading optional pins is an Abilities toggle (`assets`): unchecking it
+  blocks new optional downloads; files already on the device still open.
+  Required pins still belong in-GIF below 8 MB (the catalog floor);
+  optional pins may be smaller because inlining a library of them would
+  make every reader pay for files they never open. Details in
   [providers.md](./providers.md).
 - `system` (optional) — names a **system app**. Live camera/microphone can't run in the sandbox (WebRTC is neutered there and an opaque origin can't be granted camera permission), so a manifest like `{ "system": "meet" }` makes the runtime route the icon to a trusted first-party page instead of mounting the sandbox. The mapping is a **whitelist in the runtime** (`meet → run.html`); a manifest cannot route to arbitrary URLs. The icon is still a real GIF — shareable, downloadable, with its own artwork — and carries a fallback `index.html` for non-GifOS environments.
 

@@ -42,6 +42,7 @@
   "gif": "/apps/offline-tts-neural/offline-tts-neural.gif",
   "bytes": 12423420,
   "download": 24369971,
+  "requiredCount": 1,
   "provides": {
     "ai": [
       "tts"

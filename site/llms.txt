@@ -250,6 +250,10 @@ FILES & STATE
                                file resumes exactly there.
    await gifos.assets(path) -> ArrayBuffer of a manifest-pinned asset (see
                                "Big files"). A miss names the fix.
+                               Optional pins (`optional: true`) download
+                               when you ask, not at install; the store
+                               listing says so, and Abilities can block
+                               new optional downloads.
    await gifos.storage()    -> { usage, quota } in bytes — origin-wide (all
                                apps share one IndexedDB), so an app can warn
                                before filling the computer up.

@@ -39,13 +39,16 @@
   "capabilities": {
     "db": true,
     "wasm": true,
-    "gpu": true
+    "gpu": true,
+    "assets": true
   },
   "cover": "/apps/vocal-remover/cover.jpg",
   "screenshots": [],
   "gif": "/apps/vocal-remover/vocal-remover.gif",
   "bytes": 12486426,
   "download": 0,
+  "optionalCount": 2,
+  "optionalDownload": 119545940,
   "provides": null,
   "pay": null,
   "sha256": "6c21712c63096417b2a9c3f08cf800433e6887cd18a6c1067298a58083341a2d",

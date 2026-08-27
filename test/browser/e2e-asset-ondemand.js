@@ -52,6 +52,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   p.on('pageerror', (e) => console.log('  [solo] ' + e.message));
   const t0 = Date.now();
   await p.goto(BASE + '/run.html#id=' + fid);
+  await p.locator('.perm-box .done').click({ timeout: 15000 }).catch(() => {});
   const fr = p.frameLocator('#appmount iframe');
   await fr.locator('body:has-text("ready")').waitFor({ timeout: 20000 });
   const dumped = await p.evaluate(async (id) => {
@@ -118,6 +119,34 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }, fid);
   check('the re-fetched pin is cached at the new length', recached.size === assetBytes.length, JSON.stringify(recached));
   check('the re-fetched pin stores the hash it verified', recached.sha === assetSha, recached.sha);
+
+  // Abilities veto: extra-file downloads are a capability. Unchecking it
+  // must refuse a NEW fetch; bytes already on the device still open.
+  const sheet = await p.evaluate(() => {
+    const chip = document.querySelector('.perms');
+    if (chip) chip.click();
+    const box = document.querySelector('.perm-box');
+    return box ? box.textContent.replace(/\s+/g, ' ').trim() : '';
+  });
+  check('the Abilities sheet offers extra-file downloads as a checkbox',
+    /Download extra files when you pick them/.test(sheet), sheet.slice(0, 180));
+  await p.evaluate(() => {
+    const cb = document.querySelector('input[data-cap="assets"]');
+    if (cb && cb.checked) { cb.checked = false; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+    const done = document.querySelector('.perm-box .done');
+    if (done) done.click();
+  });
+  await p.evaluate(async (id) => {
+    if (GifOS.store.deleteAssets) await GifOS.store.deleteAssets(id);
+  }, fid);
+  await fr.locator('body').evaluate(() => {
+    document.body.textContent = 'ready';
+    window.ask();
+  });
+  await fr.locator('body:has-text("miss:"), body:has-text("got:")').waitFor({ timeout: 20000 });
+  const blocked = await fr.locator('body').textContent();
+  check('unchecking extra-file downloads refuses a new optional fetch',
+    /^miss:/.test(blocked) && /Abilities/.test(blocked), blocked);
   await p.close();
 
   await browser.close();

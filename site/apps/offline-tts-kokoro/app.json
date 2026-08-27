@@ -45,6 +45,7 @@
   "gif": "/apps/offline-tts-kokoro/offline-tts-kokoro.gif",
   "bytes": 18537460,
   "download": 163234740,
+  "requiredCount": 1,
   "provides": {
     "ai": [
       "tts"
