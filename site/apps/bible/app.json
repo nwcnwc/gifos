@@ -1,0 +1,56 @@
+{
+  "catalog": "1.0",
+  "slug": "bible",
+  "appId": "bible",
+  "name": "Bible",
+  "shortName": "Bible",
+  "version": "1.0.0",
+  "minBuild": 1381,
+  "tagline": "139 public-domain Bibles, offline from the first verse — the file is the save.",
+  "description": "Open it on a plane. Two English translations (the World English Bible and the King James) are inside the app from the first moment. The other 137 — 63 languages — download once when you first open them and then work forever with no account and no connection.\n\nRead in paragraphs or stacked verses. Put a second translation beside the first, even across languages; when they number the psalms differently, the app maps them and says so. Tap a verse to highlight it, write or speak a note, hear the chapter read aloud, or open the study apparatus: the Treasury of Scripture Knowledge, Matthew Henry, Strong’s dictionaries, and a Hebrew or Greek interlinear.\n\nInvite someone and you read the same page. Highlights and notes stay yours. Save keeps them in the file itself — hand that file to anyone and the marked-up Bible opens on their screen.\n\nEvery translation here is in the public domain. Place data © OpenBible.info (CC BY 4.0). The Hebrew interlinear is the Open Scriptures Hebrew Bible (CC BY 4.0).",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-08-27",
+  "updated": "2026-08-27",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "bible",
+    "scripture",
+    "offline",
+    "reading",
+    "study"
+  ],
+  "license": "MIT",
+  "copyright": "",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/bible",
+  "accent": [
+    201,
+    162,
+    39
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "microphone": true,
+    "ai": [
+      "tts"
+    ]
+  },
+  "cover": "/apps/bible/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/bible/bible.gif",
+  "bytes": 3989109,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "1177d72cc437c278fd032f4b4e8f3507fc300513d4684faea819f00299ad697f",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-27"
+  }
+}

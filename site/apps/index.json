@@ -504,6 +504,47 @@
       "sha256": "a15bb6dca209ffeabdc0c927f995e45c97d07af5bffac91633c6fe8d0048d116"
     },
     {
+      "slug": "bible",
+      "appId": "bible",
+      "name": "Bible",
+      "shortName": "Bible",
+      "version": "1.0.0",
+      "tagline": "139 public-domain Bibles, offline from the first verse — the file is the save.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "minBuild": 1381,
+      "offline": true,
+      "releaseDate": "2026-08-27",
+      "updated": "2026-08-27",
+      "categories": [
+        "Learning"
+      ],
+      "tags": [
+        "bible",
+        "scripture",
+        "offline",
+        "reading",
+        "study"
+      ],
+      "accent": [
+        201,
+        162,
+        39
+      ],
+      "cover": "/apps/bible/cover.jpg",
+      "bytes": 3989109,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-27"
+      },
+      "sha256": "1177d72cc437c278fd032f4b4e8f3507fc300513d4684faea819f00299ad697f"
+    },
+    {
       "slug": "bingo",
       "appId": "bingo",
       "name": "Bingo",

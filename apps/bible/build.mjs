@@ -159,7 +159,7 @@ for (const c of ['prefs', 'marks', 'voicenotes', 'plans']) {
   if ((manifest.data[c] || {}).visibility !== 'private') throw new Error(c + ' must be private');
 }
 if (!manifest.lead || manifest.lead[0].collection !== 'nav') throw new Error('lead must name the nav cursor');
-if (manifest.minBuild !== 1178) throw new Error('minBuild must be 1178 — the asset tier this app pins packs on');
+if (manifest.minBuild !== 1381) throw new Error('minBuild must be 1381 — optional assets arrived in that build');
 for (const a of manifest.assets) {
   if (!a.optional) throw new Error(a.path + ' must be optional — nothing downloads at install');
   if (!/^[0-9a-f]{64}$/.test(a.sha256)) throw new Error(a.path + ' has no hash');

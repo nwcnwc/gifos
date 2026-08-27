@@ -1,0 +1,26 @@
+{
+  "tagline": "139 public-domain Bibles, offline from the first verse — the file is the save.",
+  "description": "Open it on a plane. Two English translations (the World English Bible and the King James) are inside the app from the first moment. The other 137 — 63 languages — download once when you first open them and then work forever with no account and no connection.\n\nRead in paragraphs or stacked verses. Put a second translation beside the first, even across languages; when they number the psalms differently, the app maps them and says so. Tap a verse to highlight it, write or speak a note, hear the chapter read aloud, or open the study apparatus: the Treasury of Scripture Knowledge, Matthew Henry, Strong’s dictionaries, and a Hebrew or Greek interlinear.\n\nInvite someone and you read the same page. Highlights and notes stay yours. Save keeps them in the file itself — hand that file to anyone and the marked-up Bible opens on their screen.\n\nEvery translation here is in the public domain. Place data © OpenBible.info (CC BY 4.0). The Hebrew interlinear is the Open Scriptures Hebrew Bible (CC BY 4.0).",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-08-27",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "bible",
+    "scripture",
+    "offline",
+    "reading",
+    "study"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/bible",
+  "cover": "screenshot.png",
+  "coverCrop": {
+    "top": 104
+  },
+  "screenshots": []
+}
