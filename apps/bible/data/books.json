@@ -1,0 +1,40 @@
+{
+ "note": "Canonical book table. code = the 3-letter id the verse-per-line sources use. order = shelf order in the reader. sect = ot | nt | dc (deuterocanon/apocrypha). abbr = short label for the chapter bar.",
+ "columns": ["code", "name", "abbr", "order", "sect"],
+ "books": [
+  ["GEN","Genesis","Gen",1,"ot"],["EXO","Exodus","Exo",2,"ot"],["LEV","Leviticus","Lev",3,"ot"],
+  ["NUM","Numbers","Num",4,"ot"],["DEU","Deuteronomy","Deut",5,"ot"],["JOS","Joshua","Josh",6,"ot"],
+  ["JDG","Judges","Judg",7,"ot"],["RUT","Ruth","Ruth",8,"ot"],["1SA","1 Samuel","1 Sam",9,"ot"],
+  ["2SA","2 Samuel","2 Sam",10,"ot"],["1KI","1 Kings","1 Kgs",11,"ot"],["2KI","2 Kings","2 Kgs",12,"ot"],
+  ["1CH","1 Chronicles","1 Chr",13,"ot"],["2CH","2 Chronicles","2 Chr",14,"ot"],["EZR","Ezra","Ezra",15,"ot"],
+  ["NEH","Nehemiah","Neh",16,"ot"],["EST","Esther","Esth",17,"ot"],["JOB","Job","Job",18,"ot"],
+  ["PSA","Psalms","Ps",19,"ot"],["PRO","Proverbs","Prov",20,"ot"],["ECC","Ecclesiastes","Eccl",21,"ot"],
+  ["SOL","Song of Solomon","Song",22,"ot"],["ISA","Isaiah","Isa",23,"ot"],["JER","Jeremiah","Jer",24,"ot"],
+  ["LAM","Lamentations","Lam",25,"ot"],["EZE","Ezekiel","Ezek",26,"ot"],["DAN","Daniel","Dan",27,"ot"],
+  ["HOS","Hosea","Hos",28,"ot"],["JOE","Joel","Joel",29,"ot"],["AMO","Amos","Amos",30,"ot"],
+  ["OBA","Obadiah","Obad",31,"ot"],["JON","Jonah","Jonah",32,"ot"],["MIC","Micah","Mic",33,"ot"],
+  ["NAH","Nahum","Nah",34,"ot"],["HAB","Habakkuk","Hab",35,"ot"],["ZEP","Zephaniah","Zeph",36,"ot"],
+  ["HAG","Haggai","Hag",37,"ot"],["ZEC","Zechariah","Zech",38,"ot"],["MAL","Malachi","Mal",39,"ot"],
+
+  ["TOB","Tobit","Tob",40,"dc"],["JDT","Judith","Jdt",41,"dc"],["ESG","Esther (Greek)","Esth Gr",42,"dc"],
+  ["WIS","Wisdom","Wis",43,"dc"],["SIR","Sirach","Sir",44,"dc"],["BAR","Baruch","Bar",45,"dc"],
+  ["EPJ","Letter of Jeremiah","Ep Jer",46,"dc"],["PRA","Prayer of Azariah","Pr Azar",47,"dc"],
+  ["SUS","Susanna","Sus",48,"dc"],["BEL","Bel and the Dragon","Bel",49,"dc"],
+  ["DNG","Daniel (Greek)","Dan Gr",50,"dc"],["PRM","Prayer of Manasseh","Pr Man",51,"dc"],
+  ["1MA","1 Maccabees","1 Macc",52,"dc"],["2MA","2 Maccabees","2 Macc",53,"dc"],
+  ["3MA","3 Maccabees","3 Macc",54,"dc"],["4MA","4 Maccabees","4 Macc",55,"dc"],
+  ["1ES","1 Esdras","1 Esd",56,"dc"],["4ES","2 Esdras","2 Esd",57,"dc"],
+  ["PSS","Psalm 151","Ps 151",58,"dc"],["PSX","Additional Psalms","Ps add",59,"dc"],
+
+  ["MAT","Matthew","Matt",60,"nt"],["MAR","Mark","Mark",61,"nt"],["LUK","Luke","Luke",62,"nt"],
+  ["JOH","John","John",63,"nt"],["ACT","Acts","Acts",64,"nt"],["ROM","Romans","Rom",65,"nt"],
+  ["1CO","1 Corinthians","1 Cor",66,"nt"],["2CO","2 Corinthians","2 Cor",67,"nt"],
+  ["GAL","Galatians","Gal",68,"nt"],["EPH","Ephesians","Eph",69,"nt"],["PHI","Philippians","Phil",70,"nt"],
+  ["COL","Colossians","Col",71,"nt"],["1TH","1 Thessalonians","1 Thess",72,"nt"],
+  ["2TH","2 Thessalonians","2 Thess",73,"nt"],["1TI","1 Timothy","1 Tim",74,"nt"],
+  ["2TI","2 Timothy","2 Tim",75,"nt"],["TIT","Titus","Titus",76,"nt"],["PHM","Philemon","Phlm",77,"nt"],
+  ["HEB","Hebrews","Heb",78,"nt"],["JAM","James","Jas",79,"nt"],["1PE","1 Peter","1 Pet",80,"nt"],
+  ["2PE","2 Peter","2 Pet",81,"nt"],["1JO","1 John","1 John",82,"nt"],["2JO","2 John","2 John",83,"nt"],
+  ["3JO","3 John","3 John",84,"nt"],["JUD","Jude","Jude",85,"nt"],["REV","Revelation","Rev",86,"nt"]
+ ]
+}
