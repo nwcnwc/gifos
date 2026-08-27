@@ -2978,7 +2978,16 @@
       deny: () => { if (openGate) { openGate(null); openGate = null; } },
     } : null;
     if (root.__gifosPermissions) {
-      try { root.__gifosPermissions(policy, manifest, launchReq); } catch (e) { if (launchReq) launchReq.deny(); }
+      try {
+        root.__gifosPermissions(policy, manifest, launchReq, {
+          pullOptional: function (onStatus) {
+            const A = GifOS.assets;
+            if (!A) return Promise.reject(new Error('Downloads are not available on this computer.'));
+            const cache = A.assetCache(store, mountFileId);
+            return A.ensure(files, manifest, onStatus, cache, { optionalOnly: true, parallelHosts: true });
+          },
+        });
+      } catch (e) { if (launchReq) launchReq.deny(); }
     } else if (launchReq) launchReq.deny();
     // Motion sensors are delegated to the sandbox via the iframe allow-policy
     // (the events fire INSIDE the app frame). Camera/mic are NOT delegated —
