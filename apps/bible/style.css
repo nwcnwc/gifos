@@ -233,6 +233,11 @@ button { background: none; border: 0; cursor: pointer; }
 }
 .foot-btn[disabled] { opacity: .3; cursor: default; }
 
+/* display:flex on .sheet and #follow would otherwise win over the UA
+ * [hidden] { display:none } at equal specificity, so a closed sheet still
+ * paints and still eats clicks. */
+[hidden] { display: none !important; }
+
 /* ---------- sheets ---------- */
 #scrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; }
 .sheet {

@@ -345,7 +345,7 @@
     var scope = this._searchScope || 'all';
     var table = Refs.books();
     var sectOf = {};
-    for (var t = 0; t < table.length; t++) sectOf[table[t][0]] = table[t][4];
+    for (var t = 0; t < table.length; t++) sectOf[table[t].code] = table[t].sect;
     while (at >= 0 && found.length < 400) {
       var idx = this.indexAt(pack, at);
       var r = pack.refOf(idx);
