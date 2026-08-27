@@ -44,8 +44,33 @@ A.missing({}, m, null).then((all) => {
   check('an app of only optional pins backfills nothing at boot', none.length === 0);
   check('an unknown path is not in the list (ensurePath must refuse it)',
     !A.list(m).some((a) => a.path === 'other.bin'));
-  console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nall green');
-  process.exit(failures ? 1 : 0);
+
+  const pin = { url: 'https://example.com/d.bin', sha256: sha, path: 'd.bin', bytes: 1449821, optional: true };
+  check('a cached row with the pin’s hash is this pin',
+    A.rowMatches({ blob: {}, bytes: 1449821, sha256: sha }, pin) === true);
+  check('a cached row with a different hash is not this pin',
+    A.rowMatches({ blob: {}, bytes: 1449821, sha256: 'b'.repeat(64) }, pin) === false);
+  check('a pre-hash row of a different length is not this pin',
+    A.rowMatches({ blob: {}, bytes: 1228922 }, pin) === false);
+  check('a pre-hash row of the same length is still accepted (legacy cache)',
+    A.rowMatches({ blob: {}, bytes: 1449821 }, pin) === true);
+
+  const staleCache = {
+    has: (path, p) => Promise.resolve(A.rowMatches({ blob: {}, bytes: 1228922 }, p)),
+  };
+  const freshCache = {
+    has: (path, p) => Promise.resolve(A.rowMatches({ blob: {}, bytes: 1449821, sha256: sha }, p)),
+  };
+  return A.missing({}, { assets: [pin] }, staleCache).then((stale) => {
+    check('missing() re-fetches a same-path pin whose cached length moved',
+      stale.length === 1 && stale[0].path === 'd.bin', JSON.stringify(stale.map((a) => a.path)));
+    return A.missing({}, { assets: [pin] }, freshCache);
+  }).then((fresh) => {
+    check('missing() keeps a cached pin whose stored hash still matches',
+      fresh.length === 0, JSON.stringify(fresh.map((a) => a.path)));
+    console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nall green');
+    process.exit(failures ? 1 : 0);
+  });
 }).catch((e) => {
   console.log('FAIL — ' + e);
   process.exit(1);

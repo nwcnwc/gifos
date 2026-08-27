@@ -90,6 +90,34 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return b ? b.size : -1;
   }, fid);
   check('the optional pin is cached after the ask (once, not per open)', cached === assetBytes.length, String(cached));
+
+  // A store Update keeps the fileId. Planting a shorter blob at the same path
+  // is the Bible-Darby case: new pin, old download. gifos.assets() must
+  // re-fetch, not keep serving the first file.
+  await p.evaluate(async (id) => {
+    await GifOS.store.putAsset(id, 'blob.bin', new Blob([new Uint8Array(10)]));
+  }, fid);
+  const planted = await p.evaluate(async (id) => {
+    const b = await GifOS.store.getAsset(id, 'blob.bin').catch(() => null);
+    return b ? b.size : -1;
+  }, fid);
+  check('the planted stale row is shorter than the pin', planted === 10, String(planted));
+  await fr.locator('body').evaluate(() => {
+    document.body.textContent = 'ready';
+    window.ask();
+  });
+  await fr.locator('body:has-text("got:")').waitFor({ timeout: 30000 });
+  const got2 = await fr.locator('body').textContent();
+  check('a stale same-path cache re-fetches the pin', got2 === 'got:' + assetBytes.length, got2);
+  const recached = await p.evaluate(async (id) => {
+    const row = GifOS.store.getAssetRow
+      ? await GifOS.store.getAssetRow(id, 'blob.bin')
+      : null;
+    const b = await GifOS.store.getAsset(id, 'blob.bin').catch(() => null);
+    return { size: b ? b.size : -1, sha: row && row.sha256 };
+  }, fid);
+  check('the re-fetched pin is cached at the new length', recached.size === assetBytes.length, JSON.stringify(recached));
+  check('the re-fetched pin stores the hash it verified', recached.sha === assetSha, recached.sha);
   await p.close();
 
   await browser.close();

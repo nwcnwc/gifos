@@ -1775,10 +1775,14 @@
   }
   // gifos.assets(path) — hand an app the bytes for a hash-pinned path
   // (gifos-assets.js). Serves a hand-sealed .assets/ file from the packed
-  // filesystem first, else the computer's asset store. If the pin is in the
-  // manifest and not cached yet, the OS FETCHES that one row now (busy pill)
-  // — required pins the store/boot missed, and optional pins the app just
-  // asked for. Unknown paths are a miss, not a free-form download.
+  // filesystem first, else the computer's asset store IF that row is still
+  // the pin (same sha256, or for pre-hash rows the same byte length). A
+  // store Update keeps the fileId, so a rebuilt file at the same path must
+  // re-fetch, not keep serving the first download. If the pin is in the
+  // manifest and not cached as this pin, the OS FETCHES that one row now
+  // (busy pill) — required pins the store/boot missed, and optional pins
+  // the app just asked for. Unknown paths are a miss, not a free-form
+  // download.
   // Gigabyte-friendly: the ArrayBuffer crosses as a TRANSFER.
   const assetInflight = new Map();
   function replyAsset(files, fileId, manifest, d, post) {
@@ -1820,8 +1824,13 @@
       return miss();
     };
     if (!fileId) { miss(); return; }
-    store.getAsset(fileId, p).then((blob) => {
-      if (blob) return sendBlob(blob);
+    const A = GifOS.assets;
+    const pin = (A && manifest) ? A.list(manifest).find((a) => a.path === p) : null;
+    const rowP = store.getAssetRow
+      ? store.getAssetRow(fileId, p)
+      : store.getAsset(fileId, p).then((blob) => (blob ? { blob: blob, bytes: blob.size } : null));
+    rowP.then((row) => {
+      if (row && row.blob && (!A || !A.rowMatches || A.rowMatches(row, pin))) return sendBlob(row.blob);
       return fetchOnce().then(after);
     }).catch(() => fetchOnce().then(after));
   }

@@ -21,8 +21,11 @@
  * never the sandbox — fetches each pinned URL, verifies the SHA-256, and
  * caches the bytes in the computer's ASSET STORE (IndexedDB `appassets`,
  * Blob-backed so the browser keeps them on disk, keyed by the icon's
- * fileId). The app reads them back with gifos.assets(path) and never touches
- * the network itself.
+ * fileId + path). A later fetch of the same path is THIS PIN only if the
+ * stored sha256 still matches the manifest — a store Update keeps the
+ * fileId, so a rebuilt file at the same path must replace the first
+ * download, not keep serving it. The app reads them back with
+ * gifos.assets(path) and never touches the network itself.
  *
  * WHY A STORE, NOT THE GIF. Sealing into the GIF (repack) caps out fast: the
  * payload is base64-inside-JSON, so a fine-at-5-MB engine works but a 1.2 GB
@@ -81,10 +84,24 @@
   }
   const key = (entry) => DIR + normPath(entry.path || entry);
 
+  // A cached row is THIS pin only if the hash stored at download time still
+  // matches the manifest. The cache is keyed [fileId, path]; a store Update
+  // keeps the fileId, so a rebuilt translation at the same path used to keep
+  // serving the first download forever. Size is the stand-in for rows written
+  // before sha256 was stored: a different length cannot be the pin.
+  function rowMatches(row, pin) {
+    if (!row || !row.blob) return false;
+    if (!pin || !pin.sha256) return true;
+    if (row.sha256) return row.sha256 === pin.sha256;
+    if (pin.bytes > 0 && Number(row.bytes) > 0 && Number(row.bytes) !== Number(pin.bytes)) return false;
+    return true;
+  }
+
   // What still needs downloading: not hand-sealed inside the GIF's own
-  // filesystem, and not already in the asset cache. `cache` is the store
-  // binding — { has(path), put(path, blob) } — from assetCache() below;
-  // omit it for a session-only context and everything missing re-fetches.
+  // filesystem, and not already in the asset cache AS THIS PIN. `cache` is
+  // the store binding — { has(path, pin), put(path, blob, sha256) } — from
+  // assetCache() below; omit it for a session-only context and everything
+  // missing re-fetches.
   // opts.requiredOnly — install and boot backfill: skip optional pins. They
   // arrive when gifos.assets(path) asks for that path, not before.
   function missing(files, manifest, cache, opts) {
@@ -94,7 +111,7 @@
       return !(files && files[key(a)]);
     });
     if (!cache) return Promise.resolve(need);
-    return Promise.all(need.map((a) => cache.has(a.path))).then((have) => need.filter((_, i) => !have[i]));
+    return Promise.all(need.map((a) => cache.has(a.path, a))).then((have) => need.filter((_, i) => !have[i]));
   }
 
   function sha256Hex(bytes) {
@@ -188,7 +205,7 @@
                 .then((buf) => sha256Hex(buf))
                 .then((hex) => {
                   if (hex !== a.sha256) throw new Error('the bytes don’t match the app’s pinned hash — refused');
-                  if (cache) return cache.put(a.path, blob);
+                  if (cache) return cache.put(a.path, blob, a.sha256);
                   // Session-only fallback (no store to cache into): hold the
                   // bytes in the in-memory filesystem for this mount's life.
                   return blob.arrayBuffer().then((buf2) => { files[key(a)] = new Uint8Array(buf2); });
@@ -206,8 +223,14 @@
   function assetCache(store, fileId) {
     if (!store || !fileId || !store.putAsset) return null;
     return {
-      has: (path) => store.hasAsset(fileId, normPath(path)).catch(() => false),
-      put: (path, blob) => store.putAsset(fileId, normPath(path), blob),
+      has: (path, pin) => {
+        const p = normPath(path);
+        if (store.getAssetRow) {
+          return store.getAssetRow(fileId, p).then((row) => rowMatches(row, pin || null)).catch(() => false);
+        }
+        return store.hasAsset(fileId, p).catch(() => false);
+      },
+      put: (path, blob, sha256) => store.putAsset(fileId, normPath(path), blob, sha256),
       get: (path) => store.getAsset(fileId, normPath(path)).catch(() => null),
     };
   }
@@ -223,5 +246,5 @@
     return ensure(files, one, onStatus, cache);
   }
 
-  GifOS.assets = { DIR, list, missing, ensure, ensurePath, key, normPath, assetCache };
+  GifOS.assets = { DIR, list, missing, ensure, ensurePath, key, normPath, assetCache, rowMatches };
 })(typeof window !== 'undefined' ? window : globalThis);

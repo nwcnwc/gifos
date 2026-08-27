@@ -384,8 +384,16 @@
       // publicly-pinned downloads: not in whole-computer backups (a gigabyte
       // model would burst the GIF's base64/JSON string limits; the manifest
       // pin re-downloads on the restored computer), cleared with the computer.
-      putAsset: (fileId, path, blob) => atx('readwrite', (os) => reqP(os.put({ fileId, path, blob, bytes: (blob && blob.size) || 0, updatedAt: nowISO() }))),
+      // sha256 is the pin we verified at download. A later gifos.assets() of
+      // the same path only reuses this row if that hash (or, for older rows,
+      // the byte length) still matches the live manifest.
+      putAsset: (fileId, path, blob, sha256) => atx('readwrite', (os) => reqP(os.put({
+        fileId, path, blob, bytes: (blob && blob.size) || 0,
+        sha256: (typeof sha256 === 'string' && /^[0-9a-f]{64}$/i.test(sha256)) ? sha256.toLowerCase() : undefined,
+        updatedAt: nowISO(),
+      }))),
       getAsset: (fileId, path) => atx('readonly', (os) => reqP(os.get([fileId, path])).then((r) => (r ? r.blob : null))),
+      getAssetRow: (fileId, path) => atx('readonly', (os) => reqP(os.get([fileId, path])).then((r) => r || null)),
       hasAsset: (fileId, path) => atx('readonly', (os) => reqP(os.getKey([fileId, path])).then((k) => k != null)),
       deleteAssets: (fileId) => atx('readwrite', (os) =>
         reqP(os.getAllKeys(IDBKeyRange.bound([fileId], [fileId, []]))).then((keys) => { for (const k of keys || []) os.delete(k); return true; })),
