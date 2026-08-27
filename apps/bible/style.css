@@ -311,6 +311,15 @@ mark.hl-span[data-hl="under"]  { background: none; border-bottom: 2px solid var(
   min-height: 10rem; font-family: var(--face); font-size: 1rem; line-height: 1.5;
   resize: vertical;
 }
+.note-scope {
+  display: flex; align-items: flex-start; gap: .55rem;
+  margin: .75rem 0 0 0; font-size: .84rem; color: var(--ink2); line-height: 1.35;
+  cursor: pointer;
+}
+.note-scope input {
+  margin-top: .15rem; width: 1.05rem; height: 1.05rem; flex: 0 0 auto;
+  accent-color: var(--accent);
+}
 .note-actions { display: flex; justify-content: flex-end; align-items: center; gap: .5rem; }
 .note-actions .ghost,
 .note-actions .done {

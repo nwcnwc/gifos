@@ -170,7 +170,15 @@
         (tag ? ' · ' + tag : '') + (m.voice ? ' · voice note' : '') +
         (m.kind === 'fn' ? ' · footnote' : '')));
       if (m.quote) btn.appendChild(document.createTextNode('“' + m.quote.slice(0, 140) + '”'));
-      else if (m.note) btn.appendChild(document.createTextNode(m.note.slice(0, 140)));
+      else {
+        var packId = self.pack(0) && self.pack(0).id;
+        var shown = (root.GifosBibleStore && root.GifosBibleStore.noteText)
+          ? root.GifosBibleStore.noteText(m, packId) : m.note;
+        if (!shown && m.notes) {
+          for (var pk in m.notes) { if (m.notes[pk]) { shown = m.notes[pk]; break; } }
+        }
+        if (shown) btn.appendChild(document.createTextNode(shown.slice(0, 140)));
+      }
       btn.addEventListener('click', function () {
         self.closeSheets();
         self.go({ code: m.code, chapter: m.chapter, verse: m.verse }, { flash: true });
