@@ -205,9 +205,12 @@
     }));
 
     // Note dots: a verse with the reader's own note gets a dotted underline.
+    var noteText = root.GifosBibleStore && root.GifosBibleStore.noteText;
     for (var k2 in this.marks) {
       var r2 = this.marks[k2];
-      if (r2.code !== m.ref.code || r2.chapter !== m.ref.chapter || (!r2.note && !r2.voice)) continue;
+      if (r2.code !== m.ref.code || r2.chapter !== m.ref.chapter) continue;
+      var shown = noteText ? noteText(r2, pack.id) : r2.note;
+      if (!shown && !r2.voice) continue;
       var i2 = pack.indexOfVerse(r2.code, r2.chapter, r2.verse);
       var spans = body.querySelectorAll('.v[data-i="' + i2 + '"]');
       for (var s2 = 0; s2 < spans.length; s2++) spans[s2].classList.add('hasnote');

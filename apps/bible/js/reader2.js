@@ -67,7 +67,9 @@
       acts.appendChild(b);
       return b;
     };
-    add(mark.note ? 'Edit note' : 'Note', function () { self.editNote(ref, mark); });
+    var shownNote = (root.GifosBibleStore && root.GifosBibleStore.noteText)
+      ? root.GifosBibleStore.noteText(mark, pack.id) : (mark.note || '');
+    add(shownNote ? 'Edit note' : 'Note', function () { self.editNote(ref, mark); });
     if (root.gifos && root.gifos.recordAudio) {
       add(mark.voice ? 'Re-record voice note' : 'Voice note', function () { self.recordVoiceNote(ref); });
       if (mark.voice) add('Play voice note', function () { self.playVoiceNote(mark.voice); });
@@ -90,10 +92,10 @@
     var quote = el('p', 'quote', Render.plain(pack.textAt(index)));
     body.appendChild(quote);
 
-    if (mark.note) {
+    if (shownNote) {
       var noteP = el('button', 'note-item');
       noteP.type = 'button';
-      noteP.textContent = mark.note;
+      noteP.textContent = shownNote;
       noteP.title = 'Edit note';
       noteP.addEventListener('click', function () { self.editNote(ref, mark); });
       body.appendChild(noteP);
@@ -187,10 +189,18 @@
         quote.hidden = true;
       }
     }
+    var packId = pack && pack.id;
+    var shown = (root.GifosBibleStore && root.GifosBibleStore.noteText)
+      ? root.GifosBibleStore.noteText(mark, packId) : ((mark && mark.note) || '');
+    var packOnly = !!(mark && mark.notes && packId && mark.notes[packId]);
     var ta = document.getElementById('note-text');
-    ta.value = (mark && mark.note) || '';
+    ta.value = shown;
+    var all = document.getElementById('note-all-trans');
+    if (all) all.checked = !packOnly;
     var rm = document.getElementById('note-remove');
     if (rm) rm.hidden = !ta.value;
+    this._notePack = packId;
+    this._notePackName = pack ? (pack.name || pack.id) : '';
     this.openSheet('sheet-note');
   };
 
@@ -198,13 +208,22 @@
     var ref = this._noteRef;
     if (!ref) return;
     var self = this;
+    var all = document.getElementById('note-all-trans');
+    var every = !all || all.checked;
     var text = (opts && opts.remove)
       ? ''
       : String((document.getElementById('note-text') || {}).value || '');
-    this.store.setNote(ref, text).then(function () {
+    var args = every
+      ? { fromPack: this._notePack }
+      : { pack: this._notePack };
+    this.store.setNote(ref, text, args).then(function () {
       self.closeSheets();
       self.paint({ keepScroll: true });
-      self.toast(text ? 'Note saved — it lives inside this app on this device.' : 'Note removed.');
+      var msg;
+      if (!text) msg = 'Note removed.';
+      else if (every) msg = 'Note saved on every translation of this verse.';
+      else msg = 'Note saved on ' + (self._notePackName || 'this translation') + ' only.';
+      self.toast(msg);
     });
   };
 

@@ -119,6 +119,29 @@
    * verse in every other, and the index differs between them. */
   function markId(ref) { return ref.code + '.' + ref.chapter + '.' + ref.verse; }
 
+  // A note is on the VERSE by default (every translation of John 3:16).
+  // `notes[packId]` is a this-translation-only overlay; it wins while you
+  // are reading that pack, and other packs still see `note`.
+  function packNotes(rec) {
+    return rec && rec.notes && typeof rec.notes === 'object' ? rec.notes : null;
+  }
+  function noteText(rec, packId) {
+    if (!rec) return '';
+    var pn = packNotes(rec);
+    if (packId && pn && pn[packId]) return String(pn[packId]);
+    return rec.note ? String(rec.note) : '';
+  }
+  function hasAnyNote(rec) {
+    if (!rec) return false;
+    if (rec.note) return true;
+    var pn = packNotes(rec);
+    if (pn) { for (var k in pn) if (pn[k]) return true; }
+    return false;
+  }
+  function markEmpty(rec) {
+    return !rec || (!rec.colour && !rec.voice && !hasAnyNote(rec));
+  }
+
   Store.prototype.marks = function () { return this.collection('marks').getAll(); };
   Store.prototype.onMarks = function (cb) { return this.collection('marks').subscribe(cb); };
 
@@ -130,7 +153,7 @@
       rec = rec || { id: id, code: ref.code, chapter: ref.chapter, verse: ref.verse };
       rec.colour = colour || '';
       rec.at = Date.now();
-      if (!rec.colour && !rec.note) return c.delete(id).then(function () { return null; });
+      if (markEmpty(rec)) return c.delete(id).then(function () { return null; });
       return c.put(rec);
     }).catch(function (e) { self.onError && self.onError(e); return null; });
   };
@@ -261,15 +284,35 @@
     }).catch(function (e) { self.onError && self.onError(e); return null; });
   };
 
-  Store.prototype.setNote = function (ref, text) {
+  Store.prototype.setNote = function (ref, text, opts) {
     var id = markId(ref);
     var c = this.collection('marks');
     var self = this;
+    opts = opts || {};
+    var pack = opts.pack || '';
     return c.get(id).then(function (rec) {
       rec = rec || { id: id, code: ref.code, chapter: ref.chapter, verse: ref.verse };
-      rec.note = String(text || '').slice(0, 8000);
+      var t = String(text || '').slice(0, 8000);
+      if (pack) {
+        rec.notes = packNotes(rec) || {};
+        if (t) rec.notes[pack] = t;
+        else delete rec.notes[pack];
+        var keep = false, k;
+        for (k in rec.notes) if (rec.notes[k]) { keep = true; break; }
+        if (!keep) delete rec.notes;
+      } else {
+        rec.note = t;
+        // A global save is what you now see on this pack, so drop an overlay
+        // that would hide it.
+        if (opts.fromPack && rec.notes) {
+          delete rec.notes[opts.fromPack];
+          var left = false, p;
+          for (p in rec.notes) if (rec.notes[p]) { left = true; break; }
+          if (!left) delete rec.notes;
+        }
+      }
       rec.at = Date.now();
-      if (!rec.colour && !rec.note) return c.delete(id).then(function () { return null; });
+      if (markEmpty(rec)) return c.delete(id).then(function () { return null; });
       return c.put(rec);
     }).catch(function (e) { self.onError && self.onError(e); return null; });
   };
@@ -291,7 +334,7 @@
         return self.collection('marks').get(markId(ref));
       }).then(function (rec) {
         if (rec) { delete rec.voice; rec.at = Date.now();
-          if (!rec.colour && !rec.note) return self.collection('marks').delete(rec.id);
+          if (markEmpty(rec)) return self.collection('marks').delete(rec.id);
           return self.collection('marks').put(rec); }
       });
     }
@@ -341,6 +384,7 @@
 
   root.GifosBibleStore = {
     Store: Store, DEFAULTS: DEFAULTS, markId: markId,
+    noteText: noteText, hasAnyNote: hasAnyNote,
     spanEndVerse: spanEndVerse, spansTouch: spansTouch, spansOverlap: spansOverlap,
     mergeSpanBounds: mergeSpanBounds, mergeSpanRecords: mergeSpanRecords
   };
