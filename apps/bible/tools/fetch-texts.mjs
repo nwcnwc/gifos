@@ -1,4 +1,4 @@
-// Download the verse-per-line ZIP for every text in data/ebible-pd.json into
+// Download the USFX ZIP for every text in data/ebible-pd.json into
 // the local cache (.cache/, never committed). Idempotent: a file already in
 // the cache is skipped unless --force.
 //
@@ -19,9 +19,9 @@ const only = onlyArg ? new Set((onlyArg.split('=')[1] || process.argv[process.ar
 let got = 0, skipped = 0, failed = [];
 for (const t of cat.translations) {
   if (only && !only.has(t.id)) continue;
-  const out = join(cache, t.id + '_vpl.zip');
+  const out = join(cache, t.id + '_usfx.zip');
   if (!force && existsSync(out) && statSync(out).size > 1000) { skipped++; continue; }
-  const url = `https://ebible.org/Scriptures/${t.id}_vpl.zip`;
+  const url = `https://ebible.org/Scriptures/${t.id}_usfx.zip`;
   process.stdout.write(`  ${t.id} … `);
   try {
     const r = await fetch(url);
