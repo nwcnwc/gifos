@@ -155,6 +155,25 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   check('the button now says how to stop',
     /Stop sharing/.test(await a.evaluate(() => document.getElementById('sharebtn').textContent)));
 
+  // ---- LEG 1b: A SHARE THAT ARRIVES UNREADABLE IS NOT A SHARE -------------
+  // Everything above can pass while the deck is mush: it is on the stage, it
+  // is a display capture, and the cell is letterboxed. Legibility is decided
+  // by three numbers nothing else here reads, and each was wrong because the
+  // correct answer FOR A FACE is the wrong answer for a document.
+  check('the published screen is hinted as TEXT, so the encoder keeps pixels over frames',
+    on.sentHint === 'text', 'contentHint=' + JSON.stringify(on.sentHint));
+  // The lanes are set by adapt(), which runs on the mosaic sweep — and a
+  // stager's DIRECT tracks are parked (stagers live on the Stage only), so the
+  // sender that ends up carrying the screen is the 'stg:' one the sweep ships.
+  // Wait for a carrier to exist rather than reading the instant of the click.
+  await a.waitForFunction(() => (window.__gifosVideo.screenInfo().senders || []).length > 0, null, { timeout: 30000 }).catch(() => {});
+  const carry = ((await info(a)).senders || []).filter((x) => x.stage || !x.aux);
+  check('a sender is actually carrying the screen', carry.length > 0, JSON.stringify((await info(a)).senders));
+  check('…on the screen bitrate lane, not the camera ladder rung',
+    carry.every((x) => x.kbps >= 2000), JSON.stringify(carry));
+  check('…and told to hold RESOLUTION when it cannot hold the frame rate',
+    carry.every((x) => x.deg === 'maintain-resolution'), JSON.stringify(carry.map((x) => x.deg)));
+
   // ---- LEG 2: the other side sees it, and is told what it is ---------------
   await b.waitForFunction(() => window.__gifosVideo.screenInfo().sharers.length > 0, null, { timeout: 25000 }).catch(() => {});
   const bOn = await info(b);
@@ -172,6 +191,22 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   check('…and still crops ordinary faces', (await b.evaluate(() => window.__gifosVideo.fitForTest(null))) === null);
   await b.waitForFunction(() => document.body.classList.contains('screen-on'), null, { timeout: 8000 }).catch(() => {});
   check('the viewer gives the stage room to be read', (await info(b)).bodyScreenOn);
+
+  // THE VIEWER'S OWN DOWNSCALE, which is the one that actually made text
+  // unreadable. The Stage strip packs square cells, so a 16:9 desktop
+  // letterboxed into one arrives as cell x cell with bars — measured at
+  // 480x480 before this guard, from a full-resolution feed the seat was
+  // already holding. A seat that holds the feed must paint the FEED, and the
+  // painted element's ASPECT is the proof: the strip is square by
+  // construction, the share is the shape of the shared display.
+  await b.waitForFunction(() => {
+    const p = window.__gifosVideo.screenInfo().stagePaint;
+    return p && p.w > 0 && p.h > 0;
+  }, null, { timeout: 25000 }).catch(() => {});
+  const paint = (await info(b)).stagePaint;
+  check('the viewer paints the share itself, not a square strip cell of it',
+    !!paint && paint.w / paint.h > 1.5, JSON.stringify(paint));
+  check('…at the shared display’s own resolution', !!paint && paint.w >= 1280, JSON.stringify(paint));
 
   // ---- LEG 3: it stops, all the way ---------------------------------------
   // Stop from the ALWAYS-VISIBLE control, not the test hook: the Share-screen
