@@ -46,6 +46,13 @@
  *   The deuterocanon is not mapped at all: Sirach, Tobit and Baruch divide
  *   differently between the Greek and Latin traditions, and neither the kjv
  *   nor the hebrew tradition prints them to compare against.
+ *
+ *   A tag is a fingerprint, not a promise: build-packs.mjs reads it off the
+ *   text (Joel's fourth chapter, the joined Psalm 9), so a mixed edition wears
+ *   a tag that is only true of part of it — deutkw chapters Joel the Hebrew way
+ *   and numbers its psalms the English way. A table over references cannot see
+ *   that, and a caller holding both packs can: an answer that will not address
+ *   in the target pack is the pack's own division, not a row here.
  */
 (function (root) {
   'use strict';
@@ -125,8 +132,10 @@
     ['JOB', 40, 25, 32, 41, 1, 8],
     ['JOB', 41, 1, 26, 41, 9, 34],
 
-    // Psalm 13 keeps the same verse count in both, but its superscription is a
-    // verse in Hebrew and its last verse is two in English.
+    // Psalm 13 keeps the same verse count in both, but by a different division:
+    // its superscription is verse 1 in Hebrew, and its last verse is two in
+    // English. It is the one psalm an offset cannot describe.
+    ['PSA', 13, 1, 1, 13, 1, 1, 1],
     ['PSA', 13, 2, 5, 13, 1, 4],
     ['PSA', 13, 6, 6, 13, 5, 6, 1],
 
@@ -291,21 +300,22 @@
     return null;
   }
 
-  function through(rows, ref, forward) {
-    var row = find(rows, ref.code, ref.chapter, ref.verse, forward, true) ||
-              find(rows, ref.code, ref.chapter, ref.verse, forward, false);
+  // A reference read through whichever row holds it, exact rows first.
+  function through(table, ref, forward) {
+    var row = find(table, ref.code, ref.chapter, ref.verse, forward, true) ||
+              find(table, ref.code, ref.chapter, ref.verse, forward, false);
     if (!row) return { code: ref.code, chapter: ref.chapter, verse: ref.verse, exact: true, span: 0 };
-    var from = forward ? row[2] : row[5];
-    var to = forward ? row[3] : row[6];
-    var c = forward ? row[4] : row[1];
-    var first = forward ? row[5] : row[2];
-    var last = forward ? row[6] : row[3];
-    var verse = first + (ref.verse - from);
-    if (verse > last) verse = last;                 // a merge: the run is shorter here
+    var hereFirst = forward ? row[2] : row[5];
+    var hereLast = forward ? row[3] : row[6];
+    var thereChapter = forward ? row[4] : row[1];
+    var thereFirst = forward ? row[5] : row[2];
+    var thereLast = forward ? row[6] : row[3];
+    var verse = thereFirst + (ref.verse - hereFirst);
+    if (verse > thereLast) verse = thereLast;       // a merge: the run is shorter there
     return {
-      code: ref.code, chapter: c, verse: verse, exact: exactRow(row),
+      code: ref.code, chapter: thereChapter, verse: verse, exact: exactRow(row),
       // One verse answered by several: the caller may want the whole span.
-      span: (from === to && last > first) ? last : 0
+      span: (hereFirst === hereLast && thereLast > thereFirst) ? thereLast : 0
     };
   }
 
