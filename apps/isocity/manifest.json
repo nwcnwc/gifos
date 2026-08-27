@@ -5,7 +5,7 @@
   "shortName": "IsoCity",
   "version": "1.1",
   "minBuild": 947,
-  "description": "Share the map from one invite. The city lives in the file.",
+  "description": "Share the map from one invite. Close it, come back — the city is still there.",
   "entry": "index.html",
   "accent": [176, 83, 85],
   "capabilities": {

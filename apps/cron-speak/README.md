@@ -4,7 +4,7 @@ A cron expression, said in English. Fields named. Next times listed. Nothing is 
 
 An unofficial port of **[cRonstrue](https://github.com/bradymholt/cRonstrue)**
 by bradymholt (MIT). The translator is the app: type, read, tap a field,
-see the next fire times. Last expression lives in the file.
+see the next fire times. Close it, come back — the last expression is still there.
 
 ```
 index.html              expression, field pills, English, next times

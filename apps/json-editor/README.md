@@ -1,6 +1,6 @@
 # JSON Editor
 
-Tree and code editor. The document lives in the file.
+Tree and code editor. Close it, come back — the document is still there.
 
 An unofficial port of **[JSONEditor](https://github.com/josdejong/jsoneditor)**
 by Jos de Jong (Apache-2.0). Vendors the **dist** bundle (not the npm

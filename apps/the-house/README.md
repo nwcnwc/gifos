@@ -19,8 +19,8 @@ measured cause of the old "assembling forever" hang (app.js
 `patchPreloader` is the other half of that fix). Only the fonts stay
 data-URIs (the sandbox CSP's font-src is data:-only).
 
-The file is the save: inventory, the room you reached, and played scenes
-live in `gifos.db('save')`. The vendored SoundManager 2 (V2.97a.2011)
+Inventory, the room you reached, and played scenes stay with the app
+(`gifos.db('save')`). The vendored SoundManager 2 (V2.97a.2011)
 could not make a sound without Flash — its createSound dies on the
 never-created movie — so `patch.js` replaces it with a small HTML5 Audio
 shim covering the eight verbs the game uses. A phone tap is a click —

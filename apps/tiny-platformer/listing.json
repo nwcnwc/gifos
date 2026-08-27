@@ -1,5 +1,5 @@
 {
-  "tagline": "A yellow square, a brick cave, and your best run inside the file.",
+  "tagline": "A yellow square, a brick cave, and a best run that is still there when you come back.",
   "description": "Run, jump, take the gold, bounce on the grey blocks. Hit one from the side and you start over; gold you already took stays taken. When the eight gold bricks and the eight grey ones are gone, the cave is cleared.\n\nOn a phone the buttons sit under your thumbs — left, right, jump. On a computer it is the arrows or WASD, and space or up to jump. Close it, come back: your best gold count is still there.\n\nAn unofficial port of Tiny Platformer by Jake Gordon, MIT-licensed. This copy adds the phone buttons, follows you with the camera, and keeps your best run.",
   "author": {
     "name": "Jake Gordon",

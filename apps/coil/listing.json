@@ -1,6 +1,6 @@
 {
   "tagline": "Loop a trail around the orbs. Your best score is saved.",
-  "description": "The high score is saved inside the GIF — close it, copy it, the number comes with the file.\n\nDrag a glowing trail with a finger or the mouse. Wrap it around the blue orbs before they burst. Catch several in one loop and the multiplier climbs. Red orbs are bombs: looping one costs energy. Energy hitting zero ends the run.\n\nAn unofficial port of Coil by Hakim El Hattab, MIT-licensed.",
+  "description": "Close it, copy it, come back — your high score is still there.\n\nDrag a glowing trail with a finger or the mouse. Wrap it around the blue orbs before they burst. Catch several in one loop and the multiplier climbs. Red orbs are bombs: looping one costs energy. Energy hitting zero ends the run.\n\nAn unofficial port of Coil by Hakim El Hattab, MIT-licensed.",
   "author": {
     "name": "Hakim El Hattab",
     "url": "https://github.com/leereilly/Coil"

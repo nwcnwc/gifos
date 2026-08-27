@@ -5,7 +5,7 @@
   "shortName": "JSON",
   "version": "1.1",
   "minBuild": 947,
-  "description": "Tree and code editor for a document that lives in the file.",
+  "description": "Tree and code editor. Close it, come back — the document is still there.",
   "entry": "index.html",
   "accent": [255, 165, 0],
   "capabilities": {

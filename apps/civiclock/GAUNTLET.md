@@ -1,7 +1,7 @@
 # Civiclock gauntlet
 
 Comp: **SimCity** (2000 / 4 as the living-city floor; BuildIt as the “open on a phone” floor).
-Bar TWO: GifOS — offline, file is the save, one Invite is co-mayor, no account, no install.
+Bar TWO: GifOS — offline, the city is still there when you come back, one Invite is co-mayor, no account, no install.
 
 ## Round 0 — first playable (2026-08-23)
 
@@ -36,7 +36,7 @@ Tagline leads with file / co-mayor / plane. Description repeats no account, no i
 
 Phone: tools scroll, HUD fits, city fills the frame after a village.
 
-**Ruin A/B:** SC still wins unique buildings and traffic-as-cars. Civiclock wins “I watched it fail in this tab, and the file is the save.”
+**Ruin A/B:** SC still wins unique buildings and traffic-as-cars. Civiclock wins “I watched it fail in this tab, and it is still there when I come back.”
 
 ### Fresh-eyes sentence
 

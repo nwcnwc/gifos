@@ -1,6 +1,6 @@
 # Pond Hunt
 
-The zapper game as a GifOS app. Click/tap ducks. The file is the save.
+The zapper game as a GifOS app. Click/tap ducks. Close it, come back — your best run is still there.
 
 An unofficial port of **[DuckHunt-JS](https://github.com/MattSurabian/DuckHunt-JS)**
 by MattSurabian (MIT). The committed dist (Pixi / Howler / GSAP) is vendored

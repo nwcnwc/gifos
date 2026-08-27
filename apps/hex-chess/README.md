@@ -4,7 +4,7 @@ Gliński's hexagonal chess, written here as classic scripts. Not a wrap of
 boardgame.io, not the square board in Chess Grandmaster.
 
 The computer thinks on this device. One invite is a friend on the other
-colour. The file is the save.
+colour. Close it, come back — the game is still there.
 
 ```
 index.html     setup / local game / play a friend

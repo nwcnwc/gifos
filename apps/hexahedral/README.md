@@ -1,6 +1,6 @@
 # Hexahedral
 
-Push every block down. Thirty Global Game Jam 2016 levels. The file is the save.
+Push every block down. Thirty Global Game Jam 2016 levels. Close it, come back — your progress is still there.
 
 An unofficial port of **[Hexahedral](https://github.com/mminer/hexahedral)** by mminer (MIT). Upstream is webpack + Redux + virtual-dom. **That shell stays behind.** The thirty jam levels and the toggle-tile rules are the port.
 

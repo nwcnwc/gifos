@@ -2,7 +2,7 @@
 
 Original first-party GifOS game. Mash to run a sticker down a track. Lanes
 sit side by side. First across the tape wins. There is no race server: a
-meeting link is the starting gun, and the finish lives in the file.
+meeting link is the starting gun, and the finish is still there when you come back.
 
 ```
 index.html      shell: track, mash pad, how-to

@@ -161,8 +161,8 @@ if (!files['style.css'].includes('#stage') || !files['index.html'].includes('id=
 if (!files['app.js'].includes('centerMap') || !files['style.css'].includes('#actions #shareBtn')) {
   throw new Error('phone must center the city; share buttons must beat #actions button');
 }
-if (!listing.tagline.toLowerCase().includes('share the map') || !listing.tagline.toLowerCase().includes('file')) {
-  throw new Error('tagline must lead with share the map / the city in the file');
+if (!listing.tagline.toLowerCase().includes('invite') || !listing.tagline.toLowerCase().includes('map')) {
+  throw new Error('tagline must mention inviting a friend onto the same map');
 }
 if (!/^Press Share the map/.test(listing.description)) {
   throw new Error('description must lead with Share the map');

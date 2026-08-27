@@ -5,7 +5,7 @@
   "shortName": "Pivot",
   "version": "1.1",
   "minBuild": 947,
-  "description": "A pivot table that lives in the file. Nothing is uploaded.",
+  "description": "A pivot table on this device. Nothing is uploaded.",
   "entry": "index.html",
   "accent": [26, 115, 232],
   "capabilities": {

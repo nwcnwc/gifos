@@ -84,7 +84,7 @@
   function renderBest() {
     var key = R.bestKey(setup.difficulty, setup.duration);
     var n = best[key];
-    var where = saveDb ? 'Saved on this device, inside the file.' : 'This visit only (open in GifOS to keep a best).';
+    var where = saveDb ? 'Saved on this device. Close it, come back — it is still there.' : 'This visit only (open in GifOS to keep a best).';
     if (n == null) $('bestLine').textContent = 'No best yet for this setting. ' + where;
     else $('bestLine').textContent = 'Best ' + n + ' in ' + setup.duration + 's. ' + where;
     renderHist();

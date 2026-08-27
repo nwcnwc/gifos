@@ -120,8 +120,8 @@ if (!/in a GIF/i.test(lead)) throw new Error('listing must lead with in a GIF');
 if (!/no (jam site|install|game server|server)/i.test(lead)) {
   throw new Error('listing must lead with no jam site / no server');
 }
-if (!/inside the file|file is the save|lives in the file/i.test(lead)) {
-  throw new Error('listing must lead with the file is the save');
+if (!/close it|still there|your copy/i.test(lead)) {
+  throw new Error('listing must say the save in ordinary words (close it / still there / your copy)');
 }
 if (!/unofficial/i.test(listing.description || '')) {
   throw new Error('listing must credit this as unofficial');

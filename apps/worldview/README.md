@@ -7,7 +7,7 @@ all imagery is NASA's, most of it public domain.
 
 The whole app — code, catalogue, coastlines, gazetteer and a Blue Marble base
 map — rides inside one 1 MB GIF. It opens with no connection, and the imagery
-it has already shown you stays inside the file.
+it has already shown you is still there when you come back.
 
 ## What it does
 

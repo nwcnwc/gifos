@@ -39,15 +39,15 @@
   "cover": "/apps/server-survival/cover.jpg",
   "screenshots": [],
   "gif": "/apps/server-survival/server-survival.gif",
-  "bytes": 13173683,
+  "bytes": 13173568,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "623b442dc5cd1385e6c5d489e580f27d33884efb088be8efca3355628e5881b6",
+  "sha256": "78312e315c9215bf6142d6931e3bb75c258e3cde8fff33a26e84a29db9d4d1c4",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-27"
   },
   "porter": {
     "name": "GifOS",

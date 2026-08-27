@@ -10,7 +10,7 @@ deck — first to ten, or more when the cards run out.
 Upstream is a React PWA with a service worker and Bootstrap. GifOS's runtime
 drops `type="module"` and the sandbox has nowhere to fetch a CDN from, so this
 tree is classic scripts and the original kana tables packed inside the GIF.
-Nothing is fetched. Progress lives in the file. The picker is a gojūon chart
+Nothing is fetched. Close it, come back — your progress is still there. The picker is a gojūon chart
 of the actual kana — tap a row — not a wall of "あ-row" chips.
 
 ```

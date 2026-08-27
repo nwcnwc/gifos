@@ -3,7 +3,7 @@
 A tiny isometric city. Tap a tile, put it down. No budget, no score.
 **Sixteen tiles on a side** (the original is 7×7; an old save nests in the
 middle). Drag to pan, pinch to zoom. Share the map from one invite. The
-city lives in the file.
+city is still there when you come back.
 
 An unofficial port of **[IsoCity](https://github.com/victorqribeiro/isocity)**
 by victorqribeiro (MIT). The pictures are Kenney's isometric landscape/city

@@ -3,7 +3,7 @@
 An unofficial local port of
 **[Sandspiel](https://github.com/MaxBittker/sandspiel)** by Max Bittker
 (MIT). Pour sand, water, fire, plants. Playing alone is that toy.
-The world lives in the file. Press **Play together**, then
+Close it, come back — the world is still there. Press **Play together**, then
 **Invite**, and a meeting room is a wall of saved boards — lean cards,
 full grids loaded on tap. No account, no public gallery.
 

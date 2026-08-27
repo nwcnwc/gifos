@@ -297,15 +297,15 @@
         36
       ],
       "cover": "/apps/backdooms/cover.jpg",
-      "bytes": 268565,
+      "bytes": 268576,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "592a061bc370c322a46c6a34e3c5e3c9665d8bbced64bd4638c1ac5591cf594c"
+      "sha256": "d39049c297dc2e0651d7b3166efe164798c5a9f6e139af12670f4b1751747281"
     },
     {
       "slug": "backgammon",
@@ -1315,15 +1315,15 @@
         65
       ],
       "cover": "/apps/cube-composer/cover.jpg",
-      "bytes": 172170,
+      "bytes": 172186,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "ddc8ceb94d4416158623f2ea15a175b488c70eea8da1b5a73e6301205825e913"
+      "sha256": "501c3947827b0326eb724083715f1034c001cc59d0d54d17d4d5e10dd4450aa9"
     },
     {
       "slug": "cyberchef",
@@ -2209,15 +2209,15 @@
         78
       ],
       "cover": "/apps/fps-simple/cover.jpg",
-      "bytes": 1112210,
+      "bytes": 1112191,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "046ceb434a564da74fa78427127eb1037293ee4c8b632e0f5099ee0de49f64db"
+      "sha256": "819c77189666245607ff113baee347409046ad644236c91468ec53114d007f20"
     },
     {
       "slug": "gltf-viewer",
@@ -2260,15 +2260,15 @@
         255
       ],
       "cover": "/apps/gltf-viewer/cover.jpg",
-      "bytes": 504829,
+      "bytes": 504805,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "5ee920252789a777eea8bf47731021436e160d14142dd2799737579a266780e4"
+      "sha256": "b195de0df6f11dcbf070501d1ec20588a52ca8e5fc0fa99589577a8e2decdb9a"
     },
     {
       "slug": "gomoku",
@@ -2747,15 +2747,15 @@
         85
       ],
       "cover": "/apps/isocity/cover.jpg",
-      "bytes": 649095,
+      "bytes": 649111,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "db55876d97a9962db144d92402ef7071acc2184bb0b00f6837f0f92fa0fc6726"
+      "sha256": "928061536a93ce84fb2f3bd1214b9b9a71caa1499a7978b812e4bde203e8ec97"
     },
     {
       "slug": "jpg-glitch",
@@ -2896,15 +2896,15 @@
         241
       ],
       "cover": "/apps/json-crack/cover.jpg",
-      "bytes": 198839,
+      "bytes": 198832,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-26"
+        "ts": "2026-08-27"
       },
-      "sha256": "16bea7b61fce913d289bb7d1c35a2b5b6e397a54067de20c22bfb58916cd91a1"
+      "sha256": "a3efadc23f9fb02047e8bc0e798b9b89b1858041a94e2a233dbdbf7fe0bbd183"
     },
     {
       "slug": "json-diff",
@@ -2995,15 +2995,15 @@
         0
       ],
       "cover": "/apps/json-editor/cover.jpg",
-      "bytes": 802562,
+      "bytes": 802574,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "e5ee49a19588b855c82decd3a851ca2b02d1b85094aaa46ffaaffb969fcdbd00"
+      "sha256": "4bf7d7b86346dadf842a1093283000cff5f47340c80b8fb6fcf166ee74e272a6"
     },
     {
       "slug": "jspaint",
@@ -3485,15 +3485,15 @@
         154
       ],
       "cover": "/apps/math-race/cover.jpg",
-      "bytes": 197966,
+      "bytes": 197987,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "ae9c805cd3b539fecca6418a4a9537d08528cb6dbb9c8dbd9cd26f4f1bfa8c38"
+      "sha256": "a0e4e4f639788d69dd481ee686fa7c942f9b451d8b6e26e42fbb5654ac02c22f"
     },
     {
       "slug": "memory",
@@ -3582,15 +3582,15 @@
         135
       ],
       "cover": "/apps/mermaid/cover.jpg",
-      "bytes": 1691622,
+      "bytes": 1691665,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "2c620e66d0f670dfe19f42058dc3a5d6470617a10888283701483ce71098114b"
+      "sha256": "c49d9e134c1248d45be146a2e9a3a89edb9266da45599191cc7e06fa501dbb14"
     },
     {
       "slug": "metronome",
@@ -4312,15 +4312,15 @@
         194
       ],
       "cover": "/apps/orca/cover.jpg",
-      "bytes": 268798,
+      "bytes": 268792,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "c71b73c9147fcf121922a2b93a900bb71c1cec103187b24e58349eac800f14c2"
+      "sha256": "e10464849d7750da092d1650edfc43407f383ed6d1a63dec8165265ed9c6aca0"
     },
     {
       "slug": "pacman",
@@ -4807,15 +4807,15 @@
         232
       ],
       "cover": "/apps/pivot/cover.jpg",
-      "bytes": 382574,
+      "bytes": 382569,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "1ed0c87fa639b37170e0f2c14ba3ebe63e7eb92bb61125d8f24a2bf3d6a892b8"
+      "sha256": "09968b57304748ac7426b61a9ea70f11e60c296686081cd2e512d8e29bc61063"
     },
     {
       "slug": "pixel-paint",
@@ -5224,7 +5224,7 @@
       "name": "Queens",
       "shortName": "Queens",
       "version": "1.1",
-      "tagline": "768 tap puzzles. Progress lives in the file.",
+      "tagline": "768 tap puzzles. Close it, come back, you're still on the board.",
       "author": {
         "name": "samimsu",
         "url": "https://github.com/samimsu/queens-game"
@@ -5257,15 +5257,15 @@
         162
       ],
       "cover": "/apps/queens/cover.jpg",
-      "bytes": 246196,
+      "bytes": 246188,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "67bccaefee9b8bb5178b2d59011d8ffe66526a6b56e35b99e2288970f74b2b3d"
+      "sha256": "f4e61b561465b82e7e053f15e1cc1a82d4f4690dde2a2b70ac8c1abf7129b31a"
     },
     {
       "slug": "quiz-buzzer",
@@ -5751,15 +5751,15 @@
         133
       ],
       "cover": "/apps/server-survival/cover.jpg",
-      "bytes": 13173683,
+      "bytes": 13173568,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "623b442dc5cd1385e6c5d489e580f27d33884efb088be8efca3355628e5881b6"
+      "sha256": "78312e315c9215bf6142d6931e3bb75c258e3cde8fff33a26e84a29db9d4d1c4"
     },
     {
       "slug": "signature-pad",
@@ -6854,7 +6854,7 @@
       "name": "Tiny Platformer",
       "shortName": "Platformer",
       "version": "1.0.1",
-      "tagline": "A yellow square, a brick cave, and your best run inside the file.",
+      "tagline": "A yellow square, a brick cave, and a best run that is still there when you come back.",
       "author": {
         "name": "Jake Gordon",
         "url": "https://github.com/jakesgordon/javascript-tiny-platformer"
@@ -6886,15 +6886,15 @@
         120
       ],
       "cover": "/apps/tiny-platformer/cover.jpg",
-      "bytes": 191531,
+      "bytes": 191736,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-27"
       },
-      "sha256": "c18be694e66f9597aad3bfb22335686bc0c0b3f1709b834ae4baeeb980587816"
+      "sha256": "8678ff277d74567192c6b98991bab4b0ee320a517933b8a73c0c8010d92a3917"
     },
     {
       "slug": "tiny-yurts",
@@ -7226,15 +7226,15 @@
         74
       ],
       "cover": "/apps/typing/cover.jpg",
-      "bytes": 202257,
+      "bytes": 202259,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-27"
       },
-      "sha256": "c0aecbd09e6efce2cc5a12df25c13995694b4376d7984609bec691c7cf0452bd"
+      "sha256": "4049a68cdae154553d2d8044d94787fadacdc94c368a1ed1378720d53470f434"
     },
     {
       "slug": "ui-gradients",

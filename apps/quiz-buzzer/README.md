@@ -5,8 +5,8 @@ Fastest correct answer scores. Next question. End-of-round board.
 
 Inspired by live classroom buzzers. This is a first-party engine with our own
 question pack — not a port, and it ships **no Kahoot assets, trademarks, or
-APIs**. Nothing is fetched. The pack lives in the file. Custom questions you
-type stay in the file too.
+APIs**. Nothing is fetched. The pack is inside the app. Custom questions you
+type stay with your copy too.
 
 ```
 index.html     home / lobby / host screen / buzzer pads / board

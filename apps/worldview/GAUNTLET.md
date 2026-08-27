@@ -4,11 +4,11 @@ Comp (bar ONE): **NASA Worldview** itself — worldview.earthdata.nasa.gov. This
 is a port, so "as good as" is losing: we took their work into a new home, and
 the version here has to be the best version of it that has existed.
 
-Bar TWO (the platform): offline, the file is the save, one Invite is a shared
+Bar TWO (the platform): offline, it remembers where you were, one Invite is a shared
 map, no account, no install, a GIF that makes the animation.
 
 **The sentence a stranger has to be able to say back:** *"It is Worldview, but
-the Earth is still there when the connection isn't, the file remembers where I
+the Earth is still there when the connection isn't, it remembers where I
 was, and one link puts someone else on the same map."*
 
 The comp was inspected as a real screenshot of the running product (NASA's own
@@ -89,7 +89,7 @@ machine that can reach NASA.
 ### Listing copy
 
 Leads with the reason to use this version instead of the original — works with
-the connection off, the file is the save, one Invite is a shared map, no
+the connection off, it remembers where you were, one Invite is a shared map, no
 account, no install — then what it is, then the honest credit and the "not
 endorsed by NASA" line. Every claim in it is true of the build it ships beside;
 the unit test checks the layer count in the copy against the catalogue and

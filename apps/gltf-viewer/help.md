@@ -27,6 +27,6 @@ Press **Invite** in the bar above the app. A friend who opens the link sits with
 
 ## What is saved
 
-The last model (when it fits), its name, and the display switches stay on this device, inside the file. Close it, come back, they are still there.
+The last model (when it fits), its name, and the display switches stay on this device. Close it, come back, they are still there.
 
 Unofficial port of [glTF Viewer](https://github.com/donmccurdy/three-gltf-viewer) by Don McCurdy.

@@ -40,6 +40,6 @@ Comfortable up to about six people. Friends glide a fraction of a second behind 
 
 ## What is saved
 
-Sensitivity, field of view, invert-Y, and a quality you actually chose stay on this device, inside the file. Scores live for the room, then they are gone.
+Sensitivity, field of view, invert-Y, and a quality you actually chose stay on this device. Scores live for the room, then they are gone.
 
 Unofficial port of [Claude of Duty](https://github.com/mshumer/Claude-of-Duty) by mshumer.
