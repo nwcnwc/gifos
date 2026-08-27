@@ -455,14 +455,19 @@ async function buildApp(slug) {
   // catalog must never list an install that cannot complete, and a re-uploaded
   // asset whose manifest pin wasn't updated is a drift this catches at build.
   //
-  // DOCTRINE (docs/providers.md, Nathan 2026-08-09): the assets pattern is
-  // reserved for weights genuinely too big to ride inside a GIF — publicly
-  // hosted model files in the tens of MB and up (Hugging Face-style pinned
-  // URLs). Anything smaller belongs IN the GIF (deflate makes it cheap, and
-  // in-GIF means the shared file is complete with no second fetch to fail) —
-  // Offline Text to Speech's 5.6 MB engine and Chess Grandmaster's Stockfish both do.
-  // Enforced here so the doctrine can't erode one convenient listing at a
-  // time; the floor is mechanical, the 40 MB+ guidance is judgement.
+  // DOCTRINE (docs/providers.md, Nathan 2026-08-09): REQUIRED assets are for
+  // weights genuinely too big to ride inside a GIF — publicly hosted model
+  // files in the tens of MB and up. Anything smaller that the app needs at
+  // boot belongs IN the GIF (deflate makes it cheap, and in-GIF means the
+  // shared file is complete with no second fetch to fail) — Offline Text to
+  // Speech's 5.6 MB engine and Chess Grandmaster's Stockfish both do.
+  //
+  // OPTIONAL assets (`optional: true`) do not download at install. They exist
+  // so a library of independently-fetched files — one translation, one
+  // lexicon — is not packed into every copy of the GIF. A 1.5 MB Bible
+  // translation is small enough to inline AND large enough that inlining 137
+  // of them would make every reader download Burmese to open John. The 8 MB
+  // floor therefore applies to required assets only.
   const ASSET_MIN_BYTES = 8 * 1024 * 1024;
   let download = 0;
   if (m.assets && !Array.isArray(m.assets)) fail(slug + ': manifest.assets must be an array');
@@ -481,11 +486,11 @@ async function buildApp(slug) {
       const hex = crypto.createHash('sha256').update(b).digest('hex');
       if (hex !== String(a.sha256).toLowerCase()) fail(tag + ': site' + url + ' does not match the pinned sha256 — re-pin the manifest or restore the file');
       if (a.bytes && Number(a.bytes) !== b.length) fail(tag + ': declared bytes ' + a.bytes + ' ≠ actual ' + b.length);
-      if (b.length < ASSET_MIN_BYTES) fail(tag + ': ' + b.length + ' bytes is small enough to ride INSIDE the GIF — pack it (assets are reserved for big model weights, docs/providers.md)');
+      if (!a.optional && b.length < ASSET_MIN_BYTES) fail(tag + ': ' + b.length + ' bytes is small enough to ride INSIDE the GIF — pack it (assets are reserved for big model weights, docs/providers.md)');
       if (!a.optional) download += b.length;
     } else {
       if (!(Number(a.bytes) > 0)) { fail(tag + ': an absolute-URL asset must declare its true bytes (the store quotes the download, and the size floor needs it)'); continue; }
-      if (Number(a.bytes) < ASSET_MIN_BYTES) fail(tag + ': ' + a.bytes + ' bytes is small enough to ride INSIDE the GIF — pack it (assets are reserved for big model weights, docs/providers.md)');
+      if (!a.optional && Number(a.bytes) < ASSET_MIN_BYTES) fail(tag + ': ' + a.bytes + ' bytes is small enough to ride INSIDE the GIF — pack it (assets are reserved for big model weights, docs/providers.md)');
       if (!a.optional) download += Number(a.bytes);
     }
   }
