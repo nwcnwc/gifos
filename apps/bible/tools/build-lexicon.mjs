@@ -46,7 +46,8 @@
 // section, and test/unit/bible-lexicon.js re-checks it against the source.
 //
 // Run: node apps/bible/tools/build-lexicon.mjs
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { deflateRawSync } from 'node:zlib';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -345,4 +346,39 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   console.log(`  lex-strongs-g.gbx  ${g.entries.length} entries  ` +
     `absent ${JSON.stringify(ranges(g.absent))}  ` +
     `${(gp.raw / 1048576).toFixed(1)} MB -> ${(gp.bytes.length / 1048576).toFixed(2)} MB`);
+
+  mergeCredits({
+    'lex-strongs-h.gbx': { bytes: hp.bytes.length, sha256: sha(hp.bytes), entries: h.entries.length },
+    'lex-strongs-g.gbx': { bytes: gp.bytes.length, sha256: sha(gp.bytes), entries: g.entries.length },
+  });
+}
+
+function sha(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+function mergeCredits(built) {
+  const path = join(dir, '..', 'data', 'credits.json');
+  const prior = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
+  const sources = Array.isArray(prior.sources) ? prior.sources.slice() : [];
+  const byId = new Map(sources.map((s, i) => [s.id, i]));
+  const extra = [
+    { id: 'strongs-h', title: "Strong's Hebrew Dictionary", published: '1894',
+      authors: 'James Strong', url: SOURCES.hebrew.url,
+      bytes: existsSync(SOURCES.hebrew.file) ? statSync(SOURCES.hebrew.file).size : null,
+      license: 'Public Domain',
+      licenseBasis: "Strong's 1894 dictionary is public domain by age. The Open Scriptures XML layers TWOT glosses (Moody Bible Institute, 1980, copyrighted) into @gloss; this build never reads @gloss, drops the <foreign> and <list> blocks, and test/unit/bible-lexicon.js re-checks that no gloss value reached a packed field.",
+      attribution: null, usedIn: ['lex-strongs-h.gbx'] },
+    { id: 'strongs-g', title: "Strong's Greek Dictionary", published: '1890',
+      authors: 'James Strong', url: SOURCES.greek.url,
+      bytes: existsSync(SOURCES.greek.file) ? statSync(SOURCES.greek.file).size : null,
+      license: 'Public Domain',
+      licenseBasis: "Strong's 1890 dictionary is public domain by age.",
+      attribution: null, usedIn: ['lex-strongs-g.gbx'] },
+  ];
+  for (const s of extra) {
+    if (!byId.has(s.id)) sources.push(s);
+  }
+  const out = Object.assign({}, prior, { sources, origPacks: Object.assign({}, prior.origPacks, built) });
+  writeFileSync(path, JSON.stringify(out, null, 1) + '\n');
 }
