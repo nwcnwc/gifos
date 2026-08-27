@@ -5,7 +5,7 @@ An unofficial local port of
 (MIT). Coloured specks attract and repel; they clump into little
 life-like shapes. Tap to stir. Playing alone is that toy. Press
 **Share the jar**, then **Invite**, and a friend watches the same mix —
-each of you pokes on your own. The mix lives in the file.
+each of you pokes on your own. Close it, come back — the mix is still there.
 
 ![screenshot](screenshot.png)
 

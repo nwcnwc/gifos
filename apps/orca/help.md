@@ -37,6 +37,6 @@ If this browser can see a MIDI device, Orca talks to it (`:` a note, `;` a CC). 
 
 ## What is saved
 
-The whole grid, the zoom, and the tempo stay on this device, inside the file. Close it, come back, they are still there.
+The whole grid, the zoom, and the tempo stay on this device. Close it, come back, they are still there.
 
 Unofficial port of [Orca](https://github.com/hundredrabbits/Orca) by Hundredrabbits.

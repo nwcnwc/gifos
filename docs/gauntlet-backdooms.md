@@ -2,7 +2,7 @@
 
 Bar ONE: **DOOM (1993)** — named by the user, and the right floor: the upstream
 project's own README says it is "inspired by DOOM 1993 and The Backrooms".
-Bar TWO: the platform (offline, the file is the save, one link is multiplayer).
+Bar TWO: the platform (offline, your best run stays with the app, one link is multiplayer).
 
 ## Round 0 — the research: does the original really look this bad?
 

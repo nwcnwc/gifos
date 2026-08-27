@@ -4,7 +4,7 @@ An unofficial local port of
 **[Field Play](https://github.com/anvaka/fieldplay)** (MIT) by anvaka.
 Pour particles on a field of arrows with a tap. Remix a named field.
 Playing alone is that toy. Press **Play together**, then **Invite**, and a
-friend sees the same recipe. The last field lives in the file.
+friend sees the same recipe. Close it, come back — the last field is still there.
 
 ![screenshot](screenshot.png)
 

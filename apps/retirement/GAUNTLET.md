@@ -132,7 +132,7 @@ the actual app, at first open, with no account."
 ### Listing copy
 
 Leads with the reason to use this one: it opens with an answer; nothing leaves
-your computer; the file is the save. Then the method, then what it will not do.
+your computer; send someone your copy and they get your plans with it. Then the method, then what it will not do.
 Every claim in it is enforced by `build.mjs` — the tax disclaimer and the privacy
 sentence are both assertions that fail the build if removed.
 

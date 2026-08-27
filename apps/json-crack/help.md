@@ -24,6 +24,6 @@ Each **object** or **array** is a card. Nested objects and arrays stay as a row 
 
 ## What is saved
 
-The document you were editing stays on this device, inside the file. Close it, come back, it is still there.
+The document you were editing stays on this device. Close it, come back, it is still there.
 
 Unofficial port of [JSON Crack](https://github.com/AykutSarac/jsoncrack.com) by Aykut Saraç. Graph view only.

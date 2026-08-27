@@ -61,7 +61,7 @@ no mobile support. A drag on the court sets paddle `y` and carries english
 from the swipe, the way a moving paddle does on keys. On a coarse pointer,
 hold-to-move arrows sit in the letterbox *below* the court — never on it —
 so a phone is playable without covering the rally. Wins against the computer
-live in `gifos.db`, so the file is the save.
+live in `gifos.db`, so they are still there when you come back.
 
 ## Honest limits
 

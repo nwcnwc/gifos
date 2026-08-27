@@ -40,15 +40,15 @@
   "cover": "/apps/pivot/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pivot/pivot.gif",
-  "bytes": 382574,
+  "bytes": 382569,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "1ed0c87fa639b37170e0f2c14ba3ebe63e7eb92bb61125d8f24a2bf3d6a892b8",
+  "sha256": "09968b57304748ac7426b61a9ea70f11e60c296686081cd2e512d8e29bc61063",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-27"
   },
   "porter": {
     "name": "GifOS",

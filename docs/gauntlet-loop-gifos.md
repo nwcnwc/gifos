@@ -89,8 +89,8 @@ part of the work, not an afterthought. The listing copy is the tagline and
 description in apps/<slug>/listing.json: the tagline must sell the app in one
 card-sized line, and the description must read like the comp's own store page
 — and it must LEAD with the reason to use this version instead of the
-original, said plainly (works offline, the file is the save, one link is
-multiplayer, no account, no install) — not a changelog and not a feature
+original, said plainly (works offline, close it and come back still in the
+same place, one link is a game with a friend, no account, no install) — not a changelog and not a feature
 list. Its critic reads it ON the rendered
 listing page, blind beside the comp's store copy and the best-written
 listings in this catalog, and every claim in it must be true of the build it

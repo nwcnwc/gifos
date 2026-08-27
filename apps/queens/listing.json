@@ -1,5 +1,5 @@
 {
-  "tagline": "768 tap puzzles. Progress lives in the file.",
+  "tagline": "768 tap puzzles. Close it, come back, you're still on the board.",
   "description": "768 community puzzles in a GIF. Finished boards and the one you were in the middle of are saved — close it, come back, they are still there.\n\nEach board is split into coloured regions. Place one queen in every row, every column, and every region. Two queens may not sit on squares that touch at a corner. Tap empty → X → queen → empty. Drag to stamp Xes. A clash lights up red. Auto X fills the obvious squares when you place a queen.\n\nOn a phone it is the same tap. Filter the list by size, hide the ones you have solved, jump to a number.\n\nPress Invite in the bar above and a friend sits the same puzzle on their device. You each mark your own board.\n\nAn unofficial port of Queens by samimsu. The boards are the community levels from that project.",
   "author": {
     "name": "samimsu",

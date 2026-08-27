@@ -5,7 +5,7 @@
   "shortName": "Mermaid",
   "version": "1.0.0",
   "minBuild": 947,
-  "description": "Type a diagram. See it live. The file is the save.",
+  "description": "Type a diagram. See it live. Close it, come back — the last chart is still there.",
   "entry": "index.html",
   "accent": [255, 91, 135],
   "capabilities": {

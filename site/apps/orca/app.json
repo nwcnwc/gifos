@@ -41,15 +41,15 @@
   "cover": "/apps/orca/cover.jpg",
   "screenshots": [],
   "gif": "/apps/orca/orca.gif",
-  "bytes": 268798,
+  "bytes": 268792,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "c71b73c9147fcf121922a2b93a900bb71c1cec103187b24e58349eac800f14c2",
+  "sha256": "e10464849d7750da092d1650edfc43407f383ed6d1a63dec8165265ed9c6aca0",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-27"
   },
   "porter": {
     "name": "GifOS",

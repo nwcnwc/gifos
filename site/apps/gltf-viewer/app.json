@@ -41,15 +41,15 @@
   "cover": "/apps/gltf-viewer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/gltf-viewer/gltf-viewer.gif",
-  "bytes": 504829,
+  "bytes": 504805,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "5ee920252789a777eea8bf47731021436e160d14142dd2799737579a266780e4",
+  "sha256": "b195de0df6f11dcbf070501d1ec20588a52ca8e5fc0fa99589577a8e2decdb9a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-27"
   },
   "porter": {
     "name": "GifOS",

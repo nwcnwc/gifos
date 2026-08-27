@@ -41,15 +41,15 @@
   "cover": "/apps/json-crack/cover.jpg",
   "screenshots": [],
   "gif": "/apps/json-crack/json-crack.gif",
-  "bytes": 198839,
+  "bytes": 198832,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "16bea7b61fce913d289bb7d1c35a2b5b6e397a54067de20c22bfb58916cd91a1",
+  "sha256": "a3efadc23f9fb02047e8bc0e798b9b89b1858041a94e2a233dbdbf7fe0bbd183",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-26"
+    "ts": "2026-08-27"
   },
   "porter": {
     "name": "GifOS",

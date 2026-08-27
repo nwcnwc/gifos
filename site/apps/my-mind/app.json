@@ -7,7 +7,7 @@
   "version": "1.1",
   "minBuild": 947,
   "tagline": "Mind maps at typing speed: Tab for a child, Enter for a sibling.",
-  "description": "The map is saved inside the GIF. Close it, come back, or hand someone the file — the same bubbles are there.\n\nClick a bubble and type. Tab inserts a child, Enter a sibling, arrows walk the map, Delete removes a node. Drag to pan, wheel to zoom. Colours, layouts (map, graph, tree), shapes, and a yes/no status live on each item. New starts a blank map.\n\nOn a phone, tap a bubble to select it, tap again to type, and use Child / Sibling / Edit / Delete at the bottom.\n\nPress Invite in the bar above so a friend can watch the same map.\n\nAn unofficial port of My Mind by Ondřej Žára. Same map, same keys.",
+  "description": "Close it, come back, or send someone your copy — the same bubbles are there.\n\nClick a bubble and type. Tab inserts a child, Enter a sibling, arrows walk the map, Delete removes a node. Drag to pan, wheel to zoom. Colours, layouts (map, graph, tree), shapes, and a yes/no status live on each item. New starts a blank map.\n\nOn a phone, tap a bubble to select it, tap again to type, and use Child / Sibling / Edit / Delete at the bottom.\n\nPress Invite in the bar above so a friend can watch the same map.\n\nAn unofficial port of My Mind by Ondřej Žára. Same map, same keys.",
   "author": {
     "name": "Ondřej Žára",
     "url": "https://github.com/ondras/my-mind"

@@ -7,7 +7,7 @@
   "version": "1.1.0",
   "minBuild": 947,
   "tagline": "A C64-style shmup. Your best score is saved.",
-  "description": "Your best score is saved inside the GIF — close it, copy it, come back, the number is still there.\n\nYou are a little ship on the left. Waves of aliens come from the right in C64 Delta formations: lines, loops, rocks that scrape the hull. Three lives. Shoot, dodge, last.\n\nOn a phone the D-pad and FIRE sit under your thumbs (slide the pad for diagonals). On a computer it is the arrows or WASD, and space to fire. Tap or press space on the title to start. Back on a phone returns to the title.\n\nAn unofficial port of HTML5 Delta by Jake Gordon, MIT-licensed. The original title tune was a SID recording and is not in this copy — the formations are. Shoot and explode are synthesized here.",
+  "description": "Close it, copy it, come back — your best score is still there.\n\nYou are a little ship on the left. Waves of aliens come from the right in C64 Delta formations: lines, loops, rocks that scrape the hull. Three lives. Shoot, dodge, last.\n\nOn a phone the D-pad and FIRE sit under your thumbs (slide the pad for diagonals). On a computer it is the arrows or WASD, and space to fire. Tap or press space on the title to start. Back on a phone returns to the title.\n\nAn unofficial port of HTML5 Delta by Jake Gordon, MIT-licensed. The original title tune was a SID recording and is not in this copy — the formations are. Shoot and explode are synthesized here.",
   "author": {
     "name": "Jake Gordon",
     "url": "https://github.com/jakesgordon/javascript-delta"

@@ -63,7 +63,7 @@
   <div id="pane">
     <div id="panebar"><button type="button" id="back">← List</button><div id="who"></div><div id="saved"></div></div>
     <textarea id="body" placeholder="Start writing…" hidden></textarea>
-    <div id="nobody">Pick a note, or add one. Invite shares the list — the file is the save.</div>
+    <div id="nobody">Pick a note, or add one. Invite shares the list.</div>
   </div>
 </div>
 <script>
@@ -6814,7 +6814,7 @@ The board, mines, flags, density, clock, and whether you have won or lost live i
 `,
       chess: `# Chess Tournament
 
-Play the computer right now, or run a single-elimination bracket with friends from one Invite link. No account. The file is the save.
+Play the computer right now, or run a single-elimination bracket with friends from one Invite link. No account. Close it, come back — the games are still there.
 
 ## Vs computer
 

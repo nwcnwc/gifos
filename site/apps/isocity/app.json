@@ -40,15 +40,15 @@
   "cover": "/apps/isocity/cover.jpg",
   "screenshots": [],
   "gif": "/apps/isocity/isocity.gif",
-  "bytes": 649095,
+  "bytes": 649111,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "db55876d97a9962db144d92402ef7071acc2184bb0b00f6837f0f92fa0fc6726",
+  "sha256": "928061536a93ce84fb2f3bd1214b9b9a71caa1499a7978b812e4bde203e8ec97",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-27"
   },
   "porter": {
     "name": "GifOS",

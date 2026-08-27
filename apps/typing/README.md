@@ -1,6 +1,6 @@
 # Typing
 
-Practice on this device. History lives in the file. Race a friend from one
+Practice on this device. History stays here. Race a friend from one
 link. No account.
 
 An unofficial port of **[Programmer's Typing Practice](https://github.com/climech/typing-practice)**

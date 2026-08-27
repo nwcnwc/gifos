@@ -154,8 +154,8 @@ if (!listing.porter || listing.porter.name !== 'GifOS') {
 }
 {
   const tag = String(listing.tagline || '').toLowerCase();
-  if (!/race/.test(tag) || !/link|invite|file/.test(tag)) {
-    throw new Error('tagline must lead with the race and one link / the file');
+  if (!/race/.test(tag) || !/friend/.test(tag)) {
+    throw new Error('tagline must lead with racing a friend');
   }
   const desc = String(listing.description || '');
   if (!/play a friend|invite|send the link/i.test(desc.slice(0, 160))) {

@@ -34,7 +34,7 @@ Difficulty is marked Easy / Medium / Hard on each puzzle. Hard ones have no Tip.
 
 ## A live friend
 
-On your own this is the original puzzle. Progress lives in the file.
+On your own this is the original puzzle. Close it, come back — you are still on that puzzle.
 
 Press **Play a friend**, then **Invite** in the bar above the app, and send the link. You both get the **same picture**. First to match it wins. If two people finish in the same moment, **fewer steps** wins.
 

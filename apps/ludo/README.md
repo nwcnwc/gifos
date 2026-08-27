@@ -1,6 +1,6 @@
 # Ludo
 
-Four-seat Ludo as a GifOS app. Invite is the room. The file is the save.
+Four-seat Ludo as a GifOS app. Invite is the room. Close it, come back — the board is still there.
 
 An unofficial port of **[ludo-game](https://github.com/chukwumaijem/ludo-game)**
 by chukwumaijem (MIT). Upstream is React + Electron with a lobby. This
