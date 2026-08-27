@@ -110,25 +110,87 @@
    "usedIn": [
     "help-plans.gbx"
    ]
+  },
+  {
+   "id": "strongs-h",
+   "title": "Strong's Hebrew Dictionary",
+   "published": "1894",
+   "authors": "James Strong",
+   "url": "https://raw.githubusercontent.com/openscriptures/strongs/master/hebrew/StrongHebrewG.xml",
+   "bytes": 6436400,
+   "license": "Public Domain",
+   "licenseBasis": "Strong's 1894 dictionary is public domain by age. The Open Scriptures XML layers TWOT glosses (Moody Bible Institute, 1980, copyrighted) into @gloss; this build never reads @gloss, drops the <foreign> and <list> blocks, and test/unit/bible-lexicon.js re-checks that no gloss value reached a packed field.",
+   "attribution": null,
+   "usedIn": [
+    "lex-strongs-h.gbx"
+   ]
+  },
+  {
+   "id": "strongs-g",
+   "title": "Strong's Greek Dictionary",
+   "published": "1890",
+   "authors": "James Strong",
+   "url": "https://raw.githubusercontent.com/openscriptures/strongs/master/greek/StrongsGreekDictionaryXML_1.4/strongsgreek.xml",
+   "bytes": 2636209,
+   "license": "Public Domain",
+   "licenseBasis": "Strong's 1890 dictionary is public domain by age.",
+   "attribution": null,
+   "usedIn": [
+    "lex-strongs-g.gbx"
+   ]
+  },
+  {
+   "id": "morphhb",
+   "title": "Open Scriptures Hebrew Bible (Westminster Leningrad Codex morphology)",
+   "authors": "Open Scriptures Hebrew Bible project",
+   "url": "https://github.com/openscriptures/morphhb",
+   "license": "CC BY 4.0",
+   "licenseBasis": "The repository's LICENSE is Creative Commons Attribution 4.0. Attribution is REQUIRED and is carried in the pack header and shown wherever the interlinear is displayed.",
+   "attribution": "Original work of the Open Scriptures Hebrew Bible available at https://github.com/openscriptures/morphhb",
+   "usedIn": [
+    "int-wlc.gbx"
+   ]
+  },
+  {
+   "id": "byztxt",
+   "title": "Byzantine Majority Text with Strong's numbers and Robinson's parsing",
+   "url": "https://github.com/byztxt/byzantine-majority-text",
+   "license": "Unlicense (public domain)",
+   "licenseBasis": "The repository is published under the Unlicense.",
+   "attribution": null,
+   "usedIn": [
+    "int-grcbyz.gbx"
+   ]
+  },
+  {
+   "id": "tischendorf",
+   "title": "Tischendorf 8th edition with Strong's numbers and Robinson's parsing",
+   "url": "https://github.com/morphgnt/tischendorf-data",
+   "license": "Public Domain",
+   "licenseBasis": "Tischendorf 8th (1869-1872) is public domain by age; MorphGNT publishes the tagged text as public domain.",
+   "attribution": null,
+   "usedIn": [
+    "int-grctisch.gbx"
+   ]
   }
  ],
  "helpsPacks": {
   "help-xrefs.gbx": {
-   "bytes": 1793044,
-   "sha256": "6a920fbc1592aff0e5f6cd3d508c367fcb9a7c33e619f16827f742685540937c",
+   "bytes": 1793486,
+   "sha256": "7df7abcfaa8782ccc6a7ba7cb4e5904cb84b56fc585c9462c2bce0f4477c7aaa",
    "entries": 63682,
    "verses": 29055
   },
   "help-dict.gbx": {
-   "bytes": 2162823,
-   "sha256": "985c101d6c397c8684d8e0dc00d522a46b43506e57247cd5c2470bf4fad0d558",
+   "bytes": 2162265,
+   "sha256": "09e1f5278ba3685944512cd6b35111e25f446b7c8264fd6769c7549ef05dc0ac",
    "easton": 3963,
    "smith": 4639,
    "entries": 8602
   },
   "help-topics.gbx": {
-   "bytes": 1324788,
-   "sha256": "7f06d58557a482ff657ee02f673a4ef4c378ccb0be5d8517f84adab4d5b9283f",
+   "bytes": 1324036,
+   "sha256": "d044b068dff00ce1625295c85c843cb6f0861ed1895d91c1cdf7099b1e8c9114",
    "nave": 5322,
    "torrey": 628,
    "topics": 5950,
@@ -151,11 +213,33 @@
    "rows": 1274
   },
   "help-plans.gbx": {
-   "bytes": 8307,
-   "sha256": "b85b4e5646eac9c2bf1997246b58c031ef4630a2eb518afa2d9b9482b9e6c5ea",
+   "bytes": 8305,
+   "sha256": "efe3e9737bc4546ae98a36c1f09a6107c5cb69d3669dea656c074e74e64b9b82",
    "mcheyne": 365,
    "psalms-proverbs": 365,
    "whole-bible-even": 365
+  }
+ },
+ "origPacks": {
+  "lex-strongs-h.gbx": {
+   "bytes": 744080,
+   "sha256": "7bd98378d2091078783d9e502d4b05a547b966281dce1d8974d405f06c6fc0c2"
+  },
+  "lex-strongs-g.gbx": {
+   "bytes": 502565,
+   "sha256": "a8166b53fbabb51f28d15aa92b82de7d590fb53344dc5a3bc72018823fd9e5d2"
+  },
+  "int-wlc.gbx": {
+   "bytes": 3255140,
+   "sha256": "0d33e5391aa622706a0ec882d5d8892301de610394a629f4fd2d89fc6a3e42f9"
+  },
+  "int-grcbyz.gbx": {
+   "bytes": 1170496,
+   "sha256": "9893a7c74e109aeb6d7d4b8acad9792366a58aecba1cdb8607e2003cd14afb8c"
+  },
+  "int-grctisch.gbx": {
+   "bytes": 1108700,
+   "sha256": "d6fcc5189a93cad5190632b1021868e6165bcd56edd8dad2dcd76012c31417f4"
   }
  }
 }
