@@ -28,6 +28,7 @@ import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseUsfx } from './usfx.mjs';
+import { ensureDtn, loadDarbyNotes, overlayDarbyNotes, sourceCredit as dtnCredit } from './darby-notes.mjs';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const root = join(dir, '..', '..', '..');
@@ -39,7 +40,7 @@ const BOOKTAB = JSON.parse(readFileSync(join(dir, '..', 'data', 'books.json'), '
 const ORDER = new Map(BOOKTAB.books.map((b) => [b[0], b[3]]));
 const SKIP = new Set(BOOKTAB.skip);
 
-export function packOne(id, meta, xml) {
+export function packOne(id, meta, xml, opts) {
   const parsed = parseUsfx(xml);
   const names = new Map(parsed.books.map((b) => [b.code, b.names]));
 
@@ -62,6 +63,14 @@ export function packOne(id, meta, xml) {
       prev.xrefs = prev.xrefs.concat(v.xrefs);
       if (!prev.head) prev.head = v.head;
     } else c.set(v.verse, { text: v.text, style: v.style, head: v.head, notes: v.notes, xrefs: v.xrefs });
+  }
+
+  // English Darby: replace eBible's Elohim/El/Eloah name-tags with J.N. Darby's
+  // own 1890 footnotes (CrossWire DTN). Other translations keep their USFX notes.
+  if (id === 'engDBY') {
+    const dtn = opts && opts.dtn;
+    if (!dtn) throw new Error('engDBY requires Darby translator notes (DTN)');
+    overlayDarbyNotes(byBook, dtn);
   }
 
   const books = [];
@@ -141,11 +150,37 @@ export function packOne(id, meta, xml) {
   };
 }
 
+function writeAllPacks(ebible) {
+  const gbPath = join(dir, '..', 'data', 'getbible-packs.json');
+  const gb = existsSync(gbPath) ? JSON.parse(readFileSync(gbPath, 'utf8')) : [];
+  const all = ebible.concat(gb);
+  all.sort((a, b) => a.language.localeCompare(b.language) || a.id.localeCompare(b.id));
+  writeFileSync(join(dir, '..', 'data', 'all-packs.json'), JSON.stringify(all, null, 1) + '\n');
+}
+
+function mergeDtnCredit() {
+  const path = join(dir, '..', 'data', 'credits.json');
+  const prior = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
+  const sources = Array.isArray(prior.sources) ? prior.sources.slice() : [];
+  const credit = dtnCredit();
+  const ix = sources.findIndex((s) => s.id === credit.id);
+  if (ix >= 0) sources[ix] = Object.assign({}, sources[ix], credit);
+  else sources.push(credit);
+  writeFileSync(path, JSON.stringify(Object.assign({}, prior, { sources }), null, 1) + '\n');
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const onlyIx = process.argv.indexOf('--only');
   const only = onlyIx > -1 ? new Set(process.argv[onlyIx + 1].split(',')) : null;
   if (!only && existsSync(outDir)) rmSync(outDir, { recursive: true });
   mkdirSync(outDir, { recursive: true });
+
+  const wantDarby = !only || only.has('engDBY');
+  const dtn = wantDarby ? loadDarbyNotes(await ensureDtn()) : null;
+  if (dtn) {
+    console.log(`  DTN ${dtn.notes} notes over ${dtn.verses} verses` +
+                (dtn.dropped ? `, ${dtn.dropped} asterisk-marked 1939 notes dropped` : ''));
+  }
 
   const built = [];
   let total = 0;
@@ -158,7 +193,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
                     .find((x) => x.endsWith('_usfx.xml'));
     if (!entry) { oddities.push(`${t.id}: no usfx xml in the zip`); continue; }
     const xml = execFileSync('unzip', ['-p', zip, entry], { maxBuffer: 1 << 29 }).toString('utf8');
-    const p = packOne(t.id, t, xml);
+    const p = packOne(t.id, t, xml, t.id === 'engDBY' ? { dtn } : undefined);
     if (p.unknown.length) oddities.push(`${t.id}: unknown book codes ${p.unknown.join(',')}`);
     if (!p.verses) { oddities.push(`${t.id}: no verses — dropped`); continue; }
     writeFileSync(join(outDir, t.id + '.gbp'), p.bytes);
@@ -183,6 +218,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
   index.sort((a, b) => a.language.localeCompare(b.language) || a.id.localeCompare(b.id));
   writeFileSync(indexPath, JSON.stringify(index, null, 1) + '\n');
+  writeAllPacks(index);
+  if (built.some((b) => b.id === 'engDBY')) mergeDtnCredit();
   if (oddities.length) { console.log('\nODDITIES'); for (const o of oddities) console.log('  ' + o); }
   console.log(`\n${built.length} packs, ${(total / 1048576).toFixed(1)} MB, ` +
               `${new Set(built.map((b) => b.language)).size} languages`);

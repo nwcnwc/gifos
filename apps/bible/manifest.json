@@ -271,17 +271,17 @@
       "optional": true
     },
     {
-      "url": "/apps/bible/packs/eng-Brenton.gbp",
-      "sha256": "f709d51c7a03893f90cebfeba2874ae1e8598db1775aff49793d29c1c80cc104",
-      "path": "packs/eng-Brenton.gbp",
-      "bytes": 1228512,
-      "optional": true
-    },
-    {
       "url": "/apps/bible/packs/eng-asv.gbp",
       "sha256": "0686a4b59ebad2d72e3ab486f0243ae54c34c3909feaedc55622a285c50f909d",
       "path": "packs/eng-asv.gbp",
       "bytes": 1225583,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/eng-Brenton.gbp",
+      "sha256": "f709d51c7a03893f90cebfeba2874ae1e8598db1775aff49793d29c1c80cc104",
+      "path": "packs/eng-Brenton.gbp",
+      "bytes": 1228512,
       "optional": true
     },
     {
@@ -334,34 +334,6 @@
       "optional": true
     },
     {
-      "url": "/apps/bible/packs/engBBE.gbp",
-      "sha256": "4be44441b0601512ebbb35fbc91850247324d5f93787088a1289fa8377798ffb",
-      "path": "packs/engBBE.gbp",
-      "bytes": 1174635,
-      "optional": true
-    },
-    {
-      "url": "/apps/bible/packs/engDBY.gbp",
-      "sha256": "fa3d8a5eeea4ee5a41f211c22213920cebd578ce8836ecf3fc898869aee72309",
-      "path": "packs/engDBY.gbp",
-      "bytes": 1228922,
-      "optional": true
-    },
-    {
-      "url": "/apps/bible/packs/engDRA.gbp",
-      "sha256": "13036b6ae3eaa4d1edaed44fcce649fdabb07bfdb57901a1902d05bb6bee7035",
-      "path": "packs/engDRA.gbp",
-      "bytes": 1398931,
-      "optional": true
-    },
-    {
-      "url": "/apps/bible/packs/engWycliffe.gbp",
-      "sha256": "b4a0bf3989c8c7ab3ffb5b3bb73022d5e01937465f8adfd3b0a09415ac8c6c3f",
-      "path": "packs/engWycliffe.gbp",
-      "bytes": 365636,
-      "optional": true
-    },
-    {
       "url": "/apps/bible/packs/engasvbt.gbp",
       "sha256": "73b44e18452d67bd14bdc050fcd68fbe156fed9312726c2d183d9c8aa15763da",
       "path": "packs/engasvbt.gbp",
@@ -369,10 +341,31 @@
       "optional": true
     },
     {
+      "url": "/apps/bible/packs/engBBE.gbp",
+      "sha256": "4be44441b0601512ebbb35fbc91850247324d5f93787088a1289fa8377798ffb",
+      "path": "packs/engBBE.gbp",
+      "bytes": 1174635,
+      "optional": true
+    },
+    {
       "url": "/apps/bible/packs/engbsb.gbp",
       "sha256": "7fbcc02b10f4a64f8a135c54ca543b9fdfc33e5aedaca0276e08db27d9f8458f",
       "path": "packs/engbsb.gbp",
       "bytes": 1354737,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engDBY.gbp",
+      "sha256": "471955c173ab844faf95eb97149eae3a8fabdc48a9d6225dda00b09b401631b2",
+      "path": "packs/engDBY.gbp",
+      "bytes": 1449821,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engDRA.gbp",
+      "sha256": "13036b6ae3eaa4d1edaed44fcce649fdabb07bfdb57901a1902d05bb6bee7035",
+      "path": "packs/engDRA.gbp",
+      "bytes": 1398931,
       "optional": true
     },
     {
@@ -488,6 +481,13 @@
       "optional": true
     },
     {
+      "url": "/apps/bible/packs/engWycliffe.gbp",
+      "sha256": "b4a0bf3989c8c7ab3ffb5b3bb73022d5e01937465f8adfd3b0a09415ac8c6c3f",
+      "path": "packs/engWycliffe.gbp",
+      "bytes": 365636,
+      "optional": true
+    },
+    {
       "url": "/apps/bible/packs/engylt.gbp",
       "sha256": "a416b3ca6d6fb3e1e9f7cb758d1338980d2990bb8b2252ea29ed2dbb2e5c289b",
       "path": "packs/engylt.gbp",
@@ -516,13 +516,6 @@
       "optional": true
     },
     {
-      "url": "/apps/bible/packs/fraLSG.gbp",
-      "sha256": "80ca3f1e3d14c3ac796a8df0287fb9b5d66e60d427c5a95fb0af7e91e5ed62d3",
-      "path": "packs/fraLSG.gbp",
-      "bytes": 1426772,
-      "optional": true
-    },
-    {
       "url": "/apps/bible/packs/fra_fob.gbp",
       "sha256": "6dc0a4199b53ffad514dac330b2ddfbc93f9f20b6e3b612609fab69d1c43e360",
       "path": "packs/fra_fob.gbp",
@@ -534,6 +527,13 @@
       "sha256": "9ed2cd487c80ad76ef27dc1ca53cf3b6534e61b7d7d8d7b95c882264d87b11d5",
       "path": "packs/frajnd.gbp",
       "bytes": 1411982,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/fraLSG.gbp",
+      "sha256": "80ca3f1e3d14c3ac796a8df0287fb9b5d66e60d427c5a95fb0af7e91e5ed62d3",
+      "path": "packs/fraLSG.gbp",
+      "bytes": 1426772,
       "optional": true
     },
     {
@@ -915,13 +915,6 @@
       "optional": true
     },
     {
-      "url": "/apps/bible/packs/spaRV1909.gbp",
-      "sha256": "108adae3f71953dc26feb0d68cac759301a758257a4bb2632e1e2a814207778e",
-      "path": "packs/spaRV1909.gbp",
-      "bytes": 1248141,
-      "optional": true
-    },
-    {
       "url": "/apps/bible/packs/spabll.gbp",
       "sha256": "7bfff589d9f506ba1e1830d7a2167df101bf0085252c21fda3c6097c6decb91f",
       "path": "packs/spabll.gbp",
@@ -933,6 +926,13 @@
       "sha256": "cf38e6c5a5f0802d3dc0c209c4012bef0443d7807c5acbc4600376bf67fdb3b4",
       "path": "packs/spablm.gbp",
       "bytes": 1614051,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/spaRV1909.gbp",
+      "sha256": "108adae3f71953dc26feb0d68cac759301a758257a4bb2632e1e2a814207778e",
+      "path": "packs/spaRV1909.gbp",
+      "bytes": 1248141,
       "optional": true
     },
     {
