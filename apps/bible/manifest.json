@@ -6,21 +6,42 @@
   "version": "1.0.0",
   "minBuild": 1178,
   "entry": "index.html",
-  "accent": [201, 162, 39],
+  "accent": [
+    201,
+    162,
+    39
+  ],
   "capabilities": {
     "db": true,
     "multiplayer": true,
     "microphone": true,
-    "ai": ["tts"]
+    "ai": [
+      "tts"
+    ]
   },
   "data": {
-    "prefs": { "visibility": "private" },
-    "marks": { "visibility": "private" },
-    "voicenotes": { "visibility": "private" },
-    "plans": { "visibility": "private" },
-    "nav": { "visibility": "read-write" }
+    "prefs": {
+      "visibility": "private"
+    },
+    "marks": {
+      "visibility": "private"
+    },
+    "voicenotes": {
+      "visibility": "private"
+    },
+    "plans": {
+      "visibility": "private"
+    },
+    "nav": {
+      "visibility": "read-write"
+    }
   },
-  "lead": [{ "collection": "nav", "id": "cursor" }],
+  "lead": [
+    {
+      "collection": "nav",
+      "id": "cursor"
+    }
+  ],
   "launch": {
     "ref": {
       "label": "Open at a verse the link picked",
@@ -31,5 +52,1042 @@
       "detail": "One of the app's translation ids."
     }
   },
-  "assets": []
+  "assets": [
+    {
+      "url": "/apps/bible/packs/arb-vd.gbp",
+      "sha256": "14f1c5a4113704a6d4552a1b978ffb1d508a85d6221b3b9b3e202a02a05e2ccd",
+      "path": "packs/arb-vd.gbp",
+      "bytes": 1499287,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/arp.gbp",
+      "sha256": "1248cf284d6ece3d1f740fdcbfc178b5dd8dc4ffdfd45a07fe0f7decd8213d8c",
+      "path": "packs/arp.gbp",
+      "bytes": 43282,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-westernarmenian.gbp",
+      "sha256": "6e6f4c2013e623edf008df674d79e95d60d0adf003d5a82bf0d864426eafd1af",
+      "path": "packs/gb-westernarmenian.gbp",
+      "bytes": 359340,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/awk.gbp",
+      "sha256": "60c335cc062d36969b594bb32833e4334f278199c6b0ef49a702d758cf5a0dd6",
+      "path": "packs/awk.gbp",
+      "bytes": 45165,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-basque.gbp",
+      "sha256": "532a174a85d3c343c481a415a561efd5ae60aafa8aabd417f20ab04a712256b8",
+      "path": "packs/gb-basque.gbp",
+      "bytes": 320105,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/bea.gbp",
+      "sha256": "fb629f8d83002cf52333e289fecc29d362060940478fbded67b2b1d62bf1f7e3",
+      "path": "packs/bea.gbp",
+      "bytes": 28655,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/bla.gbp",
+      "sha256": "7afd88885852edaec8c9de94de505d397c7898792f7323c0a2afa6d720b56bfc",
+      "path": "packs/bla.gbp",
+      "bytes": 44907,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/breBRG.gbp",
+      "sha256": "ae55ceab9142acfba36f497fa1b4232b362617ca611eb9f0c14ef60f76f2e9bb",
+      "path": "packs/breBRG.gbp",
+      "bytes": 139091,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/mya.gbp",
+      "sha256": "fb0bae52756902209b8d94dd6f713ebd7cc4d2c54a0f8b5a35bb2da71bc32175",
+      "path": "packs/mya.gbp",
+      "bytes": 2181057,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/myajvb.gbp",
+      "sha256": "01269ab1fd2ac730bc67e2b3af8aae1387bef1579411774b7fb279978e4cf895",
+      "path": "packs/myajvb.gbp",
+      "bytes": 1687721,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-calo.gbp",
+      "sha256": "a38d6467ff7837654b0ba7dfbbf56fb16cbd1a1b9f828d1fdf384ef34ca6ae06",
+      "path": "packs/gb-calo.gbp",
+      "bytes": 45593,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/cha.gbp",
+      "sha256": "72f5482491fae668879591b6ae1226fe9a1b53f20a1575f17a6bb1bd7fbe20ba",
+      "path": "packs/cha.gbp",
+      "bytes": 240913,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-che1860.gbp",
+      "sha256": "13a4d2053f029844c88e3aedea7116c89067383fb8167aa4e745437261a9bf7a",
+      "path": "packs/gb-che1860.gbp",
+      "bytes": 354431,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/cekak.gbp",
+      "sha256": "3d42e6e8db921198798349fc9d8d3bce8d226f197ef4fbf0ff559b2ae17caf97",
+      "path": "packs/cekak.gbp",
+      "bytes": 1214482,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/hlt.gbp",
+      "sha256": "4b356fe54d2beb424a623b29c46fc27c8eddfa26192126b10653c7d8ed9bd379",
+      "path": "packs/hlt.gbp",
+      "bytes": 1201699,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/hltmcsb.gbp",
+      "sha256": "0ffad4e62f6a48c33f08d94630bb9f9fdf6f888e5f51c184d28e44de653adec6",
+      "path": "packs/hltmcsb.gbp",
+      "bytes": 1479563,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/cmn-cu89s.gbp",
+      "sha256": "0c6aac9d90253540795d2a72b6c31eceb0f447ce7f4adaaff2e16920abcc0b68",
+      "path": "packs/cmn-cu89s.gbp",
+      "bytes": 1199758,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/cmn-cu89t.gbp",
+      "sha256": "4e37f7b0f395d814924e02fb81ce559f2fe5d465ef02db9c533cb5c436b7ad05",
+      "path": "packs/cmn-cu89t.gbp",
+      "bytes": 1202702,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-chiunl.gbp",
+      "sha256": "29bad8f98ce0e9e1c5c420d78bbe78c7fa6a81d8a37d2c8b9abaa0e5903ca742",
+      "path": "packs/gb-chiunl.gbp",
+      "bytes": 909648,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/cmnswcb.gbp",
+      "sha256": "f4a5e6d71b389a3b4e701186f863c4df9bdaa4dc6fbd45dbca8fdf171ac1d8b1",
+      "path": "packs/cmnswcb.gbp",
+      "bytes": 1255072,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-csielizabeth.gbp",
+      "sha256": "1c4c1d02189079b933a22c8316753f8889a67edf7a30fb4601fa2f24f83e4232",
+      "path": "packs/gb-csielizabeth.gbp",
+      "bytes": 1367801,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/copbhc.gbp",
+      "sha256": "d94406195176d2f4b0cccd4a5835c283d755675069605a2c1feb22680a9c9da0",
+      "path": "packs/copbhc.gbp",
+      "bytes": 340018,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/copcnt.gbp",
+      "sha256": "19d46b9744c4d58bed582f1c01ecfd16b58ccded00bd9c5af51876783f824357",
+      "path": "packs/copcnt.gbp",
+      "bytes": 359686,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-sahidic.gbp",
+      "sha256": "31de1e07cc7ff865939586d2b7df84ad3b8826f9dfef0324025334bab7f23cce",
+      "path": "packs/gb-sahidic.gbp",
+      "bytes": 340680,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/hrv.gbp",
+      "sha256": "75d51e2c0a2005d9071339618cf3f1437e5c446778d8a827d9dc94a2e7b723a6",
+      "path": "packs/hrv.gbp",
+      "bytes": 1428427,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/ces1613.gbp",
+      "sha256": "a543c64c7652e356f7d5dfbe305fe4a0172ebf1ad8510b771e29a7ef6697d955",
+      "path": "packs/ces1613.gbp",
+      "bytes": 1329539,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-danish1819.gbp",
+      "sha256": "572f251398d06a47c7b0ad55fe18f393c543faf97574135f71ef6237e4096a73",
+      "path": "packs/gb-danish1819.gbp",
+      "bytes": 298021,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/dif.gbp",
+      "sha256": "af25f0c64a7518f082803670eee507c2485d8ac5b17460dc02a507c6a8dc81a9",
+      "path": "packs/dif.gbp",
+      "bytes": 274608,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-statenvertaling.gbp",
+      "sha256": "853c03bae61fc9924d9798eb20db3f5881ffa0f322638aa8a3d02aaaf73bb007",
+      "path": "packs/gb-statenvertaling.gbp",
+      "bytes": 1298299,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/nld.gbp",
+      "sha256": "d63c2c3bd5aa5d693843a03d1c7d8eb9606e0a44c79a110f15be16fa5ccbaf13",
+      "path": "packs/nld.gbp",
+      "bytes": 1306466,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/nld1939.gbp",
+      "sha256": "a4e3d627e815474417e5d894da901212c54341b4c4b7381c98394648323d4960",
+      "path": "packs/nld1939.gbp",
+      "bytes": 1518795,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/eng-Brenton.gbp",
+      "sha256": "f709d51c7a03893f90cebfeba2874ae1e8598db1775aff49793d29c1c80cc104",
+      "path": "packs/eng-Brenton.gbp",
+      "bytes": 1228512,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/eng-asv.gbp",
+      "sha256": "0686a4b59ebad2d72e3ab486f0243ae54c34c3909feaedc55622a285c50f909d",
+      "path": "packs/eng-asv.gbp",
+      "bytes": 1225583,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/eng-kjv.gbp",
+      "sha256": "a189dc5c890dbb8a9025c19952e79dda6c8ceaa4d5698ac60df36dbbe3d8e60a",
+      "path": "packs/eng-kjv.gbp",
+      "bytes": 1596330,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/eng-lxx2012.gbp",
+      "sha256": "42b9d0e0f76a4f3e9d2bb105ecfff31e8027659ef9f279f68456c55cdb81b34d",
+      "path": "packs/eng-lxx2012.gbp",
+      "bytes": 1203405,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/eng-rv.gbp",
+      "sha256": "3436a836d0436e3d2fa4aeb69d66e2ab58ec4a0ffacf8fe5866e6625a21d5224",
+      "path": "packs/eng-rv.gbp",
+      "bytes": 1488509,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/eng-uk-lxx2012.gbp",
+      "sha256": "c1d0d65466e14f06e3d6b9099d452824408da66d3d07b2da660b822843794538",
+      "path": "packs/eng-uk-lxx2012.gbp",
+      "bytes": 1203591,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/eng-web.gbp",
+      "sha256": "8c7c42c2a85eab78898b8ecfa4c96ec1fcd37ee8a140c11a6c1805cf0b1c3813",
+      "path": "packs/eng-web.gbp",
+      "bytes": 1549158,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/eng-web-c.gbp",
+      "sha256": "28e3808c95f21ad029d09232eee5f4a9a253ee03bef09673d6378a78e7527c39",
+      "path": "packs/eng-web-c.gbp",
+      "bytes": 1550965,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/eng-webbe.gbp",
+      "sha256": "0170cf229e3e9d5749f982699e718883afef9ae9a76b56063f8669a67ed9a47b",
+      "path": "packs/eng-webbe.gbp",
+      "bytes": 1551672,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engBBE.gbp",
+      "sha256": "4be44441b0601512ebbb35fbc91850247324d5f93787088a1289fa8377798ffb",
+      "path": "packs/engBBE.gbp",
+      "bytes": 1174635,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engDBY.gbp",
+      "sha256": "fa3d8a5eeea4ee5a41f211c22213920cebd578ce8836ecf3fc898869aee72309",
+      "path": "packs/engDBY.gbp",
+      "bytes": 1228922,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engDRA.gbp",
+      "sha256": "13036b6ae3eaa4d1edaed44fcce649fdabb07bfdb57901a1902d05bb6bee7035",
+      "path": "packs/engDRA.gbp",
+      "bytes": 1398931,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engWycliffe.gbp",
+      "sha256": "b4a0bf3989c8c7ab3ffb5b3bb73022d5e01937465f8adfd3b0a09415ac8c6c3f",
+      "path": "packs/engWycliffe.gbp",
+      "bytes": 365636,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engasvbt.gbp",
+      "sha256": "73b44e18452d67bd14bdc050fcd68fbe156fed9312726c2d183d9c8aa15763da",
+      "path": "packs/engasvbt.gbp",
+      "bytes": 1523612,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engbsb.gbp",
+      "sha256": "7fbcc02b10f4a64f8a135c54ca543b9fdfc33e5aedaca0276e08db27d9f8458f",
+      "path": "packs/engbsb.gbp",
+      "bytes": 1354737,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/enggnv.gbp",
+      "sha256": "e08f26f29a22b06d3936007be02015ff57cc771b27ec306628478b8468b8bcec",
+      "path": "packs/enggnv.gbp",
+      "bytes": 1238195,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engjps.gbp",
+      "sha256": "b1327e9b76f5390b83fec7c5dd07d996d1d6040f694e6babf1b79b8c363a5f74",
+      "path": "packs/engjps.gbp",
+      "bytes": 930662,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engkjvcpb.gbp",
+      "sha256": "781c7a31f50c5bac68f96964274d2441976b59d4ec3c4070711ab7c2da9391e3",
+      "path": "packs/engkjvcpb.gbp",
+      "bytes": 1513021,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/englee.gbp",
+      "sha256": "8a0cc37e20f80de8c676b09ade08e9cbb6a9cfa130100d5681920e291140ec7e",
+      "path": "packs/englee.gbp",
+      "bytes": 986109,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/englxxup.gbp",
+      "sha256": "832745f44ca8ee9381742ffe342ba8ddacbe07ca9c7108fe4895d9108f07af71",
+      "path": "packs/englxxup.gbp",
+      "bytes": 1177422,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engmsb.gbp",
+      "sha256": "c2fb8b1c61313b555a514f1e9a691737ef1f637a23cf5af5ab5272f948358842",
+      "path": "packs/engmsb.gbp",
+      "bytes": 1214393,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engnoy.gbp",
+      "sha256": "58c022a00aaaf6dcbf2e3233341eed2b057d35bcfc27934e463a1804ee17f11a",
+      "path": "packs/engnoy.gbp",
+      "bytes": 703956,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engoebcw.gbp",
+      "sha256": "e26f19468ec84e7918ad25d731b203f98270d43e9b0238b614e3fbacb42f95da",
+      "path": "packs/engoebcw.gbp",
+      "bytes": 570163,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engoebus.gbp",
+      "sha256": "99851864b02fd35d53762250e9954d198c567ead3625a1f34f2e01f4ec307ee4",
+      "path": "packs/engoebus.gbp",
+      "bytes": 570100,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engoke.gbp",
+      "sha256": "36eecd9e9ad34bc43f98424a66c509fda6fed46dade2c25e931c240524a10dd8",
+      "path": "packs/engoke.gbp",
+      "bytes": 225638,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engtnt.gbp",
+      "sha256": "d7b80d87177e36b87c456e0d98c6b453b63ec4a9372413e41eba87eeedb52eaf",
+      "path": "packs/engtnt.gbp",
+      "bytes": 303601,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engwebpb.gbp",
+      "sha256": "03bba47445f4f557e7cd3defcae3404d4d3341f51960532f58656e721a3b7332",
+      "path": "packs/engwebpb.gbp",
+      "bytes": 1551661,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engwebster.gbp",
+      "sha256": "56fd12d3e446eb2003aa43a85983d98fe90a72507f7023789a8cb0b1fd7686cc",
+      "path": "packs/engwebster.gbp",
+      "bytes": 1235814,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engwebu.gbp",
+      "sha256": "e597a5a499e4437d3adf5ee7521a736f87334aa34311dd093660fc78c310ef6c",
+      "path": "packs/engwebu.gbp",
+      "bytes": 1550958,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engwmb.gbp",
+      "sha256": "0d87108132777bc03505a60923c943ab079ba7ba4a61680318a03c85fa512cbd",
+      "path": "packs/engwmb.gbp",
+      "bytes": 1236570,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engwmbb.gbp",
+      "sha256": "8e16274bbe10948e474a92370108106e280f7fbd144ceebe868370446ccc26ee",
+      "path": "packs/engwmbb.gbp",
+      "bytes": 1237186,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/engylt.gbp",
+      "sha256": "a416b3ca6d6fb3e1e9f7cb758d1338980d2990bb8b2252ea29ed2dbb2e5c289b",
+      "path": "packs/engylt.gbp",
+      "bytes": 1215984,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-weymouth.gbp",
+      "sha256": "7483629729e48e1ebd7f183350f28e9149cd95dcea2b6c2cdf4d9b3c7049cba7",
+      "path": "packs/gb-weymouth.gbp",
+      "bytes": 355416,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/epo.gbp",
+      "sha256": "381a9f413fc782e9f546e8404af47f5e952d0c9baafa27eb5245ab92532dc598",
+      "path": "packs/epo.gbp",
+      "bytes": 1167692,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-finnish1776.gbp",
+      "sha256": "365893bc3d2c800ddb700b9031c67c9000b21f4bdfe7c65cba2df39250ed022f",
+      "path": "packs/gb-finnish1776.gbp",
+      "bytes": 1291220,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/fraLSG.gbp",
+      "sha256": "80ca3f1e3d14c3ac796a8df0287fb9b5d66e60d427c5a95fb0af7e91e5ed62d3",
+      "path": "packs/fraLSG.gbp",
+      "bytes": 1426772,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/fra_fob.gbp",
+      "sha256": "6dc0a4199b53ffad514dac330b2ddfbc93f9f20b6e3b612609fab69d1c43e360",
+      "path": "packs/fra_fob.gbp",
+      "bytes": 1315231,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/frajnd.gbp",
+      "sha256": "9ed2cd487c80ad76ef27dc1ca53cf3b6534e61b7d7d8d7b95c882264d87b11d5",
+      "path": "packs/frajnd.gbp",
+      "bytes": 1411982,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/frasbl.gbp",
+      "sha256": "f26f15f4b46cac0b7b05936675f7bf0bba8800944325435e56f1897a2604f2b5",
+      "path": "packs/frasbl.gbp",
+      "bytes": 1712364,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-martin.gbp",
+      "sha256": "88f9b635b07aa86c17485e7f6f05a777654d7bb9c8b6477721d36adba3bb0be7",
+      "path": "packs/gb-martin.gbp",
+      "bytes": 1363426,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/deu1912.gbp",
+      "sha256": "104402f9e6ee397ae71b1681823be01cbe45136123fbbf995564b234cb65ac73",
+      "path": "packs/deu1912.gbp",
+      "bytes": 1285734,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/deuelo.gbp",
+      "sha256": "303fe80ee24477a575e842371d27edf6a4821e6abd74a250bcc9761973b1eaf1",
+      "path": "packs/deuelo.gbp",
+      "bytes": 1333682,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/deutkw.gbp",
+      "sha256": "02e999c1cb6955d74ef068a8554dd6654e4c8b564c47f6085ba5776e0c81e793",
+      "path": "packs/deutkw.gbp",
+      "bytes": 1436029,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-elberfelder.gbp",
+      "sha256": "bc437f5efee6051f1c6ec2c6579ce6b033ecb2579d8d2bba366335fbea108a26",
+      "path": "packs/gb-elberfelder.gbp",
+      "bytes": 1321497,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-elberfelder1905.gbp",
+      "sha256": "d471d7314a2c77877343d8b1c62a3fa7020e29b483d34bf72ab98b92218e6e2c",
+      "path": "packs/gb-elberfelder1905.gbp",
+      "bytes": 1330146,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-luther1545.gbp",
+      "sha256": "a723f3284ff8989aa6bcec84b835b517049546976ed54a1db6168aab07ee1fc8",
+      "path": "packs/gb-luther1545.gbp",
+      "bytes": 1275622,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/grc-tisch.gbp",
+      "sha256": "1773419ba3c90ce935b766fb1661f644b0da6b5f29c071860346a526b6620eae",
+      "path": "packs/grc-tisch.gbp",
+      "bytes": 395800,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/grcbrent.gbp",
+      "sha256": "c3fd59e94946e2e141aab56f0929bd244d3f570699777051c3e3f1fd917d75ef",
+      "path": "packs/grcbrent.gbp",
+      "bytes": 1536096,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/grcbyz.gbp",
+      "sha256": "ca097fc89f4ccce1adf6ed301fb3cabd762971a18049969fff55409ea56ec56c",
+      "path": "packs/grcbyz.gbp",
+      "bytes": 402946,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/grclxx.gbp",
+      "sha256": "6e13254c97b7ff6120c21c2b667340a250f642bc2628b566e730f8b0688a325b",
+      "path": "packs/grclxx.gbp",
+      "bytes": 1494319,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/grcmt.gbp",
+      "sha256": "6d56761210f0a7d68c20a8338ca2688fbe689debc40543ed2ad9129f71416be2",
+      "path": "packs/grcmt.gbp",
+      "bytes": 330350,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/grcsr.gbp",
+      "sha256": "b09703769e70218d7fd3af6eac4500b9f1d92c411df25a41aa5f8df585142409",
+      "path": "packs/grcsr.gbp",
+      "bytes": 570812,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/grctcgnt.gbp",
+      "sha256": "5c5e92b8fa9f2bf23259940199af65781e257bd1b34b6d4e3246af78e122f6bc",
+      "path": "packs/grctcgnt.gbp",
+      "bytes": 578029,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/grctr.gbp",
+      "sha256": "40b8facece89e62cd3d62bc6cab3eeee57d030f7e904b6d809dc4e1f4bd4cacc",
+      "path": "packs/grctr.gbp",
+      "bytes": 413746,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-moderngreek.gbp",
+      "sha256": "c6d6ea16d941a50920310d31372765836b04f4c2033ac261e418feece16478dc",
+      "path": "packs/gb-moderngreek.gbp",
+      "bytes": 1612096,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/hat.gbp",
+      "sha256": "58b50b53bfecc12a57f4cd60551ed3fee7ec09323fc7d5bbdca672e530fe0e2c",
+      "path": "packs/hat.gbp",
+      "bytes": 1267894,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/haw1868.gbp",
+      "sha256": "4aec9dfe5440b4f027d934523754ece5ed0eb6278814e4b2dcd70b1ff0f81b93",
+      "path": "packs/haw1868.gbp",
+      "bytes": 1170222,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/hbo.gbp",
+      "sha256": "1ce6ac72a06031512feffb9cd8defe07b2e763be6fe54b090d052e4825821ab8",
+      "path": "packs/hbo.gbp",
+      "bytes": 1335633,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/hboWLC.gbp",
+      "sha256": "a29c0ee739f1390defb84a0d5de77cdbb854a0265e6af13c51ce6a93074316fd",
+      "path": "packs/hboWLC.gbp",
+      "bytes": 1323051,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/heb.gbp",
+      "sha256": "dd377553c1acc90dfa5825c5eeac85d929edb7054bc7b575ed0aa975aaab2dbf",
+      "path": "packs/heb.gbp",
+      "bytes": 930153,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/hebsg.gbp",
+      "sha256": "29bb590e83a9601d05708767fd39aaf4eee454ec0260e362282f64d971d11fc9",
+      "path": "packs/hebsg.gbp",
+      "bytes": 387753,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/hebwlc.gbp",
+      "sha256": "54830e492cf3c36a70c9a11d586fc1a9624c9e4b682016c11e278e7bd33c3fb5",
+      "path": "packs/hebwlc.gbp",
+      "bytes": 1320489,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-karoli.gbp",
+      "sha256": "9da4066c835279a1f3873c5f540e1de34591da2471690b46e98265c341e1cf26",
+      "path": "packs/gb-karoli.gbp",
+      "bytes": 1366856,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/ita1885.gbp",
+      "sha256": "c85f36b5fb61fec6d21393a63e4670c37029be40295b82c7f0162649c761824b",
+      "path": "packs/ita1885.gbp",
+      "bytes": 1617999,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/ita1927.gbp",
+      "sha256": "97beb864bc495062ae8402c74cede1fc6f62df4b3a7604a476d0feb484337a2f",
+      "path": "packs/ita1927.gbp",
+      "bytes": 1327693,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-japbungo.gbp",
+      "sha256": "39158f4ae764f845f0fb6e7626c706b9ebdfd74d63bec1ca8328863d2e6c1e9d",
+      "path": "packs/gb-japbungo.gbp",
+      "bytes": 1265740,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-japraguet.gbp",
+      "sha256": "17cf7dbcf05584300c9016a0e013e1eb2e50885a9feb166c970154b8ac214275",
+      "path": "packs/gb-japraguet.gbp",
+      "bytes": 315424,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/jpn1965.gbp",
+      "sha256": "9fbeaa4f2017472ec1ea99195184a3175b1bf64d2fc4952e9996448ddc96e9fb",
+      "path": "packs/jpn1965.gbp",
+      "bytes": 357580,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/jpnm.gbp",
+      "sha256": "396237255bdb480ba54e0d709dfdf096d2be225f54bb5e40de35100782c4d0e3",
+      "path": "packs/jpnm.gbp",
+      "bytes": 1326869,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/kor.gbp",
+      "sha256": "43d569b0813d0612786db06cceece1f30e8d66e2a9caa60d7796b45122446c67",
+      "path": "packs/kor.gbp",
+      "bytes": 1241547,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/kos.gbp",
+      "sha256": "01001ed5466e602509d2e5796483b49f5defde1a2aa6b9502743ca1dbf8a6569",
+      "path": "packs/kos.gbp",
+      "bytes": 1271536,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/latVUC.gbp",
+      "sha256": "dbb050b21b281d04074ba1464fcf7ffa862c22ec9614d6aea42b2c5773815668",
+      "path": "packs/latVUC.gbp",
+      "bytes": 3031439,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-mg1865.gbp",
+      "sha256": "d5565965572257b309f1f0ce96568b3e90ca68b85b8bc28fcd3951d2350ba19b",
+      "path": "packs/gb-mg1865.gbp",
+      "bytes": 1189614,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-mal1910.gbp",
+      "sha256": "7dbef7c0ae6ce309a061fc5a8e38b3d3b0d855992a6e995adc6a4d112b4091e2",
+      "path": "packs/gb-mal1910.gbp",
+      "bytes": 1557343,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-manxgaelic.gbp",
+      "sha256": "057a34bb8b8135803349fc1fe79da8a1afb3d17013bbb67e557019f155a4c029",
+      "path": "packs/gb-manxgaelic.gbp",
+      "bytes": 130550,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/ulk1902.gbp",
+      "sha256": "30695f34e3edb11c4d26de30be27dfba9019ed87ad1ee922740cc298ebf19d33",
+      "path": "packs/ulk1902.gbp",
+      "bytes": 114957,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/nay.gbp",
+      "sha256": "7474cbeb938709313f39c04694f26aaf8df8ca24d524b57cb47fff7dd2e5a422",
+      "path": "packs/nay.gbp",
+      "bytes": 14812,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-bibelselskap.gbp",
+      "sha256": "59a6ce817ebeda5b45d612ec8419fee31e28d8b6899946a6574390c3631630bf",
+      "path": "packs/gb-bibelselskap.gbp",
+      "bytes": 1195945,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/pesOPV.gbp",
+      "sha256": "c38a1f43d3b4b077352ff3413a03a26131787054a996870fa94e4a3f029d13e3",
+      "path": "packs/pesOPV.gbp",
+      "bytes": 1347042,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/pon.gbp",
+      "sha256": "a7185e9d38288bdfa14936841709bb2860c862c8a5ef5a7b2245c7c9d3372f57",
+      "path": "packs/pon.gbp",
+      "bytes": 316447,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/pon-pdn.gbp",
+      "sha256": "950299e91119906bd68d7f038d6d19fb06e23d77e802e600bb4c85eccd23ff6c",
+      "path": "packs/pon-pdn.gbp",
+      "bytes": 318176,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-polgdanska.gbp",
+      "sha256": "ae858a89969788b07765ea368a3b425e647ffc7d47b912cc8b641eb609c04179",
+      "path": "packs/gb-polgdanska.gbp",
+      "bytes": 1319660,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-almeida.gbp",
+      "sha256": "b51c6452cb4c01ddfadfb2d340b881db11baaddd548c2b5894be23e4d3aac717",
+      "path": "packs/gb-almeida.gbp",
+      "bytes": 1224878,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/porbrbsl.gbp",
+      "sha256": "c807c4836cbd5bea689127515f589e12f1cd7680285f11b58ab4704856cbe31f",
+      "path": "packs/porbrbsl.gbp",
+      "bytes": 1614470,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-potawatomi.gbp",
+      "sha256": "8e3b50eff69e4dbb43144598abb4cec206e4b85fd025faced0ecc3b81498a02f",
+      "path": "packs/gb-potawatomi.gbp",
+      "bytes": 88383,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/ron1924.gbp",
+      "sha256": "058d4b3831ff256d8076c67fa23845649276eb75634ff7d1fdea5939b6e3e55f",
+      "path": "packs/ron1924.gbp",
+      "bytes": 1527842,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/ronbl.gbp",
+      "sha256": "ace1b26f16d27834528f1578018a87ab27d1884e49a5d432bdf7b9d7ebb2d2a9",
+      "path": "packs/ronbl.gbp",
+      "bytes": 331515,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/ronbtf.gbp",
+      "sha256": "b20510ef56a95007e08dd0f874394916662ef377db6481b70365ed85253499ca",
+      "path": "packs/ronbtf.gbp",
+      "bytes": 1277904,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/russyn.gbp",
+      "sha256": "51c95b63e14eb61a9156821f8f0e4d26a2d5da74312c2309f51780096963873f",
+      "path": "packs/russyn.gbp",
+      "bytes": 1443957,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/srp1865.gbp",
+      "sha256": "626d0e94ba1ffc9eee636adf98159ee34b2604b3b6390252db78b50d25a9de85",
+      "path": "packs/srp1865.gbp",
+      "bytes": 1183650,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/srp1868.gbp",
+      "sha256": "5e63100aadb4598d2ccbc55f0ac669dcd9c42174f05b217150d1847f4974d72c",
+      "path": "packs/srp1868.gbp",
+      "bytes": 1377190,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-sse.gbp",
+      "sha256": "4b24a8cdbf39659c809f2bfc6de8c37e99f43b2a26962da27d7e1f3580dbc911",
+      "path": "packs/gb-sse.gbp",
+      "bytes": 1210601,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/spaRV1909.gbp",
+      "sha256": "108adae3f71953dc26feb0d68cac759301a758257a4bb2632e1e2a814207778e",
+      "path": "packs/spaRV1909.gbp",
+      "bytes": 1248141,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/spabll.gbp",
+      "sha256": "7bfff589d9f506ba1e1830d7a2167df101bf0085252c21fda3c6097c6decb91f",
+      "path": "packs/spabll.gbp",
+      "bytes": 1668324,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/spablm.gbp",
+      "sha256": "cf38e6c5a5f0802d3dc0c209c4012bef0443d7807c5acbc4600376bf67fdb3b4",
+      "path": "packs/spablm.gbp",
+      "bytes": 1614051,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/swh1850.gbp",
+      "sha256": "219055824274e8a406411af0e54f8e5a9a59167c3d80005780047b2d530bfee8",
+      "path": "packs/swh1850.gbp",
+      "bytes": 306545,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-swedish.gbp",
+      "sha256": "3895d20f844806086f73099b00a97172c4b75b2d5d847ab7f2b0058114b82522",
+      "path": "packs/gb-swedish.gbp",
+      "bytes": 1353368,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-swekarlxii.gbp",
+      "sha256": "a2bd65291c02603dbb2fb68cd4ae2a4664292aa807ceae7f4df85e077118bad7",
+      "path": "packs/gb-swekarlxii.gbp",
+      "bytes": 894147,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-peshitta.gbp",
+      "sha256": "e5b407f095688ecceb04af93350c68c4af382f855caea455e5e6ff9008c7aee2",
+      "path": "packs/gb-peshitta.gbp",
+      "bytes": 251752,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/gb-tagalog.gbp",
+      "sha256": "6738e0099de5fecd0e61363d28748ec186fdd9f66fbd8881eba9236bd5a33eb7",
+      "path": "packs/gb-tagalog.gbp",
+      "bytes": 1266360,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/thafb.gbp",
+      "sha256": "f39693a9a136b35a1ca0ebec855738e63499a29561f5f92adb6b079cebd813c0",
+      "path": "packs/thafb.gbp",
+      "bytes": 314434,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/ton.gbp",
+      "sha256": "e069459d6c8dbd1ed2864c6338ae1990059c08698bfca6e7240dafdce7e409a7",
+      "path": "packs/ton.gbp",
+      "bytes": 1246219,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/ukr1871.gbp",
+      "sha256": "aef90552569652f085711106a7ed0de50c42d15aa3c1639050edd6f161d5af31",
+      "path": "packs/ukr1871.gbp",
+      "bytes": 1534494,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/ukrfb.gbp",
+      "sha256": "aa2662549121f00b4867114cd5a139e71b4a635f6b7e3d001cf647bf8271c641",
+      "path": "packs/ukrfb.gbp",
+      "bytes": 1534461,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/vie1934.gbp",
+      "sha256": "641c902ad9a1b664b684ffbb60b583b198c30e1c7dd20ed7cfc3e2535da2326a",
+      "path": "packs/vie1934.gbp",
+      "bytes": 1348166,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/wro.gbp",
+      "sha256": "067b8186f769b3805bec3680a58e746c12faac2cf76c2be4dfe9131f23eeaaca",
+      "path": "packs/wro.gbp",
+      "bytes": 68484,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/help-dict.gbx",
+      "path": "packs/help-dict.gbx",
+      "sha256": "985c101d6c397c8684d8e0dc00d522a46b43506e57247cd5c2470bf4fad0d558",
+      "bytes": 2162823,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/help-mhcc.gbx",
+      "path": "packs/help-mhcc.gbx",
+      "sha256": "22e036b17219f496c65d45945c04cd94ddce896e1416df5c5c2c9cc69042d92d",
+      "bytes": 1284875,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/help-places.gbx",
+      "path": "packs/help-places.gbx",
+      "sha256": "42bfba42dac225220d1d945d6b1e5779cf6258b0b821b2eaab4fa5ecf7d20385",
+      "bytes": 16760,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/help-plans.gbx",
+      "path": "packs/help-plans.gbx",
+      "sha256": "b85b4e5646eac9c2bf1997246b58c031ef4630a2eb518afa2d9b9482b9e6c5ea",
+      "bytes": 8307,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/help-topics.gbx",
+      "path": "packs/help-topics.gbx",
+      "sha256": "7f06d58557a482ff657ee02f673a4ef4c378ccb0be5d8517f84adab4d5b9283f",
+      "bytes": 1324788,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/help-xrefs.gbx",
+      "path": "packs/help-xrefs.gbx",
+      "sha256": "6a920fbc1592aff0e5f6cd3d508c367fcb9a7c33e619f16827f742685540937c",
+      "bytes": 1793044,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/int-grcbyz.gbx",
+      "path": "packs/int-grcbyz.gbx",
+      "sha256": "b7a32dea51f957950cfddebc1fc76aa04e27c78dd3944d5d6863fdee4dd6990c",
+      "bytes": 1036743,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/int-grctisch.gbx",
+      "path": "packs/int-grctisch.gbx",
+      "sha256": "d6fcc5189a93cad5190632b1021868e6165bcd56edd8dad2dcd76012c31417f4",
+      "bytes": 1108700,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/int-wlc.gbx",
+      "path": "packs/int-wlc.gbx",
+      "sha256": "6534ff1a6cb67cbe997ed294e71d68a7cbd02eaf5ed24eb518cad6f2c83d692b",
+      "bytes": 3255187,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/lex-strongs-g.gbx",
+      "path": "packs/lex-strongs-g.gbx",
+      "sha256": "a8166b53fbabb51f28d15aa92b82de7d590fb53344dc5a3bc72018823fd9e5d2",
+      "bytes": 502565,
+      "optional": true
+    },
+    {
+      "url": "/apps/bible/packs/lex-strongs-h.gbx",
+      "path": "packs/lex-strongs-h.gbx",
+      "sha256": "7bd98378d2091078783d9e502d4b05a547b966281dce1d8974d405f06c6fc0c2",
+      "bytes": 744080,
+      "optional": true
+    }
+  ]
 }
