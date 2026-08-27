@@ -75,6 +75,29 @@ const CHECK = process.argv.includes('--check');
 const REQUIRE_SIGNED = process.argv.includes('--require-signed');
 const unsigned = [];
 
+// Seeded default appIds, derived from site/js/sample-apps.js. The store
+// indexes installs by appId, and desktop reseed swaps the BYTES of any
+// default file whose appId still exists in the seed. A listing that reuses
+// one of those ids (the first Bible listing used `bible`, which is Bible
+// Browser) shows as already-installed on every computer, and Update then
+// fights the reseed. Chess Grandmaster is `chess-grandmaster` next to the
+// seeded `chess` for this reason.
+function seededAppIds() {
+  const src = fs.readFileSync(path.join(ROOT, 'site', 'js', 'sample-apps.js'), 'utf8');
+  const ids = new Set();
+  const appRe = /\bapp\(\s*'[^']*'\s*,\s*'([a-z0-9-]+)'/g;
+  const manRe = /\bmanifest\(\s*'([a-z0-9-]+)'/g;
+  let m;
+  while ((m = appRe.exec(src))) ids.add(m[1]);
+  while ((m = manRe.exec(src))) ids.add(m[1]);
+  if (ids.size < 10) {
+    throw new Error('build-app-catalog: derived ' + ids.size +
+      ' seeded appIds from sample-apps.js — the app()/manifest() shape changed');
+  }
+  return ids;
+}
+const SEEDED_APP_IDS = seededAppIds();
+
 // The canonical navigation set. An app may sit in more than one, but not in a
 // category invented at listing time — free-text categories are how a store's
 // navigation rots. Add one here, deliberately, and the store picks it up.
@@ -346,6 +369,10 @@ async function buildApp(slug) {
     }
   } catch (e) { fail(slug + ': could not read the GIF filesystem — ' + (e.message || e)); }
   if (!m.appId) fail(slug + ': manifest.json has no appId');
+  if (SEEDED_APP_IDS.has(m.appId)) {
+    fail(slug + ': appId "' + m.appId + '" is a seeded default in site/js/sample-apps.js — ' +
+      'the store would treat that Home Screen icon as this listing, and reseed would overwrite the install');
+  }
   if (!m.version) fail(slug + ': manifest.json has no version');
 
   // OS Help: the app bar reads help.md from the GIF. The source file is the
@@ -573,6 +600,16 @@ const records = [];
 for (const slug of slugs) {
   const rec = await buildApp(slug);
   if (rec) records.push(rec);
+}
+
+{
+  const seen = new Map();
+  for (const r of records) {
+    if (seen.has(r.appId)) {
+      fail(r.slug + ': appId "' + r.appId + '" is already used by ' + seen.get(r.appId));
+    }
+    seen.set(r.appId, r.slug);
+  }
 }
 
 // The index carries only what the GRID needs — no `description`, so browsing

@@ -505,7 +505,7 @@
     },
     {
       "slug": "bible",
-      "appId": "bible",
+      "appId": "offline-bible",
       "name": "Bible",
       "shortName": "Bible",
       "version": "1.0.0",
@@ -534,7 +534,7 @@
         39
       ],
       "cover": "/apps/bible/cover.jpg",
-      "bytes": 3989109,
+      "bytes": 3989139,
       "download": 0,
       "provides": null,
       "signature": {
@@ -542,7 +542,7 @@
         "id": "gifos.app",
         "ts": "2026-08-27"
       },
-      "sha256": "1177d72cc437c278fd032f4b4e8f3507fc300513d4684faea819f00299ad697f"
+      "sha256": "7b845f6e9e531e8f46c739b64b309d6c701d72310bcdfae5df6b7e1633ab192c"
     },
     {
       "slug": "bingo",
