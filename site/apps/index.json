@@ -534,7 +534,7 @@
         39
       ],
       "cover": "/apps/bible/cover.jpg",
-      "bytes": 3989721,
+      "bytes": 3996909,
       "download": 0,
       "optionalCount": 148,
       "optionalDownload": 155664816,
@@ -544,7 +544,7 @@
         "id": "gifos.app",
         "ts": "2026-08-27"
       },
-      "sha256": "ed1c58cc77d99625c1fe4b7fa6bb05b50e0560e6042987b4afc43d59c0ce1c0f"
+      "sha256": "f70234b0f2024780c776f552caf03d4bbb90347ecdcb6979d6dc4612749cd6cb"
     },
     {
       "slug": "bingo",

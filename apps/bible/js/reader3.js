@@ -157,7 +157,7 @@
     for (var k in this.marks) rows.push(this.marks[k]);
     rows.sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
     if (!rows.length) {
-      body.appendChild(el('div', 'empty', 'Nothing yet. Tap any verse to highlight it or write a note.'));
+      body.appendChild(el('div', 'empty', 'Nothing yet. Select any words to highlight them, or tap a verse to write a note.'));
       return;
     }
     var cn = this.prefs.colourNames || {};
@@ -167,8 +167,10 @@
       var tag = m.colour ? (cn[m.colour] || m.colour) : '';
       btn.appendChild(el('span', 'r-ref',
         Refs.format({ code: m.code, chapter: m.chapter, verse: m.verse }, { style: 'short' }) +
-        (tag ? ' · ' + tag : '') + (m.voice ? ' · voice note' : '')));
-      if (m.note) btn.appendChild(document.createTextNode(m.note.slice(0, 140)));
+        (tag ? ' · ' + tag : '') + (m.voice ? ' · voice note' : '') +
+        (m.kind === 'fn' ? ' · footnote' : '')));
+      if (m.quote) btn.appendChild(document.createTextNode('“' + m.quote.slice(0, 140) + '”'));
+      else if (m.note) btn.appendChild(document.createTextNode(m.note.slice(0, 140)));
       btn.addEventListener('click', function () {
         self.closeSheets();
         self.go({ code: m.code, chapter: m.chapter, verse: m.verse }, { flash: true });

@@ -201,10 +201,96 @@
     return frag;
   }
 
+  /* Span highlights: a Kindle-style mark is a range of CHARACTERS in the
+   * readable verse, not a whole verse. Verse numbers and footnote stars are
+   * not characters, so a walk of the painted verse has to skip them. */
+
+  function skippedText(node, root) {
+    var n = node.nodeType === 3 ? node.parentNode : node;
+    while (n && n !== root) {
+      if (n.classList && (n.classList.contains('vn') || n.classList.contains('anchor') || n.classList.contains('cnum'))) return true;
+      n = n.parentNode;
+    }
+    return false;
+  }
+
+  function collectText(root) {
+    var pieces = [], pos = 0;
+    if (!root) return { pieces: pieces, length: 0 };
+    var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    var n;
+    while ((n = w.nextNode())) {
+      if (skippedText(n, root) || !n.data) continue;
+      pieces.push({ node: n, start: pos, end: pos + n.data.length });
+      pos += n.data.length;
+    }
+    return { pieces: pieces, length: pos };
+  }
+
+  function offsetOf(root, node, off) {
+    if (!root || !node) return -1;
+    if (node.nodeType === 1) {
+      var child = node.childNodes[off];
+      if (!child) return collectText(root).length;
+      node = child;
+      off = 0;
+    }
+    var t = collectText(root);
+    for (var i = 0; i < t.pieces.length; i++) {
+      if (t.pieces[i].node === node) {
+        var o = off;
+        if (o < 0) o = 0;
+        if (o > t.pieces[i].node.data.length) o = t.pieces[i].node.data.length;
+        return t.pieces[i].start + o;
+      }
+    }
+    return -1;
+  }
+
+  function wrapOffsets(root, start, end, colour, id) {
+    if (!root || !(end > start)) return;
+    var t = collectText(root);
+    for (var i = t.pieces.length - 1; i >= 0; i--) {
+      var p = t.pieces[i];
+      var a = Math.max(start, p.start);
+      var b = Math.min(end, p.end);
+      if (!(b > a)) continue;
+      var node = p.node;
+      var localA = a - p.start, span = b - a;
+      if (localA > 0) node = node.splitText(localA);
+      if (node.data.length > span) node.splitText(span);
+      var mark = document.createElement('mark');
+      mark.className = 'hl-span';
+      mark.setAttribute('data-hl', colour || 'amber');
+      if (id) mark.setAttribute('data-hid', id);
+      node.parentNode.insertBefore(mark, node);
+      mark.appendChild(node);
+    }
+  }
+
+  function wrapOffsetsMany(roots, start, end, colour, id) {
+    var pos = 0, chunks = [];
+    for (var i = 0; i < roots.length; i++) {
+      var t = collectText(roots[i]);
+      chunks.push({ root: roots[i], offset: pos, length: t.length });
+      pos += t.length;
+    }
+    for (var j = chunks.length - 1; j >= 0; j--) {
+      var c = chunks[j];
+      var a = Math.max(start, c.offset);
+      var b = Math.min(end, c.offset + c.length);
+      if (b > a) wrapOffsets(c.root, a - c.offset, b - c.offset, colour, id);
+    }
+  }
+
   root.GifosBibleRender = {
     chapter: chapter,
     plain: plain,
     walk: walk,
-    hasMarks: function (s) { return ALL_MARKS.test(s || ''); }
+    hasMarks: function (s) { return ALL_MARKS.test(s || ''); },
+    collectText: collectText,
+    offsetOf: offsetOf,
+    wrapOffsets: wrapOffsets,
+    wrapOffsetsMany: wrapOffsetsMany
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

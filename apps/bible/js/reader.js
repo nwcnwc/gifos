@@ -207,7 +207,17 @@
       for (var s2 = 0; s2 < spans.length; s2++) spans[s2].classList.add('hasnote');
     }
 
+    self.applySpanHighlights(body, pack, m.ref.code, m.ref.chapter);
+
     body.addEventListener('click', function (ev) {
+      if (ev.target.closest('#hl-bar')) return;
+      var sel = window.getSelection();
+      if (sel && !sel.isCollapsed && String(sel).replace(/\s/g, '')) return;
+      var mark = ev.target.closest('mark.hl-span');
+      if (mark) {
+        self.showHighlightBarForMark(mark, pack);
+        return;
+      }
       var a = ev.target.closest('.anchor');
       if (a) {
         self.openNoteSheet(pack, +a.getAttribute('data-i'),
@@ -278,6 +288,7 @@
   };
 
   Reader.prototype.closeSheets = function () {
+    this.hideHighlightBar();
     document.getElementById('scrim').hidden = true;
     var sheets = document.querySelectorAll('.sheet');
     for (var i = 0; i < sheets.length; i++) sheets[i].hidden = true;
@@ -495,6 +506,232 @@
   };
   Reader.prototype.hideToast = function () { document.getElementById('toast').hidden = true; };
 
+  /* ---------------- Kindle-style highlight bar ----------------
+   * Select any words in the chapter or a footnote and a small colour menu
+   * appears on top of the selection. A tap without a selection still opens
+   * the verse sheet. */
+
+  Reader.prototype.applySpanHighlights = function (body, pack, code, chapter) {
+    var groups = Object.create(null);
+    for (var k in this.marks) {
+      var rec = this.marks[k];
+      if ((rec.kind !== 'span' && rec.kind !== 'fn') || !rec.colour) continue;
+      if (rec.code !== code || rec.chapter !== chapter) continue;
+      if (rec.pack && rec.pack !== pack.id) continue;
+      if (rec.fn != null) continue;
+      var key = String(rec.verse);
+      (groups[key] || (groups[key] = [])).push(rec);
+    }
+    for (var verse in groups) {
+      var els = body.querySelectorAll('.v[data-v="' + verse + '"]');
+      if (!els.length) continue;
+      var recs = groups[verse];
+      recs.sort(function (a, b) { return b.start - a.start; });
+      for (var i = 0; i < recs.length; i++) {
+        Render.wrapOffsetsMany(els, recs[i].start, recs[i].end, recs[i].colour, recs[i].id);
+      }
+    }
+  };
+
+  Reader.prototype.applyFootnoteHighlights = function (el, spec) {
+    var recs = [];
+    for (var k in this.marks) {
+      var rec = this.marks[k];
+      if (rec.kind !== 'fn' || rec.fn !== spec.fn) continue;
+      if (rec.code !== spec.code || rec.chapter !== spec.chapter || rec.verse !== spec.verse) continue;
+      if (rec.pack && spec.pack && rec.pack !== spec.pack) continue;
+      recs.push(rec);
+    }
+    recs.sort(function (a, b) { return b.start - a.start; });
+    for (var i = 0; i < recs.length; i++) {
+      Render.wrapOffsets(el, recs[i].start, recs[i].end, recs[i].colour, recs[i].id);
+    }
+  };
+
+  Reader.prototype.selectionSpecs = function () {
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+    var quote = String(sel).replace(/\s+/g, ' ').trim();
+    if (!quote) return null;
+    var range = sel.getRangeAt(0);
+    var a = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentNode;
+    if (!a || !a.closest) return null;
+    if (a.closest('input, textarea, #bar, #foot, #hl-bar')) return null;
+
+    var fn = a.closest('.note-item');
+    if (fn && fn.contains(range.endContainer)) {
+      var s = Render.offsetOf(fn, range.startContainer, range.startOffset);
+      var e = Render.offsetOf(fn, range.endContainer, range.endOffset);
+      if (s < 0 || e < 0) return null;
+      if (e < s) { var t = s; s = e; e = t; }
+      if (!(e > s)) return null;
+      return {
+        quote: quote, rect: range.getBoundingClientRect(),
+        specs: [{
+          kind: 'fn', pack: fn.getAttribute('data-pack'),
+          code: fn.getAttribute('data-code'), chapter: +fn.getAttribute('data-ch'),
+          verse: +fn.getAttribute('data-v'), fn: +fn.getAttribute('data-n'),
+          start: s, end: e, quote: quote
+        }]
+      };
+    }
+
+    var chapter = a.closest('.chapter');
+    if (!chapter) return null;
+    var pack = this.pack(0);
+    var col = a.closest('.col');
+    if (col) {
+      var cols = document.querySelectorAll('#cols .col');
+      for (var ci = 0; ci < cols.length; ci++) if (cols[ci] === col) pack = this.pack(ci);
+    }
+    if (!pack) return null;
+
+    var vs = chapter.querySelectorAll('.v');
+    var byI = Object.create(null), order = [];
+    for (var i = 0; i < vs.length; i++) {
+      if (!this._rangeTouches(range, vs[i])) continue;
+      var id = vs[i].getAttribute('data-i');
+      if (!byI[id]) { byI[id] = []; order.push(id); }
+      byI[id].push(vs[i]);
+    }
+    if (!order.length) return null;
+    var specs = [];
+    for (var o = 0; o < order.length; o++) {
+      var els = byI[order[o]];
+      var clip = this._clipToEls(range, els);
+      if (!clip) continue;
+      var ref = pack.refOf(+els[0].getAttribute('data-i'));
+      if (!ref) continue;
+      specs.push({
+        kind: 'span', pack: pack.id, code: ref.code, chapter: ref.chapter, verse: ref.verse,
+        start: clip.start, end: clip.end, quote: quote
+      });
+    }
+    if (!specs.length) return null;
+    return { quote: quote, rect: range.getBoundingClientRect(), specs: specs };
+  };
+
+  Reader.prototype._rangeTouches = function (range, el) {
+    if (range.intersectsNode) {
+      try { return range.intersectsNode(el); } catch (e) { /* fall through */ }
+    }
+    var r = document.createRange();
+    r.selectNodeContents(el);
+    return range.compareBoundaryPoints(Range.END_TO_START, r) < 0 &&
+           range.compareBoundaryPoints(Range.START_TO_END, r) > 0;
+  };
+
+  Reader.prototype._clipToEls = function (range, els) {
+    var pos = 0, start = -1, end = -1, total = 0;
+    for (var i = 0; i < els.length; i++) {
+      var t = Render.collectText(els[i]);
+      for (var j = 0; j < t.pieces.length; j++) {
+        var p = t.pieces[j];
+        if (p.node === range.startContainer) start = pos + p.start + range.startOffset;
+        if (p.node === range.endContainer) end = pos + p.start + range.endOffset;
+      }
+      pos += t.length;
+      total = pos;
+    }
+    if (start < 0) start = 0;
+    if (end < 0) end = total;
+    if (end < start) { var x = start; start = end; end = x; }
+    if (end > total) end = total;
+    if (!(end > start)) return null;
+    return { start: start, end: end };
+  };
+
+  Reader.prototype.showHighlightBar = function (got) {
+    var bar = document.getElementById('hl-bar');
+    if (!bar || !got || !got.specs || !got.specs.length) return;
+    this._hlPending = got;
+    bar.hidden = false;
+    var rect = got.rect || { left: 0, top: 0, width: 0, height: 0, bottom: 0 };
+    var w = bar.offsetWidth || 240, h = bar.offsetHeight || 44;
+    var x = rect.left + rect.width / 2;
+    var y = rect.top - h - 10;
+    if (y < 8) y = (rect.bottom || 0) + 10;
+    x = Math.max(w / 2 + 8, Math.min((window.innerWidth || 320) - w / 2 - 8, x));
+    y = Math.max(8, Math.min((window.innerHeight || 480) - h - 8, y));
+    bar.style.left = x + 'px';
+    bar.style.top = y + 'px';
+    var cn = this.prefs.colourNames || {};
+    var btns = bar.querySelectorAll('button[data-hl]');
+    for (var i = 0; i < btns.length; i++) {
+      var c = btns[i].getAttribute('data-hl');
+      if (c) btns[i].title = cn[c] || c;
+    }
+  };
+
+  Reader.prototype.hideHighlightBar = function () {
+    var bar = document.getElementById('hl-bar');
+    if (bar) bar.hidden = true;
+    this._hlPending = null;
+  };
+
+  Reader.prototype.showHighlightBarForMark = function (mark, pack) {
+    var id = mark.getAttribute('data-hid');
+    var rec = id && this.marks[id];
+    var rect = mark.getBoundingClientRect();
+    var spec;
+    if (rec) {
+      spec = {
+        kind: rec.kind, pack: rec.pack || (pack && pack.id), code: rec.code,
+        chapter: rec.chapter, verse: rec.verse, fn: rec.fn,
+        start: rec.start, end: rec.end, quote: rec.quote || mark.textContent, id: rec.id
+      };
+    } else {
+      spec = { quote: mark.textContent, id: id };
+    }
+    this.showHighlightBar({ quote: spec.quote, rect: rect, specs: [spec], existing: id });
+  };
+
+  Reader.prototype._bindHighlight = function () {
+    var self = this;
+    var bar = document.getElementById('hl-bar');
+    if (!bar) return;
+    var wait = null;
+    document.addEventListener('selectionchange', function () {
+      clearTimeout(wait);
+      wait = setTimeout(function () {
+        var got = self.selectionSpecs();
+        if (got) self.showHighlightBar(got);
+      }, 50);
+    });
+    bar.addEventListener('pointerdown', function (ev) { ev.preventDefault(); });
+    bar.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button');
+      if (!b || !self._hlPending) return;
+      var pending = self._hlPending;
+      var act = b.getAttribute('data-act');
+      var colour = b.getAttribute('data-hl');
+      if (act === 'copy') {
+        self.copy(pending.quote || '');
+        self.hideHighlightBar();
+        if (window.getSelection) window.getSelection().removeAllRanges();
+        return;
+      }
+      var specs = pending.specs || [];
+      var chain = Promise.resolve();
+      for (var i = 0; i < specs.length; i++) {
+        (function (spec) {
+          chain = chain.then(function () { return self.store.setSpan(spec, colour || ''); });
+        })(specs[i]);
+      }
+      chain.then(function () {
+        self.hideHighlightBar();
+        if (window.getSelection) window.getSelection().removeAllRanges();
+        if (colour) self.toast('Highlighted — it stays in this app on this device.');
+      });
+    });
+    document.addEventListener('pointerdown', function (ev) {
+      if (bar.hidden) return;
+      if (bar.contains(ev.target)) return;
+      if (window.getSelection && !window.getSelection().isCollapsed) return;
+      self.hideHighlightBar();
+    });
+  };
+
   /* ---------------- wiring ---------------- */
 
   Reader.prototype._bind = function () {
@@ -515,11 +752,12 @@
       self.following = false;
       document.getElementById('follow').hidden = true;
     });
+    this._bindHighlight();
     document.addEventListener('keydown', function (ev) {
       if (ev.target && /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
       if (ev.key === 'ArrowRight') self.step(1);
       else if (ev.key === 'ArrowLeft') self.step(-1);
-      else if (ev.key === 'Escape') self.closeSheets();
+      else if (ev.key === 'Escape') { self.hideHighlightBar(); self.closeSheets(); }
       else if (ev.key === '/') { ev.preventDefault(); self.openSearchSheet(); }
     });
     if (root.gifos && root.gifos.onBack) {
