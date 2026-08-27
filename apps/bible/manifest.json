@@ -4,7 +4,7 @@
   "name": "Bible",
   "shortName": "Bible",
   "version": "1.0.0",
-  "minBuild": 1178,
+  "minBuild": 1381,
   "entry": "index.html",
   "accent": [
     201,
@@ -1015,8 +1015,8 @@
     {
       "url": "/apps/bible/packs/help-dict.gbx",
       "path": "packs/help-dict.gbx",
-      "sha256": "985c101d6c397c8684d8e0dc00d522a46b43506e57247cd5c2470bf4fad0d558",
-      "bytes": 2162823,
+      "sha256": "09e1f5278ba3685944512cd6b35111e25f446b7c8264fd6769c7549ef05dc0ac",
+      "bytes": 2162265,
       "optional": true
     },
     {
@@ -1036,29 +1036,29 @@
     {
       "url": "/apps/bible/packs/help-plans.gbx",
       "path": "packs/help-plans.gbx",
-      "sha256": "b85b4e5646eac9c2bf1997246b58c031ef4630a2eb518afa2d9b9482b9e6c5ea",
-      "bytes": 8307,
+      "sha256": "efe3e9737bc4546ae98a36c1f09a6107c5cb69d3669dea656c074e74e64b9b82",
+      "bytes": 8305,
       "optional": true
     },
     {
       "url": "/apps/bible/packs/help-topics.gbx",
       "path": "packs/help-topics.gbx",
-      "sha256": "7f06d58557a482ff657ee02f673a4ef4c378ccb0be5d8517f84adab4d5b9283f",
-      "bytes": 1324788,
+      "sha256": "d044b068dff00ce1625295c85c843cb6f0861ed1895d91c1cdf7099b1e8c9114",
+      "bytes": 1324036,
       "optional": true
     },
     {
       "url": "/apps/bible/packs/help-xrefs.gbx",
       "path": "packs/help-xrefs.gbx",
-      "sha256": "6a920fbc1592aff0e5f6cd3d508c367fcb9a7c33e619f16827f742685540937c",
-      "bytes": 1793044,
+      "sha256": "7df7abcfaa8782ccc6a7ba7cb4e5904cb84b56fc585c9462c2bce0f4477c7aaa",
+      "bytes": 1793486,
       "optional": true
     },
     {
       "url": "/apps/bible/packs/int-grcbyz.gbx",
       "path": "packs/int-grcbyz.gbx",
-      "sha256": "b7a32dea51f957950cfddebc1fc76aa04e27c78dd3944d5d6863fdee4dd6990c",
-      "bytes": 1036743,
+      "sha256": "9893a7c74e109aeb6d7d4b8acad9792366a58aecba1cdb8607e2003cd14afb8c",
+      "bytes": 1170496,
       "optional": true
     },
     {
@@ -1071,8 +1071,8 @@
     {
       "url": "/apps/bible/packs/int-wlc.gbx",
       "path": "packs/int-wlc.gbx",
-      "sha256": "6534ff1a6cb67cbe997ed294e71d68a7cbd02eaf5ed24eb518cad6f2c83d692b",
-      "bytes": 3255187,
+      "sha256": "0d33e5391aa622706a0ec882d5d8892301de610394a629f4fd2d89fc6a3e42f9",
+      "bytes": 3255140,
       "optional": true
     },
     {
