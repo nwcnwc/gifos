@@ -1619,6 +1619,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // undefined here threw on q.w/q.label at every status + adapt tick once a
     // room crossed ~99, taking the whole client down as a section filled.
     const rung = (n) => LADDER.find((r) => n <= r.max) || LADDER[LADDER.length - 1];
+    // A SHARED SCREEN IS NOT A FACE, AND THE LADDER IS ABOUT FACES. Every rung
+    // above trades resolution away first, because a face stays a face at 360p —
+    // the information is the motion. A slide, a terminal or a spreadsheet is the
+    // opposite: the information IS the spatial detail, and the moment the
+    // encoder scales 1920x1080 down to fit a face's budget the text stops being
+    // text. It is also cheap to hold: a still document sends almost nothing
+    // between changes, so a high CAP costs the radio only while the picture
+    // actually moves. Hence a separate lane — a cap, not a target, like every
+    // other maxBitrate here.
+    const SCREEN_KBPS = 2500;
     // ---- VIDEO QUALITY (Settings): what YOUR OWN camera records --------------
     // Auto (the default, and the whole behavior until 2026-08-03) = the LADDER
     // above: room size picks the rung, the power tier and tune cut deeper. A
@@ -3679,6 +3689,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // through participantCount(), and adapt() runs on every connect and every
       // sweep — evaluating it inside the sender loop is quadratic in a big room.
       const stageBudget = Math.round(stageCeilingKbps() * (tier >= 3 ? 0.6 : 1)) * 1000;
+      // MY OWN screen rides the MAIN row-mesh senders, because a share is a
+      // source swap and not a second channel (sentVideoTrack) — so those
+      // senders are carrying a document while still being budgeted from `q`,
+      // MY CAMERA'S rung. That is the whole bug: a 1080p desktop handed a
+      // 3-person room's 450k face budget is scaled to mush by the encoder
+      // before it ever leaves. Screens get the screen lane.
+      const myScreen = !!(myStatus.scr && screenStream && screenStream.getVideoTracks()[0]);
+      const screenBudget = Math.round(screenCeilingKbps() * (tier >= 3 ? 0.6 : 1)) * 1000;
+      // And the same question one hop out: is the thing this node is FORWARDING
+      // on the Stage a screen? Gossip already says so on every heartbeat (`scr`),
+      // so a forwarder does not have to inspect pixels to know not to squeeze it.
+      const screenOnStage = stageIds().some(sharingScreen);
       for (const p of peers.values()) {
         for (const sender of p.pc.getSenders()) {
           if (!sender.track || sender.track.kind !== 'video') continue;
@@ -3715,11 +3737,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // The deepest power tiers still trim it: a phone forwarding the stage
           // is still a phone, and tier 3 is the state where it has already
           // decided that frames and pixels are what it is spending.
-          const want = stageSenders.has(sender) ? stageBudget
-            : auxSenders.has(sender) ? auxBudget
-            : (blurred ? Math.min(q.kbps, 250) * 1000 : q.kbps * 1000);
-          if (prm.encodings[0].maxBitrate === want) continue; // already set — and a no-op setParameters can still race a sender teardown into the renderer-killing CHECK above, so only touch what must change
+          const isStageSd = stageSenders.has(sender), isAuxSd = auxSenders.has(sender);
+          const want = isStageSd ? (screenOnStage ? Math.max(stageBudget, screenBudget) : stageBudget)
+            : isAuxSd ? auxBudget
+            : (myScreen ? screenBudget : blurred ? Math.min(q.kbps, 250) * 1000 : q.kbps * 1000);
+          // A BUDGET ALONE DOES NOT KEEP THE PIXELS. Under the platform default
+          // ('balanced') an encoder that cannot hold the frame rate buys it by
+          // scaling the frame down — correct for a face, fatal for text. The
+          // track's contentHint says this at the source, but only the sharer's
+          // own senders ever see that track: every forwarded copy is a fresh
+          // carrier track with no hint on it, so the preference is set here,
+          // per sender, where the room already knows from `scr` what it is
+          // carrying. Restored to 'balanced' the moment the share ends.
+          const carriesScreen = isStageSd ? screenOnStage : (!isAuxSd && myScreen);
+          const wantDeg = carriesScreen ? 'maintain-resolution' : 'balanced';
+          const degNow = degOf.has(sender) ? degOf.get(sender) : (prm.degradationPreference || 'balanced');
+          if (prm.encodings[0].maxBitrate === want && degNow === wantDeg) continue; // already set — and a no-op setParameters can still race a sender teardown into the renderer-killing CHECK above, so only touch what must change
           prm.encodings[0].maxBitrate = want;
+          prm.degradationPreference = wantDeg;
+          degOf.set(sender, wantDeg);
           sender.setParameters(prm).catch(() => {});
         }
       }
@@ -3728,6 +3764,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return q;
     }
     let lastQ = null; // the rung adapt() last applied — harness verification surface
+    // The degradationPreference adapt() last applied per sender. Read back from
+    // getParameters is not dependable (a browser may simply not echo it), and a
+    // value that always looks unset would re-write every sender every sweep —
+    // the setParameters storm the skip-if-unchanged rule above exists to avoid.
+    const degOf = new WeakMap();
     const trackQ = { t: null, k: '' }; // the camera track adapt() last constrained, and to what
     // COMPOSITES FOLLOW THE TIER TOO (2026-07-31 power work). Every packer took
     // the flat SCALE.COMP_FPS (8) — no call site has ever passed `fps` — so a
@@ -3780,11 +3821,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // open room lets anyone step up while everyone carries a full section.
     const STAGE_MAXW = 1280; // strip canvas width cap — with G stagers each cell is maxW/G
     const STAGE_CELL = 480;  // per-stager square at 1-2 stagers; maxW governs above that
+    // A SCREEN IN A 480 CELL IS 480x270 (it is letterboxed — fitFor ⇒ 'contain'),
+    // and a downscale that leaves a face perfectly recognisable leaves a
+    // document unreadable. Seats that hold the feed itself now paint that
+    // instead (stageDirect); this is for the ones that genuinely have only the
+    // composite — a deep subtree fed by 'sgs', or a Stage carrying two stagers.
+    // 2.25x the packer's pixels, and the still-frame skip means a slide that
+    // is not moving pays none of it.
+    const STAGE_CELL_SCREEN = 720;
     const STAGE_FPS = 20;    // strip paint/capture rate — the live tier, not a tapestry
     function stageCell() {
-      if (!IS_MOBILE) return STAGE_CELL;
+      const base = stageIds().some(sharingScreen) ? STAGE_CELL_SCREEN : STAGE_CELL;
+      if (!IS_MOBILE) return base;
       const deep = battTier >= 3 || drainTier >= 3 || idleNow;
-      return deep ? Math.round(STAGE_CELL * 0.5) : STAGE_CELL;
+      return deep ? Math.round(base * 0.5) : base;
     }
     // The strip's rate, by power tier — STAGE_FPS is the ceiling captureStream
     // is built at, and stripPack.setFps() moves the paint rate under it without
@@ -3808,6 +3858,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // WORSE in any room than the thumbnail budget it replaces.
       const n = participantCount();
       return n <= 8 ? 1500 : n <= 25 ? 1200 : 1000;
+    }
+    // THE SCREEN LANE, tapered by the SAME argument as the stage lane above and
+    // for the same reason — what changes with the room is not the screen's own
+    // cost but how much else the carrying seat is paying for at the same time.
+    // It sits above the stage lane at every size because a document's detail is
+    // its whole content, and it is a CAP: a still slide never approaches it, so
+    // the extra headroom is spent only while the picture is actually moving.
+    function screenCeilingKbps() {
+      if (BROADCAST) return Math.max(3500, SCREEN_KBPS);
+      const n = participantCount();
+      return n <= 8 ? SCREEN_KBPS : n <= 25 ? 2000 : 1500;
     }
     // ---- power forensics -----------------------------------------------
     // The Moto died ON THE CHARGER in a 3-person room — power work needs
@@ -9676,7 +9737,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // The track is meTile's, which refreshOutbound keeps identical to the
     // outbound one ("your self-view shows EXACTLY the track you broadcast"), so
     // this shows the BROADCAST — blur baked in — never a private clear copy.
-    let selfStageSt = null;
+    let selfStageSt = null, stageDirectSt = null;
     function selfStageStream() {
       const st = meTile && meTile.video && meTile.video.srcObject;
       const vt = st && st.getVideoTracks()[0];
@@ -9795,6 +9856,39 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (f) return { el: f.el, stream: f.stream };
         const p = peers.get(pid);
         return p ? { el: p.video, stream: p.video.srcObject } : { el: null, stream: null };
+      };
+      // A SHARED SCREEN PAINTED THROUGH THE STRIP IS A SHARED SCREEN NOBODY CAN
+      // READ. The strip's cells are SQUARE (mesh-media cellSize) and a screen is
+      // letterboxed into one (fitFor ⇒ 'contain'), so a 1920×1080 desktop lands
+      // in 480×270 with black bars down the sides — a 4× downscale applied by
+      // the VIEWER to a full-resolution feed it is already holding in memory.
+      // That is the 110px strip's mistake surviving at 480 (see "THE STAGE IS
+      // NOT A SECONDARY TILE"): raising the cell made faces fine, and text is
+      // not a face.
+      //   So when the Stage is ONE screen and this seat holds that feed, paint
+      // the feed. The strip is still built and still shipped down — deeper
+      // subtrees have nothing else — so this changes only what the LOCAL
+      // element points at, exactly as soloSelf already does for my own face.
+      // Every Section 1 seat holds every stage feed (the S1 flood), and a
+      // relaying seat holds the ones it carries, so this reaches far past the
+      // 25 seats of a full section.
+      //   VIDEO TRACK ONLY, and that is not cosmetic: the strip is video-only
+      // because Stage audio folds at each ear (mix-minus), so handing the
+      // element a stream that ALSO carries the stager's audio would play it a
+      // second time. Cached by track identity — paintStageStrip re-assigns
+      // srcObject whenever the stream differs, and this sweep runs every 2s.
+      const stageDirect = () => {
+        if (stagers.length !== 1) return null;  // 2+ stagers: the strip IS the composition to show
+        const sid = stagers[0];
+        // My own screen is selfStageStream's job; a FACE stays on the strip,
+        // whose square crop is a deliberate choice about what a face is.
+        if (sid === myId || !sharingScreen(sid)) return null;
+        const sc = srcFor(sid, 'stg:' + sid);
+        if (!sc || !sc.el || !sc.stream || !sc.el.videoWidth) return null; // no pixels yet — the strip stands, the next sweep switches
+        const vt = sc.stream.getVideoTracks ? sc.stream.getVideoTracks()[0] : null;
+        if (!vt || vt.readyState === 'ended') return null;
+        if (!stageDirectSt || stageDirectSt.getVideoTracks()[0] !== vt) stageDirectSt = new MediaStream([vt]);
+        return stageDirectSt;
       };
       // ---- GAPLESS PACKING (approach A — docs/media-plane.md) ----------------
       // Every shipped mosaic is a row-major PACKED grid of square faces with NO
@@ -10154,7 +10248,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (sc && sc.el) { stripPack.setTile(sid, j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(sid), fit: fitFor(sid) }); stgKeep.add(sid); }
         });
         for (const id of stripPack.ids()) if (!stgKeep.has(id)) stripPack.delTile(id);
-        paintStageStrip(selfSt || stripPack.stream);
+        paintStageStrip(selfSt || stageDirect() || stripPack.stream);
         // Fan the strip DOWN only: every S1 seat composites its OWN strip from
         // the flooded stg feeds, so sideways sgs ships between S1 seats were
         // dead weight (receivers own stripPack and never paint them) — gone.
@@ -10170,7 +10264,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Relay it regardless (my subtree needs it) — but if the only face in
         // it is mine, look at the local track instead of at my own pixels
         // after a round trip up to Section 1 and back down.
-        paintStageStrip((soloSelf && selfStageStream()) || sgs.stream);
+        paintStageStrip((soloSelf && selfStageStream()) || stageDirect() || sgs.stream);
         const dj = shipMos('sgs', occPid(T.down(c)), sgs.stream, blockMeta(sgs)); if (dj) wanted.add(dj);
         if (iAmHead) for (let j = 1; j < C; j++) { const jk = shipMos('sgs', occPid({ pc: c.pc, r: c.r, i: j }), sgs.stream, blockMeta(sgs)); if (jk) wanted.add(jk); }
         const xg = T.crossLink(c); const xgPid = xg ? occPid(xg) : null;
@@ -10680,6 +10774,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         .then((s) => {
           const vt = s.getVideoTracks()[0];
           if (!vt) { try { s.getTracks().forEach((t) => t.stop()); } catch (e) {} return; }
+          // TELL THE ENCODER IT IS LOOKING AT TEXT. Without a contentHint a
+          // track is encoded under the default 'balanced' degradation, which
+          // buys frame rate by throwing RESOLUTION away — the one thing a
+          // shared screen cannot spare. A 1080p desktop under a face-sized
+          // budget was arriving scaled to roughly 640x360, which is legible as
+          // a picture of a window and useless as a document. 'text' asks for
+          // the opposite trade (hold the pixels, drop frames), and it also
+          // switches the codec into its screen-content path, where an
+          // unchanged region costs almost nothing. The frame rate we asked for
+          // is 15 and a slide does not move, so there is nothing to lose.
+          try { vt.contentHint = 'text'; } catch (e) {}
           screenStream = s;
           myStatus.scr = Date.now();
           // THE BROWSER'S OWN "Stop sharing" BAR IS THE MOST-USED STOP BUTTON
