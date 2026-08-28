@@ -20,8 +20,9 @@
 // pack the platform can open by itself is worth more than a smaller one it
 // cannot.
 //
-// Intake only. A .gbp already on disk is left alone unless --reintake.
-// After that, format changes are tools/migrate-packs.mjs.
+// Intake only. A .gbp already on disk is left alone. --reintake only if
+// intake dropped content a migration cannot restore. Format changes are
+// tools/migrate-packs.mjs.
 //
 // Run: node apps/bible/tools/build-packs.mjs [--only id,id] [--reintake]
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';

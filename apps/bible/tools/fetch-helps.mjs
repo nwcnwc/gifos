@@ -1,6 +1,7 @@
 // Intake: fetch study-help sources into .cache/helps/. If the pack already
-// exists, this does nothing (the URL is no longer in play). --reintake is
-// a deliberate second intake of the same id. Does not unpack SWORD zips.
+// exists, this does nothing (the URL is no longer in play). --reintake only
+// if intake dropped content a migration cannot restore. Does not unpack
+// SWORD zips.
 //
 // Run: node apps/bible/tools/fetch-helps.mjs [--force] [--reintake]
 import { dirname, join } from 'node:path';

@@ -18,8 +18,8 @@ Gauntlet-loop build of a new App Store app: `apps/bible/`.
   translators' footnotes, cross-references, section headings, NATIVE book names
 - `tools/build-packs.mjs` — GBP2 packs, 139 texts, 63 languages
 - `tools/source.mjs` + `PIPELINE.md` — intake once (URL → pack); after
-  that only `migrate-packs.mjs` rewrites a pack. `--reintake` is the
-  explicit second intake of the same id.
+  that only `migrate-packs.mjs` rewrites a pack. `--reintake` only if
+  intake dropped content a migration cannot restore.
 - `js/pack.js` — the reader's pack reader (native DecompressionStream)
 - `test/unit/bible-pack.js` — 9 assertions, green
 - `js/versify.js` + `test/unit/bible-versify.js` — three traditions mapped
