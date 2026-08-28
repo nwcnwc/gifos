@@ -33,28 +33,6 @@
 
   var FS = '';                        // between a word's fields
 
-  function inflateRaw(bytes) {
-    if (typeof DecompressionStream !== 'function') {
-      return Promise.reject(new Error('This browser cannot unpack a lexicon.'));
-    }
-    var ds = new DecompressionStream('deflate-raw');
-    var w = ds.writable.getWriter();
-    w.write(bytes); w.close();
-    return new Response(ds.readable).arrayBuffer();
-  }
-
-  // Line starts, found once. Int32Array so a 23,000-line index is 92 KB and
-  // never grows the heap the way an array of strings would.
-  function indexLines(s) {
-    var n = 1, i;
-    for (i = s.indexOf('\n'); i >= 0; i = s.indexOf('\n', i + 1)) n++;
-    var starts = new Int32Array(n + 1);
-    var k = 1;
-    for (i = s.indexOf('\n'); i >= 0; i = s.indexOf('\n', i + 1)) starts[k++] = i + 1;
-    starts[n] = s.length + 1;
-    return starts;
-  }
-
   function lineAt(s, starts, i) {
     if (i < 0 || i >= starts.length - 1) return '';
     return s.slice(starts[i], starts[i + 1] - 1);
@@ -91,7 +69,9 @@
 
   // -------------------------------------------------------------- lexicon
 
-  function Lexicon(header, sections) {
+  function Lexicon(store) {
+    var header = store.header;
+    this.store = store;
     this.header = header;
     this.id = header.id;
     this.name = header.name;
@@ -104,17 +84,18 @@
     // and says so here rather than shipping 101 empty ones.
     this.absent = header.absent || [];
     this.fields = header.fields;
-    this._nums = sections.nums;
-    this._entries = sections.entries;
-    this._search = sections.search;
-    this._estarts = indexLines(sections.entries);
-    this._sstarts = indexLines(sections.search);
-
+    // `nums` is the key column and every lookup starts there, so it is read at
+    // open. `entries` and `search` are read the first time something actually
+    // resolves to an entry — a lexicon on the shelf that is never consulted
+    // costs its numbers and nothing else.
     this._byNum = Object.create(null);
-    var nums = sections.nums.split('\n');
+    var nums = store.text('nums').split('\n');
     for (var i = 0; i < nums.length; i++) this._byNum[nums[i]] = i;
     this.numbers = nums;
   }
+
+  Lexicon.prototype.section = function (name) { return this.store.text(name); };
+  Lexicon.prototype.starts = function (name) { return this.store.lines(name); };
 
   Lexicon.prototype.slotOf = function (num) {
     var k = normalize(num, this.prefix);
@@ -126,7 +107,7 @@
 
   Lexicon.prototype.at = function (i) {
     if (i < 0 || i >= this.numbers.length) return null;
-    var f = lineAt(this._entries, this._estarts, i).split('\t');
+    var f = lineAt(this.section('entries'), this.starts('entries'), i).split('\t');
     return {
       num: this.numbers[i],
       lemma: f[0] || '', translit: f[1] || '', pron: f[2] || '',
@@ -150,9 +131,9 @@
     if (!q) return out;
     var max = limit || 50;
     var seen = -1;
-    for (var at = this._search.indexOf(q); at >= 0 && out.length < max;
-         at = this._search.indexOf(q, at + q.length)) {
-      var line = lineOf(this._sstarts, at);
+    for (var at = this.section('search').indexOf(q); at >= 0 && out.length < max;
+         at = this.section('search').indexOf(q, at + q.length)) {
+      var line = lineOf(this.starts('search'), at);
       if (line === seen) continue;
       seen = line;
       out.push(this.at(line));
@@ -172,7 +153,9 @@
 
   // ---------------------------------------------------------- interlinear
 
-  function Interlinear(header, sections) {
+  function Interlinear(store) {
+    var header = store.header;
+    this.store = store;
     this.header = header;
     this.id = header.id;
     this.name = header.name;
@@ -182,13 +165,11 @@
     this.dir = header.dir || 'ltr';
     this.pairs = header.pairs;
     this.attribution = header.attribution || '';
-    this.table = JSON.parse(sections.parse);
-    this._words = sections.words;
-    this._bare = sections.bare;
-    this._wstarts = indexLines(sections.words);
-    this._bstarts = indexLines(sections.bare);
-    this._morphs = sections.morphs.split('\n');
-    this._lemmas = sections.lemmas.split('\n');
+    // The morphology table is small and every word needs it; the word rows are
+    // large and only the chapter on screen touches them.
+    this.table = JSON.parse(store.text('parse'));
+    this._morphs = store.text('morphs').split('\n');
+    this._lemmas = store.text('lemmas').split('\n');
     this._decoded = Object.create(null);
 
     // The same book math pack.js runs, on the table copied from the pack this
@@ -255,7 +236,7 @@
   // a hole, so an empty answer means the text has no words there, not that the
   // lookup failed.
   Interlinear.prototype.wordsAt = function (index) {
-    var line = lineAt(this._words, this._wstarts, index);
+    var line = lineAt(this.store.text('words'), this.store.lines('words'), index);
     if (!line) return [];
     var raw = line.split(' ');
     var out = [];
@@ -281,7 +262,7 @@
   // The verse's words with accents, vowel points and cantillation gone — what
   // the search index is built from, and what a reader can actually type.
   Interlinear.prototype.bareAt = function (index) {
-    return lineAt(this._bare, this._bstarts, index);
+    return lineAt(this.store.text('bare'), this.store.lines('bare'), index);
   };
 
   // One indexOf over the whole text, the same trick GBP2 plays with its body.
@@ -293,9 +274,9 @@
     if (!q) return out;
     var max = limit || 50;
     var seen = -1;
-    for (var at = this._bare.indexOf(q); at >= 0 && out.length < max;
-         at = this._bare.indexOf(q, at + q.length)) {
-      var line = lineOf(this._bstarts, at);
+    for (var at = this.store.text('bare').indexOf(q); at >= 0 && out.length < max;
+         at = this.store.text('bare').indexOf(q, at + q.length)) {
+      var line = lineOf(this.store.lines('bare'), at);
       if (line === seen) continue;
       seen = line;
       out.push(line);
@@ -372,23 +353,12 @@
   // ------------------------------------------------------------- container
 
   function open(buffer) {
-    var bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-    var magic = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
-    if (magic !== 'GBX1') return Promise.reject(new Error('Not a lexicon pack.'));
-    return inflateRaw(bytes.subarray(4)).then(function (buf) {
-      var all = new Uint8Array(buf);
-      var hlen = all[0] | (all[1] << 8) | (all[2] << 16) | (all[3] << 24);
-      var dec = new TextDecoder();
-      var header = JSON.parse(dec.decode(all.subarray(4, 4 + hlen)));
-      var at = 4 + hlen, sections = {};
-      for (var i = 0; i < header.sec.length; i++) {
-        var name = header.sec[i][0], len = header.sec[i][1];
-        sections[name] = dec.decode(all.subarray(at, at + len));
-        at += len;
-      }
-      if (header.kind === 'lexicon') return new Lexicon(header, sections);
-      if (header.kind === 'interlinear') return new Interlinear(header, sections);
-      throw new Error('Unknown pack kind: ' + header.kind);
+    return root.GifosBibleContainer.open(buffer, 'GBX1', function (header) {
+      return header.sec;
+    }).then(function (store) {
+      if (store.header.kind === 'lexicon') return new Lexicon(store);
+      if (store.header.kind === 'interlinear') return new Interlinear(store);
+      throw new Error('Unknown pack kind: ' + store.header.kind);
     });
   }
 

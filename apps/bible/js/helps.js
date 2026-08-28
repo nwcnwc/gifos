@@ -2,10 +2,11 @@
  *
  *   "GBX1" | deflate-raw( u32 headerLen | header JSON | section | section | … )
  *
- * Same container as GBP2 (pack.js) and opened the same way: one inflate yields
- * every section, and a section is a slice. Nothing here touches the network —
- * DecompressionStream is a browser built-in, so a pack needs no decoder shipped
- * beside it. apps/bible/tools/build-helps.mjs documents each pack's sections.
+ * Same container as GBP2 (pack.js), read by container.js: one inflate yields
+ * every section, and a section is a slice of it. A section becomes a string the
+ * first time it is asked for, so a pack on the shelf to answer one kind of
+ * question does not decode the sections that answer the others.
+ * tools/build-helps.mjs documents each pack's sections.
  *
  * Six kinds, one reader. The kind is in the header and decides which methods
  * mean anything; calling the wrong one returns nothing rather than throwing,
@@ -84,65 +85,39 @@
     return n || 0;
   }
 
-  function inflateRaw(bytes) {
-    if (typeof DecompressionStream !== 'function') {
-      return Promise.reject(new Error('This browser cannot unpack study helps.'));
-    }
-    var ds = new DecompressionStream('deflate-raw');
-    var w = ds.writable.getWriter();
-    w.write(bytes); w.close();
-    return new Response(ds.readable).arrayBuffer();
-  }
-
-  // Line starts, found once. Int32Array so an 8,600-entry dictionary index is
-  // 34 KB and never becomes an array of substrings.
-  function indexLines(s) {
-    var n = 1, i;
-    for (i = s.indexOf('\n'); i >= 0; i = s.indexOf('\n', i + 1)) n++;
-    var starts = new Int32Array(n + 1), k = 1;
-    for (i = s.indexOf('\n'); i >= 0; i = s.indexOf('\n', i + 1)) starts[k++] = i + 1;
-    starts[n] = s.length + 1;
-    return starts;
-  }
-
-  function lineAt(s, starts, i) {
-    if (i < 0 || i >= starts.length - 1) return '';
-    return s.slice(starts[i], starts[i + 1] - 1);
-  }
-
   function splitRefs(s) { return s ? s.split(';') : []; }
 
   /* ── the pack ─────────────────────────────────────────────────────────── */
 
-  function Helps(header, sections) {
+  function Helps(store) {
+    var header = store.header;
     this.header = header;
+    this.store = store;
     this.kind = header.kind;
     this.title = header.title;
     this.license = header.license;
     this.attribution = header.attribution || null;
-    this.sections = sections;
-    this._starts = Object.create(null);
-    for (var k in sections) this._starts[k] = indexLines(sections[k]);
 
+    // The verse-keyed packs turn their index into Int32Arrays at open, because
+    // every lookup binary-searches it and nothing else in the pack is read
+    // until one hits. The bodies those hits point at stay bytes until then.
     if (this.kind === 'xrefs') this._loadKeyed('index', 3);
     if (this.kind === 'mhcc') this._loadKeyed('index', 3);
   }
 
   Helps.prototype.line = function (name, i) {
-    return lineAt(this.sections[name], this._starts[name], i);
+    return this.store.line(name, i);
   };
 
   Helps.prototype.count = function (name) {
-    var s = this.sections[name];
-    return s ? this._starts[name].length - 1 : 0;
+    return this.store.has(name) && this.store.text(name) ? this.store.lines(name).length - 1 : 0;
   };
 
   // A tab-separated index of `key<TAB>a<TAB>b` read into three Int32Arrays.
   // Parsing 29,000 lines once beats holding 29,000 strings forever, and the
   // keys come out sorted, which is what makes the lookups a binary search.
   Helps.prototype._loadKeyed = function (name, fields) {
-    var s = this.sections[name] || '';
-    var n = s ? this._starts[name].length - 1 : 0;
+    var n = this.count(name);
     var keys = new Int32Array(n), a = new Int32Array(n), b = new Int32Array(n);
     for (var i = 0; i < n; i++) {
       var parts = this.line(name, i).split('\t');
@@ -453,22 +428,9 @@
   /* ── opening ──────────────────────────────────────────────────────────── */
 
   function open(buffer) {
-    var bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-    var magic = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
-    if (magic !== 'GBX1') return Promise.reject(new Error('Not a study-helps pack.'));
-    return inflateRaw(bytes.subarray(4)).then(function (buf) {
-      var all = new Uint8Array(buf);
-      var hlen = all[0] | (all[1] << 8) | (all[2] << 16) | (all[3] << 24);
-      var dec = new TextDecoder();
-      var header = JSON.parse(dec.decode(all.subarray(4, 4 + hlen)));
-      var at = 4 + hlen, sections = {};
-      for (var i = 0; i < header.order.length; i++) {
-        var k = header.order[i];
-        sections[k] = dec.decode(all.subarray(at, at + header.sec[k]));
-        at += header.sec[k];
-      }
-      return new Helps(header, sections);
-    });
+    return root.GifosBibleContainer.open(buffer, 'GBX1', function (header) {
+      return header.order.map(function (k) { return [k, header.sec[k] || 0]; });
+    }).then(function (store) { return new Helps(store); });
   }
 
   // A surface holds several packs at once and asks each question of whichever
