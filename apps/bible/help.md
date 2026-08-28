@@ -16,6 +16,9 @@ works offline forever.
   psalters) are lined up for you, and the app says so when the numbering
   differs.
 - **‹ and ›** at the bottom turn chapters. On a keyboard, the arrow keys do.
+- **Back and Forward** at the top left retrace a jump — a Treasury link,
+  a search hit, a book you picked — not the next chapter. They stay dim
+  until you jump. Alt+← and Alt+→ do the same.
 - The **magnifier** searches the whole text of the current translation, or
   jumps straight to a reference — try `John 3:16`, `Ps 23`, `1 Cor 13:4-7`.
 

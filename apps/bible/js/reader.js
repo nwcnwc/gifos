@@ -36,7 +36,17 @@
     this.leaderSeen = null;
     this.speaking = null;                    // read-aloud state
     this._sheets = [];
+    this._back = [];
+    this._fwd = [];
     this._bind();
+  }
+
+  function copyAt(at) {
+    return { code: at.code, chapter: at.chapter, verse: at.verse || 0 };
+  }
+  function sameAt(a, b) {
+    return !!(a && b && a.code === b.code && a.chapter === b.chapter &&
+      (a.verse || 0) === (b.verse || 0));
   }
 
   /* ---------------- state ---------------- */
@@ -49,14 +59,62 @@
   // and — when this person is allowed to steer — moves the shared cursor too.
   Reader.prototype.go = function (ref, opts) {
     opts = opts || {};
-    this.at = { code: ref.code, chapter: ref.chapter, verse: ref.verse || 0 };
+    var next = { code: ref.code, chapter: ref.chapter, verse: ref.verse || 0 };
+    if (opts.jump && !opts.hist) this.recordJump(next);
+    this.at = next;
     this.stopSpeaking();
     this.paint();
+    this.paintHist();
     if (!opts.silent) {
       this.store.savePrefs({ at: this.at });
       this.store.setCursor(this.at, this.columns[0]);
     }
     if (opts.flash && ref.verse) this.flash(ref);
+  };
+
+  // A jump is a tap on a Treasury link, a search hit, a book, a plan — not
+  // ‹ › turning the page. Back and Forward retrace those jumps only.
+  Reader.prototype.recordJump = function (next) {
+    if (sameAt(this.at, next)) return;
+    this._back.push(copyAt(this.at));
+    if (this._back.length > 80) this._back.shift();
+    this._fwd = [];
+  };
+
+  Reader.prototype.histLabel = function (ref) {
+    var pack = this.pack(0);
+    var names = pack ? this.namesOf(pack) : {};
+    var r = { code: ref.code, chapter: ref.chapter };
+    if (ref.verse) r.verse = ref.verse;
+    return Refs.format(r, { names: names, style: 'short' });
+  };
+
+  Reader.prototype.paintHist = function () {
+    var back = document.getElementById('b-back');
+    var fwd = document.getElementById('b-fwd');
+    if (!back || !fwd) return;
+    var b = this._back.length ? this._back[this._back.length - 1] : null;
+    var f = this._fwd.length ? this._fwd[this._fwd.length - 1] : null;
+    back.disabled = !b;
+    fwd.disabled = !f;
+    back.title = b ? 'Back to ' + this.histLabel(b) : 'Back';
+    fwd.title = f ? 'Forward to ' + this.histLabel(f) : 'Forward';
+    back.setAttribute('aria-label', back.title);
+    fwd.setAttribute('aria-label', fwd.title);
+  };
+
+  Reader.prototype.histBack = function () {
+    if (!this._back.length) return;
+    this._fwd.push(copyAt(this.at));
+    var dest = this._back.pop();
+    this.go(dest, { flash: !!dest.verse, hist: true });
+  };
+
+  Reader.prototype.histFwd = function () {
+    if (!this._fwd.length) return;
+    this._back.push(copyAt(this.at));
+    var dest = this._fwd.pop();
+    this.go(dest, { flash: !!dest.verse, hist: true });
   };
 
   Reader.prototype.setColumns = function (ids) {
@@ -374,7 +432,7 @@
       // A single-chapter book needs no second tap.
       if (nums.length === 1) {
         self.closeSheets();
-        self.go({ code: b.code, chapter: nums[0] });
+        self.go({ code: b.code, chapter: nums[0] }, { jump: true });
         return;
       }
       for (var i = 0; i < nums.length; i++) {
@@ -384,7 +442,7 @@
           if (b.code === self.at.code && n === self.at.chapter) btn.setAttribute('aria-current', 'true');
           btn.addEventListener('click', function () {
             self.closeSheets();
-            self.go({ code: b.code, chapter: n });
+            self.go({ code: b.code, chapter: n }, { jump: true });
           });
           chapGrid.appendChild(btn);
         })(nums[i]);
@@ -844,6 +902,8 @@
     document.getElementById('b-more').addEventListener('click', function () { self.openMoreSheet(); });
     document.getElementById('b-prev').addEventListener('click', function () { self.step(-1); });
     document.getElementById('b-next').addEventListener('click', function () { self.step(1); });
+    document.getElementById('b-back').addEventListener('click', function () { self.histBack(); });
+    document.getElementById('b-fwd').addEventListener('click', function () { self.histFwd(); });
     document.getElementById('b-plan').addEventListener('click', function () { self.openPlanSheet(); });
     document.getElementById('scrim').addEventListener('click', function () { self.closeSheets(); });
     var closes = document.querySelectorAll('[data-close]');
@@ -863,7 +923,9 @@
     if (colourSave) colourSave.addEventListener('click', function () { self.saveColours(); });
     document.addEventListener('keydown', function (ev) {
       if (ev.target && /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
-      if (ev.key === 'ArrowRight') self.step(1);
+      if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); self.histBack(); }
+      else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); self.histFwd(); }
+      else if (ev.key === 'ArrowRight') self.step(1);
       else if (ev.key === 'ArrowLeft') self.step(-1);
       else if (ev.key === 'Escape') { self.hideHighlightBar(); self.closeSheets(); }
       else if (ev.key === '/') { ev.preventDefault(); self.openSearchSheet(); }
@@ -871,9 +933,11 @@
     if (root.gifos && root.gifos.onBack) {
       root.gifos.onBack(function () {
         if (self.sheetOpen()) self.closeSheets();
+        else if (self._back.length) self.histBack();
         else self.step(-1);
       });
     }
+    this.paintHist();
   };
 
   root.GifosBibleReader = { Reader: Reader, el: el, clear: clear };

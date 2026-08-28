@@ -190,7 +190,7 @@
       }
       btn.addEventListener('click', function () {
         self.closeSheets();
-        self.go({ code: m.code, chapter: m.chapter, verse: m.verse }, { flash: true });
+        self.go({ code: m.code, chapter: m.chapter, verse: m.verse }, { flash: true, jump: true });
       });
       body.appendChild(btn);
     });
@@ -338,7 +338,7 @@
       btn.appendChild(el('span', 'r-ref', r.label));
       btn.addEventListener('click', function () {
         self.closeSheets();
-        self.go(r.ref);
+        self.go(r.ref, { jump: true });
       });
       body.appendChild(btn);
     });

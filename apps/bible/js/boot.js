@@ -98,7 +98,7 @@
       open.then(function () {
         if (args.ref && root.GifosRefs) {
           var r = root.GifosRefs.parseOne(args.ref);
-          if (r) { reader.go({ code: r.code, chapter: r.chapter, verse: r.verse || 0 }, { flash: !!r.verse }); return; }
+          if (r) { reader.go({ code: r.code, chapter: r.chapter, verse: r.verse || 0 }, { flash: !!r.verse, jump: true }); return; }
         }
         reader.paint();
       });
