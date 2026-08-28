@@ -110,6 +110,11 @@ button { background: none; border: 0; cursor: pointer; }
 .bar-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
 .bar-btn svg .fill { fill: currentColor; stroke: none; }
 .caret { font-size: .65em; color: var(--ink3); }
+.hist { display: flex; flex: 0 0 auto; align-items: center; gap: 0; }
+.hist-btn { color: var(--ink2); }
+.hist-btn:hover, .hist-btn:focus-visible { color: var(--ink); }
+.hist-btn:disabled { opacity: .28; cursor: default; }
+.hist-btn:disabled:hover { background: none; color: var(--ink2); }
 
 /* ---------- following a leader ---------- */
 #follow {

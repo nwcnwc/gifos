@@ -176,7 +176,7 @@
           b.appendChild(document.createTextNode('  ' + (row.text || '').slice(0, 160)));
           b.addEventListener('click', function () {
             self.closeSheets();
-            self.go({ code: ref.code, chapter: ref.chapter, verse: row.from }, { flash: true });
+            self.go({ code: ref.code, chapter: ref.chapter, verse: row.from }, { flash: true, jump: true });
           });
           body.appendChild(b);
         });
@@ -208,7 +208,7 @@
         b.style.marginRight = '.6em';
         b.addEventListener('click', function () {
           self.closeSheets();
-          self.go({ code: r.code, chapter: r.chapter, verse: r.verse || 0 }, { flash: !!r.verse });
+          self.go({ code: r.code, chapter: r.chapter, verse: r.verse || 0 }, { flash: !!r.verse, jump: true });
         });
         row.appendChild(b);
       })(parsed[i]);
@@ -464,7 +464,7 @@
             Render.plain(pack.textAt(idx)).slice(0, 160)));
           btn.addEventListener('click', function () {
             self.closeSheets();
-            self.go({ code: r.code, chapter: r.chapter, verse: r.verse || 0 }, { flash: !!r.verse });
+            self.go({ code: r.code, chapter: r.chapter, verse: r.verse || 0 }, { flash: !!r.verse, jump: true });
           });
           results.appendChild(btn);
         })(refs[i]);
@@ -515,7 +515,7 @@
         btn.appendChild(frag);
         btn.addEventListener('click', function () {
           self.closeSheets();
-          self.go({ code: hit.ref.code, chapter: hit.ref.chapter, verse: hit.ref.verse }, { flash: true });
+          self.go({ code: hit.ref.code, chapter: hit.ref.chapter, verse: hit.ref.verse }, { flash: true, jump: true });
         });
         results.appendChild(btn);
       })(found[f]);
@@ -619,7 +619,7 @@
             if (parsed[0]) {
               self.closeSheets();
               self.go({ code: parsed[0].code, chapter: parsed[0].chapter,
-                        verse: parsed[0].verse || 0 }, { flash: !!parsed[0].verse });
+                        verse: parsed[0].verse || 0 }, { flash: !!parsed[0].verse, jump: true });
             }
           }
         });

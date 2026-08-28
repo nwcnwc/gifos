@@ -9,6 +9,14 @@
 <body data-theme="night" data-size="3" data-face="serif">
 
 <header id="bar">
+  <div id="hist" class="hist">
+    <button id="b-back" class="bar-btn icon hist-btn" type="button" aria-label="Back" disabled>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M9 4 3 10l6 6"/><path d="M3 10h14"/></svg>
+    </button>
+    <button id="b-fwd" class="bar-btn icon hist-btn" type="button" aria-label="Forward" disabled>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 4l6 6-6 6"/><path d="M3 10h14"/></svg>
+    </button>
+  </div>
   <button id="b-place" class="bar-btn wide" type="button" aria-label="Choose a book and chapter">
     <span id="place-ref">Loading</span><span class="caret">&#9662;</span>
   </button>
