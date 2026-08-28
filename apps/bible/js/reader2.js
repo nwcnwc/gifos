@@ -537,6 +537,72 @@
     this.searchApparatus(q, results);
   };
 
+  /* One article, opened.
+   *
+   * A dictionary entry, a topic and a Strong's number all want the same sheet:
+   * a title, the source, the text, the references. Each viewer was built inline
+   * at its own call site, so the three had drifted — different heading markup,
+   * and the topic one printed its sub-headings where the dictionary one printed
+   * nothing. This is that sheet, once, and every caller fills it. */
+  Reader.prototype.openEntry = function (title, paint) {
+    var body = document.getElementById('verse-body');
+    if (!body) return;
+    clear(body);
+    document.getElementById('verse-ref').textContent = title;
+    clear(document.getElementById('swatches'));
+    clear(document.getElementById('verse-acts'));
+    paint(body);
+    this.closeSheets();
+    this.openSheet('sheet-verse');
+  };
+
+  Reader.prototype.openWord = function (headword) {
+    var self = this;
+    var App = root.GifosBibleApparatus;
+    if (!App) return;
+    var entries = App.lookup(headword);
+    if (!entries.length) return;
+    this.openEntry(headword, function (body) {
+      entries.forEach(function (e) {
+        body.appendChild(el('h3', 'lang-name', e.sourceName || e.source));
+        (e.paragraphs || [e.text]).forEach(function (p) {
+          body.appendChild(el('div', 'note-item', p));
+        });
+        (e.refs || []).forEach(function (r) { self.xrefButtons(body, r); });
+      });
+    });
+  };
+
+  Reader.prototype.openTopic = function (name) {
+    var self = this;
+    var App = root.GifosBibleApparatus;
+    if (!App) return;
+    var hit = App.topic(name)[0];
+    if (!hit) return;
+    this.openEntry(hit.topic, function (body) {
+      body.appendChild(el('h3', 'lang-name', hit.sourceName || ''));
+      (hit.subs || []).forEach(function (sub) {
+        if (sub.label) body.appendChild(el('div', 'note-item', sub.label));
+        (sub.refs || []).forEach(function (r) { self.xrefButtons(body, r); });
+      });
+      (hit.refs || []).forEach(function (r) { self.xrefButtons(body, r); });
+    });
+  };
+
+  Reader.prototype.openStrong = function (num) {
+    var App = root.GifosBibleApparatus;
+    if (!App) return;
+    var e = App.lookupStrong(num);
+    if (!e) return;
+    this.openEntry('Strong’s ' + e.num, function (body) {
+      body.appendChild(el('h3', 'lang-name', e.lemma +
+        (e.translit ? ' · ' + e.translit : '') + (e.pron ? ' · ' + e.pron : '')));
+      if (e.derivation) body.appendChild(el('div', 'note-item', e.derivation));
+      if (e.definition) body.appendChild(el('div', 'note-item', e.definition));
+      if (e.kjv) body.appendChild(el('div', 'note-item', 'Rendered: ' + e.kjv));
+    });
+  };
+
   // Dictionary, topics, places, and a typed Strong's number. These packs load
   // lazily; a search that races the first download simply finds the text.
   Reader.prototype.searchApparatus = function (q, results) {
@@ -562,22 +628,7 @@
         btn.appendChild(document.createTextNode(
           (h.sourceName || '') + (entries[0] && entries[0].paragraphs
             ? ' — ' + entries[0].paragraphs[0].slice(0, 140) : '')));
-        btn.addEventListener('click', function () {
-          var body = document.getElementById('verse-body');
-          clear(body);
-          document.getElementById('verse-ref').textContent = h.headword;
-          clear(document.getElementById('swatches'));
-          clear(document.getElementById('verse-acts'));
-          entries.forEach(function (e) {
-            body.appendChild(el('h3', 'lang-name', e.sourceName || e.source));
-            (e.paragraphs || [e.text]).forEach(function (p) {
-              body.appendChild(el('div', 'note-item', p));
-            });
-            e.refs.forEach(function (r) { self.xrefButtons(body, r); });
-          });
-          self.closeSheets();
-          self.openSheet('sheet-verse');
-        });
+        btn.addEventListener('click', function () { self.openWord(h.headword); });
         results.appendChild(btn);
       });
     }
@@ -589,23 +640,7 @@
         btn.type = 'button';
         btn.appendChild(el('span', 'r-ref', t.topic));
         btn.appendChild(document.createTextNode(t.sourceName || ''));
-        btn.addEventListener('click', function () {
-          var hit = App.topic(t.topic)[0];
-          if (!hit) return;
-          var body = document.getElementById('verse-body');
-          clear(body);
-          document.getElementById('verse-ref').textContent = hit.topic;
-          clear(document.getElementById('swatches'));
-          clear(document.getElementById('verse-acts'));
-          body.appendChild(el('h3', 'lang-name', hit.sourceName || ''));
-          hit.refs.forEach(function (r) { self.xrefButtons(body, r); });
-          (hit.subs || []).forEach(function (s) {
-            if (s.label) body.appendChild(el('div', 'note-item', s.label));
-            (s.refs || []).forEach(function (r) { self.xrefButtons(body, r); });
-          });
-          self.closeSheets();
-          self.openSheet('sheet-verse');
-        });
+        btn.addEventListener('click', function () { self.openTopic(t.topic); });
         results.appendChild(btn);
       });
     }
