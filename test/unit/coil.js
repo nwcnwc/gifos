@@ -173,8 +173,13 @@ function driveSquare(g, cx, cy, side, n) {
     !/facebook|twitter-share/.test(html) && !/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, '')));
   check('listing author is Hakim, not GifOS', listing.author && listing.author.name !== 'GifOS'
     && listing.basedOn && listing.porter);
-  check('listing leads with the file-is-the-save',
-    /GIF|file|offline/i.test(listing.description.slice(0, 180)));
+  // 8b607dc2 retired the "file is the save" slogan from every listing; the
+  // opening now says what actually happens, in a person's words. Pin THAT —
+  // and pin that the jargon does not grow back.
+  check('listing opens with what closing and copying actually do',
+    /still there|stays with|comes back/i.test(listing.description.slice(0, 180)));
+  check('the retired slogan stays retired',
+    !/file is the save/i.test(listing.description) && !/file is the save/i.test(listing.tagline));
   check('help names mouse, thumb, bombs, and what is saved',
     /thumb|finger/i.test(help) && /bomb/i.test(help) && /high score/i.test(help));
   check('db is declared and multiplayer is not',

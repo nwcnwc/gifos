@@ -211,8 +211,10 @@ check('mute is not forced on every boot (isMute from storage)',
 check('shoot/explode hook DeltaSfx, never a SID path',
   /DeltaSfx/.test(deltaSrc) && !/sounds\/title/.test(deltaSrc) && /DeltaSfx/.test(sfx));
 check('no in-app Invite/Share button', !/<button[^>]*>\s*Invite/i.test(html));
-check('listing says the best score is saved in the GIF',
-  /saved inside the GIF/i.test(listing.description));
+// "saved inside the GIF" was the jargon 8b607dc2 retired; the claim now reads
+// "Close it, copy it, come back — your best score is still there."
+check('listing says the best score survives closing and copying',
+  /best score is still there|best score stays|score .{0,40}still there/i.test(listing.description));
 check('listing does not claim a SID tune we do not ship', !/SID recording and is in this/i.test(listing.description));
 check('help.md names D-pad, FIRE, best score, mute',
   /D-pad/.test(help) && /FIRE/.test(help) && /best/i.test(help) && /mute/i.test(help));
