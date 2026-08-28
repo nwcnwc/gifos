@@ -34,19 +34,25 @@ apps/
     README.md       ← what it is, which gifos.* capabilities it uses
     help.md         ← the OS Help popup (packed into the GIF — see below)
     build.*         ← how the finished .gif is produced from this source
+    listing.json    ← may set `gifUrl` (https, a pinned release tag) instead
+                      of keeping the GIF in this repo; then also `gifSha256`
+                      and `gifBytes`
 
 site/apps/          ← the PUBLISHED catalog (generated, but committed)
   index.json        ← the store grid, in one fetch
   <name>/
     app.json        ← manifest ∪ listing ∪ {bytes, sha256, cover, gif}
-    <name>.gif      ← the finished, downloadable App GIF
+    <name>.gif      ← the finished App GIF, omitted when listing.gifUrl is set
     cover.jpg       ← the card / detail image
 ```
 
-The finished `<name>.gif` lives under `site/`, not here: Pages publishes
-**only** `site/` (`.github/workflows/pages.yml`), so a GIF anywhere else is not
-downloadable. There is no second copy at this level — an 8 MB artifact in two
-places is 8 MB twice in every clone, and two copies that drift.
+The finished GIF is either under `site/` (Pages publishes **only** `site/`)
+or at `listing.gifUrl` — an `https://` file the author hosts, typically a
+GitHub Release. The catalog still pins `sha256`; Install fetches that URL and
+refuses a hash or signature miss. Do not use `/releases/latest/` (a moving
+tag would make yesterday’s catalog lie). Do not set `gifUrl` *and* leave a
+copy at `site/apps/<name>/<name>.gif`. Cover art still lives here
+(`cover.jpg`): the store never uses the GIF as an image.
 
 Rebuild the GIF from the source with the app's build script (or the
 `pack_gifos` recipe in [`site/llms.txt`](../site/llms.txt) / `+ Add`), writing

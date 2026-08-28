@@ -772,7 +772,10 @@
 
     let bytes;
     try {
-      const r = await fetch(app.gif, { cache: 'no-store' });
+      // app.gif is either /apps/<slug>/<slug>.gif on this origin, or an
+      // absolute https listing.gifUrl (the author's GitHub Release). Both are
+      // pinned by app.sha256 below; a remote file that moved is a hash miss.
+      const r = await fetch(app.gif, { cache: 'no-store', redirect: 'follow' });
       if (!r.ok) throw new Error('the download returned ' + r.status);
       // Stream it so an 8 MB app shows real progress instead of a dead button.
       const total = Number(r.headers.get('content-length')) || app.bytes || 0;
