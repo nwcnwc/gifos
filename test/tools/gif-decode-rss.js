@@ -5,9 +5,9 @@
 // hundreds of megabytes of packed text) is bounded by decode's peak heap, not
 // by the GIF's size on disk or by the inflate ceiling.
 //
-//   node test/tools/gif-decode-rss.js [megabytes]        # encode + decode
-//   node test/tools/gif-decode-rss.js [megabytes] encode # encode phase only
-//   node test/tools/gif-decode-rss.js [megabytes] decode # decode a saved GIF
+//   node test/tools/gif-decode-rss.js [megabytes] both [1|2]
+//   node test/tools/gif-decode-rss.js 64 both 1   # the JSON+base64 archive
+//   node test/tools/gif-decode-rss.js 64 both 2   # the directory+blob archive
 //
 // Split into two processes on purpose: encode leaves hundreds of megabytes of
 // its own garbage behind, and V8 does not return it to the OS, so measuring
@@ -23,7 +23,8 @@ const ROOT = path.join(__dirname, '..', '..');
 const MB = 1024 * 1024;
 const N_MB = Number(process.argv[2] || 12);
 const PHASE = process.argv[3] || 'both';
-const GIF = path.join(os.tmpdir(), 'gifos-mem-probe-' + N_MB + 'mb.gif');
+const ARCHIVE = Number(process.argv[4] || 1);
+const GIF = path.join(os.tmpdir(), 'gifos-mem-probe-' + N_MB + 'mb-v' + ARCHIVE + '.gif');
 
 function load() {
   const src = fs.readFileSync(path.join(ROOT, 'site', 'js', 'gifos-gif.js'), 'utf8');
@@ -80,9 +81,9 @@ async function encodePhase() {
   for (let i = 0; i < 10; i++) files['pack-' + i + '.gbx'] = corpus(N / 10);
 
   const base = heapMB();
-  const [bytes, peak] = await sample(() => gif.encode(files, {}));
+  const [bytes, peak] = await sample(() => gif.encode(files, { archive: ARCHIVE }));
   fs.writeFileSync(GIF, bytes);
-  console.log('file data (N)           ' + N_MB.toFixed(0) + ' MB');
+  console.log('archive v' + ARCHIVE + ', file data (N) ' + N_MB.toFixed(0) + ' MB');
   console.log('encoded GIF             ' + (bytes.length / MB).toFixed(1) + ' MB');
   console.log('ENCODE peak heap        ' + peak.toFixed(0) + ' MB   ' +
     ((peak - base) / N_MB).toFixed(1) + ' x N');
@@ -107,5 +108,6 @@ async function decodePhase() {
   if (PHASE === 'encode') return encodePhase();
   if (PHASE === 'decode') return decodePhase();
   await encodePhase();
-  execFileSync(process.execPath, ['--expose-gc', __filename, String(N_MB), 'decode'], { stdio: 'inherit' });
+  execFileSync(process.execPath,
+    ['--expose-gc', __filename, String(N_MB), 'decode', String(ARCHIVE)], { stdio: 'inherit' });
 })();
