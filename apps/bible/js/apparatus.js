@@ -1,4 +1,11 @@
-/* The study apparatus: lazy-load GBX packs and answer questions about a verse.
+/* The study apparatus: open the pinned GBX packs and answer questions about a
+ * verse.
+ *
+ * WHICH PACKS EXIST IS GENERATED, NOT TYPED. build.mjs walks packs/*.gbx to pin
+ * them in the manifest and writes the same list to js/packs-sealed.js, so a
+ * pack that is pinned is a pack this file will open. It used to name them by
+ * hand beside a build that globbed the directory: adding one pinned a download
+ * that nothing ever opened, and nothing anywhere said so.
  *
  * A reader who never taps a verse never pays for these packs. The first tap
  * starts the downloads; later taps reuse them. Sections arrive as each pack
@@ -13,12 +20,17 @@
   var Helps = root.GifosBibleHelps;
   var Lex = root.GifosBibleLexicon;
 
-  var HELP_FILES = [
-    'help-xrefs.gbx', 'help-mhcc.gbx', 'help-dict.gbx',
-    'help-topics.gbx', 'help-places.gbx', 'help-plans.gbx'
-  ];
-  var LEX_FILES = ['lex-strongs-h.gbx', 'lex-strongs-g.gbx'];
-  var INT_FILES = ['int-wlc.gbx', 'int-grcbyz.gbx', 'int-grctisch.gbx'];
+  var SEALED = root.GIFOS_BIBLE_SEALED || [];
+  function filesOfKind(kind) {
+    var out = [];
+    for (var i = 0; i < SEALED.length; i++) {
+      if (SEALED[i].kind === kind) out.push(SEALED[i].file);
+    }
+    return out;
+  }
+  var HELP_FILES = filesOfKind('helps');
+  var LEX_FILES = filesOfKind('lexicon');
+  var INT_FILES = filesOfKind('interlinear');
 
   var shelf = new Helps.Shelf();
   var lexicons = [];
@@ -33,13 +45,27 @@
     return Promise.reject(new Error('This copy cannot download study packs.'));
   }
 
+  // A pack that fails to open is remembered as failed rather than retried on
+  // every tap, and it is REPORTED: the old code swallowed the error and let
+  // whenReady resolve, so a corrupt pack looked exactly like a pack with
+  // nothing to say about this verse.
+  var broken = Object.create(null);
   function loadOne(file, opener, onOpen) {
     if (loading[file]) return loading[file];
     loading[file] = bytesOf('packs/' + file)
       .then(function (b) { return opener(b); })
       .then(function (pack) { onOpen(pack); return pack; })
-      .catch(function () { delete loading[file]; return null; });
+      .catch(function (e) {
+        broken[file] = (e && e.message) || 'could not be opened';
+        return null;
+      });
     return loading[file];
+  }
+
+  function brokenPacks() {
+    var out = [];
+    for (var f in broken) out.push({ file: f, why: broken[f] });
+    return out;
   }
 
   function start() {
@@ -145,6 +171,8 @@
   root.GifosBibleApparatus = {
     start: start,
     whenReady: whenReady,
+    sealed: SEALED,
+    broken: brokenPacks,
     forVerse: forVerse,
     shelf: shelf,
     lexicons: lexicons,
