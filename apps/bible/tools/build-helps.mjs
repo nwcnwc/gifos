@@ -540,38 +540,53 @@ function buildTopics() {
 // both or two thirds of the commentary silently disappears.
 const MHCC_HEAD = /^##\s+(?:Verses?|Chapter)\s+([0-9]+)\s*(?:[-–—,]\s*([0-9]+))?\s*$/;
 
+function stripHugo(text) {
+  return String(text).replace(/^---\n[\s\S]*?\n---\n/, '').replace(/\{\{<[\s\S]*?>\}\}/g, '');
+}
+
 function buildMhcc() {
   const src = join(cache, 'mhenry-concise');
   const notes = [], index = [];
   const seenBooks = new Set();
-  let skippedHeads = 0;
+  let skippedHeads = 0, booksPrefaced = 0, outlines = 0;
   const dirs = readdirSync(src, { withFileTypes: true })
     .filter((d) => d.isDirectory() && d.name !== '.git').map((d) => d.name).sort();
   const found = [];
   for (const d of dirs) {
     const code = bookOf(d.replace(/-/g, ' '));
     if (!code || !CANON_NO.has(code)) continue;
+    const preface = join(src, d, '_index.md');
+    if (existsSync(preface)) {
+      const body = flatten(stripHugo(readFileSync(preface, 'utf8')).replace(/^\s*# .+\n/, ''));
+      if (body) {
+        found.push({ code, chapter: 0, v1: 0, v2: 0, body });
+        booksPrefaced++;
+      }
+    }
     // Psalms are filed psalm-150.md and every other book chapter-N.md; matching
     // only the second name drops the Psalter entire and still reports 65 books.
     for (const f of readdirSync(join(src, d)).filter((f) => /^(?:chapter|psalm)-\d+\.md$/.test(f))) {
       const chapter = +f.match(/(\d+)/)[1];
-      const text = readFileSync(join(src, d, f), 'utf8')
-        .replace(/^---\n[\s\S]*?\n---\n/, '')
-        .replace(/\{\{<[\s\S]*?>\}\}/g, '');
+      const text = stripHugo(readFileSync(join(src, d, f), 'utf8'));
       const lines = text.split('\n');
       let cur = null;
       const flush = () => {
         if (!cur) return;
         const body = flatten(cur.buf.join('\n'));
         if (body) found.push({ code, chapter, v1: cur.v1, v2: cur.v2, body });
+        if (cur.v1 === 0 && body) outlines++;
         cur = null;
       };
       for (const line of lines) {
         if (/^##\s/.test(line)) {
           flush();
-          const m = line.match(MHCC_HEAD);
-          if (m) cur = { v1: +m[1], v2: m[2] ? +m[2] : +m[1], buf: [] };
-          else if (!/Outline|Contents/i.test(line)) skippedHeads++;
+          if (/^##\s+Chapter Outline\b/i.test(line)) {
+            cur = { v1: 0, v2: 0, buf: [] };
+          } else {
+            const m = line.match(MHCC_HEAD);
+            if (m) cur = { v1: +m[1], v2: m[2] ? +m[2] : +m[1], buf: [] };
+            else skippedHeads++;
+          }
         } else if (cur) cur.buf.push(line);
       }
       flush();
@@ -597,7 +612,7 @@ function buildMhcc() {
     notes.push(n.body);
   }
   return {
-    stats: { notes: rows.length, books: seenBooks.size, skippedHeads },
+    stats: { notes: rows.length, books: seenBooks.size, skippedHeads, booksPrefaced, outlines },
     pack: writePack('help-mhcc.gbx', 'mhcc', {
       title: "Matthew Henry's Concise Commentary on the Whole Bible",
       source: 'github.com/lyteword/mhenry-concise',

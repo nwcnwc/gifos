@@ -321,7 +321,7 @@
     var key = this._keys[i];
     if (Math.floor(key / 1000000) !== bn || Math.floor(key / 1000) % 1000 !== chapter) return null;
     var from = key % 1000, to = this._a[i];
-    if (verse > to) return null;
+    if (from === 0 || verse > to) return null;
     return {
       book: CODE_BY_NUM[bn], bookName: NAME_BY_NUM[bn], chapter: chapter,
       from: from, to: to,
@@ -331,8 +331,8 @@
     };
   };
 
-  // Every note in a chapter, in order — what a chapter view sets beside the
-  // text without asking 30 separate interval questions.
+  // Every verse-range note in a chapter, in order. Chapter outlines (first
+  // verse 0) are not ranges — commentaryOutline reads those.
   Helps.prototype.commentaryChapter = function (book, chapter) {
     if (this.kind !== 'mhcc') return [];
     var bn = bookNumber(book);
@@ -343,9 +343,34 @@
       var key = this._keys[i];
       if (key < bn * 1000000 + chapter * 1000) continue;
       if (key >= bn * 1000000 + (chapter + 1) * 1000) break;
-      out.push({ from: key % 1000, to: this._a[i], text: this.line('notes', this._b[i]) });
+      var from = key % 1000;
+      if (from === 0) continue;
+      out.push({ from: from, to: this._a[i], text: this.line('notes', this._b[i]) });
     }
     return out;
+  };
+
+  Helps.prototype.commentaryOutline = function (book, chapter) {
+    if (this.kind !== 'mhcc') return null;
+    var bn = bookNumber(book);
+    if (!bn || !chapter) return null;
+    var i = exactIndex(this._keys, bn * 1000000 + chapter * 1000);
+    if (i < 0) return null;
+    var t = this.line('notes', this._b[i]);
+    return t ? { chapter: chapter, text: t, paragraphs: t.split(PARA) } : null;
+  };
+
+  Helps.prototype.commentaryBook = function (book) {
+    if (this.kind !== 'mhcc') return null;
+    var bn = bookNumber(book);
+    if (!bn) return null;
+    var i = exactIndex(this._keys, bn * 1000000);
+    if (i < 0) return null;
+    var t = this.line('notes', this._b[i]);
+    return t ? {
+      book: CODE_BY_NUM[bn], bookName: NAME_BY_NUM[bn],
+      text: t, paragraphs: t.split(PARA)
+    } : null;
   };
 
   /* ── places (help-places.gbx) ─────────────────────────────────────────── */

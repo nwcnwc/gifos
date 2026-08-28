@@ -38,7 +38,10 @@ Tap any verse:
   side by side.
 - **Treasury of Scripture Knowledge** — every cross-reference printed against
   that verse, tap-able.
-- **Matthew Henry** — the concise commentary covering the verse.
+- **Matthew Henry** — the concise commentary covering the verse. Tap the
+  **book name** for the preface to that book, the **chapter number** for
+  the chapter outline and its ranges. Treasury is a verse; commentary is
+  a passage, a chapter, a book.
 - **Interlinear** — the Hebrew (Westminster Leningrad Codex) or Greek
   (Byzantine Majority, Tischendorf 8th) word by word, with parsing, and
   **Strong’s** numbers that look up in Strong’s own dictionaries.

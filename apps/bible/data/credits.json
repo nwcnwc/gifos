@@ -211,11 +211,13 @@
    "refs": 107328
   },
   "help-mhcc.gbx": {
-   "bytes": 1284875,
-   "sha256": "22e036b17219f496c65d45945c04cd94ddce896e1416df5c5c2c9cc69042d92d",
-   "notes": 4047,
+   "bytes": 1363066,
+   "sha256": "54a7a3cb81f0f9841476cd713480a76af804a75aaed4c8fef420da3f28ad30e0",
+   "notes": 5130,
    "books": 66,
-   "skippedHeads": 0
+   "skippedHeads": 0,
+   "booksPrefaced": 66,
+   "outlines": 1017
   },
   "help-places.gbx": {
    "bytes": 16760,

@@ -123,8 +123,75 @@
       for (var x = 0; x < vv.xrefs.length; x++) this.xrefButtons(body, vv.xrefs[x]);
     }
     this.apparatusInto(body, ref);
-
     this.openSheet('sheet-verse');
+  };
+
+  Reader.prototype.openScopeSheet = function (pack, ref, scope) {
+    scope = scope || 'verse';
+    if (scope === 'verse') {
+      var i = pack.indexOfVerse(ref.code, ref.chapter, ref.verse || 1);
+      if (i >= 0) this.openVerseSheet(pack, i);
+      return;
+    }
+    var names = this.namesOf(pack);
+    document.getElementById('verse-ref').textContent = scope === 'book'
+      ? (names[ref.code] && names[ref.code].name) || ref.code
+      : Refs.format({ code: ref.code, chapter: ref.chapter }, { names: names, style: 'short' });
+    var sw = document.getElementById('swatches');
+    if (sw) clear(sw);
+    var acts = document.getElementById('verse-acts');
+    if (acts) clear(acts);
+    var body = document.getElementById('verse-body');
+    clear(body);
+    this.fillCommentaryBody(body, ref, scope);
+    this.openSheet('sheet-verse');
+  };
+
+  Reader.prototype.fillCommentaryBody = function (body, ref, scope) {
+    var self = this;
+    if (!root.GifosBibleApparatus) return;
+    root.GifosBibleApparatus.start();
+    var waiting = el('div', 'note-item', 'Opening the study packs…');
+    body.appendChild(waiting);
+    function paint() {
+      var mh = root.GifosBibleApparatus.shelf && root.GifosBibleApparatus.shelf.get('mhcc');
+      if (!mh) return false;
+      if (waiting.parentNode) waiting.parentNode.removeChild(waiting);
+      var cover = scope === 'verse' ? mh.commentary(ref.code, ref.chapter, ref.verse) : null;
+      var outline = mh.commentaryOutline && mh.commentaryOutline(ref.code, ref.chapter);
+      var ranges = mh.commentaryChapter ? mh.commentaryChapter(ref.code, ref.chapter) : [];
+      var book = mh.commentaryBook && mh.commentaryBook(ref.code);
+      if (scope !== 'book' && cover) {
+        body.appendChild(el('h3', 'lang-name', 'This passage · ' + cover.reference));
+        body.appendChild(el('div', 'note-item', cover.paragraphs ? cover.paragraphs.join('\n\n') : cover.text));
+      }
+      if (scope !== 'book' && (outline || (ranges && ranges.length))) {
+        body.appendChild(el('h3', 'lang-name', 'This chapter'));
+        if (outline) body.appendChild(el('div', 'note-item', outline.paragraphs ? outline.paragraphs.join('\n\n') : outline.text));
+        (ranges || []).forEach(function (row) {
+          var label = ref.chapter + ':' + row.from + (row.to !== row.from ? '–' + row.to : '');
+          var b = el('button', 'note-item');
+          b.type = 'button';
+          b.appendChild(el('strong', '', label));
+          b.appendChild(document.createTextNode('  ' + (row.text || '').slice(0, 160)));
+          b.addEventListener('click', function () {
+            self.closeSheets();
+            self.go({ code: ref.code, chapter: ref.chapter, verse: row.from }, { flash: true });
+          });
+          body.appendChild(b);
+        });
+      }
+      if (book) {
+        body.appendChild(el('h3', 'lang-name', 'This book · ' + (book.bookName || book.book)));
+        body.appendChild(el('div', 'note-item', book.paragraphs ? book.paragraphs.join('\n\n') : book.text));
+      }
+      return true;
+    }
+    if (!paint()) {
+      if (root.GifosBibleApparatus.whenReady) {
+        root.GifosBibleApparatus.whenReady(function () { paint(); });
+      }
+    }
   };
 
   // Cross-reference strings become buttons where they parse, text where not.
