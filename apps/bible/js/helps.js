@@ -384,6 +384,83 @@
     return out;
   };
 
+  /* ── what speaks about a place ────────────────────────────────────────
+   *
+   * The dictionary, the topical index and the gazetteer are keyed by HEADWORD:
+   * they answer "what is Abraham", never "what is worth reading at Genesis 22".
+   * Every entry does carry the references it cites, though, so the second
+   * question is the first one inverted.
+   *
+   * Built on first ask, over the refs section alone, and kept. The references
+   * are plain English strings ("Genesis 1:1", "1 Chronicles 6:3-15"), and only
+   * the book and chapter are needed to bucket them — so this reads them with a
+   * name-and-number scan rather than the full reference parser, which would
+   * cost a parse per citation across a quarter of a million of them.
+   *
+   * Keyed by book * 1000 + chapter. A chapter's entries come back in the order
+   * the pack stores them, which is alphabetical by headword.
+   */
+  var REF_SCAN = /([1-3]?\s?[A-Za-z][A-Za-z ]{1,22}?)\s+(\d{1,3})(?=[:;]|\s*$|\s*-)/g;
+
+  Helps.prototype._placeIndex = function () {
+    if (this._byPlace) return this._byPlace;
+    var map = Object.create(null);
+    var section = this.kind === 'places' ? 'places' : 'refs';
+    var n = this.count(section);
+    for (var i = 0; i < n; i++) {
+      var line = this.line(section, i);
+      // The gazetteer keeps its refs in the last column of a tab row.
+      if (this.kind === 'places') {
+        var cols = line.split('\t');
+        line = cols[4] || '';
+      }
+      if (!line) continue;
+      var seen = null;
+      REF_SCAN.lastIndex = 0;
+      var m;
+      while ((m = REF_SCAN.exec(line))) {
+        var num = bookNumber(m[1].trim());
+        if (!num) continue;
+        var key = num * 1000 + (+m[2] || 0);
+        if (seen === key) continue;   // a run of refs in one chapter counts once
+        seen = key;
+        var bucket = map[key] || (map[key] = []);
+        if (bucket[bucket.length - 1] !== i) bucket.push(i);
+      }
+    }
+    this._byPlace = map;
+    // For the dictionary and the topics the refs section has now done its only
+    // job — the entries themselves live in other sections and are read one at a
+    // time as they are shown — so give those megabytes back. The gazetteer is
+    // different: its refs are a column of the same rows every lookup reads, so
+    // releasing it would only make the next lookup decode it again.
+    if (section === 'refs') this.store.release('refs');
+    return map;
+  };
+
+  // Entry indexes for everything in this pack that cites this chapter.
+  Helps.prototype.indexesAt = function (book, chapter) {
+    if (this.kind !== 'dict' && this.kind !== 'topics' && this.kind !== 'places') return [];
+    var num = bookNumber(book);
+    if (!num) return [];
+    return this._placeIndex()[num * 1000 + (+chapter || 0)] || [];
+  };
+
+  // Those entries, read. `limit` because a busy chapter of Genesis is cited by
+  // a hundred topics and a reader wants the first screen, not all of them.
+  Helps.prototype.at = function (book, chapter, limit) {
+    var idx = this.indexesAt(book, chapter);
+    var cap = limit || idx.length;
+    var out = [];
+    for (var i = 0; i < idx.length && out.length < cap; i++) {
+      var e = this.kind === 'dict' ? this._dictAt(idx[i])
+            : this.kind === 'topics' ? this._topicAt(idx[i])
+            : this._placeAt(idx[i]);
+      if (e) out.push(e);
+    }
+    return { total: idx.length, shown: out };
+  };
+
   /* ── reading plans (help-plans.gbx) ───────────────────────────────────── */
 
   Helps.prototype.plans = function () {
@@ -453,6 +530,11 @@
   };
   Shelf.prototype.place = function (n) {
     return this.byKind.places ? this.byKind.places.place(n) : null;
+  };
+  // What every headword-keyed pack has to say about this chapter.
+  Shelf.prototype.at = function (kind, b, c, limit) {
+    var p = this.byKind[kind];
+    return p ? p.at(b, c, limit) : { total: 0, shown: [] };
   };
   Shelf.prototype.plans = function () {
     return this.byKind.plans ? this.byKind.plans.plans() : [];
