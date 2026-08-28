@@ -166,6 +166,8 @@ for (const s of slugs) {
 if (DRY) {
   for (const slug of slugs) {
     const gifPath = path.join(OUT, slug, slug + '.gif');
+    const listing = JSON.parse(fs.readFileSync(path.join(SRC, slug, 'listing.json'), 'utf8'));
+    if (listing.gifUrl) { console.log(slug + '\tgifUrl\t' + listing.gifUrl); continue; }
     if (!fs.existsSync(gifPath)) { console.log(slug + '\tMISSING ' + path.relative(ROOT, gifPath)); continue; }
     const raw = fs.readFileSync(gifPath);
     const claim = claimOf(raw);
@@ -211,6 +213,13 @@ const today = new Date().toISOString().slice(0, 10);
 
 let signed = 0, skipped = 0;
 for (const slug of slugs) {
+  const listingPath = path.join(SRC, slug, 'listing.json');
+  const listing = JSON.parse(fs.readFileSync(listingPath, 'utf8'));
+  if (listing.gifUrl) {
+    console.log('skip  ' + slug + '  gifUrl — sign the release in that repo, not site/apps/' + slug + '/');
+    skipped++;
+    continue;
+  }
   const gifPath = path.join(OUT, slug, slug + '.gif');
   if (!fs.existsSync(gifPath)) die(slug + ': no GIF at ' + path.relative(ROOT, gifPath));
   const raw = fs.readFileSync(gifPath);

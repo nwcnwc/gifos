@@ -10,12 +10,13 @@
  *                               and for a port of someone else's work: basedOn
  *                               + porter (author is THEM, never GifOS)
  *   apps/<slug>/screenshot.png  the master cover art
- *   site/apps/<slug>/<slug>.gif the finished App GIF (lives INSIDE the publish
- *                               boundary — .github/workflows/pages.yml ships
- *                               only site/, so a GIF anywhere else is not
- *                               downloadable; it is not duplicated at the repo
- *                               root, which would put 8 MB in every clone twice
- *                               and let the two copies drift)
+ *   site/apps/<slug>/<slug>.gif the finished App GIF, OR listing.json `gifUrl`
+ *                               (https, a pinned release tag — not /latest/)
+ *                               when the GIF lives in the author's repo. Pages
+ *                               ships only site/, so a GIF that is not at
+ *                               site/apps/<slug>/<slug>.gif is not hosted here.
+ *                               The catalog still pins sha256; Install fetches
+ *                               gifUrl and refuses a hash or signature miss.
  *
  * Outputs (generated but COMMITTED — Pages serves static files, there is no
  * build step on deploy):
@@ -32,13 +33,17 @@
  * level; this script is the other half — it emits `cover`, and the byte size of
  * `gif` so the store can warn before a large download.
  *
- * Run: node scripts/build-app-catalog.mjs [--check] [--require-signed]
+ * Run: node scripts/build-app-catalog.mjs [--check] [--require-signed] [--skip-remote-gifs]
  *   --check           verify the committed catalog matches the sources; write nothing.
  *                     (This is what CI / the test battery runs.)
  *   --require-signed  also fail if a listed GIF has no gifos.app GIFOSSIG.
  *                     e2e-app-store.js passes this. Signing is local
  *                     (`GIFOS_SIGN_KEY`). The private key does not go in
  *                     GitHub Secrets (docs/threat-model.md).
+ *   --skip-remote-gifs  do not fetch listing.gifUrl; --check only compares the
+ *                     pin fields already in app.json. Default is to fetch, so
+ *                     a release that moved under the same tag cannot silently
+ *                     keep an old hash.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -73,6 +78,7 @@ const gifCodec = globalThis.GifOS.gif;
 const OUT = path.join(ROOT, 'site', 'apps');
 const CHECK = process.argv.includes('--check');
 const REQUIRE_SIGNED = process.argv.includes('--require-signed');
+const SKIP_REMOTE_GIFS = process.argv.includes('--skip-remote-gifs');
 const unsigned = [];
 
 // Seeded default appIds, derived from site/js/sample-apps.js. The store
@@ -220,6 +226,89 @@ function signatureClaim(bytes) {
   } catch (e) { return { type: '', id: '', ts: null }; }
 }
 
+// A listing may host the GIF here (site/apps/<slug>/<slug>.gif) or pin an
+// author's release with listing.gifUrl. Not both: two copies drift, and a
+// GIF on Pages is exactly the thing gifUrl exists to avoid.
+function parseGifUrl(raw, slug) {
+  const u = httpsUrl(raw, slug + ': gifUrl');
+  if (!u) return null;
+  if (/\/releases\/latest(\/|$)/i.test(u.pathname)) {
+    fail(slug + ': gifUrl must pin a release tag, not /releases/latest/ — yesterday’s catalog must still hash');
+    return null;
+  }
+  if (hostOf(u) === 'gifos.app' && /^\/apps\/[^/]+\/[^/]+\.gif$/i.test(u.pathname)) {
+    fail(slug + ': gifUrl pointing at /apps/' + slug + '/ is hosting the GIF in this repo — drop gifUrl and put the file at site/apps/' + slug + '/' + slug + '.gif, or point gifUrl at the author’s release');
+    return null;
+  }
+  return u.href;
+}
+
+async function loadListedGif(slug, l, gifPath) {
+  const remote = typeof l.gifUrl === 'string' ? l.gifUrl.trim() : '';
+  const local = fs.existsSync(gifPath);
+  if (remote && local) {
+    fail(slug + ': listing.json has gifUrl AND ' + path.relative(ROOT, gifPath) +
+      ' exists — pick one (the GIF must not live in both places)');
+    return null;
+  }
+  if (!remote && !local) {
+    fail(slug + ': no built GIF at ' + path.relative(ROOT, gifPath) +
+      ' and no listing.gifUrl — build it here, or pin a signed release URL');
+    return null;
+  }
+  if (local) {
+    return {
+      gifBytes: fs.readFileSync(gifPath),
+      gifHref: '/apps/' + slug + '/' + slug + '.gif',
+    };
+  }
+  const href = parseGifUrl(remote, slug);
+  if (!href) return null;
+  const wantSha = String(l.gifSha256 || '').toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(wantSha)) {
+    fail(slug + ': gifUrl listings must declare gifSha256 (64 hex) — the catalog pins the remote bytes');
+    return null;
+  }
+  const wantBytes = Number(l.gifBytes);
+  if (!(wantBytes > 0) || !Number.isFinite(wantBytes)) {
+    fail(slug + ': gifUrl listings must declare gifBytes');
+    return null;
+  }
+  const prevPath = path.join(OUT, slug, 'app.json');
+  const prev = fs.existsSync(prevPath) ? (() => { try { return readJSON(prevPath); } catch (e) { return null; } })() : null;
+  const pinMatches = prev && prev.gif === href && prev.sha256 === wantSha && Number(prev.bytes) === wantBytes;
+  if (SKIP_REMOTE_GIFS) {
+    if (!CHECK) {
+      fail(slug + ': --skip-remote-gifs is only for --check (a write must fetch the release)');
+      return null;
+    }
+    if (!pinMatches) {
+      fail(slug + ': --skip-remote-gifs but app.json does not match listing.gifUrl/gifSha256/gifBytes — fetch once with a plain catalog build');
+      return null;
+    }
+    return { gifBytes: null, gifHref: href, sha256: wantSha, bytes: wantBytes, claim: prev.signature || null, skipped: true };
+  }
+  let gifBytes;
+  try {
+    const r = await fetch(href, { redirect: 'follow' });
+    if (!r.ok) { fail(slug + ': gifUrl returned ' + r.status + ' for ' + href); return null; }
+    gifBytes = Buffer.from(await r.arrayBuffer());
+  } catch (e) {
+    fail(slug + ': could not fetch gifUrl — ' + (e && e.message || e));
+    return null;
+  }
+  const gotSha = crypto.createHash('sha256').update(gifBytes).digest('hex');
+  if (gotSha !== wantSha) {
+    fail(slug + ': gifUrl bytes hash to ' + gotSha + ', listing.gifSha256 is ' + wantSha + ' — re-pin after the signed release');
+    return null;
+  }
+  if (gifBytes.length !== wantBytes) {
+    fail(slug + ': gifUrl is ' + gifBytes.length + ' bytes, listing.gifBytes is ' + wantBytes);
+    return null;
+  }
+  return { gifBytes, gifHref: href, sha256: gotSha, bytes: gifBytes.length };
+}
+
 // crop: optional { top, bottom, left, right } in the SOURCE image's own pixels.
 // Screenshots are taken through the GifOS shell, so the master usually has the
 // run.html toolbar across the top — shell chrome, not the app. Cropped away, a
@@ -337,14 +426,18 @@ async function buildApp(slug) {
   const outDir = path.join(OUT, slug);
   const gifPath = path.join(outDir, slug + '.gif');
 
-  if (!fs.existsSync(gifPath)) {
-    fail(slug + ': no built GIF at ' + path.relative(ROOT, gifPath) + ' — build it, then move it here');
-    return null;
+  const loaded = await loadListedGif(slug, l, gifPath);
+  if (!loaded) return null;
+  const gifBytes = loaded.gifBytes;
+  if (gifBytes) {
+    if (!(gifBytes[0] === 0x47 && gifBytes[1] === 0x49 && gifBytes[2] === 0x46)) {
+      fail(slug + ': listed GIF is not a GIF'); return null;
+    }
+    if (!gifBytes.includes(Buffer.from('GIFOS1.0'))) {
+      fail(slug + ': listed GIF carries no GifOS filesystem — it is not an App GIF');
+    }
   }
-  const gifBytes = fs.readFileSync(gifPath);
-  if (!(gifBytes[0] === 0x47 && gifBytes[1] === 0x49 && gifBytes[2] === 0x46)) { fail(slug + ': ' + slug + '.gif is not a GIF'); return null; }
-  if (!gifBytes.includes(Buffer.from('GIFOS1.0'))) fail(slug + ': ' + slug + '.gif carries no GifOS filesystem — it is not an App GIF');
-  const claim = signatureClaim(gifBytes);
+  const claim = gifBytes ? signatureClaim(gifBytes) : (loaded.claim || null);
   if (!claim || !claim.id) {
     unsigned.push(slug);
     if (REQUIRE_SIGNED) fail(slug + ': listed GIF has no GIFOSSIG — node scripts/sign-apps.mjs');
@@ -359,15 +452,17 @@ async function buildApp(slug) {
   // this listing says (scripts/app-credits.mjs). A listing edit that is not
   // re-packed and re-signed would credit one thing in the store and another
   // inside every installed copy. sign-apps.mjs packs it; this refuses drift.
-  try {
-    const archive = await gifCodec.decode(new Uint8Array(gifBytes));
-    const have = archive && archive.files && archive.files[CREDITS_PATH]
-      ? Buffer.from(archive.files[CREDITS_PATH]).toString('utf8') : '';
-    if (have !== creditsJson(l, slug)) {
-      fail(slug + ': ' + CREDITS_PATH + ' inside the GIF is ' + (have ? 'stale' : 'missing')
-        + ' — credits must be sealed bytes: node scripts/sign-apps.mjs ' + slug);
-    }
-  } catch (e) { fail(slug + ': could not read the GIF filesystem — ' + (e.message || e)); }
+  if (gifBytes) {
+    try {
+      const archive = await gifCodec.decode(new Uint8Array(gifBytes));
+      const have = archive && archive.files && archive.files[CREDITS_PATH]
+        ? Buffer.from(archive.files[CREDITS_PATH]).toString('utf8') : '';
+      if (have !== creditsJson(l, slug)) {
+        fail(slug + ': ' + CREDITS_PATH + ' inside the GIF is ' + (have ? 'stale' : 'missing')
+          + ' — credits must be sealed bytes: node scripts/sign-apps.mjs ' + slug);
+      }
+    } catch (e) { fail(slug + ': could not read the GIF filesystem — ' + (e.message || e)); }
+  }
   if (!m.appId) fail(slug + ': manifest.json has no appId');
   if (SEEDED_APP_IDS.has(m.appId)) {
     fail(slug + ': appId "' + m.appId + '" is a seeded default in site/js/sample-apps.js — ' +
@@ -567,8 +662,8 @@ async function buildApp(slug) {
       : (m.capabilities || {}),
     cover: '/apps/' + slug + '/cover.jpg',
     screenshots: (l.screenshots || []).map((_, i) => '/apps/' + slug + '/shot-' + (i + 1) + '.jpg'),
-    gif: '/apps/' + slug + '/' + slug + '.gif',
-    bytes: gifBytes.length,
+    gif: loaded.gifHref,
+    bytes: gifBytes ? gifBytes.length : loaded.bytes,
     // Extra downloads the OS fetches and seals. `download` is REQUIRED pins
     // (at install). Optional pins are a later pick — the listing must say
     // both, or a library of translations looks like a 4 MB install.
@@ -582,8 +677,8 @@ async function buildApp(slug) {
     // self-deal an invoice and mint a signed receipt without paying the
     // author (docs/payments.md).
     pay: (m.pay && typeof m.pay.to === 'string') ? { to: m.pay.to } : null,
-    sha256: crypto.createHash('sha256').update(gifBytes).digest('hex'),
-    signature: signatureClaim(gifBytes),
+    sha256: gifBytes ? crypto.createHash('sha256').update(gifBytes).digest('hex') : loaded.sha256,
+    signature: claim,
   };
   if (porter) rec.porter = porter;
   if (based) rec.basedOn = based;

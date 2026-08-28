@@ -155,8 +155,10 @@
     return new root.Response(stream).arrayBuffer().then((buf) => new Uint8Array(buf));
   }
   // Inflate with a hard OUTPUT ceiling so a tiny malicious payload can't expand
-  // into a memory-bomb: read the decompressed stream chunk-by-chunk and abort
-  // the moment it would exceed the cap (64 MB is far above any real app).
+  // into a memory-bomb. This cap is ours — the GIF format has no such limit —
+  // read the decompressed stream chunk-by-chunk and abort the moment it would
+  // exceed it. 64 MB is far above any app that lives in this repo; a fully
+  // contained study library (hundreds of MB) needs this number raised first.
   const INFLATE_MAX_BYTES = 64 * 1024 * 1024;
   function inflate(bytes) {
     const stream = new Blob([bytes]).stream().pipeThrough(new root.DecompressionStream('deflate-raw'));
