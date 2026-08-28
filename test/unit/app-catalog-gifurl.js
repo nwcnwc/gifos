@@ -36,7 +36,8 @@ check('Install fetches app.gif with redirects (GitHub Release → objects)',
 check('apps README documents gifUrl',
   /gifUrl/.test(readme) && /GitHub Release/.test(readme));
 check('payload inflate ceiling is a GifOS cap, not the GIF format',
-  /INFLATE_MAX_BYTES/.test(inflate) && /This cap is ours/.test(inflate));
+  /function inflateMaxBytes/.test(inflate) && /This cap is ours/.test(inflate) &&
+  /INFLATE_RATIO/.test(inflate));
 
 console.log(failures ? '\n' + failures + ' FAILED' : '\nall green');
 process.exit(failures ? 1 : 0);

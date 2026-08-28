@@ -167,7 +167,10 @@ decision, surfaced as loudly as we can (the Unsafe label).
 crashes the parser.
 
 **Mitigations**
-- `inflate()` **streams with a 64 MB ceiling** and aborts past it.
+- `inflate()` **streams with a ceiling** and aborts past it. The bomb is a
+  small payload that expands: the cap is `max(64 MB, 16 × compressed size)`,
+  hard-capped at 2 GB−1. A large App GIF the person already downloaded is
+  allowed to unpack in proportion to its size; a kilobyte zip-bomb is not.
 - Parsing is defensive: malformed/embedded state is caught and the app starts
   fresh rather than throwing.
 
