@@ -71,14 +71,13 @@ export const SOURCES = {
 // The cache is gitignored, so a fresh clone fetches once and every later run is
 // offline. A source that changes size under us is a licence question, not a
 // build detail — the byte count of what was reviewed is in credits.json.
-export async function grab(url, file) {
+export async function grab(url, file, packPath) {
   if (existsSync(file)) return readFileSync(file, 'utf8');
-  mkdirSync(dirname(file), { recursive: true });
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  writeFileSync(file, buf);
-  return buf.toString('utf8');
+  const { pull } = await import('./source.mjs');
+  const r = await pull(url, file, { packPath: packPath || null, minBytes: 100 });
+  if (r.status === 'missing') throw new Error(`${url} -> ${r.reason}`);
+  if (!existsSync(file)) throw new Error(`${url} frozen at pack; no cache to read`);
+  return readFileSync(file, 'utf8');
 }
 
 // ---------------------------------------------------------------- container

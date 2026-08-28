@@ -96,11 +96,12 @@ const chosen = accepted.filter((c) => !DUP[c.id] && (!only || only.has(c.id)));
 async function fetchText(id) {
   const f = join(cache, 'gb-' + id + '.json');
   if (existsSync(f)) return JSON.parse(readFileSync(f, 'utf8'));
-  const r = await fetch('https://api.getbible.net/v2/' + id + '.json');
-  if (!r.ok) throw new Error(id + ': HTTP ' + r.status);
-  const j = await r.json();
-  writeFileSync(f, JSON.stringify(j));
-  return j;
+  const { pull } = await import('./source.mjs');
+  const pack = join(outDir, 'gb-' + id + '.gbp');
+  const r = await pull('https://api.getbible.net/v2/' + id + '.json', f, { packPath: pack, minBytes: 100 });
+  if (r.status === 'missing') throw new Error(id + ': ' + (r.reason || 'unavailable'));
+  if (!existsSync(f)) throw new Error(id + ': FROZEN (no cache; pack kept)');
+  return JSON.parse(readFileSync(f, 'utf8'));
 }
 
 function packOne(id, meta, doc, vet) {
@@ -165,7 +166,11 @@ const built = [];
 for (const vet of chosen) {
   let doc;
   try { doc = await fetchText(vet.id); }
-  catch (e) { console.log('  ' + vet.id + ' FAILED ' + e.message); continue; }
+  catch (e) {
+    const frozen = /FROZEN/.test(e.message);
+    console.log('  ' + vet.id + (frozen ? ' ' : ' FAILED ') + e.message);
+    continue;
+  }
   const p = packOne(vet.id, META[vet.id], doc, vet);
   if (!p.verses) { console.log('  ' + vet.id + ' — no verses, skipped'); continue; }
   writeFileSync(join(outDir, 'gb-' + vet.id + '.gbp'), p.bytes);

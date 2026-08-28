@@ -17,6 +17,8 @@ Gauntlet-loop build of a new App Store app: `apps/bible/`.
 - `tools/usfx.mjs` — USFX -> paragraphs, poetry lines, words of Christ,
   translators' footnotes, cross-references, section headings, NATIVE book names
 - `tools/build-packs.mjs` — GBP2 packs, 139 texts, 63 languages
+- `tools/source.mjs` + `PIPELINE.md` — a dead upstream URL keeps the
+  committed pack; format changes migrate the pack, they do not re-fetch
 - `js/pack.js` — the reader's pack reader (native DecompressionStream)
 - `test/unit/bible-pack.js` — 9 assertions, green
 - `js/versify.js` + `test/unit/bible-versify.js` — three traditions mapped

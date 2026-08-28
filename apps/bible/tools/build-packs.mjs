@@ -21,7 +21,7 @@
 // cannot.
 //
 // Run: node apps/bible/tools/build-packs.mjs [--only id,id]
-import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { deflateRawSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
@@ -172,11 +172,23 @@ function mergeDtnCredit() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const onlyIx = process.argv.indexOf('--only');
   const only = onlyIx > -1 ? new Set(process.argv[onlyIx + 1].split(',')) : null;
-  if (!only && existsSync(outDir)) rmSync(outDir, { recursive: true });
+  // Never wipe the packs directory. Committed packs are the freeze: a missing
+  // USFX zip skips that id and leaves its .gbp on disk (tools/source.mjs).
   mkdirSync(outDir, { recursive: true });
 
   const wantDarby = !only || only.has('engDBY');
-  const dtn = wantDarby ? loadDarbyNotes(await ensureDtn()) : null;
+  let dtn = null;
+  if (wantDarby) {
+    try {
+      dtn = loadDarbyNotes(await ensureDtn());
+    } catch (e) {
+      if (existsSync(join(outDir, 'engDBY.gbp'))) {
+        console.log('  engDBY FROZEN (DTN unavailable: ' + (e.message || e) + ')');
+      } else {
+        throw e;
+      }
+    }
+  }
   if (dtn) {
     console.log(`  DTN ${dtn.notes} notes over ${dtn.verses} verses` +
                 (dtn.dropped ? `, ${dtn.dropped} asterisk-marked 1939 notes dropped` : ''));
@@ -188,7 +200,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   for (const t of cat.translations) {
     if (only && !only.has(t.id)) continue;
     const zip = join(cache, t.id + '_usfx.zip');
-    if (!existsSync(zip)) { console.log(`  ${t.id} — no cache, skipped`); continue; }
+    if (!existsSync(zip)) {
+      const kept = join(outDir, t.id + '.gbp');
+      if (existsSync(kept)) console.log(`  ${t.id} FROZEN (no USFX cache; pack kept)`);
+      else console.log(`  ${t.id} — no cache, skipped`);
+      continue;
+    }
+    if (t.id === 'engDBY' && !dtn) {
+      console.log(`  ${t.id} FROZEN (no DTN; pack kept)`);
+      continue;
+    }
     const entry = execFileSync('unzip', ['-Z1', zip]).toString().split('\n')
                     .find((x) => x.endsWith('_usfx.xml'));
     if (!entry) { oddities.push(`${t.id}: no usfx xml in the zip`); continue; }
