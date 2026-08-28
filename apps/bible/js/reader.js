@@ -177,14 +177,25 @@
       return col;
     }
 
-    var title = el('h1', 'book-title', ch.name);
+    var title = el('button', 'book-title', ch.name);
+    title.type = 'button';
+    title.title = 'Commentary on this book';
+    title.addEventListener('click', function () {
+      self.openScopeSheet(pack, { code: m.ref.code, chapter: m.ref.chapter, verse: 1 }, 'book');
+    });
     var sub = el('p', 'book-sub', (pack.name || pack.id) +
       (m.exact ? '' : ' — numbered its own way here'));
     col.appendChild(title);
     col.appendChild(sub);
 
     var body = el('div', 'chapter');
-    var cnum = el('span', 'cnum', String(m.ref.chapter));
+    var cnum = el('button', 'cnum', String(m.ref.chapter));
+    cnum.type = 'button';
+    cnum.title = 'Commentary on this chapter';
+    cnum.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      self.openScopeSheet(pack, { code: m.ref.code, chapter: m.ref.chapter, verse: 1 }, 'chapter');
+    });
     body.appendChild(cnum);
 
     var markMap = {};
@@ -234,6 +245,7 @@
           +(a.getAttribute('data-note') || a.getAttribute('data-xref')));
         return;
       }
+      if (ev.target.closest('.cnum')) return;
       var v = ev.target.closest('.v');
       if (v) self.openVerseSheet(pack, +v.getAttribute('data-i'));
     });

@@ -57,10 +57,10 @@
   }
 
   function whenReady(fn) {
+    start();
     var files = HELP_FILES.concat(LEX_FILES, INT_FILES);
-    files.forEach(function (f) {
-      if (loading[f]) loading[f].then(function () { fn(); });
-    });
+    var waits = files.map(function (f) { return loading[f] || Promise.resolve(); });
+    Promise.all(waits).then(function () { fn(); });
   }
 
   function lookupStrong(num) {
@@ -144,6 +144,7 @@
 
   root.GifosBibleApparatus = {
     start: start,
+    whenReady: whenReady,
     forVerse: forVerse,
     shelf: shelf,
     lexicons: lexicons,
