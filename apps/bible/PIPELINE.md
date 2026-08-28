@@ -15,8 +15,12 @@ USFX or TSK.
 
 ## 1. Intake
 
-External bytes → our pack. Runs when there is **no pack yet**, or when
-someone passes `--reintake` on purpose (a new dump of the same work).
+External bytes → our pack. Runs when there is **no pack yet**.
+
+`--reintake` is not a refresh. It is the hatch for a botched intake: we
+dropped something the pack no longer contains, and a migration cannot
+invent it. Only then do we go back to the original source. If the URL is
+gone too, that loss is permanent.
 
 ```
 node apps/bible/tools/fetch-texts.mjs --only engwebp
@@ -29,7 +33,8 @@ node apps/bible/tools/build-helps.mjs --only xrefs
 If `site/apps/bible/packs/help-xrefs.gbx` is already there, those commands
 print `sealed` and do nothing. They do not hit GitHub or CrossWire.
 
-`--reintake` is the only way to take the same id through intake again.
+Do not `--reintake` because a nicer TSV appeared, or because we want to
+“rebuild.” Rebuilds are migrations.
 
 ## 2. Migration
 

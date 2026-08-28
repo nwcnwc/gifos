@@ -44,6 +44,8 @@ ok(/Two pipelines/.test(pipe) && /INTAKE/.test(pipe) && /MIGRATION/.test(pipe),
    'PIPELINE.md is two pipelines: intake once, then migrate the pack');
 ok(/does not hit GitHub or CrossWire/.test(pipe) || /do not hit GitHub/.test(pipe),
    'intake does not contact upstream when the pack already exists');
+ok(/botched intake/.test(pipe) && /migration cannot/.test(pipe),
+   '--reintake is only for content intake dropped that a migration cannot invent');
 
 (async () => {
   const sourceUrl = pathToFileURL(path.join(bible, 'tools/source.mjs')).href;
@@ -82,7 +84,7 @@ ok(/does not hit GitHub or CrossWire/.test(pipe) || /do not hit GitHub/.test(pip
     ok(source.skipIfPacked(xrefs) && source.skipIfPacked(xrefs).packed,
        'Treasury is already packed, so intake will not run again');
     ok(source.skipIfPacked(xrefs, { reintake: true }) === null,
-       '--reintake is the only way to take Treasury through intake twice');
+       '--reintake is recovery for dropped content, not a rebuild');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

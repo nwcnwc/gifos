@@ -4,8 +4,9 @@
 //   MIGRATION  pack → pack. The only rewrite after intake.
 //
 // After intake, the URL is history. A later build does not fetch, does not
-// read cache, does not rebuild from USFX/TSV. --reintake is a deliberate
-// new intake of the same id (rare). Format changes are migrate-packs.mjs.
+// read cache, does not rebuild from USFX/TSV. --reintake is only for a
+// botched intake: the pack is missing something a migration cannot restore.
+// Format changes are migrate-packs.mjs.
 //
 //   skipIfPacked(path)  pack exists → intake is done
 //   pull(url, dest)     intake only: fetch into cache; never empty a dest
@@ -73,7 +74,7 @@ export async function pull(url, dest, opts) {
 }
 
 // Intake gate: a pack on disk means this work already went through intake.
-// --reintake is the only way past it.
+// --reintake is only for recovering content the pack dropped.
 export function skipIfPacked(packPath, opts) {
   if (opts && opts.reintake) return null;
   if (havePack(packPath)) {
@@ -174,7 +175,7 @@ async function selfTest() {
     ok(skipIfPacked(pack) && skipIfPacked(pack).packed,
        'a pack on disk means intake already ran');
     ok(skipIfPacked(pack, { reintake: true }) === null,
-       '--reintake is the only way to intake the same id again');
+       '--reintake is only for recovering dropped content, not a rebuild');
     ok(skipIfPacked(join(dir, 'no-pack.gbx')) === null,
        'no pack yet → intake may run');
   } finally {
