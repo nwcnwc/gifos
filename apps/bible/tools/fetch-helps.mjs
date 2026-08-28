@@ -1,18 +1,18 @@
-// Fetch study-help sources into .cache/helps/. A 404 keeps the last copy;
-// if even that is gone, the committed pack in site/apps/bible/packs/ is the
-// freeze (tools/source.mjs). Does not unpack SWORD zips — that stays a
-// one-time cache layout. Git clones (Henry concise) are not fetched here.
+// Intake: fetch study-help sources into .cache/helps/. If the pack already
+// exists, this does nothing (the URL is no longer in play). --reintake is
+// a deliberate second intake of the same id. Does not unpack SWORD zips.
 //
-// Run: node apps/bible/tools/fetch-helps.mjs [--force]
+// Run: node apps/bible/tools/fetch-helps.mjs [--force] [--reintake]
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pull, markFrozen, clearFrozen } from './source.mjs';
+import { pull, markFrozen, clearFrozen, skipIfPacked } from './source.mjs';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const cache = join(dir, '..', '.cache', 'helps');
 const packs = join(dir, '..', '..', '..', 'site', 'apps', 'bible', 'packs');
 const credits = join(dir, '..', 'data', 'credits.json');
 const force = process.argv.includes('--force');
+const reintake = process.argv.includes('--reintake');
 
 const FILES = [
   { id: 'tsk', dest: 'tskxref.txt', pack: 'help-xrefs.gbx',
@@ -29,11 +29,17 @@ const FILES = [
     url: 'https://www.openbible.info/geo/data/places.txt', minBytes: 100 },
 ];
 
-let fetched = 0, cached = 0, frozen = 0, missing = 0;
+let fetched = 0, cached = 0, frozen = 0, sealed = 0, missing = 0;
 for (const f of FILES) {
+  const packPath = join(packs, f.pack);
+  if (skipIfPacked(packPath, { reintake })) {
+    console.log('  sealed       ' + f.id + '  (intake already ran; not fetching)');
+    sealed++;
+    continue;
+  }
   const dest = join(cache, f.dest);
   const r = await pull(f.url, dest, {
-    force, minBytes: f.minBytes, packPath: join(packs, f.pack),
+    force, minBytes: f.minBytes, packPath,
   });
   const tag = r.status.padEnd(12);
   console.log('  ' + tag + ' ' + f.id + (r.reason ? '  (' + r.reason + ')' : ''));
@@ -44,5 +50,5 @@ for (const f of FILES) {
     markFrozen(credits, f.id, r);
   } else { missing++; }
 }
-console.log(`fetched ${fetched}, cached ${cached}, frozen ${frozen}, missing ${missing}`);
+console.log(`fetched ${fetched}, cached ${cached}, sealed ${sealed}, frozen ${frozen}, missing ${missing}`);
 if (missing) process.exit(1);

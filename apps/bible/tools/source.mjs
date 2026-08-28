@@ -1,11 +1,14 @@
-// Upstream is a convenience. The committed pack is the freeze.
+// Two pipelines, not one with a fallback:
 //
-//   pull(url, dest)     try the URL; on failure keep dest if we have it
-//   havePack(path)      the sealed GBP/GBX already in the tree
+//   INTAKE     external URL → cache → pack. Runs once per work.
+//   MIGRATION  pack → pack. The only rewrite after intake.
 //
-// A dead link never deletes a pack. Rebuild from cache when the URL still
-// answers; if it does not, keep the pack. Format changes go through
-// migrate-packs.mjs and rewrite the pack, they do not re-fetch.
+// After intake, the URL is history. A later build does not fetch, does not
+// read cache, does not rebuild from USFX/TSV. --reintake is a deliberate
+// new intake of the same id (rare). Format changes are migrate-packs.mjs.
+//
+//   skipIfPacked(path)  pack exists → intake is done
+//   pull(url, dest)     intake only: fetch into cache; never empty a dest
 //
 // Run: node apps/bible/tools/source.mjs --self-test
 import { existsSync, mkdirSync, writeFileSync, readFileSync, statSync, rmSync } from 'node:fs';
@@ -67,6 +70,16 @@ export async function pull(url, dest, opts) {
     return { status: 'frozen-pack', bytes: statSync(packPath).size, reason: err };
   }
   return { status: 'missing', reason: err };
+}
+
+// Intake gate: a pack on disk means this work already went through intake.
+// --reintake is the only way past it.
+export function skipIfPacked(packPath, opts) {
+  if (opts && opts.reintake) return null;
+  if (havePack(packPath)) {
+    return { packed: true, packPath, reason: 'already packed; intake already ran' };
+  }
+  return null;
 }
 
 export function skipIfFrozen(packPath, sources, why) {
@@ -157,6 +170,13 @@ async function selfTest() {
     ok(skip && skip.frozen, 'builder skip: missing source + pack → frozen');
     const noskip = skipIfFrozen(pack, [dest]);
     ok(noskip === null, 'builder skip: source present → rebuild');
+
+    ok(skipIfPacked(pack) && skipIfPacked(pack).packed,
+       'a pack on disk means intake already ran');
+    ok(skipIfPacked(pack, { reintake: true }) === null,
+       '--reintake is the only way to intake the same id again');
+    ok(skipIfPacked(join(dir, 'no-pack.gbx')) === null,
+       'no pack yet → intake may run');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

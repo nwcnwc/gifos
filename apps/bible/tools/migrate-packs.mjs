@@ -1,8 +1,5 @@
-// Rewrite a committed pack. Upstream is not consulted.
-//
-// The freeze doctrine (tools/source.mjs): if the source URL is gone we keep
-// the pack we already built. When the pack *format* has to change, the change
-// is a named function in MIGRATIONS below, applied to the bytes on disk.
+// Migration pipeline. Pack → pack. Upstream is not consulted, cache is not
+// read. Intake (fetch + build-*) is the other pipeline and runs once.
 //
 //   node apps/bible/tools/migrate-packs.mjs           # apply pending
 //   node apps/bible/tools/migrate-packs.mjs --check    # open every pack, write nothing

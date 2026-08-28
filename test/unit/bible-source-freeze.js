@@ -20,12 +20,16 @@ const ok = (cond, what) => {
 const packsBuild = read('tools/build-packs.mjs');
 ok(!/rmSync\(outDir/.test(packsBuild) && !/rmSync\(.*packs/.test(packsBuild),
    'build-packs never deletes the packs directory');
+ok(/skipIfPacked/.test(packsBuild) && /intake already ran/.test(packsBuild),
+   'build-packs does not re-intake a .gbp that is already on disk');
 ok(/FROZEN/.test(packsBuild) && /no USFX cache; pack kept/.test(packsBuild),
-   'a missing USFX zip keeps the committed .gbp');
+   'a missing USFX zip during a new intake keeps any committed .gbp');
 
 const helpsBuild = read('tools/build-helps.mjs');
+ok(/skipIfPacked/.test(helpsBuild) && /intake already ran/.test(helpsBuild),
+   'build-helps does not re-parse TSK (etc.) once the .gbx exists');
 ok(/skipIfFrozen/.test(helpsBuild) && /FROZEN/.test(helpsBuild),
-   'build-helps skips a help pack when its source is gone and the .gbx remains');
+   'a brand-new help pack still refuses to die if source is gone mid-intake');
 
 ok(fs.existsSync(path.join(bible, 'tools/source.mjs')),
    'tools/source.mjs is the pull/freeze helper');
@@ -36,8 +40,10 @@ ok(/upstream is not consulted/i.test(read('tools/migrate-packs.mjs')) ||
    'migrate-packs states it does not consult upstream');
 
 const pipe = read('PIPELINE.md');
-ok(/committed pack/.test(pipe) && /migrate-packs/.test(pipe),
-   'PIPELINE.md names the pack as the freeze and migrate-packs as the rewrite');
+ok(/Two pipelines/.test(pipe) && /INTAKE/.test(pipe) && /MIGRATION/.test(pipe),
+   'PIPELINE.md is two pipelines: intake once, then migrate the pack');
+ok(/does not hit GitHub or CrossWire/.test(pipe) || /do not hit GitHub/.test(pipe),
+   'intake does not contact upstream when the pack already exists');
 
 (async () => {
   const sourceUrl = pathToFileURL(path.join(bible, 'tools/source.mjs')).href;
@@ -73,6 +79,10 @@ ok(/committed pack/.test(pipe) && /migrate-packs/.test(pipe),
        'migrate-packs can open help-xrefs.gbx without the TSV');
     const ident = migrate.migrateOne(fs.readFileSync(xrefs));
     ok(ident.changed === false, 'with no migrations listed, the pack is not rewritten');
+    ok(source.skipIfPacked(xrefs) && source.skipIfPacked(xrefs).packed,
+       'Treasury is already packed, so intake will not run again');
+    ok(source.skipIfPacked(xrefs, { reintake: true }) === null,
+       '--reintake is the only way to take Treasury through intake twice');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
