@@ -23,7 +23,7 @@
 //
 // Run: node apps/bible/tools/darby-notes.mjs          (print counts)
 //      imported by build-packs.mjs when packing engDBY
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -119,9 +119,10 @@ function moduleDir() {
 export async function ensureDtn() {
   mkdirSync(cache, { recursive: true });
   if (!existsSync(ZIP) || statSync(ZIP).size < 1000) {
-    const r = await fetch(DTN_URL);
-    if (!r.ok) throw new Error('DTN.zip HTTP ' + r.status);
-    writeFileSync(ZIP, Buffer.from(await r.arrayBuffer()));
+    const { pull } = await import('./source.mjs');
+    const pack = join(dir, '..', '..', '..', 'site', 'apps', 'bible', 'packs', 'engDBY.gbp');
+    const r = await pull(DTN_URL, ZIP, { packPath: pack });
+    if (r.status === 'missing') throw new Error('DTN.zip ' + (r.reason || 'unavailable'));
   }
   if (!existsSync(join(moduleDir(), 'ot.vss'))) {
     execFileSync('unzip', ['-o', '-q', '-d', join(cache, 'dtn'), ZIP]);

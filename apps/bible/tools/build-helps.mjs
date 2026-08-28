@@ -59,11 +59,12 @@
 // data/books.json. Nothing downstream re-parses a source abbreviation.
 //
 // Run: node apps/bible/tools/build-helps.mjs [--only xrefs,dict,…]
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { deflateRawSync, inflateRawSync, inflateSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { skipIfFrozen } from './source.mjs';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const root = join(dir, '..', '..', '..');
@@ -1344,7 +1345,18 @@ function mergeCredits(built) {
       + 'licence requires. Appended to by each builder; never overwritten.',
     sources,
   });
-  if (built) out.helpsPacks = built;
+  if (built) {
+    const priorPacks = prior.helpsPacks || {};
+    const merged = {};
+    for (const k of Object.keys(built)) {
+      if (built[k] && built[k].frozen) {
+        merged[k] = Object.assign({}, priorPacks[k] || {}, { frozen: true, frozenReason: built[k].reason });
+      } else {
+        merged[k] = built[k];
+      }
+    }
+    out.helpsPacks = Object.keys(merged).length === 6 ? merged : priorPacks;
+  }
   writeFileSync(path, JSON.stringify(out, null, 1) + '\n');
   return sources.length;
 }
@@ -1358,19 +1370,57 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   const built = {};
   const log = (k, r, extra) => {
+    if (r.frozen) {
+      built[r.pack.name] = Object.assign({}, r.stats, { bytes: r.pack.bytes, frozen: true });
+      return;
+    }
     built[r.pack.name] = Object.assign({ bytes: r.pack.bytes, sha256: r.pack.sha256 }, r.stats);
     console.log(`  ${r.pack.name.padEnd(18)} ${(r.pack.raw / 1048576).toFixed(1)} MB -> ` +
                 `${(r.pack.bytes / 1048576).toFixed(2)} MB  ${extra}`);
   };
+  const orFrozen = (name, sources, fn) => {
+    const skip = skipIfFrozen(join(outDir, name), sources);
+    if (skip && skip.frozen) {
+      console.log(`  ${name.padEnd(18)} FROZEN  ${skip.reason}`);
+      return { frozen: true, pack: { name, bytes: statSync(join(outDir, name)).size },
+               stats: { reason: skip.reason } };
+    }
+    if (skip && !skip.frozen) throw new Error(name + ': ' + skip.reason);
+    return fn();
+  };
 
-  if (want('xrefs')) { const r = buildXrefs(); log('xrefs', r, `${r.stats.entries} entries over ${r.stats.verses} verses`); }
-  if (want('dict')) { const r = buildDict(); log('dict', r, `Easton ${r.stats.easton} + Smith ${r.stats.smith}`); }
-  if (want('topics')) { const r = buildTopics(); log('topics', r, `Nave ${r.stats.nave} + Torrey ${r.stats.torrey}, ${r.stats.refs} refs`); }
-  if (want('mhcc')) { const r = buildMhcc(); log('mhcc', r, `${r.stats.notes} notes over ${r.stats.books} books`); }
-  if (want('places')) { const r = buildPlaces(); log('places', r, `${r.stats.places} placed, ${r.stats.resolved} by pointer, ${r.stats.dropped} without a fix`); }
+  if (want('xrefs')) {
+    const r = orFrozen('help-xrefs.gbx', [join(cache, 'tskxref.txt')], buildXrefs);
+    log('xrefs', r, r.frozen ? '' : `${r.stats.entries} entries over ${r.stats.verses} verses`);
+  }
+  if (want('dict')) {
+    const r = orFrozen('help-dict.gbx', [
+      join(cache, 'sw/modules/lexdict/zld/easton/easton.idx'),
+      join(cache, 'sw/modules/lexdict/rawld/smith/smith.idx'),
+    ], buildDict);
+    log('dict', r, r.frozen ? '' : `Easton ${r.stats.easton} + Smith ${r.stats.smith}`);
+  }
+  if (want('topics')) {
+    const r = orFrozen('help-topics.gbx', [
+      join(cache, 'sw/modules/lexdict/zld/nave/dict.idx'),
+      join(cache, 'sw/modules/lexdict/rawld/torrey/torrey.idx'),
+    ], buildTopics);
+    log('topics', r, r.frozen ? '' : `Nave ${r.stats.nave} + Torrey ${r.stats.torrey}, ${r.stats.refs} refs`);
+  }
+  if (want('mhcc')) {
+    const r = orFrozen('help-mhcc.gbx', [join(cache, 'mhenry-concise')], buildMhcc);
+    log('mhcc', r, r.frozen ? '' : `${r.stats.notes} notes over ${r.stats.books} books`);
+  }
+  if (want('places')) {
+    const r = orFrozen('help-places.gbx', [join(cache, 'places.txt')], buildPlaces);
+    log('places', r, r.frozen ? '' : `${r.stats.places} placed, ${r.stats.resolved} by pointer, ${r.stats.dropped} without a fix`);
+  }
   if (want('plans')) {
-    const counts = readCanonCounts('engwebp');
-    const r = buildPlans(counts); log('plans', r, JSON.stringify(r.stats));
+    const r = orFrozen('help-plans.gbx', [], () => {
+      const counts = readCanonCounts('engwebp');
+      return buildPlans(counts);
+    });
+    log('plans', r, r.frozen ? '' : JSON.stringify(r.stats));
   }
 
   const n = mergeCredits(Object.keys(built).length === 6 ? built : null);
