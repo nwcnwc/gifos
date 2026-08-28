@@ -42,6 +42,30 @@
             .trim();
   }
 
+  /* A whole BODY as it reads, for search.
+   *
+   * The body interleaves marks with the words — a note anchor sits between
+   * "God" and "created" in Genesis 1:1, a poetry break sits mid-sentence in a
+   * psalm — so searching the stored bytes misses any phrase that crosses one.
+   * That is a third of the verses in WEB and two thirds in KJV, including the
+   * sentences a stranger is most likely to type first.
+   *
+   * Same substitutions as plain(), in ONE pass over the whole body instead of
+   * per verse, and \n is never touched: the result keeps the body's line
+   * count, so a hit's line number is still its verse index. Whitespace
+   * collapses only WITHIN a line ([^\S\n]) — collapsing across \n would fuse
+   * two verses and put every later hit on the wrong one.
+   */
+  function searchable(s) {
+    if (!s) return '';
+    return s.replace(/[\u0001\u0002\u0005\u0006\u000e\u000f]/g, '')
+            .replace(/\u0010\d?/g, ' ')
+            .replace(/[\u0011\u0003\u0004]/g, '')
+            .replace(/[^\S\n]{2,}/g, ' ')
+            .replace(/ *\n */g, '\n')
+            .toLowerCase();
+  }
+
   /* Walk a verse's marked text, handing the caller each run of characters with
    * the styles in force, and each structural break as it arrives. One pass, no
    * regex backtracking, because this runs for every verse on every repaint. */
@@ -434,6 +458,7 @@
   root.GifosBibleRender = {
     chapter: chapter,
     plain: plain,
+    searchable: searchable,
     walk: walk,
     hasMarks: function (s) { return ALL_MARKS.test(s || ''); },
     collectText: collectText,

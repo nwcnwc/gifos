@@ -472,9 +472,9 @@
       if (results.firstChild) return;
     }
 
-    if (!pack._lower) pack._lower = pack.body.toLowerCase();
-    var hay = pack._lower;
-    var needle = q.toLowerCase();
+    var sb = this.searchBody(pack);
+    var hay = sb.text;
+    var needle = Render.searchable(q);
     var found = [];
     var at = hay.indexOf(needle);
     var scope = this._searchScope || 'all';
@@ -482,7 +482,7 @@
     var sectOf = {};
     for (var t = 0; t < table.length; t++) sectOf[table[t].code] = table[t].sect;
     while (at >= 0 && found.length < 400) {
-      var idx = this.indexAt(pack, at);
+      var idx = this.indexAt(sb.starts, at);
       var r = pack.refOf(idx);
       if (r) {
         var okScope = scope === 'all' ||
@@ -502,16 +502,22 @@
         var btn = el('button', 'res');
         btn.type = 'button';
         btn.appendChild(el('span', 'r-ref', Refs.format(hit.ref, { names: self.namesOf(pack), style: 'short' })));
+        // The snippet is the verse as it reads, and the hit was found in a
+        // body normalised the same way, so the offset lands. A verse whose
+        // marks made the two disagree shows its opening rather than slicing
+        // at -1.
         var text = Render.plain(pack.textAt(hit.idx));
-        var low = text.toLowerCase();
-        var p = low.indexOf(needle);
-        var start = Math.max(0, p - 40);
+        var p = Render.searchable(text).indexOf(needle);
         var frag = document.createDocumentFragment();
-        if (start > 0) frag.appendChild(document.createTextNode('…'));
-        frag.appendChild(document.createTextNode(text.slice(start, p)));
-        var m = el('mark', '', text.slice(p, p + needle.length));
-        frag.appendChild(m);
-        frag.appendChild(document.createTextNode(text.slice(p + needle.length, p + needle.length + 120)));
+        if (p < 0) {
+          frag.appendChild(document.createTextNode(text.slice(0, 160)));
+        } else {
+          var start = Math.max(0, p - 40);
+          if (start > 0) frag.appendChild(document.createTextNode('…'));
+          frag.appendChild(document.createTextNode(text.slice(start, p)));
+          frag.appendChild(el('mark', '', text.slice(p, p + needle.length)));
+          frag.appendChild(document.createTextNode(text.slice(p + needle.length, p + needle.length + 120)));
+        }
         btn.appendChild(frag);
         btn.addEventListener('click', function () {
           self.closeSheets();
@@ -628,14 +634,39 @@
     }
   };
 
-  // Binary search: which verse does byte offset `at` in the body fall in?
-  Reader.prototype.indexAt = function (pack, at) {
-    var s = pack._starts, lo = 0, hi = s.length - 2;
+  // Binary search: which line does offset `at` fall in? `starts` is a line
+  // index — the pack's own, or the search body's, which has the same lines.
+  Reader.prototype.indexAt = function (starts, at) {
+    var lo = 0, hi = starts.length - 2;
     while (lo < hi) {
       var mid = (lo + hi + 1) >> 1;
-      if (s[mid] <= at) lo = mid; else hi = mid - 1;
+      if (starts[mid] <= at) lo = mid; else hi = mid - 1;
     }
     return lo;
+  };
+
+  /* The pack's body as it READS, plus a line index into it.
+   *
+   * Searching pack.body directly misses every phrase that crosses an inline
+   * mark — a note anchor, a red-letter boundary, a poetry break — and a third
+   * of WEB's verses and two thirds of KJV's carry at least one. Render.searchable
+   * removes them without touching \n, so this string has the body's line count
+   * and line N is still verse N; only the offsets within a line move, which is
+   * why it needs its own starts array rather than reusing pack._starts.
+   *
+   * Built once per pack and kept, like the lower-cased body it replaces: it is
+   * the same size as the body (smaller, in fact) and costs one pass. */
+  Reader.prototype.searchBody = function (pack) {
+    if (pack._search) return pack._search;
+    var text = Render.searchable(pack.body);
+    var n = 1;
+    for (var i = text.indexOf('\n'); i >= 0; i = text.indexOf('\n', i + 1)) n++;
+    var starts = new Int32Array(n + 1);
+    var k = 1;
+    for (var j = text.indexOf('\n'); j >= 0; j = text.indexOf('\n', j + 1)) starts[k++] = j + 1;
+    starts[n] = text.length + 1;
+    pack._search = { text: text, starts: starts };
+    return pack._search;
   };
 
   /* ---------------- read aloud ---------------- */
