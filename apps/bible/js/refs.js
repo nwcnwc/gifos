@@ -500,13 +500,19 @@
   function nameOf(code, opts) {
     var rec = opts && opts.names && opts.names[code];
     var short = opts && opts.style === 'short';
-    if (rec) {
-      // A pack may carry a name and no abbreviation; its own name still beats
-      // an English label the reader of that translation has never seen.
-      if (short) return rec.abbr || rec.name || code;
-      return rec.name || rec.abbr || code;
-    }
     var t = BY_CODE[code];
+    if (rec) {
+      if (!short) return rec.name || rec.abbr || code;
+      /* A pack's abbreviation is a mechanical truncation written by whatever
+       * produced the source — the USFX packs all say "Jhn", "Psa", "Php" —
+       * and it was going straight into the most prominent control on screen.
+       * Where the pack names a book the same way this app does, the pack is
+       * English and this app's abbreviation is the better one: John, Ps,
+       * Phil. Where it does not, the pack is in another language and its own
+       * labels are the only ones its reader has ever seen, so they win. */
+      if (t && rec.name === t.name) return t.abbr;
+      return rec.abbr || rec.name || code;
+    }
     if (!t) return code;
     return short ? t.abbr : t.name;
   }

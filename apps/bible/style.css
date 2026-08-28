@@ -269,15 +269,22 @@ mark.hl-span[data-hl="under"]  { background: none; border-bottom: 2px solid var(
   border-top: 1px solid var(--rule); background: var(--bg);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
+/* Chapter is the most frequent move in the app and had the two smallest
+ * targets on screen, one in each corner, while the reading plan — opened once
+ * a day at most — took the whole middle. The arrows now carry the weight and
+ * the plan sits between them at its own size. */
 .foot-btn {
-  min-height: 2.5rem; padding: .4rem .8rem; border-radius: 9px; color: var(--ink2);
-  font-size: 1.35rem; line-height: 1;
+  min-height: 2.75rem; min-width: 5.5rem; flex: 0 0 auto;
+  padding: .4rem 1.1rem; border-radius: 9px; color: var(--ink);
+  font-size: 1.5rem; line-height: 1;
 }
 .foot-btn:hover { background: var(--bg2); color: var(--ink); }
+.foot-btn:active { background: var(--bg3); }
 .foot-btn.plan {
-  flex: 1 1 auto; font-size: .82rem; font-weight: 600; color: var(--ink3);
+  flex: 1 1 auto; min-width: 0; font-size: .82rem; font-weight: 600; color: var(--ink3);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.foot-btn.plan:hover { color: var(--ink2); }
 .foot-btn[disabled] { opacity: .3; cursor: default; }
 
 /* display:flex on .sheet and #follow would otherwise win over the UA
