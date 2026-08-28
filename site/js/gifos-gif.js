@@ -14,16 +14,29 @@
 
   // ---- base64 (pure, Uint8Array <-> string) -------------------------------
   const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  // Build into fixed slices and join once. Appending to one string per 3 bytes
+  // makes V8 a cons-string tree millions of nodes deep and then flattens it:
+  // encoding 12 MB of files that way peaked at 470 MB of heap, which is why a
+  // large app could not be packed at all. Slices keep the peak at the output's
+  // own size.
+  const B64_SLICE = 8192 * 3; // whole 3-byte groups, so slices never split one
   function b64encode(bytes) {
-    let out = '';
-    for (let i = 0; i < bytes.length; i += 3) {
-      const a = bytes[i], b = bytes[i + 1], c = bytes[i + 2];
-      const n = (a << 16) | ((b || 0) << 8) | (c || 0);
-      out += B64[(n >> 18) & 63] + B64[(n >> 12) & 63];
-      out += i + 1 < bytes.length ? B64[(n >> 6) & 63] : '=';
-      out += i + 2 < bytes.length ? B64[n & 63] : '=';
+    const n = bytes.length;
+    if (!n) return '';
+    const slices = [];
+    for (let s = 0; s < n; s += B64_SLICE) {
+      const end = Math.min(s + B64_SLICE, n);
+      const chars = [];
+      for (let i = s; i < end; i += 3) {
+        const a = bytes[i], b = bytes[i + 1], c = bytes[i + 2];
+        const v = (a << 16) | ((b || 0) << 8) | (c || 0);
+        chars.push(B64[(v >> 18) & 63], B64[(v >> 12) & 63],
+          i + 1 < n ? B64[(v >> 6) & 63] : '=',
+          i + 2 < n ? B64[v & 63] : '=');
+      }
+      slices.push(chars.join(''));
     }
-    return out;
+    return slices.length === 1 ? slices[0] : slices.join('');
   }
   // Decode via a 256-entry lookup, skipping non-alphabet bytes inline — the
   // exact behavior of the old regex-strip, without its full-string copy or the
@@ -282,15 +295,74 @@
     });
   }
 
-  // ---- payload builder (shared by encode and repack) -----------------------
-  function buildPayload(files) {
+  // ---- the archive: two formats, one framing -------------------------------
+  //
+  // v1 is JSON with every file base64'd. It costs memory in four places at
+  // once — the inflated JSON bytes, the JS string JSON.parse reads, every
+  // file's base64 string, and finally the bytes themselves — so decoding peaks
+  // near 6x the file data it is carrying. That is survivable for a 3 MB app
+  // and fatal for an app that seals a library: the ceiling that stops a large
+  // App GIF from opening on a phone is this, not the inflate cap and not the
+  // GIF's size on disk.
+  //
+  // v2 is a directory and a blob:
+  //
+  //   "GFA2" | u32 headerLen | header JSON | file bytes, concatenated
+  //   header = { v: 2, files: { path: [offset, length] } }
+  //
+  // JSON.parse reads a few kilobytes of paths instead of hundreds of megabytes
+  // of base64, and each file is a subarray VIEW of the one inflated buffer, so
+  // decode allocates nothing per file. Peak falls to the size of the payload.
+  //
+  // DECODE ACCEPTS BOTH, ALWAYS — every App GIF already signed and installed
+  // is v1, and those bytes are frozen. ENCODE stays on v1 unless asked for v2,
+  // because a runtime that predates v2 cannot read it: flipping the default is
+  // a flag day that has to follow the release which teaches everyone to read
+  // it, not lead it.
+  const ARCHIVE_V2_MAGIC = 'GFA2';
+  let defaultArchiveVersion = 1;
+  function setArchiveVersion(v) {
+    if (v !== 1 && v !== 2) throw new Error('unknown archive version ' + v);
+    defaultArchiveVersion = v;
+  }
+
+  function buildArchiveV2(files) {
+    const paths = Object.keys(files);
+    const parts = [];
+    const dir = {};
+    let total = 0;
+    for (const path of paths) {
+      const val = files[path];
+      const bytes = typeof val === 'string' ? textToBytes(val) : val;
+      dir[path] = [total, bytes.length];
+      parts.push(bytes);
+      total += bytes.length;
+    }
+    const header = textToBytes(JSON.stringify({ v: 2, files: dir }));
+    const out = new Uint8Array(4 + 4 + header.length + total);
+    out[0] = 71; out[1] = 70; out[2] = 65; out[3] = 50; // "GFA2"
+    const h = header.length;
+    out[4] = h & 0xff; out[5] = (h >> 8) & 0xff; out[6] = (h >> 16) & 0xff; out[7] = (h >>> 24) & 0xff;
+    out.set(header, 8);
+    let at = 8 + h;
+    for (const b of parts) { out.set(b, at); at += b.length; }
+    return out;
+  }
+
+  function buildArchiveV1(files) {
     const archive = { v: 1, files: {} };
     for (const path in files) {
       const val = files[path];
       const bytes = typeof val === 'string' ? textToBytes(val) : val;
       archive.files[path] = b64encode(bytes);
     }
-    const json = textToBytes(JSON.stringify(archive));
+    return textToBytes(JSON.stringify(archive));
+  }
+
+  // ---- payload builder (shared by encode and repack) -----------------------
+  function buildPayload(files, version) {
+    const v = version || defaultArchiveVersion;
+    const json = v === 2 ? buildArchiveV2(files) : buildArchiveV1(files);
     return hasCompression()
       ? deflate(json).then((z) => {
           const framed = new Uint8Array(z.length + 1);
@@ -302,10 +374,14 @@
 
   // ---- encode: filesystem archive -> GIF89a bytes (async) ------------------
   // files: { "path": Uint8Array | string }  →  Promise<Uint8Array>
+  // opts.archive: 1 (default) or 2. See the archive note above — v2 halves what
+  // opening a large app costs, and only a runtime that ships parseArchiveV2 can
+  // read it.
   function encode(files, opts) {
+    const o = opts || {};
     return withRemixDoc(files)
-      .then(buildPayload)
-      .then((payload) => assemble(payload, opts || {}));
+      .then((f) => buildPayload(f, o.archive))
+      .then((payload) => assemble(payload, o));
   }
 
   // ---- repack: replace ONLY the GifOS data block inside an existing GIF ----
@@ -461,7 +537,38 @@
   // reads as a dead tap. The per-file loop now yields between ~4 MB slices
   // so paints and timers keep flowing; JSON.parse remains the one
   // unavoidable block. Returns Promise<archive|null>.
+  // v2: "GFA2" | u32 headerLen | header JSON | blob. Nothing to decode per
+  // file — a file IS a window onto the payload already in hand — so this is
+  // synchronous, allocates one small object, and never blocks the page the way
+  // JSON.parse over a base64 archive does.
+  function isArchiveV2(b) {
+    return !!b && b.length >= 8 &&
+      b[0] === 71 && b[1] === 70 && b[2] === 65 && b[3] === 50;
+  }
+  function parseArchiveV2(all, onProgress) {
+    const hlen = all[4] | (all[5] << 8) | (all[6] << 16) | (all[7] * 0x1000000);
+    if (hlen < 0 || 8 + hlen > all.length) return null;
+    let header;
+    try { header = JSON.parse(bytesToText(all.subarray(8, 8 + hlen))); } catch (e) { return null; }
+    const dir = (header && header.files) || null;
+    if (!dir) return null;
+    const base = 8 + hlen;
+    const out = { files: {} };
+    let total = 0;
+    for (const p in dir) {
+      const off = dir[p][0], len = dir[p][1];
+      // A directory entry that points outside the payload is a corrupt or
+      // hostile file, not a file we serve a truncated version of.
+      if (!(off >= 0 && len >= 0 && base + off + len <= all.length)) return null;
+      out.files[p] = all.subarray(base + off, base + off + len);
+      total += len;
+    }
+    if (onProgress && total) { try { onProgress(1, total, total); } catch (e) {} }
+    return out;
+  }
+
   function parseArchive(jsonBytes, onProgress) {
+    if (isArchiveV2(jsonBytes)) return Promise.resolve(parseArchiveV2(jsonBytes, onProgress));
     let archive;
     try { archive = JSON.parse(bytesToText(jsonBytes)); } catch (e) { return Promise.resolve(null); }
     const paths = Object.keys((archive && archive.files) || {});
@@ -483,6 +590,12 @@
             budget -= s.length;
             done += s.length;
             out.files[p] = b64decode(s);
+            // Drop the base64 as soon as it is bytes. Holding all of it until
+            // the loop ends means the whole archive exists twice at once —
+            // 1.34x the file data in strings on top of the bytes themselves —
+            // and that doubling is pure waste on the one path where memory is
+            // the binding constraint.
+            archive.files[p] = null;
           }
         } catch (e) { resolve(null); return; }
         if (onProgress && total) { try { onProgress(done / total, done, total); } catch (e) { /* a UI hiccup never fails a decode */ } }
@@ -630,6 +743,7 @@
     b64encode, b64decode, textToBytes, bytesToText,
     findAppExtSpan, appExtBlock, stripForDisplay,
     setRemixDoc, REMIX_DOC, inflateMaxBytes,
+    setArchiveVersion, isArchiveV2,
     MARKER: GIFOS_MARKER,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
