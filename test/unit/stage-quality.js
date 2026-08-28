@@ -132,9 +132,16 @@ if (fpsFn && fpsConst) {
 // back). Measured solo: 94ms behind capture vs 31ms — test/tools/stage-solo-lag.js.
 check('selfStageStream exists and is cached by track identity (not minted per sweep)',
   /function selfStageStream\(\)/.test(RUN) && /selfStageSt\.getVideoTracks\(\)\[0\] !== vt/.test(RUN));
+// The chain gained stageDirect() in the middle (40668d49 — a solo screen
+// sharer's viewers take the direct feed instead of the recompressed
+// composite); the property this pins is unchanged and is TWO halves: the
+// local track comes FIRST in both chains, and stageDirect refuses the self
+// seat, so a stager can never end up watching itself through any fallback.
 check('a solo stager paints the LOCAL track, at Section 1 and deep alike',
-  /paintStageStrip\(selfSt \|\| stripPack\.stream\)/.test(RUN)
-  && /paintStageStrip\(\(soloSelf && selfStageStream\(\)\) \|\| sgs\.stream\)/.test(RUN));
+  /paintStageStrip\(selfSt \|\|/.test(RUN)
+  && /paintStageStrip\(\(soloSelf && selfStageStream\(\)\) \|\|/.test(RUN));
+check('stageDirect refuses the self seat (self stays selfStageStream\'s job)',
+  /sid === myId \|\| !sharingScreen\(sid\)\) return null/.test(RUN));
 check('and with no peer to ship it to, the solo strip is not built at all',
   /soloSelf && !peers\.size/.test(RUN));
 
@@ -158,9 +165,13 @@ check("isStageJob covers both the per-stager feeds and the composited strip",
 
 // THE FORWARD MUST NOT BE BUDGETED FROM `q`. q is the seat's OWN camera rung; a
 // forward budgeted from it lets one 144p phone mid-tree starve every seat below.
-const wantLine = RUN.match(/const want = stageSenders\.has\(sender\)[\s\S]{0,240}?;\n/);
+// The predicate was hoisted (`const isStageSd = stageSenders.has(sender)`),
+// so match the ternary by either name and judge its STAGE ARM alone: q.kbps
+// belongs in the camera fallback and nowhere before the aux arm.
+const wantLine = RUN.match(/const want = (?:isStageSd|stageSenders\.has\(sender\))[\s\S]{0,240}?;\n/);
+const stageArm = wantLine ? wantLine[0].split(/:\s*(?:isAuxSd|auxSenders)/)[0] : '';
 check('the stage budget is the room ceiling, not the local camera rung',
-  !!wantLine && /stageBudget/.test(wantLine[0]) && !/stageSenders\.has\(sender\) \? [^:]*q\.kbps/.test(wantLine[0]),
+  !!wantLine && /stageBudget/.test(stageArm) && !/q\.kbps/.test(stageArm),
   wantLine ? wantLine[0].replace(/\s+/g, ' ').slice(0, 140) : null);
 
 // Room-type ceilings exist and are ordered: broadcast (viewers carry no camera)

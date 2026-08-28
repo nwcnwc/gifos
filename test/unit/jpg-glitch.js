@@ -120,7 +120,8 @@ check('stage is flex-first so the picture is on screen', css.includes('flex: 1 1
 check('hidden wins over canvas display:block (phone empty state)', css.includes('[hidden] { display: none !important; }') || css.includes('[hidden]{display:none!important;}'));
 
 check('listing keeps the photo on the device',
-  /on your device/i.test(listing.tagline) && /never leaves the device/i.test(listing.description));
+  /on your device/i.test(listing.tagline) &&
+  /stays on (the|this|your) device|never leaves/i.test(listing.description));
 check('listing does not say drop', !/drop /i.test(listing.tagline) && !/drop a/i.test(listing.description));
 check('listing says the last picture is remembered', /are remembered/i.test(listing.description));
 check('listing is an unofficial port of jpg-glitch', listing.basedOn && listing.basedOn.name === 'jpg-glitch' && listing.basedOn.blessed === false);

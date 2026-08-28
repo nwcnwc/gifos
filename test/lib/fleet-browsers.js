@@ -29,11 +29,18 @@
 // (repo node_modules, the global installs), and a bare require('playwright')
 // throws on any box that only has a global install — which read as a product
 // red in every suite that pulled this file in.
-const { chromium, PW_VERSION } = require('./pw');
+//
+// And LAZILY, never at module load: pw.js throws when NO install exists, and
+// requiring it here made that throw happen while a suite was still importing
+// its libraries — before needFleet could refuse with NEEDS-FLEET (exit 3). A
+// box with no playwright and no fleet must land on the refusal, not on a
+// module-load stack trace that scores as a product red (that is exactly the
+// 26a shape test/unit/fleet-gate-shape.js pins). Nothing here needs playwright
+// until a browser is actually being opened.
+let _pw = null;
+function pw() { return _pw || (_pw = require('./pw')); }
 const { spawn } = require('child_process');
 const casualty = require('./casualty');
-
-const LOCAL_PW = PW_VERSION;
 const BASE_PORT = Number(process.env.FLEET_PORT_BASE || 9400);
 
 function remoteLauncher(h, args) {
@@ -181,7 +188,7 @@ async function openFleet(hosts, opts) {
     for (let i = 0; i < hosts.length; i++) {
       const h = hosts[i];
       const s = await startOne(h, BASE_PORT + i, opts);
-      const browser = armFleetBrowser(await chromium.connect(s.ws, { timeout: 60000 }), h);
+      const browser = armFleetBrowser(await pw().chromium.connect(s.ws, { timeout: 60000 }), h);
       console.log('  FLEET: ' + (h.name || h.ssh) + ' -> ' + s.ws.replace(/\/[0-9a-f]{8,}$/, '/…'));
       started.push({ host: h, browser: browser, ws: s.ws, child: s.child });
     }
@@ -193,7 +200,7 @@ async function openFleet(hosts, opts) {
     // it is actually the shape of the failure. Blaming versions for a port
     // collision sends the next person to the wrong place.
     if (/version|protocol|connect/i.test(msg)) {
-      console.log('  orchestrator playwright ' + LOCAL_PW + '; each host needs the SAME version'
+      console.log('  orchestrator playwright ' + pw().PW_VERSION + '; each host needs the SAME version'
         + ' (install one alongside and point the host entry at it with "pwPath").');
     }
     console.log('0 PASSED, 0 FAILED — no verdict was reached, on purpose.');
@@ -234,4 +241,4 @@ async function closeFleet(boxes) {
   }
 }
 
-module.exports = { openFleet, closeFleet, LOCAL_PW };
+module.exports = { openFleet, closeFleet, get LOCAL_PW() { return pw().PW_VERSION; } };
