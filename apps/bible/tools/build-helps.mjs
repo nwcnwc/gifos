@@ -64,7 +64,7 @@ import { deflateRawSync, inflateRawSync, inflateSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { skipIfFrozen } from './source.mjs';
+import { skipIfFrozen, skipIfPacked } from './source.mjs';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const root = join(dir, '..', '..', '..');
@@ -1366,6 +1366,7 @@ function mergeCredits(built) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const onlyIx = process.argv.indexOf('--only');
   const only = onlyIx > -1 ? new Set(process.argv[onlyIx + 1].split(',')) : null;
+  const reintake = process.argv.includes('--reintake');
   const want = (k) => !only || only.has(k);
 
   const built = {};
@@ -1379,6 +1380,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
                 `${(r.pack.bytes / 1048576).toFixed(2)} MB  ${extra}`);
   };
   const orFrozen = (name, sources, fn) => {
+    const packed = skipIfPacked(join(outDir, name), { reintake });
+    if (packed) {
+      console.log(`  ${name.padEnd(18)} sealed  (intake already ran)`);
+      return { frozen: true, pack: { name, bytes: statSync(join(outDir, name)).size },
+               stats: { reason: packed.reason } };
+    }
     const skip = skipIfFrozen(join(outDir, name), sources);
     if (skip && skip.frozen) {
       console.log(`  ${name.padEnd(18)} FROZEN  ${skip.reason}`);

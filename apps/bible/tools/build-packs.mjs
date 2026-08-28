@@ -20,7 +20,10 @@
 // pack the platform can open by itself is worth more than a smaller one it
 // cannot.
 //
-// Run: node apps/bible/tools/build-packs.mjs [--only id,id]
+// Intake only. A .gbp already on disk is left alone unless --reintake.
+// After that, format changes are tools/migrate-packs.mjs.
+//
+// Run: node apps/bible/tools/build-packs.mjs [--only id,id] [--reintake]
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { deflateRawSync } from 'node:zlib';
@@ -29,6 +32,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseUsfx } from './usfx.mjs';
 import { ensureDtn, loadDarbyNotes, overlayDarbyNotes, sourceCredit as dtnCredit } from './darby-notes.mjs';
+import { skipIfPacked } from './source.mjs';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const root = join(dir, '..', '..', '..');
@@ -172,11 +176,11 @@ function mergeDtnCredit() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const onlyIx = process.argv.indexOf('--only');
   const only = onlyIx > -1 ? new Set(process.argv[onlyIx + 1].split(',')) : null;
-  // Never wipe the packs directory. Committed packs are the freeze: a missing
-  // USFX zip skips that id and leaves its .gbp on disk (tools/source.mjs).
+  const reintake = process.argv.includes('--reintake');
   mkdirSync(outDir, { recursive: true });
 
-  const wantDarby = !only || only.has('engDBY');
+  const wantDarby = (!only || only.has('engDBY')) &&
+    !skipIfPacked(join(outDir, 'engDBY.gbp'), { reintake });
   let dtn = null;
   if (wantDarby) {
     try {
@@ -199,6 +203,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const oddities = [];
   for (const t of cat.translations) {
     if (only && !only.has(t.id)) continue;
+    const packed = skipIfPacked(join(outDir, t.id + '.gbp'), { reintake });
+    if (packed) { console.log(`  ${t.id} sealed  (intake already ran)`); continue; }
     const zip = join(cache, t.id + '_usfx.zip');
     if (!existsSync(zip)) {
       const kept = join(outDir, t.id + '.gbp');
