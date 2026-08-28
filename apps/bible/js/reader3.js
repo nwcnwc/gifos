@@ -121,25 +121,34 @@
     this.openSheet('sheet-more');
   };
 
+  // A sandboxed app cannot raise window.prompt — the OS iframe has no
+  // allow-modals — so the names are a sheet of fields, not six dialogs.
+  var COLOUR_KEYS = ['amber', 'rose', 'sky', 'leaf', 'violet', 'under'];
+
   Reader.prototype.renameColours = function () {
-    var self = this;
-    var names = {};
     var cur = this.prefs.colourNames || {};
-    var order = ['amber', 'rose', 'sky', 'leaf', 'violet', 'under'];
-    var step = function (i) {
-      if (i >= order.length) {
-        self.prefs.colourNames = names;
-        self.store.savePrefs({ colourNames: names });
-        self.toast('Your colour names are saved.');
-        return;
-      }
-      var key = order[i];
-      var v = prompt('Name for the ' + key + ' highlight', cur[key] || key);
-      if (v === null) { names[key] = cur[key] || key; step(i + 1); return; }
+    for (var i = 0; i < COLOUR_KEYS.length; i++) {
+      var key = COLOUR_KEYS[i];
+      var inp = document.getElementById('cn-' + key);
+      if (inp) inp.value = cur[key] || key;
+    }
+    this.openSheet('sheet-colours');
+    var first = document.getElementById('cn-amber');
+    if (first) setTimeout(function () { try { first.focus(); first.select(); } catch (e) {} }, 40);
+  };
+
+  Reader.prototype.saveColours = function () {
+    var names = {};
+    for (var i = 0; i < COLOUR_KEYS.length; i++) {
+      var key = COLOUR_KEYS[i];
+      var inp = document.getElementById('cn-' + key);
+      var v = inp ? String(inp.value || '').trim() : '';
       names[key] = (v || key).slice(0, 24);
-      step(i + 1);
-    };
-    step(0);
+    }
+    this.prefs.colourNames = names;
+    this.store.savePrefs({ colourNames: names });
+    this.openMoreSheet();
+    this.toast('Your colour names are saved.');
   };
 
   Reader.prototype.openMarksList = function () {

@@ -27,7 +27,8 @@ Tap any verse:
   colour menu appears on the selection, the way a Kindle does. Tap a colour.
   A run of the same colour is one highlight, even when it crosses a verse.
   Rename the colours to match your own system (Reading settings → Highlight
-  names). Tap a verse number (or tap without selecting) for the whole verse.
+  names) — write the names in the sheet that opens. Tap a verse number (or tap
+  without selecting) for the whole verse.
 - **Note** — tap Note on a verse and write in the sheet that opens. Save keeps
   it with that verse, inside this app on this device. **Every translation of this
   verse** is on by default, so the same note is there in the King James and in

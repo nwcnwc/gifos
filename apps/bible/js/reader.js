@@ -847,6 +847,8 @@
     if (noteSave) noteSave.addEventListener('click', function () { self.saveNote(); });
     var noteRm = document.getElementById('note-remove');
     if (noteRm) noteRm.addEventListener('click', function () { self.saveNote({ remove: true }); });
+    var colourSave = document.getElementById('colour-save');
+    if (colourSave) colourSave.addEventListener('click', function () { self.saveColours(); });
     document.addEventListener('keydown', function (ev) {
       if (ev.target && /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
       if (ev.key === 'ArrowRight') self.step(1);
