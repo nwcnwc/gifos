@@ -31,6 +31,8 @@ ok(/Reader\.prototype\.editNote/.test(reader2) && /openSheet\('sheet-note'\)/.te
    'Note opens the sheet, not a browser dialog');
 ok(!/prompt\(/.test(reader2),
    'the verse-note path does not call prompt (the sandbox never shows it)');
+ok(!/prompt\(/.test(read('js/reader3.js')),
+   'settings (highlight names) do not call prompt either');
 ok(/saveNote/.test(reader) && /note-save/.test(reader),
    'Save on the note sheet is wired');
 ok(/write in the sheet/.test(help),

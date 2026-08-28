@@ -379,12 +379,30 @@ mark.hl-span[data-hl="under"]  { background: none; border-bottom: 2px solid var(
   width: 2rem; height: 2rem; border-radius: 50%; border: 2px solid transparent;
 }
 .swatches button[aria-pressed="true"] { border-color: var(--ink); }
-.swatches .s-amber, #hl-bar .s-amber { background: rgba(214,166,44,.85); }
-.swatches .s-rose, #hl-bar .s-rose { background: rgba(211,92,102,.85); }
-.swatches .s-sky, #hl-bar .s-sky { background: rgba(78,150,209,.85); }
-.swatches .s-leaf, #hl-bar .s-leaf { background: rgba(96,168,102,.85); }
-.swatches .s-violet, #hl-bar .s-violet { background: rgba(150,110,205,.85); }
+.swatches .s-amber, #hl-bar .s-amber, .colour-row .s-amber { background: rgba(214,166,44,.85); }
+.swatches .s-rose, #hl-bar .s-rose, .colour-row .s-rose { background: rgba(211,92,102,.85); }
+.swatches .s-sky, #hl-bar .s-sky, .colour-row .s-sky { background: rgba(78,150,209,.85); }
+.swatches .s-leaf, #hl-bar .s-leaf, .colour-row .s-leaf { background: rgba(96,168,102,.85); }
+.swatches .s-violet, #hl-bar .s-violet, .colour-row .s-violet { background: rgba(150,110,205,.85); }
 .swatches .s-none, #hl-bar .s-none { background: var(--bg3); color: var(--ink3); font-size: .9rem; }
+.sheet-lead { margin: 0 0 .85rem 0; font-size: .84rem; color: var(--ink2); line-height: 1.4; }
+.colour-row {
+  display: flex; align-items: center; gap: .7rem;
+  margin: 0 0 .55rem 0;
+}
+.colour-row .swatch {
+  flex: 0 0 auto; width: 1.65rem; height: 1.65rem; border-radius: 50%;
+}
+.colour-row .swatch.s-under {
+  border-radius: 6px; background: var(--bg3);
+  border-bottom: 3px solid var(--accent);
+}
+.colour-row input[type="text"] {
+  flex: 1 1 auto; width: 100%; padding: .5rem .7rem; border-radius: 9px;
+  border: 1px solid var(--rule); background: var(--bg); color: var(--ink);
+  font: inherit;
+}
+.colour-row input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .row-acts { display: flex; flex-wrap: wrap; gap: .35rem; padding: 0 1rem .7rem 1rem; }
 .row-acts button {
   padding: .42rem .7rem; border-radius: 8px; background: var(--bg3);

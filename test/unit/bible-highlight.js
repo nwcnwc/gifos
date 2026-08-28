@@ -53,6 +53,19 @@ ok(/keepScroll/.test(reader) && /keepScroll:\s*true/.test(boot),
 ok(/select any words/.test(help) && /Kindle/.test(help) && /crosses a verse/.test(help),
    'Help says to select words, the way a Kindle does, across verses');
 
+const reader3 = read('js/reader3.js');
+ok(/id="sheet-colours"/.test(html) && /id="cn-amber"/.test(html) &&
+   /id="colour-save"/.test(html),
+   'the page has a highlight-names sheet with a field per colour and Save');
+ok(/openSheet\('sheet-colours'\)/.test(reader3) && /saveColours/.test(reader3),
+   'Rename opens the sheet and Save writes the names');
+ok(!/prompt\(/.test(reader3),
+   'renaming colours does not call prompt (the sandbox never shows it)');
+ok(/write the names in the sheet/.test(help),
+   'Help says the colour names are written in the sheet');
+ok(/colour-save/.test(reader),
+   'Save on the colour-names sheet is wired');
+
 const g = { Date, Promise, Object, Math, String };
 g.globalThis = g;
 vm.runInNewContext(store, g);
