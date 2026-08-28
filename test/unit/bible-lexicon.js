@@ -22,6 +22,7 @@ const ok = (cond, what) => {
   else { fail++; console.log('FAIL ' + what); }
 };
 
+require(join(root, 'apps', 'bible', 'js', 'container.js'));
 require(join(root, 'apps', 'bible', 'js', 'pack.js'));
 require(join(root, 'apps', 'bible', 'js', 'lexicon.js'));
 const { open: openPack } = globalThis.GifosBiblePack;

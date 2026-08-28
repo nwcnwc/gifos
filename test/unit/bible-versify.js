@@ -29,6 +29,7 @@ const ok = (cond, what) => {
   else { fail++; console.log('FAIL ' + what); }
 };
 
+require(join(root, 'apps', 'bible', 'js', 'container.js'));
 require(join(root, 'apps', 'bible', 'js', 'pack.js'));
 require(join(root, 'apps', 'bible', 'js', 'versify.js'));
 const { open } = globalThis.GifosBiblePack;
