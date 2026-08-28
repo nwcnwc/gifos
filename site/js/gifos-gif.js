@@ -154,13 +154,26 @@
     const stream = new Blob([bytes]).stream().pipeThrough(new root.CompressionStream('deflate-raw'));
     return new root.Response(stream).arrayBuffer().then((buf) => new Uint8Array(buf));
   }
-  // Inflate with a hard OUTPUT ceiling so a tiny malicious payload can't expand
-  // into a memory-bomb. This cap is ours — the GIF format has no such limit —
-  // read the decompressed stream chunk-by-chunk and abort the moment it would
-  // exceed it. 64 MB is far above any app that lives in this repo; a fully
-  // contained study library (hundreds of MB) needs this number raised first.
-  const INFLATE_MAX_BYTES = 64 * 1024 * 1024;
+  // Inflate streams and aborts past a ceiling. This cap is ours — the GIF
+  // format has no such limit. The bomb we actually guard is a SMALL payload
+  // that expands into a huge heap (zip bomb). A large App GIF the person
+  // already downloaded is a different shape: it starts large, unpacks a bit
+  // larger, and the store already showed the size. So the ceiling scales with
+  // the compressed input (16×, which is far above JSON+base64 of real files
+  // and far below a classic bomb), never drops below 64 MB (every in-repo app
+  // still fits), and never exceeds 2 GB−1 (one allocation we refuse to make
+  // even if they downloaded a giant file).
+  const INFLATE_FLOOR = 64 * 1024 * 1024;
+  const INFLATE_RATIO = 16;
+  const INFLATE_HARD_MAX = 2 * 1024 * 1024 * 1024 - 1;
+  function inflateMaxBytes(compressedLen) {
+    const n = Math.max(0, Number(compressedLen) || 0);
+    const byRatio = n * INFLATE_RATIO;
+    const ceiling = Math.max(INFLATE_FLOOR, byRatio);
+    return ceiling > INFLATE_HARD_MAX ? INFLATE_HARD_MAX : ceiling;
+  }
   function inflate(bytes) {
+    const cap = inflateMaxBytes(bytes && bytes.length);
     const stream = new Blob([bytes]).stream().pipeThrough(new root.DecompressionStream('deflate-raw'));
     const reader = stream.getReader();
     const chunks = []; let total = 0;
@@ -172,7 +185,7 @@
           return out;
         }
         total += value.length;
-        if (total > INFLATE_MAX_BYTES) { try { reader.cancel(); } catch (e) {} throw new Error('decompressed payload too large'); }
+        if (total > cap) { try { reader.cancel(); } catch (e) {} throw new Error('decompressed payload too large'); }
         chunks.push(value);
         return pump();
       });
@@ -616,7 +629,7 @@
     encode, decode, repack, embed, looksLikeGifosGif, readManifest,
     b64encode, b64decode, textToBytes, bytesToText,
     findAppExtSpan, appExtBlock, stripForDisplay,
-    setRemixDoc, REMIX_DOC,
+    setRemixDoc, REMIX_DOC, inflateMaxBytes,
     MARKER: GIFOS_MARKER,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
