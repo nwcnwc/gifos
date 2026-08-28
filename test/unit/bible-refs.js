@@ -23,6 +23,7 @@ const ok = (cond, what) => {
 };
 
 require(join(root, 'apps', 'bible', 'js', 'refs.js'));
+require(join(root, 'apps', 'bible', 'js', 'container.js'));
 require(join(root, 'apps', 'bible', 'js', 'pack.js'));
 const R = globalThis.GifosRefs;
 const { open } = globalThis.GifosBiblePack;

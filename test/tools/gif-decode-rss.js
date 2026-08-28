@@ -76,17 +76,20 @@ function sample(fn) {
 async function encodePhase() {
   const gif = load();
   const N = N_MB * MB;
+  // Baseline BEFORE the corpus exists. Measuring after it would leave the
+  // input out of encode's working set and report a ratio near zero for a
+  // phase that is holding the files the whole time.
+  const base = heapMB();
   const files = { 'index.html': '<!doctype html><title>probe</title>',
                   'manifest.json': JSON.stringify({ appId: 'mem-probe' }) };
   for (let i = 0; i < 10; i++) files['pack-' + i + '.gbx'] = corpus(N / 10);
 
-  const base = heapMB();
   const [bytes, peak] = await sample(() => gif.encode(files, { archive: ARCHIVE }));
   fs.writeFileSync(GIF, bytes);
   console.log('archive v' + ARCHIVE + ', file data (N) ' + N_MB.toFixed(0) + ' MB');
   console.log('encoded GIF             ' + (bytes.length / MB).toFixed(1) + ' MB');
   console.log('ENCODE peak heap        ' + peak.toFixed(0) + ' MB   ' +
-    ((peak - base) / N_MB).toFixed(1) + ' x N');
+    ((peak - base) / N_MB).toFixed(1) + ' x N  (the files themselves are 1x)');
 }
 
 async function decodePhase() {

@@ -72,8 +72,12 @@
   }
 
   /* heads, notes and xrefs are "index<TAB>text" lines keyed by verse. The map
-   * is built the first time a chapter wants one and kept after that — building
-   * it costs a pass over the section, and a chapter asks for all three. */
+   * is built the first time something wants one and kept after that — building
+   * it costs a pass over the section, and a chapter asks for all three.
+   *
+   * They stay reachable as pack.heads / pack.notes / pack.xrefs, because that
+   * is what they have always been and callers index them directly. The getter
+   * is what makes them lazy without making that a rename. */
   Pack.prototype.keyed = function (name) {
     var hit = this._keyed[name];
     if (hit) return hit;
@@ -81,6 +85,13 @@
     this._keyed[name] = map;
     return map;
   };
+
+  ['heads', 'notes', 'xrefs'].forEach(function (name) {
+    Object.defineProperty(Pack.prototype, name, {
+      get: function () { return this.keyed(name); },
+      enumerable: false, configurable: true
+    });
+  });
 
   Pack.prototype.hasBook = function (code) { return !!this.byCode[code]; };
 
