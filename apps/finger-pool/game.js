@@ -46,16 +46,37 @@ var spheres = [], holes = [];
     return n;
   }
 
+  /*
+   * Where the apex of the rack goes.
+   *
+   * Upstream racks from a fifth of the felt in: apex at 0.3 * span, back row
+   * four ball-diameters behind it at 0.3 * span - 8r. That holds while r stays
+   * proportional to the felt — but radiusOf() has a FLOOR of 16px so the balls
+   * stay tappable on a phone, and on a narrow felt that floor makes 8r wider
+   * than the third of the table the rack is given. The back row then lands at a
+   * negative coordinate: on a 390px phone (a 390x195 felt, r forced from 13 to
+   * 16) ball 15 was centred 11px OUTSIDE the left cushion, and five of the
+   * fifteen were drawn on or past the rail.
+   *
+   * So the apex is held far enough in for row four to clear the cushion. On any
+   * felt wide enough for upstream's spacing the clamp does nothing at all, and
+   * a desktop table racks exactly as it did.
+   */
+  function rackApex(span) {
+    return Math.max(span / 2 - span / 5, r * 9.2);
+  }
+
   function createSpheres() {
     spheres = [];
-    var index = 0, i, j, posx, posy;
+    var index = 0, i, j, posx, posy, apex;
+    apex = rackApex(h > w ? h : w);
     for (i = 0; i < 5; i++) {
       for (j = 0; j < i + 1; j++) {
-        posx = w / 2 - i * r * 2 - w / 5;
+        posx = apex - i * r * 2;
         posy = h / 2 - j * r * 2 + (i * r);
         if (h > w) {
           posx = w / 2 - j * r * 2 + (i * r);
-          posy = h / 2 - i * r * 2 - h / 5;
+          posy = apex - i * r * 2;
         }
         spheres.push(new Sphere(posx, posy, r, 'hsl(' + (index++ * (360 / 15)) + ', 100%, 50%)', '3d', index));
       }
