@@ -75,6 +75,7 @@
     id: PREF_ID,
     theme: 'paper', size: 3, face: 'serif',
     mode: 'paragraph', redLetter: true, notes: true, headings: true,
+    apocrypha: false,
     columns: ['engwebp'],
     // The palette is the reader's own system: the keys are fixed, the names
     // are theirs to change ("amber" -> "Promises").

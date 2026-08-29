@@ -488,7 +488,11 @@
       var idx = this.indexAt(sb.starts, at);
       var r = pack.refOf(idx);
       if (r) {
-        var okScope = scope === 'all' ||
+        // "All" means all of the Bible as configured: with Include Apocrypha
+        // off, a dc hit stays out of the results (the verse itself still
+        // opens from a typed reference).
+        var okScope = (scope === 'all' &&
+            (this.prefs.apocrypha === true || sectOf[r.code] !== 'dc')) ||
           (scope === 'book' && r.code === this.at.code) ||
           (scope === 'nt' && sectOf[r.code] === 'nt') ||
           (scope === 'ot' && sectOf[r.code] === 'ot');

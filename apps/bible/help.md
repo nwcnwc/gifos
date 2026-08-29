@@ -9,7 +9,10 @@ works offline forever.
 ## Reading
 
 - **The reference at the top** opens the books — Old Testament, New Testament,
-  and the Apocrypha where a translation carries it. Tap a book, tap a chapter.
+  and the Apocrypha where a translation carries it and **Include Apocrypha**
+  (in Reading settings) is switched on; it starts off. Off, those books are
+  only off the shelf, not out of the app — a typed reference or a
+  cross-reference still opens them. Tap a book, tap a chapter.
 - **The name beside it** picks translations. Put a second or third translation
   **beside** the first to read them in parallel columns — even across
   languages. Translations that number chapters differently (Greek and Hebrew
