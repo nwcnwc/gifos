@@ -9,6 +9,7 @@
   var Reader = root.GifosBibleReader.Reader;
   var el = root.GifosBibleReader.el;
   var clear = root.GifosBibleReader.clear;
+  var snip = root.GifosBibleReader.snip;
   var Render = root.GifosBibleRender;
   var Refs = root.GifosRefs;
 
@@ -173,9 +174,9 @@
           var b = el('button', 'note-item');
           b.type = 'button';
           b.appendChild(el('strong', '', label));
-          b.appendChild(document.createTextNode('  ' + (row.text || '').slice(0, 160)));
+          b.appendChild(document.createTextNode('  ' + snip(row.text, 160)));
           b.addEventListener('click', function () {
-            self.closeSheets();
+            if (!self.docked()) self.closeSheets();
             self.go({ code: ref.code, chapter: ref.chapter, verse: row.from }, { flash: true, jump: true });
           });
           body.appendChild(b);
@@ -461,9 +462,9 @@
           btn.appendChild(el('span', 'r-ref', Refs.format(r, { names: self.namesOf(pack), style: 'long' })));
           var idx = r.verse ? pack.indexOfVerse(r.code, r.chapter, r.verse) : -1;
           if (idx >= 0) btn.appendChild(document.createTextNode(
-            Render.plain(pack.textAt(idx)).slice(0, 160)));
+            snip(Render.plain(pack.textAt(idx)), 160)));
           btn.addEventListener('click', function () {
-            self.closeSheets();
+            if (!self.docked()) self.closeSheets();
             self.go({ code: r.code, chapter: r.chapter, verse: r.verse || 0 }, { flash: !!r.verse, jump: true });
           });
           results.appendChild(btn);
@@ -510,17 +511,17 @@
         var p = Render.searchable(text).indexOf(needle);
         var frag = document.createDocumentFragment();
         if (p < 0) {
-          frag.appendChild(document.createTextNode(text.slice(0, 160)));
+          frag.appendChild(document.createTextNode(snip(text, 160)));
         } else {
           var start = Math.max(0, p - 40);
           if (start > 0) frag.appendChild(document.createTextNode('…'));
           frag.appendChild(document.createTextNode(text.slice(start, p)));
           frag.appendChild(el('mark', '', text.slice(p, p + needle.length)));
-          frag.appendChild(document.createTextNode(text.slice(p + needle.length, p + needle.length + 120)));
+          frag.appendChild(document.createTextNode(snip(text.slice(p + needle.length), 120)));
         }
         btn.appendChild(frag);
         btn.addEventListener('click', function () {
-          self.closeSheets();
+          if (!self.docked()) self.closeSheets();
           self.go({ code: hit.ref.code, chapter: hit.ref.chapter, verse: hit.ref.verse }, { flash: true, jump: true });
         });
         results.appendChild(btn);
