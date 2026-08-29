@@ -49,7 +49,7 @@
 
     // Theme.
     var themes = el('div', 'themes');
-    [['night', '#14141c'], ['black', '#000'], ['paper', '#faf7f0'], ['sepia', '#f3e7d3']].forEach(function (t) {
+    [['night', '#14141c'], ['black', '#000'], ['paper', '#faf7f0'], ['sepia', '#f3e7d3'], ['bw', '#fff']].forEach(function (t) {
       var b = el('button');
       b.type = 'button';
       b.style.background = t[1];

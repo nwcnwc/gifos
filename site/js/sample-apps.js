@@ -4163,6 +4163,7 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   body{margin:0;font:16px system-ui;display:flex;flex-direction:column;height:100vh;height:100dvh;transition:background .2s,color .2s}
   body[data-read="night"]{--rbg:#15120d;--rtext:#eae2d2;--rmuted:#a79e8b;--rlink:#d9b458;--rchrome:#1c1811;--rborder:#352d22;--rrule:#3a3226}
   body[data-read="day"]{--rbg:#f6efdf;--rtext:#2c2620;--rmuted:#7a7060;--rlink:#8a571a;--rchrome:#efe6cf;--rborder:#ddd0b2;--rrule:#e2d6b8}
+  body[data-read="bw"]{--rbg:#fff;--rtext:#000;--rmuted:#555;--rlink:#000;--rchrome:#f2f2f2;--rborder:#ccc;--rrule:#ddd}
   body{background:var(--rbg);color:var(--rtext)}
   header{background:var(--rchrome);border-bottom:1px solid var(--rborder);padding:10px 14px;display:flex;align-items:center;gap:10px;flex:0 0 auto}
   header .ttl{font-weight:800;color:var(--rlink);font-size:15px;white-space:nowrap;letter-spacing:.01em}
@@ -4223,7 +4224,7 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   <span class="grp">
     <button id="smaller" class="chip" title="Smaller text">A&minus;</button>
     <button id="bigger" class="chip" title="Bigger text">A&plus;</button>
-    <button id="theme" class="chip" title="Day / night">&#9790;</button>
+    <button id="theme" class="chip" title="Paper / night / black &amp; white">&#9728;</button>
   </span>
 </nav>
 <div id="jumper">
@@ -4249,7 +4250,7 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   // on a plane. Never shared — a meeting still fetches (or pools) the live page.
   var pagesDb=hasDb?gifos.db('pages'):null;
   var hist=[], hi=-1, curUrl=HOME, fromCache=false;
-  var prefs={ theme:'night', fs:18 };
+  var prefs={ theme:'day', fs:18 };
   var me={ id:'', name:'' };
   // Follow-along (meetings): the group's current page lives in a single 'nav'
   // record in the SHARED (read-write) nav store — whoever turns a page while
@@ -4266,7 +4267,7 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   function applyFrac(f){ var m=main.scrollHeight-main.clientHeight; main.scrollTop=Math.max(0,Math.min(m,(f||0)*m)); }
   function saveLast(){ if(prefsDb) prefsDb.put({id:'last', url:curUrl, scroll:scrollFrac()}); }  // my last page + where I was on it (private)
   function applyPrefs(){ document.body.setAttribute('data-read', prefs.theme); document.documentElement.style.setProperty('--fs', prefs.fs+'px');
-    document.getElementById('theme').innerHTML = prefs.theme==='night' ? '&#9790;' : '&#9728;'; }
+    document.getElementById('theme').innerHTML = prefs.theme==='night' ? '&#9790;' : prefs.theme==='bw' ? '&#9681;' : '&#9728;'; }
   function myName(){ return me.name||'Someone'; }
   function savePrefs(){ if(prefsDb) prefsDb.put({id:'prefs', theme:prefs.theme, fs:prefs.fs}); }  // my own, never shared
   // Presence heartbeat: a light 'p:<id>' record so everyone knows who's here
@@ -4512,7 +4513,7 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   };
   document.getElementById('bigger').onclick=function(){ prefs.fs=Math.min(30, prefs.fs+2); applyPrefs(); savePrefs(); };
   document.getElementById('smaller').onclick=function(){ prefs.fs=Math.max(14, prefs.fs-2); applyPrefs(); savePrefs(); };
-  document.getElementById('theme').onclick=function(){ prefs.theme=prefs.theme==='night'?'day':'night'; applyPrefs(); savePrefs(); };
+  document.getElementById('theme').onclick=function(){ prefs.theme=prefs.theme==='day'?'night':prefs.theme==='night'?'bw':'day'; applyPrefs(); savePrefs(); };
   if(followB) followB.onclick=function(){ follow=!follow;
     // Turning follow ON is a JOIN, never a broadcast: pull ME to wherever the
     // group is now — jump to another person's page, or match their scroll on the
@@ -6988,7 +6989,7 @@ Read the Recovery Version of the Bible. Pages come from the Recovery Version sit
 
 **Home** opens the table of contents. Tap a book or chapter. In-page links stay inside this reader. **‹** / **›** are back and forward; the reload button fetches the page again.
 
-**A−** / **A+** change type size. The moon/sun button switches night and day. Those reading prefs are yours alone.
+**A−** / **A+** change type size. The sun/moon button cycles the look: paper (the default), night, and black & white. Those reading prefs are yours alone.
 
 ## Read together
 
