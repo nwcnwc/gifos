@@ -38,15 +38,15 @@
   "cover": "/apps/splat/cover.jpg",
   "screenshots": [],
   "gif": "/apps/splat/splat.gif",
-  "bytes": 199954,
+  "bytes": 200470,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "0fe41f63e858598c51d99c21b5eeac8803f5071686f3ac55dc8368e3bfe915a4",
+  "sha256": "f7381ac883a3f7d4ab66527ddeaa8ddb5bb4d4b80b83697de91385b8a84d8b97",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-29"
   },
   "porter": {
     "name": "GifOS",
