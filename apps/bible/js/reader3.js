@@ -353,8 +353,25 @@
     rowEl.appendChild(mark);
     var stop = el('button', '', 'Stop this plan');
     stop.type = 'button';
+    // window.confirm does NOTHING in an app frame: the sandbox carries no
+    // allow-modals, so Chrome ignores it and returns FALSE without asking.
+    // The guard here therefore always said no and a plan could never be
+    // stopped. Ask on the button instead — the first tap arms it, the second
+    // does it, and it disarms itself after four seconds.
+    var armed = 0;
     stop.addEventListener('click', function () {
-      if (!confirm('Stop ' + p.title + '? Your progress is forgotten.')) return;
+      if (!armed) {
+        stop.textContent = 'Tap again to stop — progress is forgotten';
+        stop.classList.add('arm');
+        armed = setTimeout(function () {
+          armed = 0;
+          stop.textContent = 'Stop this plan';
+          stop.classList.remove('arm');
+        }, 4000);
+        return;
+      }
+      clearTimeout(armed);
+      armed = 0;
       self.store.dropPlan(p.id).then(function () { self.openPlanSheet(); self.paintPlanFoot(); });
     });
     rowEl.appendChild(stop);
