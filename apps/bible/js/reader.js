@@ -24,6 +24,14 @@
     return e;
   }
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+  // The first n characters, cut back to a word so a preview never ends
+  // "in order to re". Whole strings pass through untouched.
+  function snip(s, n) {
+    s = s || '';
+    if (s.length <= n) return s;
+    var cut = s.lastIndexOf(' ', n);
+    return s.slice(0, cut > n * 0.6 ? cut : n).replace(/[\s,;:—–-]+$/, '') + '…';
+  }
 
   function Reader(opts) {
     this.lib = opts.library;
@@ -359,8 +367,9 @@
   Reader.prototype.openSheet = function (id) {
     this.closeSheets();
     document.getElementById('scrim').hidden = false;
-    // The verse sheet docks beside the text on a wide screen (style.css).
-    document.body.classList.toggle('docked', id === 'sheet-verse');
+    // What is read alongside the text — a verse's study, search hits — docks
+    // beside it on a wide screen (style.css); the pickers stay dialogs.
+    document.body.classList.toggle('docked', id === 'sheet-verse' || id === 'sheet-search');
     var s = document.getElementById(id);
     s.hidden = false;
     this._sheets.push(id);
@@ -383,6 +392,12 @@
   };
 
   Reader.prototype.sheetOpen = function () { return this._sheets.length > 0; };
+  // True while the open sheet sits beside the text rather than over it. A
+  // click that moves the text can then leave the panel where it is, so a
+  // person steps through search hits, or an outline, without reopening it.
+  Reader.prototype.docked = function () {
+    return document.body.classList.contains('docked') && window.matchMedia('(min-width: 900px)').matches;
+  };
 
   /* -------- books & chapters -------- */
 
@@ -943,5 +958,5 @@
     this.paintHist();
   };
 
-  root.GifosBibleReader = { Reader: Reader, el: el, clear: clear };
+  root.GifosBibleReader = { Reader: Reader, el: el, clear: clear, snip: snip };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
