@@ -409,25 +409,31 @@ wallet comes back with `Authorization: Payment <credential>` carrying the
 token, and the Worker consumes it as a PaymentIntent and signs the SAME
 receipt shape (`rail: "mpp"`) plus MPP's `Payment-Receipt` header.
 
-**The decision this amends, and how it stays honest.** A Shared Payment
-Token can only be settled by a Stripe account, so this rail is Stripe-
-settled — and Stripe Connect was rejected on 2026-08-25 because it makes
-every author onboard before they can be paid. Nathan's decision
-(2026-08-28, option A of three): **Connect destination charges, opt-in per
-author.** GifOS's platform profile is the `networkId` agents' wallets scope
-their tokens to (destination charges without `on_behalf_of` need only the
-platform's profile); the PaymentIntent names the author's connected
-account as `transfer_data.destination` and the 3% as
+**The decision, and the precedent it rests on.** A Shared Payment Token
+can only be settled by a Stripe account, so this rail is Stripe-settled.
+Nathan's decision (2026-08-28, option A of three): **Connect destination
+charges, per author.** GifOS's platform profile is the `networkId` agents'
+wallets scope their tokens to (destination charges without `on_behalf_of`
+need only the platform's profile); the PaymentIntent names the author's
+connected account as `transfer_data.destination` and the 3% as
 `application_fee_amount`; the author stays seller of record and GifOS
-still holds no proceeds. The onboarding stays exactly as optional as rails
-registration is: an author who never connects a Stripe account keeps every
-other rail, and an agent asking to pay them gets a **plain refusal naming
-the way back** (`403 … not onboarded for the agent rail`), never a pretend
-rail. Option B — GifOS as merchant of record, paying authors out itself —
-was rejected because it is custody, the thing this whole file is built to
-avoid. The mapping identity → `acct_…` is the platform's record
-(`STRIPE_PAYEES`, like `FEDNOW_PAYEES`), never a client value: the same
-self-dealing hole the other rails close.
+still holds no proceeds. **This is not a new kind of ask.** The PayPal
+rail already requires the author to hold a PayPal account associated with
+the derived payee email — the processor account IS the payout — and this
+rail asks the same of Stripe: an author is paid on it when they hold a
+Stripe account connected to GifOS, and not otherwise (Nathan, 2026-08-28).
+The one difference from PayPal is timing, and it is the reason the
+2026-08-25 note read "Connect was rejected": PayPal lets an author be NAMED
+first and claim later (money held ~30 days), where Connect wants the
+account before a cent moves. So on this rail an author who has not yet
+connected gets a **plain refusal naming the way back** (`403 … not
+onboarded for the agent rail`), never a pretend rail and never a held
+balance — and keeps every other rail meanwhile. Option B — GifOS as
+merchant of record, paying authors out itself — was rejected because it is
+custody, the thing this whole file is built to avoid. The mapping identity
+→ `acct_…` is the platform's record (`STRIPE_PAYEES`, like
+`FEDNOW_PAYEES`), never a client value: the same self-dealing hole the
+other rails close.
 
 **Consent on this rail is the Link app's, not ours — and that is fine.**
 The human-authentication rule says every payment has a person behind it.

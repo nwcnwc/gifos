@@ -58,9 +58,10 @@ npx wrangler secret put STRIPE_SECRET_KEY     # the agent rail: sk_test_ until t
 The agent rail needs a Stripe account with Connect and a Stripe profile
 (Shared Payment Tokens are a preview surface — US/CA/EU sellers, the
 agentic-commerce seller terms, `Stripe-Version: 2026-07-29.preview`), and
-each author who wants agent buyers connects an Express account — the
-onboarding that the OTHER rails deliberately never ask for, which is why
-this one is opt-in per author (`docs/payments.md` §FIVE RAILS). Hermetic
+each author who wants agent buyers connects an Express account — the same
+ask the PayPal rail makes (a processor account behind the payee), the only
+difference being that Stripe wants it before the first cent rather than
+after (`docs/payments.md` §FIVE RAILS). Hermetic
 test: `test/servers/fake-stripe.js`, driven by `test/browser/e2e-pay.js`;
 against Stripe's sandbox, `npx mppx@latest validate https://pay.gifos.app/mpp/charge/<appId>?amount=…`
 and `link-cli … --test`.
