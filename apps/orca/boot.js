@@ -7,7 +7,13 @@
   var room = null;
   try { if (root.gifos && root.gifos.db) room = root.gifos.db('room'); } catch (e2) {}
 
+  // Orca's own modules — clock.js, commander.js, cursor.js, lib/acels.js and
+  // every core/io/* — reach for a bare global `client`, because upstream builds
+  // one at the top level of a classic script. This file is an IIFE, so `var
+  // client` was function-scoped and those references threw ReferenceError:
+  // "client is not defined" landed in the console on the first clock tick.
   var client = new Client();
+  root.client = client;
   client.install(document.body);
 
   /* The one first-run lesson: D bangs every 4 frames, * is the bang, :04C is a C. */
