@@ -96,21 +96,58 @@
   }
 
   // ---- byte writer with GIF sub-block chunking ----------------------------
-  function Writer() { this.parts = []; }
-  Writer.prototype.byte = function (b) { this.parts.push(b & 0xff); return this; };
-  Writer.prototype.bytes = function (arr) { for (let i = 0; i < arr.length; i++) this.parts.push(arr[i] & 0xff); return this; };
-  Writer.prototype.u16 = function (n) { this.parts.push(n & 0xff, (n >> 8) & 0xff); return this; };
-  Writer.prototype.ascii = function (s) { for (let i = 0; i < s.length; i++) this.parts.push(s.charCodeAt(i) & 0xff); return this; };
-  Writer.prototype.subBlocks = function (data) {
-    for (let i = 0; i < data.length; i += 255) {
-      const chunk = data.slice(i, i + 255);
-      this.parts.push(chunk.length);
-      this.bytes(chunk);
-    }
-    this.parts.push(0x00); // block terminator
+  // Concatenate typed-array chunks. Pushing one number per payload byte used
+  // to be the ceiling: V8 refuses an array whose backing store would exceed a
+  // regular heap object (~1 GB / 8-byte elements ≈ 134 MB of numbers), which
+  // a library-sized archive hits as RangeError: Invalid array length inside
+  // subBlocks. The GIF bytes are identical; only the backing store changed.
+  function Writer() { this.chunks = []; this.small = []; }
+  Writer.prototype._flush = function () {
+    if (!this.small.length) return;
+    this.chunks.push(new Uint8Array(this.small));
+    this.small = [];
+  };
+  Writer.prototype.byte = function (b) { this.small.push(b & 0xff); return this; };
+  Writer.prototype.u16 = function (n) { this.small.push(n & 0xff, (n >> 8) & 0xff); return this; };
+  Writer.prototype.ascii = function (s) {
+    for (let i = 0; i < s.length; i++) this.small.push(s.charCodeAt(i) & 0xff);
     return this;
   };
-  Writer.prototype.done = function () { return new Uint8Array(this.parts); };
+  Writer.prototype.bytes = function (arr) {
+    if (!arr || !arr.length) return this;
+    this._flush();
+    this.chunks.push(arr instanceof Uint8Array ? arr : new Uint8Array(arr));
+    return this;
+  };
+  Writer.prototype.subBlocks = function (data) {
+    const u8 = !data ? new Uint8Array(0)
+      : (data instanceof Uint8Array ? data : new Uint8Array(data));
+    const nBlocks = u8.length ? Math.ceil(u8.length / 255) : 0;
+    const framed = new Uint8Array(u8.length + nBlocks + 1);
+    let o = 0;
+    for (let i = 0; i < u8.length; i += 255) {
+      const n = Math.min(255, u8.length - i);
+      framed[o++] = n;
+      framed.set(u8.subarray(i, i + n), o);
+      o += n;
+    }
+    framed[o] = 0x00;
+    this._flush();
+    this.chunks.push(framed);
+    return this;
+  };
+  Writer.prototype.done = function () {
+    this._flush();
+    let total = 0;
+    for (let i = 0; i < this.chunks.length; i++) total += this.chunks[i].length;
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (let i = 0; i < this.chunks.length; i++) {
+      out.set(this.chunks[i], off);
+      off += this.chunks[i].length;
+    }
+    return out;
+  };
 
   const GIFOS_MARKER = 'GIFOS1.0'; // 8-byte application identifier
   const GIFOS_AUTH = 'GOS';        // 3-byte application authentication code
