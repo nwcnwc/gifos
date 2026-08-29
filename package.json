@@ -1,0 +1,12 @@
+{
+  "name": "gifos",
+  "private": true,
+  "description": "The product is dependency-free (site/, apps/, the test servers and suites are plain Node scripts). These are the two optional dev tools some test suites and scripts need, declared so one `npm install` brings both and a later `npm install <x>` cannot prune the other as extraneous. Setup: CONTRIBUTING.md.",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1",
+    "sharp": "0.35.4"
+  }
+}
