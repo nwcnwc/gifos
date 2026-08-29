@@ -162,6 +162,35 @@ function expected(p) {
     !!rebuilt && dec.decode(rebuilt.files['a.txt']) === 'short',
     rebuilt ? JSON.stringify(dec.decode(rebuilt.files['a.txt'] || new Uint8Array())) : 'null');
 
+  // The writer used to push one number per payload byte. V8's regular-object
+  // ceiling is ~134 MB of numbers; a library archive is larger than that, and
+  // pack died as RangeError: Invalid array length inside subBlocks. appExtBlock
+  // is the same writer, without deflate shrinking the payload first.
+  const fat = new Uint8Array(140 * 1024 * 1024);
+  fat[0] = 0x11;
+  fat[254] = 0x22;
+  fat[255] = 0x33;
+  fat[fat.length - 1] = 0x44;
+  let block = null, blockErr = '';
+  try { block = gif.appExtBlock(gif.MARKER, 'GOS', fat); }
+  catch (e) { blockErr = (e && e.message) || String(e); }
+  const nBlocks = Math.ceil(fat.length / 255);
+  const expectLen = 3 + 8 + 3 + fat.length + nBlocks + 1; // intro + id + framed
+  check('a 140 MB payload frames without throwing', !!block, blockErr);
+  if (block) {
+    check('a 140 MB payload keeps every byte', block.length === expectLen,
+      'got ' + block.length + ', expected ' + expectLen);
+    // First sub-block is 255 bytes starting at offset 14 (21 FF 0B + 8 + 3).
+    const data0 = 3 + 8 + 3 + 1;
+    check('first sub-block length is 255', block[data0 - 1] === 255);
+    check('byte 0 of the payload survives', block[data0] === 0x11);
+    check('byte 254 of the payload survives', block[data0 + 254] === 0x22);
+    check('byte 255 of the payload survives (next sub-block)',
+      block[data0 + 255 + 1] === 0x33); // +1 skips the next length byte
+    check('last payload byte survives', block[block.length - 2] === 0x44);
+    check('the block terminator is present', block[block.length - 1] === 0);
+  }
+
   console.log(failures ? '\n' + failures + ' FAILED' : '\nall green');
   process.exit(failures ? 1 : 0);
 })().catch((e) => { console.log('FAIL — ' + e.stack); process.exit(1); });
