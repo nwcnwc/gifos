@@ -164,6 +164,7 @@ names the missing declaration.
    "gpu": true                      WebGPU (navigator.gpu) in the sandbox
    "pointer": true                  pointer lock (FPS-style mouse aim)
    "fullscreen": true               requestFullscreen + orientation lock
+   "links": true                    open a tapped link in a new browser tab
    "agent": true                    inject the GifOS assistant bar
 
 What the sandbox capabilities actually unlock (and nothing else):
@@ -192,6 +193,14 @@ What the sandbox capabilities actually unlock (and nothing else):
      inside your app (TypeError / SecurityError). Orientation lock only
      holds while fullscreen; desktops reject .lock() with NotSupportedError
      — normal, not a failure. Listen for fullscreenchange and pause on exit.
+   - links: two sandbox flags, allow-popups AND
+     allow-popups-to-escape-sandbox. A tap on <a target="_blank"
+     rel="noopener"> then opens a normal browser tab. Without the
+     declaration the tap is swallowed; with only allow-popups the new
+     window inherits the sandbox and a real page still cannot run. The
+     app still cannot fetch (connect-src 'none') and cannot navigate
+     THIS window (no allow-top-navigation). Use it for a map pin or a
+     citation — not as a way onto the network.
    - agent: no code needed — declaring it injects a GifOS assistant bar
      that reads and clicks/types on YOUR app's screen by natural language,
      driven by the user's Smartest model (brokered; the key never enters

@@ -3176,6 +3176,22 @@
     // and one checkbox turns off both halves. A phone that cannot do either is
     // a first-person game played through a letterbox.
     if (hasCap(manifest, 'fullscreen') && !capDisabled(manifest, 'fullscreen')) sandboxToken(iframe, 'allow-orientation-lock');
+    // LINKS is two sandbox flags and nothing else. A sandboxed frame cannot
+    // open a tab: without allow-popups, target=_blank and window.open are
+    // swallowed, and the tap looks like a dead control. With allow-popups
+    // alone the new window INHERITS the sandbox, so Google Maps (or any
+    // real page) still cannot run. allow-popups-to-escape-sandbox is the
+    // second half — the new tab is a normal browser tab.
+    //
+    // What it does not grant: no fetch, no origin, no storage, no way to
+    // navigate THIS window. connect-src 'none' is untouched; there is no
+    // allow-top-navigation / allow-top-navigation-by-user-activation. The
+    // app still cannot reach the internet itself. A tap on an <a> is a
+    // user gesture, and the browser's popup blocker still applies.
+    if (hasCap(manifest, 'links') && !capDisabled(manifest, 'links')) {
+      sandboxToken(iframe, 'allow-popups');
+      sandboxToken(iframe, 'allow-popups-to-escape-sandbox');
+    }
     iframe.srcdoc = buildAppHtml(files, manifest);
     return () => root.removeEventListener('message', handler);
   }

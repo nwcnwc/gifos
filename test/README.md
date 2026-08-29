@@ -773,6 +773,11 @@ Roughly three families in one directory:
   the Abilities sheet refuses it again — the sandbox is fixed at navigation, so
   a veto that is only honoured where the brokers honour theirs would be a
   checkbox that moves and changes nothing),
+  `e2e-links` (capabilities.links: the two sandbox flags a tap on
+  target=_blank needs — allow-popups and allow-popups-to-escape-sandbox.
+  Undeclared, the tap opens nothing; declared, it opens a normal tab at the
+  href; unchecking it in Abilities refuses it again. Does not add
+  allow-top-navigation or allow-same-origin),
   `e2e-fullscreen-lock` (capabilities.fullscreen, the same three legs over its
   TWO hatches — the fullscreen permissions policy and the
   allow-orientation-lock sandbox token),

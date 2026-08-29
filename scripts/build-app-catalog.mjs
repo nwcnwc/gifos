@@ -553,6 +553,11 @@ async function buildApp(slug) {
       // portrait strip, and both refusals (TypeError, SecurityError) land inside
       // the sandbox where the player never sees them. Landed in build 1314.
       ['capabilities.fullscreen', (x) => !!(x.capabilities || {}).fullscreen, 1314],
+      // capabilities.links — allow-popups + allow-popups-to-escape-sandbox, so
+      // a tap on <a target="_blank"> opens a normal tab (a map pin, a citation).
+      // Without it the tap is swallowed inside the sandbox. Lands on the first
+      // edge deploy after 2153.
+      ['capabilities.links', (x) => !!(x.capabilities || {}).links, 2154],
       // optional assets: skipped at install/boot; gifos.assets() fetches that
       // one pin. Older runtimes download every pin on boot, so a zoo of
       // optional models would be a gigabyte surprise — the app must claim

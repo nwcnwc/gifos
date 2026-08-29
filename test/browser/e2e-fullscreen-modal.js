@@ -58,7 +58,7 @@ const HIT = (sel) => {
   await d.waitForSelector('.icon', { timeout: 30000 });
   const picks = await d.evaluate(async (SYS) => {
     // Mirrors gifos-perms.js CAP_LABELS: what puts the chip on the bar.
-    const GATED = ['microphone', 'camera', 'motion', 'ai', 'api', 'agent', 'wasm', 'gpu', 'pointer', 'fullscreen', 'pool', 'pay', 'assets'];
+    const GATED = ['microphone', 'camera', 'motion', 'ai', 'api', 'agent', 'wasm', 'gpu', 'pointer', 'fullscreen', 'links', 'pool', 'pay', 'assets'];
     const files = (await GifOS.store.allFiles()).filter((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
     const gated = [], plain = [];
     for (const f of files) {
