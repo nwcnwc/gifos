@@ -677,7 +677,29 @@
     if (act === 'curl') { openSheet('curl'); return; }
     if (act === 'dup') { closeSheet(); duplicate(extra); return; }
     if (act === 'ren') { openSheet('rename', extra); return; }
-    if (act === 'del') { closeSheet(); if (extra && confirm('Delete this?')) removeItem(extra); return; }
+    // window.confirm does NOTHING in an app frame: no allow-modals, so it
+    // returns FALSE without asking and Delete never deleted anything. Ask on
+    // the button — the first press arms it, the second removes the item, and
+    // it disarms itself after four seconds.
+    if (act === 'del') {
+      var db = e.target;
+      if (db.dataset.arm === '1') {
+        clearTimeout(+db.dataset.armTimer || 0);
+        closeSheet();
+        if (extra) removeItem(extra);
+        return;
+      }
+      db.dataset.arm = '1';
+      db.textContent = 'Really delete';
+      db.classList.add('danger');
+      db.dataset.armTimer = String(setTimeout(function () {
+        delete db.dataset.arm;
+        delete db.dataset.armTimer;
+        db.textContent = 'Delete';
+        db.classList.remove('danger');
+      }, 4000));
+      return;
+    }
     if (act === 'save-env') {
       var name = $('env-name').value.trim() || 'Default';
       var vars = {};

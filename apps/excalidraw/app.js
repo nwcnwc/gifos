@@ -295,12 +295,33 @@
   document.getElementById('g-close').addEventListener('click', closeModal);
   document.getElementById('g-new').addEventListener('click', function () { newBoard(); });
   modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+  function disarmDeletes() {
+    var all = listEl.querySelectorAll('.row-del[data-arm="1"]');
+    for (var i = 0; i < all.length; i++) {
+      clearTimeout(+all[i].dataset.armTimer || 0);
+      delete all[i].dataset.arm;
+      delete all[i].dataset.armTimer;
+      all[i].classList.remove('arm');
+      all[i].title = 'Delete this board';
+    }
+  }
+
   listEl.addEventListener('click', function (e) {
     var li = e.target.closest('li');
     if (!li) return;
     var id = li.getAttribute('data-id');
     if (e.target.closest('.row-del')) {
-      if (window.confirm('Delete this board? The drawing is removed from this device.')) deleteBoard(id);
+      // window.confirm does NOTHING in an app frame: no allow-modals, so it
+      // returns FALSE without asking and a board could never be deleted.
+      // Ask on the button — first press arms it, second deletes, and it
+      // disarms itself after four seconds or as soon as another row is armed.
+      var btn = e.target.closest('.row-del');
+      if (btn.dataset.arm === '1') { clearTimeout(+btn.dataset.armTimer || 0); deleteBoard(id); return; }
+      disarmDeletes();
+      btn.dataset.arm = '1';
+      btn.dataset.armTimer = String(setTimeout(function () { disarmDeletes(); }, 4000));
+      btn.classList.add('arm');
+      btn.title = 'Press again to delete this board';
       return;
     }
     if (e.target.closest('.link')) {

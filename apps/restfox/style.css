@@ -83,6 +83,9 @@ html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text);
   background: var(--bg3); color: var(--text); border: 1px solid var(--line);
   padding: .35rem .7rem; border-radius: 3px; cursor: pointer; font: inherit;
 }
+/* Armed: the second press deletes. window.confirm is ignored in an app frame,
+   so the question is asked on the button itself (see app.js). */
+.btn.danger { color: #ff8a7a; border-color: #ff8a7a; }
 .btn:hover:not(:disabled) { background: #595858; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn.send { background: var(--send); border-color: var(--send); color: #fff; font-weight: 700; min-width: 4.4rem; }
