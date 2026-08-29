@@ -241,6 +241,87 @@
           try { parent.postMessage({ ns:'gifos', type:'uiactive' }, '*'); } catch(e){}
         }, { capture:true, passive:true });
       });
+      // window.alert DOES NOTHING in an app frame. The sandbox carries no
+      // allow-modals, so Chrome logs "Ignored call to 'alert()'" and returns
+      // without showing anything. Ported apps lean on it as their only way to
+      // say something went wrong or cannot be done — 35 call sites across 15
+      // apps when this was written, most inside vendored engines nobody is
+      // going to rewrite — and every one of those messages was invisible. A
+      // person pressed a button, nothing happened, and the app had no way to
+      // say why.
+      //
+      // So show it. The overlay lives in a SHADOW ROOT hung off
+      // documentElement, not body: the app's own CSS cannot reach inside it,
+      // and the app's own DOM does not change shape (a "body > *" selector or
+      // a childNodes walk sees exactly what it saw before). It does not block
+      // — nothing in a sandboxed frame can — but today's behaviour is already
+      // "returns immediately", so no app's timing changes.
+      //
+      // window.confirm has the same problem and one extra constraint: its
+      // contract is a SYNCHRONOUS boolean, so no dialog-and-await replacement
+      // can honour it. Ignored, it returns FALSE, which means every action an
+      // app guards with it is unreachable — a board that cannot be deleted, a
+      // game that cannot be restarted, a plan that cannot be stopped.
+      //
+      // Answer it as a two-press confirm, which IS synchronous. The first call
+      // shows the question and returns false; a second call, with the same
+      // text and after a FRESH user gesture, returns true. Requiring a new
+      // gesture is what makes it safe: code that loops over a list inside one
+      // click can never talk itself into a yes, because the gesture counter
+      // has not moved. A person pressing the same button twice gets exactly
+      // what they asked for.
+      //
+      // prompt() is left alone. There is no way to invent a string
+      // synchronously, and guessing one is worse than not answering.
+      (function(){
+        var host = null, box = null, hideTimer = 0;
+        function ensure(){
+          if (host && host.isConnected) return;
+          host = document.createElement('gifos-alert');
+          host.style.cssText = 'all:initial;position:fixed;inset:auto 0 0 0;z-index:2147483647';
+          var root = host.attachShadow ? host.attachShadow({ mode:'closed' }) : host;
+          box = document.createElement('div');
+          box.setAttribute('role','alert');
+          box.style.cssText = [
+            'margin:0 auto 16px;max-width:min(34rem,calc(100vw - 24px));',
+            'box-sizing:border-box;padding:12px 16px;border-radius:12px;',
+            'background:#1b1b1f;color:#f4f4f5;border:1px solid #3f3f46;',
+            'font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;',
+            'box-shadow:0 12px 40px rgba(0,0,0,.5);text-align:center;',
+            'white-space:pre-wrap;word-break:break-word;pointer-events:auto;cursor:pointer'
+          ].join('');
+          box.addEventListener('click', function(){ hide(); });
+          root.appendChild(box);
+          (document.documentElement || document.body).appendChild(host);
+        }
+        function hide(){ if (host && host.parentNode) host.parentNode.removeChild(host); host = null; box = null; }
+        function show(text, ms){
+          ensure();
+          box.textContent = text;
+          clearTimeout(hideTimer);
+          hideTimer = setTimeout(hide, ms);
+        }
+        window.alert = function(msg){
+          try { show(msg === undefined ? '' : String(msg), 6000); } catch(e){}
+        };
+        var gestures = 0;
+        ['pointerdown','keydown','touchstart'].forEach(function(ev){
+          window.addEventListener(ev, function(e){ if (e.isTrusted) gestures++; }, { capture:true, passive:true });
+        });
+        var armed = null;
+        window.confirm = function(msg){
+          var text = msg === undefined ? '' : String(msg);
+          var now = Date.now();
+          if (armed && armed.text === text && armed.gesture !== gestures && now - armed.at < 8000) {
+            armed = null;
+            try { hide(); } catch(e){}
+            return true;
+          }
+          armed = { text: text, gesture: gestures, at: now };
+          try { show(text + '\\n\\nPress again to confirm.', 8000); } catch(e){}
+          return false;
+        };
+      })();
       window.gifos = {
         db: function(collection){ return {
           put:    function(item){ return rpc({type:'db',op:'put',collection:collection,value:item}); },

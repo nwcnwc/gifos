@@ -84,11 +84,12 @@ a personal server with a domain.
 - **git**, and **Node.js 18+** (22 recommended — the test servers and suites
   are dependency-free Node scripts).
 - **Python 3** (only for `python3 -m http.server`; any static server works).
-- Optional, for the browser test suites and the two image suites: **Playwright
-  + Chromium**, and **sharp** — `npm install && npx playwright install chromium`
-  in the repo root. `package.json` declares exactly those two, pinned, so one
-  install brings both; do not `npm install <one of them>` on its own — with no
-  manifest that used to prune the other as "extraneous", and it still would.
+- Optional, for the browser test suites, the two image suites, and the app-code
+  scans: **Playwright + Chromium**, **sharp**, and **acorn** —
+  `npm install && npx playwright install chromium` in the repo root.
+  `package.json` declares exactly those three, pinned, so one install brings
+  them all; do not `npm install <one of them>` on its own — with no manifest
+  that used to prune the others as "extraneous", and it still would.
   ([`test/lib/pw.js`](test/lib/pw.js) finds the repo's own `node_modules` and
   `~/.cache/ms-playwright` automatically.)
 - Optional, for the mesh reference sim: **g++**.
