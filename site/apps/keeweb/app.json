@@ -40,15 +40,15 @@
   "cover": "/apps/keeweb/cover.jpg",
   "screenshots": [],
   "gif": "/apps/keeweb/keeweb.gif",
-  "bytes": 263264,
+  "bytes": 263562,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "58915978c532e4954a9e919649b553c5b55e0e20294782206bb80dbd4d82b2ae",
+  "sha256": "187d48c537892608caa08170dc7165d4c0b6859fa9e65e3808cb0ee4804df77d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-26"
+    "ts": "2026-08-29"
   },
   "porter": {
     "name": "GifOS",

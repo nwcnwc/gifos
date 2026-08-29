@@ -40,15 +40,15 @@
   "cover": "/apps/wifi-card/cover.jpg",
   "screenshots": [],
   "gif": "/apps/wifi-card/wifi-card.gif",
-  "bytes": 210010,
+  "bytes": 210299,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "e09285c5d37a855b70ec5a99885a0cf7f3202172821283d087a50e8f11aef4d5",
+  "sha256": "a6a260decb0c0b2270447d76243518b7c012ed47516be1b14a2c0d14fd23ddfa",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-29"
   },
   "porter": {
     "name": "GifOS",
