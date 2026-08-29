@@ -73,7 +73,7 @@
   var PREF_ID = 'prefs';
   var DEFAULTS = {
     id: PREF_ID,
-    theme: 'night', size: 3, face: 'serif',
+    theme: 'paper', size: 3, face: 'serif',
     mode: 'paragraph', redLetter: true, notes: true, headings: true,
     columns: ['engwebp'],
     // The palette is the reader's own system: the keys are fixed, the names

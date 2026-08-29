@@ -74,7 +74,7 @@
   }
 
   function applyChrome(prefs) {
-    document.body.setAttribute('data-theme', prefs.theme || 'night');
+    document.body.setAttribute('data-theme', prefs.theme || 'paper');
     document.body.setAttribute('data-size', String(prefs.size || 3));
     document.body.setAttribute('data-face', prefs.face || 'serif');
     document.body.setAttribute('data-red', prefs.redLetter === false ? '0' : '1');
