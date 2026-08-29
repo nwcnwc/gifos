@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 // Node 18's CompressionStream rejects 'deflate-raw' (the format gifos-gif.js
-// uses). Node 20+ is fine. Same polyfill as dante/excalidraw/build.mjs.
+// uses). Node 20+ is fine. Same polyfill as excalidraw/build.mjs.
 {
   const Orig = globalThis.CompressionStream;
   globalThis.CompressionStream = class CompressionStream {

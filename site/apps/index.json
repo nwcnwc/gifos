@@ -1382,59 +1382,6 @@
       "sha256": "059f44c8011231acca71b02b73abf1159478d4193edf619f5ebd469587ab773b"
     },
     {
-      "slug": "dante",
-      "appId": "dante",
-      "name": "Dante",
-      "shortName": "Dante",
-      "version": "1.0.0",
-      "tagline": "Thirteen souls fell in the wrong circle. Bring them home.",
-      "author": {
-        "name": "SalvatorePreviti",
-        "url": "https://github.com/SalvatorePreviti"
-      },
-      "porter": {
-        "name": "GifOS",
-        "url": "https://gifos.app"
-      },
-      "basedOn": {
-        "name": "Dante",
-        "blessed": false
-      },
-      "minBuild": 1314,
-      "offline": true,
-      "releaseDate": "2026-08-23",
-      "updated": "2026-08-23",
-      "categories": [
-        "Games"
-      ],
-      "tags": [
-        "dante",
-        "hell",
-        "souls",
-        "js13k",
-        "3d",
-        "platform",
-        "multiplayer",
-        "touch",
-        "offline"
-      ],
-      "accent": [
-        246,
-        97,
-        17
-      ],
-      "cover": "/apps/dante/cover.jpg",
-      "bytes": 227124,
-      "download": 0,
-      "provides": null,
-      "signature": {
-        "type": "domain",
-        "id": "gifos.app",
-        "ts": "2026-08-24"
-      },
-      "sha256": "4df7880d97862ce6d7e170dcfb7757e4ea3baf78876a418071385fe3923f5a58"
-    },
-    {
       "slug": "delta",
       "appId": "delta",
       "name": "Delta",
