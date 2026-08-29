@@ -42,15 +42,15 @@
   "cover": "/apps/css-doodle/cover.jpg",
   "screenshots": [],
   "gif": "/apps/css-doodle/css-doodle.gif",
-  "bytes": 242780,
+  "bytes": 243755,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "a3c211dab2180b229cfadf8b68fa408c602b7c32e8ca749efad7b8484364e81d",
+  "sha256": "d74d94117969398090863230624d93bb85d54f870b4d6e0495d675af5fa385bd",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-29"
   },
   "porter": {
     "name": "GifOS",

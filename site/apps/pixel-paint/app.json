@@ -42,15 +42,15 @@
   "cover": "/apps/pixel-paint/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pixel-paint/pixel-paint.gif",
-  "bytes": 213066,
+  "bytes": 213722,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "6c7a5f7ec24fdd114f047c8205ca62693472667beac34673621ef5a7c9039729",
+  "sha256": "66a0e6efd33fa43ba2260678c315d15af6edb02f77fcb9a01fe7cec6a5d795d3",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-29"
   },
   "porter": {
     "name": "GifOS",

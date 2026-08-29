@@ -40,15 +40,15 @@
   "cover": "/apps/tosios/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tosios/tosios.gif",
-  "bytes": 199857,
+  "bytes": 200611,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "8c1d90150c85a2d55b01d66d79e85c4ac276aebe3faf972be4018346b57ef55b",
+  "sha256": "5fa9e715796620393c2b821e9876cb76c2de66aaabc8bf52c5b26f2822d734b5",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-29"
   },
   "porter": {
     "name": "GifOS",
