@@ -15,7 +15,7 @@
  *   excalidraw    a board could not be deleted.
  *   fortune-sheet "New workbook" did nothing.
  *   restfox       Delete never deleted; import errors were invisible.
- *   dante, my-mind, radius-raid, besogo, piskel, bip39, pong  — the same, in
+ *   my-mind, radius-raid, besogo, piskel, bip39, pong  — the same, in
  *                 vendored engines nobody is going to rewrite.
  *
  * Two of the three are now answered by the runtime shim in
