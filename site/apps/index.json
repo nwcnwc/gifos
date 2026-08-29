@@ -687,15 +687,15 @@
         204
       ],
       "cover": "/apps/bitsy/cover.jpg",
-      "bytes": 294951,
+      "bytes": 296007,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-29"
       },
-      "sha256": "51835859dd43df124240d3f7d225738ecfe0743c77735296fd45f8ed10b691c5"
+      "sha256": "a9bc22788bc1f33583a0b19d4e945bea3b7302cf4f2ca3d5ebf2626f43f31ffb"
     },
     {
       "slug": "blackjack",
@@ -785,15 +785,15 @@
         40
       ],
       "cover": "/apps/bowling/cover.jpg",
-      "bytes": 199859,
+      "bytes": 201041,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-29"
       },
-      "sha256": "f3cd7bff17a196a4b3f7f0a89a104c221d8725465e382c8bc10454022d110826"
+      "sha256": "bb7a55a2022c8e2bc2fc922cee99d48b065f8573fac6459480e42a0f95c5e8f4"
     },
     {
       "slug": "catch-the-cat",
@@ -1267,15 +1267,15 @@
         158
       ],
       "cover": "/apps/css-doodle/cover.jpg",
-      "bytes": 242780,
+      "bytes": 243755,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-29"
       },
-      "sha256": "a3c211dab2180b229cfadf8b68fa408c602b7c32e8ca749efad7b8484364e81d"
+      "sha256": "d74d94117969398090863230624d93bb85d54f870b4d6e0495d675af5fa385bd"
     },
     {
       "slug": "cube-composer",
@@ -1970,15 +1970,15 @@
         54
       ],
       "cover": "/apps/finger-pool/cover.jpg",
-      "bytes": 219742,
+      "bytes": 220384,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-29"
       },
-      "sha256": "7ea1daf59cbca356346f208f949d1b8ce605fdacf900e39d61e6b1449aedd7b9"
+      "sha256": "824309e323e127fed7c6829a8bd1c6a9930fe2992b251385fae58ad06380edd2"
     },
     {
       "slug": "floppy-bird",
@@ -2111,15 +2111,15 @@
         220
       ],
       "cover": "/apps/fluid/cover.jpg",
-      "bytes": 240109,
+      "bytes": 240937,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-29"
       },
-      "sha256": "d603d403dfeb7423a5015085e0d017c22286c0bee6a4fe447992ebfc57df7462"
+      "sha256": "4ba7ee9dc58a3f965616148f23d7ae3f1a0b5b868129a30e02b5cbd5b2e2502e"
     },
     {
       "slug": "fortune-sheet",
@@ -4861,15 +4861,15 @@
         252
       ],
       "cover": "/apps/pixel-paint/cover.jpg",
-      "bytes": 213066,
+      "bytes": 213722,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-29"
       },
-      "sha256": "6c7a5f7ec24fdd114f047c8205ca62693472667beac34673621ef5a7c9039729"
+      "sha256": "66a0e6efd33fa43ba2260678c315d15af6edb02f77fcb9a01fe7cec6a5d795d3"
     },
     {
       "slug": "pixelit",
@@ -7033,15 +7033,15 @@
         88
       ],
       "cover": "/apps/tosios/cover.jpg",
-      "bytes": 199857,
+      "bytes": 200611,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-29"
       },
-      "sha256": "8c1d90150c85a2d55b01d66d79e85c4ac276aebe3faf972be4018346b57ef55b"
+      "sha256": "5fa9e715796620393c2b821e9876cb76c2de66aaabc8bf52c5b26f2822d734b5"
     },
     {
       "slug": "tower-defense",
@@ -7281,15 +7281,15 @@
         118
       ],
       "cover": "/apps/ui-gradients/cover.jpg",
-      "bytes": 202007,
+      "bytes": 202674,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-26"
+        "ts": "2026-08-29"
       },
-      "sha256": "e87026b3ccc6d1e04a48847440527619bdf126b18eef92aff80f52d27ee2910c"
+      "sha256": "c715ba71fdd98e2036d393d3e97231f03aa8204fe9c40c7d778bf49c66b5af55"
     },
     {
       "slug": "underrun",

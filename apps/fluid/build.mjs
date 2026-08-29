@@ -40,7 +40,7 @@ const pin = (rel, hex) => {
 
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
-pin('vendor/script.js', '20a14f1537ec11d891cb1ef9f3ac7d17dbb255c1325623e4760c27a566cb1783');
+pin('vendor/script.js', '212086dcc8cb170ef6984f325822b0c4d37ea7c6c899b25b501cf848fa40368f');
 pin('vendor/dat.gui.min.js', '27976ca8ac2e125de97163455131890e8686ed2afc2007cd5524080b7d53ef7b');
 
 for (const need of ['vendor/COPYING-fluid.txt', 'vendor/COPYING-dat-gui.txt', 'vendor/UPSTREAM.txt']) {

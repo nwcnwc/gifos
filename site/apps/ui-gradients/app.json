@@ -41,15 +41,15 @@
   "cover": "/apps/ui-gradients/cover.jpg",
   "screenshots": [],
   "gif": "/apps/ui-gradients/ui-gradients.gif",
-  "bytes": 202007,
+  "bytes": 202674,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "e87026b3ccc6d1e04a48847440527619bdf126b18eef92aff80f52d27ee2910c",
+  "sha256": "c715ba71fdd98e2036d393d3e97231f03aa8204fe9c40c7d778bf49c66b5af55",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-26"
+    "ts": "2026-08-29"
   },
   "porter": {
     "name": "GifOS",

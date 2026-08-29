@@ -39,15 +39,15 @@
   "cover": "/apps/bowling/cover.jpg",
   "screenshots": [],
   "gif": "/apps/bowling/bowling.gif",
-  "bytes": 199859,
+  "bytes": 201041,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "f3cd7bff17a196a4b3f7f0a89a104c221d8725465e382c8bc10454022d110826",
+  "sha256": "bb7a55a2022c8e2bc2fc922cee99d48b065f8573fac6459480e42a0f95c5e8f4",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-29"
   },
   "porter": {
     "name": "GifOS",
