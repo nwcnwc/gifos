@@ -189,7 +189,7 @@
         if (shown) btn.appendChild(document.createTextNode(shown.slice(0, 140)));
       }
       btn.addEventListener('click', function () {
-        self.closeSheets();
+        if (!self.docked()) self.closeSheets();
         self.go({ code: m.code, chapter: m.chapter, verse: m.verse }, { flash: true, jump: true });
       });
       body.appendChild(btn);
@@ -337,7 +337,7 @@
       btn.type = 'button';
       btn.appendChild(el('span', 'r-ref', r.label));
       btn.addEventListener('click', function () {
-        self.closeSheets();
+        if (!self.docked()) self.closeSheets();
         self.go(r.ref, { jump: true });
       });
       body.appendChild(btn);

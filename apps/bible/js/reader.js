@@ -78,6 +78,20 @@
       this.store.setCursor(this.at, this.columns[0]);
     }
     if (opts.flash && ref.verse) this.flash(ref);
+    this.followPanel();
+  };
+
+  // A docked study panel follows the reader. When the text moves to another
+  // chapter — the arrows, a plan, a cross reference — a panel that was about
+  // a verse or a chapter turns to the new chapter's outline, so what is beside
+  // the text is always about the text. Search and the pickers stay put; they
+  // were not about the old chapter either.
+  Reader.prototype.followPanel = function () {
+    var p = this._panel;
+    if (!p || !p.follow || !this.docked()) return;
+    if (p.code === this.at.code && p.chapter === this.at.chapter) return;
+    var pack = this.pack(0);
+    if (pack) this.openScopeSheet(pack, { code: this.at.code, chapter: this.at.chapter, verse: 1 }, 'chapter');
   };
 
   // A jump is a tap on a Treasury link, a search hit, a book, a plan — not
@@ -367,9 +381,9 @@
   Reader.prototype.openSheet = function (id) {
     this.closeSheets();
     document.getElementById('scrim').hidden = false;
-    // What is read alongside the text — a verse's study, search hits — docks
-    // beside it on a wide screen (style.css); the pickers stay dialogs.
-    document.body.classList.toggle('docked', id === 'sheet-verse' || id === 'sheet-search');
+    // Every sheet docks beside the text on a wide screen (style.css): none
+    // of them has any business covering the chapter.
+    document.body.classList.add('docked');
     var s = document.getElementById(id);
     s.hidden = false;
     this._sheets.push(id);
@@ -386,6 +400,7 @@
     this.hideHighlightBar();
     document.getElementById('scrim').hidden = true;
     document.body.classList.remove('docked');
+    this._panel = null;
     var sheets = document.querySelectorAll('.sheet');
     for (var i = 0; i < sheets.length; i++) sheets[i].hidden = true;
     this._sheets = [];
