@@ -48,6 +48,9 @@ html, body {
   cursor: pointer;
 }
 #new-btn:hover { border-color: #0188fb; color: #fff; }
+/* Armed: the second press replaces the sheet. window.confirm is ignored in an
+   app frame, so the question is asked on the button itself (see app.js). */
+#new-btn.arm { border-color: #d93025; color: #ffb4ab; }
 #sheet {
   flex: 1;
   min-height: 0;

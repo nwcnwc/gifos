@@ -188,8 +188,27 @@
   }
 
   if (newBtn) {
+    // window.confirm does NOTHING in an app frame: no allow-modals, so it
+    // returns FALSE without asking and New workbook did nothing at all. Ask on
+    // the button — first press arms it, second replaces the sheet, and it
+    // disarms itself after four seconds.
+    var newArm = 0;
     newBtn.addEventListener('click', function () {
-      if (!window.confirm('Start a blank workbook? The current sheet on this device will be replaced.')) return;
+      if (!newArm) {
+        newBtn.dataset.was = newBtn.textContent;
+        newBtn.textContent = 'Press again — this replaces the sheet';
+        newBtn.classList.add('arm');
+        newArm = setTimeout(function () {
+          newArm = 0;
+          newBtn.textContent = newBtn.dataset.was || 'New workbook';
+          newBtn.classList.remove('arm');
+        }, 4000);
+        return;
+      }
+      clearTimeout(newArm);
+      newArm = 0;
+      newBtn.textContent = newBtn.dataset.was || 'New workbook';
+      newBtn.classList.remove('arm');
       var blank = blankSheets();
       start(blank, 'Blank workbook');
       persist(blank);

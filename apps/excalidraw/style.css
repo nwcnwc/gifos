@@ -125,6 +125,9 @@ button.row-del {
   line-height: 0;
 }
 button.row-del:hover { color: #ff8a7a; }
+/* Armed: the second press deletes. window.confirm is ignored in an app frame,
+   so the question is asked on the button itself (see app.js). */
+button.row-del.arm { color: #ff8a7a; background: rgba(255, 138, 122, .16); border-radius: 6px; }
 
 /* Mermaid / AI / live-collab / library-CDN chrome that we do not ship a backend for. */
 [data-testid="toolbar-embeddable"],
