@@ -19,6 +19,7 @@
   var me = { id: null, name: 'You' };
   var on = false;
   var subscribed = false;
+  var declined = false;
   var hbTimer = 0;
   var myWorld = '';
   var round = 1;
@@ -137,6 +138,28 @@
     renderMp();
   }
 
+  // Subscribed, not seated: the room is read for company, and enter() runs only
+  // when a live row that is not ours shows up (an Invite joiner sees the host
+  // immediately). enter() reuses this subscription, so there is only ever one.
+  function watch() {
+    api = root.gifos;
+    if (!api || !api.db) return;
+    room = room || api.db('room');
+    (api.me ? api.me() : Promise.resolve({ id: 'local', name: 'You' })).then(function (id) {
+      me.id = (id && id.id) || me.id || 'local';
+      me.name = (id && id.name) || me.name || 'You';
+      if (subscribed) return;
+      subscribed = true;
+      room.subscribe(function (list) {
+        lastList = list || [];
+        if (on) { onRoom(lastList); return; }
+        if (declined) return;
+        var others = live(lastList).filter(function (p) { return p.id && p.id !== me.id; });
+        if (others.length) enter();
+      });
+    }).catch(function () {});
+  }
+
   function enter() {
     api = root.gifos;
     if (!api || !api.db) {
@@ -146,7 +169,8 @@
       return true;
     }
     if (on) return true;
-    room = api.db('room');
+    declined = false;
+    room = room || api.db('room');
     (api.me ? api.me() : Promise.resolve({ id: 'local', name: 'You' })).then(function (id) {
       me.id = (id && id.id) || 'local';
       me.name = (id && id.name) || 'You';
@@ -179,6 +203,7 @@
 
   function leave() {
     on = false;
+    declined = true;   // "← Solo" means solo; watch() must not seat us again
     document.body.classList.remove('friend');
     $('friend-bar').hidden = true;
     $('shareBtn').hidden = false;
@@ -209,7 +234,12 @@
   $('shareBtn').addEventListener('click', function (e) { e.preventDefault(); enter(); });
   $('leaveBtn').addEventListener('click', function (e) { e.preventDefault(); leave(); });
 
-  if (root.gifos && root.gifos.db) {
-    setTimeout(function () { if (!on) enter(); }, 400);
-  }
+  // A joiner who arrived through Invite is already in a room and should sit
+  // down without being asked; a solo player never should. Those two cases look
+  // identical from in here, so this used to enter() unconditionally 400ms after
+  // boot — which put EVERY solo player in a room they never asked for, hid the
+  // Share button they were told to press, and left "Waiting for a friend…"
+  // across the top of the app forever. watch() subscribes without joining and
+  // sits down only once somebody else is actually on the row.
+  watch();
 })(window);
