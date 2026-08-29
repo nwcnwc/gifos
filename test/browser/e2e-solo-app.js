@@ -149,6 +149,34 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     const m = document.getElementById('apphelp-modal');
     return m && getComputedStyle(m).display === 'none';
   }));
+  // ---- the tab wears the APP, not the meeting ------------------------------
+  // run.html's <head> is the meeting's: title "Meeting — GifOS" and a video
+  // camera link. A solo entry rewrites both — the title to the app's name, the
+  // icon to the app's ORNAMENT. The ornament rule holds here too: the bytes the
+  // tab paints are stripForDisplay'd, so they carry NO packed filesystem. A tab
+  // icon that still had one would be the whole app (hundreds of MB) fetched to
+  // paint 16 pixels.
+  const tab = await p.evaluate(async () => {
+    const links = Array.from(document.querySelectorAll('link[rel~="icon"]'));
+    const href = links.length ? links[links.length - 1].href : '';
+    let bytes = null;
+    if (/^blob:/.test(href)) bytes = new Uint8Array(await (await fetch(href)).arrayBuffer());
+    return {
+      title: document.title,
+      count: links.length,
+      href: href.slice(0, 60),
+      camera: links.some((l) => /%F0%9F%93%B9/i.test(l.getAttribute('href') || '')),
+      gif: !!bytes && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46,
+      packed: !!bytes && !!GifOS.gif.findAppExtSpan(bytes, GifOS.gif.MARKER),
+      bytes: bytes ? bytes.length : 0,
+    };
+  });
+  check('the tab TITLE is the app, not "Meeting"', /— GifOS$/.test(tab.title) && !/^Meeting/.test(tab.title), tab.title);
+  check('the tab ICON is the app ornament (one icon link, a GIF blob) — no meeting camera left',
+    tab.count === 1 && tab.gif && !tab.camera, JSON.stringify({ count: tab.count, href: tab.href, camera: tab.camera, gif: tab.gif }));
+  check('the tab icon carries NO packed filesystem — an ornament is not the file',
+    tab.gif && !tab.packed, tab.bytes + ' bytes');
+
   check('solo shows no Talk switch — there is no room to talk in', await p.evaluate(() => { const b = document.getElementById('appaudio'); return !b || b.style.display === 'none' || !b.offsetParent; }));
   check('no lobby shown', await p.evaluate(() => { const l = document.getElementById('lobby'); return !l || l.style.display === 'none' || !l.offsetParent; }));
   await p.waitForTimeout(2500); // anything eager (socket, gUM, mesh) would fire by now
