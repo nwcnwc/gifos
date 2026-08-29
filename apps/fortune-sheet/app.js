@@ -53,8 +53,16 @@
         cell(6, 0, 'Transit'),
         cell(6, 1, 120),
         cell(7, 0, 'Total', { bl: 1 }),
-        { r: 7, c: 1, v: { f: '=SUM(B5:B7)', bl: 1 } }
+        // A seeded formula needs three things the engine will not infer. `v`
+        // and `m` because celldata is not evaluated on load — with `f` alone
+        // the Total rendered EMPTY while the formula bar read =SUM(B5:B7). And
+        // an entry in the sheet's calcChain, because the dependency graph is
+        // built from that list, not by scanning cells: without it the Total
+        // showed 1770 forever while a formula the USER typed into B9 tracked
+        // every edit. A number that does not move is worse than a blank.
+        { r: 7, c: 1, v: { f: '=SUM(B5:B7)', v: 1770, m: '1770', bl: 1 } }
       ],
+      calcChain: [{ r: 7, c: 1, id: '0' }],
       row: 40,
       column: 16
     }];
@@ -121,7 +129,21 @@
     saveTimer = setTimeout(function () { persist(sheets); }, SAVE_MS);
   }
 
+  // Without a selection the name box renders the selected range and reads
+  // "A1:NaN". Seeds and restored workbooks alike arrive with none, so put A1
+  // in before the first paint rather than in each producer.
+  function withSelection(sheets) {
+    for (var i = 0; i < sheets.length; i++) {
+      var sel = sheets[i].luckysheet_select_save;
+      if (!Array.isArray(sel) || !sel.length) {
+        sheets[i].luckysheet_select_save = [{ row: [0, 0], column: [0, 0], row_focus: 0, column_focus: 0 }];
+      }
+    }
+    return sheets;
+  }
+
   function mount(sheets) {
+    sheets = withSelection(sheets);
     if (root) {
       try { root.unmount(); } catch (e) {}
       root = null;
