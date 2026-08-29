@@ -567,7 +567,8 @@ node test/servers/fake-cors-proxy.js      # 8793 — e2e-api, e2e-cors-proxy
 ```
 
 The payments fixtures (`fake-paypal` 8795, `pay-local` 8796, `fake-facilitator`
-8797, a test catalog on 8798, `fake-chain` 8799, `fake-fednow` 8800) are NOT
+8797, a test catalog on 8798, `fake-chain` 8799, `fake-fednow` 8800, `fake-stripe`
+8801) are NOT
 in this list on purpose:
 `e2e-pay.js` spawns and reaps its own, needing only the static site on 8099.
 `pay-local.js` runs the SAME `pay/src/core.js` the Cloudflare pay Worker runs

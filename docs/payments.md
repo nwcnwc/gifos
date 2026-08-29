@@ -32,7 +32,9 @@ mainnet swap, same wire. STILL MISSING: the Worker is not deployed (PayPal
 sandbox credentials + the marketplace-partner application), the BUYING
 direction (a 402 on `gifos.fetch`) has no broker hook, and Spend
 Permissions/subscriptions are not wired. `gifos-pay.js` stays parked Solana
-groundwork.
+groundwork. **2026-08-28:** a FIFTH rail for AI-agent buyers — the Machine
+Payments Protocol with Stripe Link's Shared Payment Tokens, settled as
+Connect destination charges to opt-in authors — see "FIVE RAILS" below.
 
 The live App Store has a **separate** optional fiat CTA (`site/js/gifos-cash.js`)
 — a tip or "feature this listing" button, plus an optional Stripe CTA meant
@@ -382,6 +384,87 @@ ride commission-only and committed sellers buy the flat rate — the
 self-selection is the design. `gifos.app` itself carries `until: null`
 (perpetual, reserved for the platform's own identity). Receipts on these
 rails still record `feeCollected:false` — honest bookkeeping either way.
+
+### FIVE RAILS (amended 2026-08-28) — the AGENT rail: MPP + Stripe Link
+
+| rail | reaches | needs from the buyer | needs from the author | 3% fee |
+|---|---|---|---|---|
+| **agent (MPP)** | **AI agents** carrying a Stripe Link wallet (link.com/agents: Claude, OpenClaw, any `link-cli` user) | a Link account, and approving the spend in the Link app | **a connected Stripe account** (`STRIPE_PAYEES`) — opt-in onboarding | collected (`application_fee_amount` on a Connect destination charge) |
+
+**Why a fifth rail at all.** Stripe's Link CLI (2026-08) turns an agent
+into a buyer: the human links their Link account once, the agent raises a
+spend request, the human approves it in the Link app, and the agent gets a
+one-time credential — a virtual card for any checkout form, or a **Shared
+Payment Token** for a merchant that answers HTTP 402 in the [Machine
+Payments Protocol](https://mpp.dev). The card path already works here for a
+browser-driving agent (PayPal's guest card form takes any card, no code
+needed). The token path is the one that matters, because a CLI agent cannot
+click a PayPal window — and it is a near-exact fit for a Worker that
+already speaks a 402-shaped rail (`/x402/settle`) and mints stateless
+signed tokens (`/transfer/invoice`). So: `GET /mpp/charge/<appId>?sku=&amount=`
+answers `402` with a `WWW-Authenticate: Payment … method="stripe"` challenge
+whose id is an HMAC over the challenge itself (the spec's stateless
+binding; `pay/src/mpp.js`, unit-tested in `test/unit/mpp-wire.js`), the
+wallet comes back with `Authorization: Payment <credential>` carrying the
+token, and the Worker consumes it as a PaymentIntent and signs the SAME
+receipt shape (`rail: "mpp"`) plus MPP's `Payment-Receipt` header.
+
+**The decision this amends, and how it stays honest.** A Shared Payment
+Token can only be settled by a Stripe account, so this rail is Stripe-
+settled — and Stripe Connect was rejected on 2026-08-25 because it makes
+every author onboard before they can be paid. Nathan's decision
+(2026-08-28, option A of three): **Connect destination charges, opt-in per
+author.** GifOS's platform profile is the `networkId` agents' wallets scope
+their tokens to (destination charges without `on_behalf_of` need only the
+platform's profile); the PaymentIntent names the author's connected
+account as `transfer_data.destination` and the 3% as
+`application_fee_amount`; the author stays seller of record and GifOS
+still holds no proceeds. The onboarding stays exactly as optional as rails
+registration is: an author who never connects a Stripe account keeps every
+other rail, and an agent asking to pay them gets a **plain refusal naming
+the way back** (`403 … not onboarded for the agent rail`), never a pretend
+rail. Option B — GifOS as merchant of record, paying authors out itself —
+was rejected because it is custody, the thing this whole file is built to
+avoid. The mapping identity → `acct_…` is the platform's record
+(`STRIPE_PAYEES`, like `FEDNOW_PAYEES`), never a client value: the same
+self-dealing hole the other rails close.
+
+**Consent on this rail is the Link app's, not ours — and that is fine.**
+The human-authentication rule says every payment has a person behind it.
+Here the person approves the spend request *in the Link app*, on their
+phone, with the amount and merchant Link shows them — the same shape as
+the FedNow approval happening in the bank's app, and with the same
+consequence: nothing of ours renders there, so nothing of ours can be
+faked there. What we control is the challenge: its `description` is the
+app and sku, its `amount` is the route's, and the binding makes an edited
+challenge fail before any token reaches Stripe.
+
+**What is refused, by name** (all exercised in `e2e-pay.js`): a replayed
+credential — Stripe answers the same `Idempotency-Key` with the SAME intent
+marked `idempotent-replayed`, and the Worker reads that header (the hole
+mppx shipped with) and refuses with a fresh challenge; an edited amount or
+expiry (binding); a genuine challenge for one purchase presented for
+another (the route is the authority); a malformed credential (`402` +
+`problem+json`, never `401`); an author not onboarded; anything under
+Stripe's $0.50 card minimum, pointed at the USDC rails, which have none.
+
+**How the purchase reaches the human.** An agent has no OS page to mint a
+receipt file, so the Worker packs it: `POST /receipt/file {receiptJson,
+sig}` verifies the receipt against its own key and returns the receipt GIF
+— built by the SAME `receiptFile()` in `gifos-charge.js` the OS page uses,
+so a file opens identically whichever side minted it. The agent hands the
+file to the person; opening it grants the entitlement, exactly as a
+browser purchase's file does.
+
+**Honest limits.** Shared Payment Tokens are a Stripe preview surface
+(`Stripe-Version: 2026-07-29.preview`; US/CA/EU sellers; the agentic-
+commerce seller terms). Link CLI is US-only for buyers as of 2026-08.
+Sandbox until the mainnet flag day, like PayPal — `sk_test_` and a
+`profile_test_` id; `link-cli --test` issues sandbox tokens. Stripe's card
+fees apply from the author's side. Not built: the `session` and
+`subscription` intents, Tempo/stablecoin MPP methods (the chain rail is
+Coinbase's, or nothing — that decision stands), a discovery document, and
+the buying direction.
 
 ### THE PAYEE RULE — money goes to the signing identity, derived, not declared
 

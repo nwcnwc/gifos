@@ -174,7 +174,7 @@
 
   // ---- the receipt the OS records, and hands back ---------------------------
   function receipt(sheetData, txId, atMs, rail) {
-    rail = rail || 'x402';                  // 'paypal' | 'x402' | 'transfer' | 'fednow'
+    rail = rail || 'x402';                  // 'paypal' | 'x402' | 'transfer' | 'fednow' | 'mpp'
     const onChain = rail === 'x402' || rail === 'transfer';
     return {
       ok: true,
@@ -195,8 +195,72 @@
   // A decline is a NORMAL outcome, not an error condition. Apps must handle it.
   const DECLINED = 'DECLINED_BY_USER';
 
+  // ---- the receipt as a FILE: what goes in it ---------------------------------
+  // A purchase materializes as a small App GIF (docs/payments.md §The receipt
+  // is a FILE): the Worker's SIGNED receipt verbatim plus a tiny self-
+  // describing viewer. ONE builder, because two things mint it — the OS
+  // page after a browser purchase (gifos-pay-broker.js) and the pay Worker
+  // after an agent's purchase (/receipt/file), and a file that opened one
+  // way and not the other would be a bug nobody could see. Pure: returns
+  // the files map and the label; the caller packs it with GifOS.gif.encode.
+  const CENT_UNITS = 10000n;
+  function fmtUsdUnits(units) {
+    const n = BigInt(units);
+    const cents = n / CENT_UNITS, sub = n % CENT_UNITS;
+    let out = '$' + (cents / 100n) + '.' + String(cents % 100n).padStart(2, '0');
+    if (sub !== 0n) out += ' (+' + sub + ' millionths)';
+    return out;
+  }
+  const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const PAID_BY = {
+    paypal: 'by PayPal',
+    x402: 'in USDC (Base Sepolia)',
+    transfer: 'in USDC (wallet transfer)',
+    fednow: 'by bank transfer (FedNow)',
+    mpp: 'by card, through an AI agent (Stripe Link)',
+  };
+  function receiptViewerHtml(receipt, opts) {
+    const row = (k, v) => '<div class="r"><span>' + escHtml(k) + '</span><b>' + escHtml(v) + '</b></div>';
+    return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<title>GifOS Receipt</title><style>' +
+      'body{font:15px/1.55 system-ui,-apple-system,sans-serif;background:#14141f;color:#e8e8f4;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:1rem}' +
+      'main{max-width:22rem;width:100%;background:#0e0e17;border:1px solid #23233a;border-radius:.8rem;padding:1.1rem 1.2rem}' +
+      'h1{font-size:1.1rem;margin:0 0 .2rem}.sub{color:#9a9ab5;font-size:.82rem;margin:0 0 .9rem}' +
+      '.r{display:flex;justify-content:space-between;gap:.8rem;margin:.3rem 0;font-size:.9rem}.r span{color:#9a9ab5}' +
+      '.r b{text-align:right;word-break:break-all;font-weight:600}' +
+      '.foot{color:#9a9ab5;font-size:.78rem;margin-top:.9rem;border-top:1px solid #23233a;padding-top:.7rem}' +
+      '</style></head><body><main>' +
+      '<h1>🧾 ' + escHtml(opts.appName || receipt.appId || '') + '</h1>' +
+      '<p class="sub">' + (receipt.sku ? 'Purchase — unlocks <b>' + escHtml(receipt.sku) + '</b>' : 'Tip — thank you!') + '</p>' +
+      row('Amount', fmtUsdUnits(receipt.amount)) +
+      row('Paid', PAID_BY[receipt.rail] || String(receipt.rail || '')) +
+      (opts.payingTo ? row('To', opts.payingTo) : '') +
+      row('When', receipt.at ? new Date(receipt.at).toLocaleString() : '') +
+      row('Transaction', String(receipt.tx || '')) +
+      '<p class="foot">This file IS the proof: it carries a receipt signed by gifos.app, and opening it on any GifOS computer verifies the signature and registers the purchase there. Sharing it shares your license — the app treats whoever holds this receipt as the same buyer (same saves, same identity). Keep it with your backups.</p>' +
+      '</main></body></html>';
+  }
+  // receipt: the PARSED receipt; receiptJson/sig: the Worker's signed strings,
+  // which go in VERBATIM — verification is byte-exact, nothing may reformat them.
+  function receiptFile(receipt, receiptJson, sig, opts) {
+    const o = opts || {};
+    const label = 'Receipt — ' + (o.appName || receipt.appId) + (receipt.sku ? ' — ' + receipt.sku : ' — tip');
+    return {
+      label,
+      files: {
+        'manifest.json': JSON.stringify({
+          gifos: '1.0', appId: 'gifos-receipt', name: label, entry: 'index.html',
+          receipt: true,                     // the mount hook's cue to ingest
+          accent: [255, 196, 57],
+        }),
+        'receipt.json': JSON.stringify({ receiptJson, sig }),
+        'index.html': receiptViewerHtml(receipt, o),
+      },
+    };
+  }
+
   GifOS.charge = {
-    CHAIN, CHAIN_NAME, DECLINED,
-    payeeOf, paypalPayeeOf, eligibility, validateRequest, sheet, receipt,
+    CHAIN, CHAIN_NAME, DECLINED, PAID_BY,
+    payeeOf, paypalPayeeOf, eligibility, validateRequest, sheet, receipt, receiptFile,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -13,9 +13,15 @@
 // No chain, no funds, no network beyond loopback. What the fakes cannot
 // verify they say so in their own headers.
 //
+// Then the AGENT rail: an MPP client (what `link-cli mpp pay` is) walks the
+// 402 -> Shared Payment Token -> settle flow against fake-stripe, the
+// refusals (replay, edited amount, wrong purchase, malformed, not onboarded,
+// under the minimum), and the Worker-packed receipt FILE restores on a
+// fresh computer like a browser purchase does.
+//
 // Needs: static server on 8099. Spawns its own: fake-paypal (8795),
 // pay-local (8796), fake-facilitator (8797), a test catalog (8798),
-// fake-chain (8799) and fake-fednow (8800).
+// fake-chain (8799), fake-fednow (8800) and fake-stripe (8801).
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
@@ -77,11 +83,13 @@ async function until(url, ms) {
   serve('fake-facilitator', [path.join(ROOT, 'test', 'servers', 'fake-facilitator.js')]);
   serve('fake-chain', [path.join(ROOT, 'test', 'servers', 'fake-chain.js')]);
   serve('fake-fednow', [path.join(ROOT, 'test', 'servers', 'fake-fednow.js')]);
+  serve('fake-stripe', [path.join(ROOT, 'test', 'servers', 'fake-stripe.js')]);
   serve('pay-local', [path.join(ROOT, 'test', 'servers', 'pay-local.js')], { CATALOG_URL: 'http://127.0.0.1:8798/index.json', REGISTRY_URL: 'http://127.0.0.1:8798/registry.json' });
   await until('http://127.0.0.1:8795/_state');
   await until('http://127.0.0.1:8797/_state');
   await until('http://127.0.0.1:8799/_state');
   await until('http://127.0.0.1:8800/_state');
+  await until('http://127.0.0.1:8801/_state');
   await until(PAY + '/health');
   const receiptPub = await (await fetch(PAY + '/test-pubkey')).text();
 
@@ -315,6 +323,69 @@ async function until(url, ms) {
   const invReg = await fetch(PAY + '/transfer/invoice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appId: 'paytest', amount: '3000000', sku: null, reason: 'x' }) });
   check('a CURRENT registration still gets its invoice', invReg.status === 200 && !!(await invReg.json()).token);
 
+  // ---- the AGENT rail: MPP 402 + a Stripe Shared Payment Token --------------
+  // No browser here on purpose: the buyer is an agent, and this is what its
+  // wallet (link-cli) does — probe, decode the challenge, get a token scoped
+  // to it, retry with the credential. fake-stripe stands where Stripe
+  // stands, including the idempotent-replayed answer a replay must trip.
+  const STRIPE = 'http://127.0.0.1:8801';
+  const MPP_URL = PAY + '/mpp/charge/paytest?sku=agentpack&amount=5000000';
+  const c1 = await fetch(MPP_URL);
+  const www = c1.headers.get('www-authenticate') || '';
+  check('an agent with no credential gets 402, no-store, and a Payment challenge naming stripe/charge for THIS realm',
+    c1.status === 402 && c1.headers.get('cache-control') === 'no-store'
+    && /^Payment id="[^"]+", realm="127\.0\.0\.1:8796", method="stripe", intent="charge", request="[A-Za-z0-9_-]+"/.test(www), www.slice(0, 90));
+  const params = Object.fromEntries([...www.slice('Payment '.length).matchAll(/(\w+)="((?:[^"\\]|\\.)*)"/g)].map((m) => [m[1], m[2].replace(/\\(.)/g, '$1')]));
+  const reqJson = JSON.parse(Buffer.from(params.request, 'base64url').toString());
+  check('…the request is what link-cli decodes: "500" usd cents, networkId = the PLATFORM profile, card + link',
+    reqJson.amount === '500' && reqJson.currency === 'usd' && reqJson.methodDetails.networkId === 'profile_test_gifos'
+    && reqJson.methodDetails.paymentMethodTypes.join() === 'card,link' && params.expires > new Date().toISOString(), JSON.stringify(reqJson));
+  const mintSpt = async (max) => (await (await fetch(STRIPE + '/v1/test_helpers/shared_payment/granted_tokens', {
+    method: 'POST', headers: { Authorization: 'Basic ' + Buffer.from('sk_test_fake:').toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'payment_method=pm_card_visa&usage_limits[currency]=usd&usage_limits[max_amount]=' + max,
+  })).json()).id;
+  const credential = (ch, payload) => 'Payment ' + Buffer.from(JSON.stringify({ challenge: ch, payload })).toString('base64url');
+  const ch = { id: params.id, realm: params.realm, method: params.method, intent: params.intent, request: params.request, expires: params.expires, description: params.description };
+  const spt = await mintSpt(500);
+  const paid = await fetch(MPP_URL, { headers: { Authorization: credential(ch, { spt }) } });
+  const paidBody = await paid.json();
+  const paidReceipt = paid.status === 200 ? JSON.parse(paidBody.receiptJson) : {};
+  check('the token settles: 200, a signed receipt on the mpp rail, and a Payment-Receipt header naming the same intent',
+    paid.status === 200 && paidBody.status === 'COMPLETED' && paidReceipt.rail === 'mpp' && paidReceipt.sku === 'agentpack' && paidReceipt.amount === '5000000'
+    && JSON.parse(Buffer.from(paid.headers.get('payment-receipt') || '', 'base64url').toString() || '{}').reference === paidReceipt.tx, JSON.stringify(paidBody).slice(0, 160));
+  const stState = await (await fetch(STRIPE + '/_state')).json();
+  const pi = stState.intents[0] || {};
+  check('it was a Connect DESTINATION charge to the AUTHOR\'s connected account (the platform\'s record, never the client), 3% as the application fee, preview API, idempotent',
+    stState.intents.length === 1 && pi.transfer_data && pi.transfer_data.destination === 'acct_test_paytest' && pi.application_fee_amount === 15 && pi.amount === 500
+    && pi.stripe_version === '2026-07-29.preview' && /^mpp_/.test(pi.idempotency_key) && pi.metadata.gifos_app === 'paytest', JSON.stringify(pi));
+  const replay = await fetch(MPP_URL, { headers: { Authorization: credential(ch, { spt }) } });
+  check('REPLAYING the credential is refused (Stripe said idempotent-replayed) — invalid-challenge, with a fresh challenge, no second receipt',
+    replay.status === 402 && (await replay.json()).type === 'invalid-challenge' && /^Payment /.test(replay.headers.get('www-authenticate') || ''));
+  const tamperedReq = Buffer.from(JSON.stringify(Object.assign({}, reqJson, { amount: '50' }))).toString('base64url');
+  const tam = await fetch(MPP_URL, { headers: { Authorization: credential(Object.assign({}, ch, { request: tamperedReq }), { spt: await mintSpt(50) }) } });
+  check('a credential with an EDITED amount fails the binding before any token reaches Stripe',
+    tam.status === 402 && (await tam.json()).type === 'invalid-challenge' && (await (await fetch(STRIPE + '/_state')).json()).intents.length === 1);
+  const other = await fetch(PAY + '/mpp/charge/paytest?sku=other&amount=5000000', { headers: { Authorization: credential(ch, { spt: await mintSpt(500) }) } });
+  check('a genuine challenge for ONE purchase does not pay for ANOTHER', other.status === 402 && (await other.json()).type === 'invalid-challenge');
+  const garbage = await fetch(MPP_URL, { headers: { Authorization: 'Bearer nope' } });
+  check('a malformed credential: 402 + malformed-credential problem + a fresh challenge (never 401)',
+    garbage.status === 402 && garbage.headers.get('content-type') === 'application/problem+json' && (await garbage.json()).type === 'malformed-credential' && /^Payment /.test(garbage.headers.get('www-authenticate') || ''));
+  const notOnboarded = await fetch(PAY + '/mpp/charge/payfree?amount=5000000');
+  check('an author NOT onboarded for the agent rail gets a plain refusal naming the way back — no challenge',
+    notOnboarded.status === 403 && /not onboarded for the agent rail/.test((await notOnboarded.json()).error) && !notOnboarded.headers.get('www-authenticate'));
+  const tooSmall = await fetch(PAY + '/mpp/charge/paytest?amount=100000');
+  check('under Stripe\'s $0.50 minimum is refused up front, pointing at the USDC rails', tooSmall.status === 400 && /0\.50/.test((await tooSmall.json()).error));
+  const asHuman = await fetch(MPP_URL, { headers: { Accept: 'text/html' } });
+  check('a human who opens the agent URL is told what it is, in HTML', asHuman.status === 402 && /agent checkout/.test(await asHuman.text()));
+  // The purchase reaches the human as the receipt FILE — packed by the
+  // Worker from the verified receipt, never from an unverified one.
+  const fileR = await fetch(PAY + '/receipt/file', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ receiptJson: paidBody.receiptJson, sig: paidBody.sig }) });
+  const agentReceipt = Buffer.from(await fileR.arrayBuffer());
+  check('the Worker packs the signed receipt as a receipt GIF, small enough to hand to a person',
+    fileR.status === 200 && fileR.headers.get('content-type') === 'image/gif' && agentReceipt.slice(0, 6).toString() === 'GIF89a' && agentReceipt.length < 200000, fileR.status + ' ' + agentReceipt.length + ' bytes');
+  const forged = await fetch(PAY + '/receipt/file', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ receiptJson: paidBody.receiptJson.replace('agentpack', 'everything'), sig: paidBody.sig }) });
+  check('an EDITED receipt is refused packaging', forged.status === 403);
+
   // ---- the receipt is a FILE: minted, placed, restorable --------------------
   // The broker minted a receipt GIF per payment and queued it; the DESKTOP tab
   // (still open) heard the storage event and placed both into the lazy
@@ -371,6 +442,40 @@ async function until(url, ms) {
   check('OPENING the receipt re-granted the entitlement — same license id, no account, no server of ours',
     restored && /^CAP-ORD-/.test(restored.tx), JSON.stringify(restored));
   await viewer.close(); await ctx2.close();
+
+  // The AGENT's purchase restores the same way: the human opens the file
+  // the Worker packed, and the entitlement lands — no browser purchase ever
+  // happened for this sku, and no account anywhere.
+  const ctx3 = await browser.newContext();
+  await ctx3.route('**/gifos.key', (route) => {
+    const host = new URL(route.request().url()).hostname;
+    route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, body: host === SIGN_DOMAIN ? appPubB64 : receiptPub });
+  });
+  const fresh3 = await ctx3.newPage();
+  await fresh3.goto(BASE + '/index.html');
+  await fresh3.waitForSelector('.icon', { timeout: 10000 });
+  await fresh3.evaluate(async (bytesArr) => {
+    const bytes = new Uint8Array(bytesArr);
+    const fid = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fid, name: 'AgentReceipt.gif', bytes, kind: 'gif', isApp: true, appId: 'gifos-receipt', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'AgentReceipt.gif', parent: null, x: 620, y: 400, iconSize: 64 });
+    await GifOS.desktop.load(); await GifOS.desktop.render();
+  }, Array.from(agentReceipt));
+  const [viewer3] = await Promise.all([
+    ctx3.waitForEvent('page'),
+    fresh3.locator('.icon', { hasText: 'AgentReceipt.gif' }).dblclick(),
+  ]);
+  await viewer3.waitForSelector('iframe', { timeout: 8000 });
+  const v3 = viewer3.frameLocator('iframe');
+  await v3.locator('main').waitFor({ timeout: 8000 });
+  const v3text = await v3.locator('main').textContent();
+  check('the Worker-packed receipt reads like every other: the app, $5.00, paid through an AI agent, to the signed identity',
+    /\$5\.00/.test(v3text) && /AI agent/.test(v3text) && v3text.includes(SIGN_DOMAIN), v3text.replace(/\s+/g, ' ').slice(0, 160));
+  await viewer3.waitForFunction(() => localStorage.getItem('pay.ent:paytest:agentpack') !== null, null, { timeout: 8000 });
+  const restored3 = await viewer3.evaluate(() => JSON.parse(localStorage.getItem('pay.ent:paytest:agentpack')));
+  check('OPENING it granted the agent-bought entitlement on this computer — license id = the Stripe intent',
+    restored3 && /^pi_test_/.test(restored3.tx) && restored3.rail === 'mpp', JSON.stringify(restored3));
+  await viewer3.close(); await ctx3.close();
 
   // ---- the purse: OS-held, app-invisible, GIF-excluded ----------------------
   const purse = await app.evaluate(() => {
