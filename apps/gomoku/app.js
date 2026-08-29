@@ -213,16 +213,44 @@
   }
 
   // ---- AI (worker if the sandbox allows, otherwise the same code on this thread) ----
+  //
+  // A CSP that forbids worker-src does NOT make `new Worker` throw. Chrome
+  // reports the violation to the console and hands back a Worker object that
+  // is already dead: every postMessage vanishes and nothing ever comes back.
+  // GifOS blocks workers for any app that has not declared capabilities.wasm,
+  // so this is the ordinary case here, and a try/catch could not see it — the
+  // computer sat on "Thinking…" for the rest of the game. Take the worker's
+  // silence as the signal instead: hold every message until it answers, and
+  // switch to the same code on this thread the moment it errors.
   function makeAi(onmessage) {
+    var w = null, local = null, sent = [], alive = false;
+    function toLocal() {
+      if (local) return;
+      if (typeof window.createGomokuAi !== 'function') throw new Error('AI did not load');
+      if (w) { try { w.terminate(); } catch (e) {} w = null; }
+      local = window.createGomokuAi(onmessage);
+      for (var i = 0; i < sent.length; i++) local.postMessage(sent[i]);
+      sent = [];
+    }
     try {
       if (window.GOMOKU_AI_SRC && typeof Worker === 'function') {
-        var w = new Worker(URL.createObjectURL(new Blob([window.GOMOKU_AI_SRC], { type: 'text/javascript' })));
-        w.onmessage = onmessage;
-        return w;
+        w = new Worker(URL.createObjectURL(new Blob([window.GOMOKU_AI_SRC], { type: 'text/javascript' })));
+        w.onmessage = function (e) { alive = true; sent = []; onmessage(e); };
+        w.onerror = function (e) { if (e && e.preventDefault) e.preventDefault(); if (!alive) toLocal(); };
       }
-    } catch (e) {}
-    if (typeof window.createGomokuAi !== 'function') throw new Error('AI did not load');
-    return window.createGomokuAi(onmessage);
+    } catch (e) { w = null; }
+    if (!w) toLocal();
+    return {
+      postMessage: function (d) {
+        if (local) return local.postMessage(d);
+        if (!alive) sent.push(d);
+        w.postMessage(d);
+      },
+      terminate: function () {
+        if (local) { try { local.terminate(); } catch (e) {} local = null; }
+        if (w) { try { w.terminate(); } catch (e) {} w = null; }
+      }
+    };
   }
   function killAi() {
     if (aiPort) { try { aiPort.terminate(); } catch (e) {} aiPort = null; }
