@@ -125,3 +125,22 @@ body.together #shareBtn { display: none; }
 @media only screen and (max-width: 480px) {
   #blanket-around-body { zoom: 0.58; }
 }
+
+/*
+ * The palette column is 80px (--palette-width) and .container sets 14.5px text,
+ * so the radio plus "Gameboy" came to a shade over the column and the word
+ * wrapped onto the line below its own button — beside "NES", which is short
+ * enough to fit, it read as a broken control. The label is a flex row now, and
+ * the .checkmark span this markup arrived with is hidden: it is the hook for a
+ * custom-radio stylesheet that is not in vendor/main.css, so it only ever drew
+ * an empty inline box next to the native radio it was meant to replace.
+ */
+#palette-select .container {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+#palette-select .checkmark,
+#palette-select br { display: none; }
