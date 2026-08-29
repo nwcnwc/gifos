@@ -91,6 +91,10 @@
       { value: true, label: 'Show' }, { value: false, label: 'Hide' }
     ], self.prefs.headings !== false, function (v) { save({ headings: v }); });
 
+    seg(row('Include Apocrypha', 'Shelves the deuterocanonical books with the rest, where a translation carries them. Off, they leave the book list, search and ‹ › — a typed reference or cross-reference still opens them.'), [
+      { value: true, label: 'Yes' }, { value: false, label: 'No' }
+    ], self.prefs.apocrypha === true, function (v) { save({ apocrypha: v }); });
+
     // The reader's own names for the highlight colours.
     var hlRow = row('Highlight names', 'Name the colours after what they mean to you — promises, commands, questions.');
     var edit = el('button', 'link', 'Rename');

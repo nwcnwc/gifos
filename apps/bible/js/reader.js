@@ -369,6 +369,15 @@
     }
     // Off the end of the book: the next or previous book THIS text carries.
     var order = pack.books.map(function (b) { return b.code; });
+    // With the Apocrypha off it is not part of the Bible: ‹ › walk past the
+    // dc books, so Malachi steps to Matthew. The book being read stays in the
+    // order either way — a reader who followed a reference into Tobit can
+    // still step out of it.
+    if (this.prefs.apocrypha !== true) {
+      var tbl = Refs.books(), sect = {}, atCode = this.at.code, ti;
+      for (ti = 0; ti < tbl.length; ti++) sect[tbl[ti].code] = tbl[ti].sect;
+      order = order.filter(function (c) { return c === atCode || sect[c] !== 'dc'; });
+    }
     var bi = order.indexOf(this.at.code);
     var nb = order[bi + dir];
     if (!nb) return;
@@ -426,7 +435,12 @@
     clear(tabs); clear(bookGrid); clear(chapGrid);
     chapGrid.hidden = true; bookGrid.hidden = false;
 
-    var sections = [['ot', 'Old'], ['dc', 'Apocrypha'], ['nt', 'New']];
+    // Include Apocrypha (More sheet) decides whether the dc shelf is part of
+    // the Bible here. Off — the default — the tab goes; the books themselves
+    // stay in the app: a typed reference or a cross-reference still opens one.
+    var sections = this.prefs.apocrypha === true
+      ? [['ot', 'Old'], ['dc', 'Apocrypha'], ['nt', 'New']]
+      : [['ot', 'Old'], ['nt', 'New']];
     var table = Refs.books();
     var sectOf = {};
     for (var t = 0; t < table.length; t++) sectOf[table[t].code] = table[t].sect;
@@ -438,6 +452,7 @@
 
     var current = have.nt.length && sectOf[this.at.code] === 'nt' ? 'nt'
                 : sectOf[this.at.code] || 'ot';
+    if (this.prefs.apocrypha !== true && current === 'dc') current = 'ot';
     var drawBooks = function (sect) {
       clear(bookGrid);
       chapGrid.hidden = true; bookGrid.hidden = false;
