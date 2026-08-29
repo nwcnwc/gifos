@@ -7303,6 +7303,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function bootSoloApp() {
       document.body.classList.add('solo-app');
+      // Off the camera FIRST: a solo entry is never a meeting, and the file may
+      // be missing or slow — the ornament replaces this again once bytes land.
+      setAppFavicon(null);
       GifOS.store.getFile(ROOM.fileId).then((rec) => {
         if (!rec) throw new Error('file not found on this desktop');
         appInstall = installFactsOf(rec);
@@ -12310,6 +12313,29 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     const canIRunApp = () => !!myId && appAllowed(myId);
 
+    // ---- THE TAB'S ICON ------------------------------------------------
+    // This page is the MEETING page wearing the runner's hat, so its <head>
+    // link is the meeting's video camera — right for a room, wrong for a solo
+    // app whose title already reads "<app> — GifOS". A solo entry wears the
+    // app's own ornament: the SAME stripForDisplay bytes the app bar paints.
+    // The ornament rule holds here — the picture is never the file — so an
+    // unstripped GIF falls back to the package glyph rather than hand the tab
+    // a packed archive to fetch and decode for 16 pixels.
+    // Solo ONLY: in a meeting the tab IS the room, camera and all.
+    function setAppFavicon(href, type) {
+      if (!document.body.classList.contains('solo-app')) return;
+      try {
+        // Replace the node instead of assigning .href — a browser re-reads the
+        // icon on insertion, and an in-place href change is not always noticed.
+        const link = document.createElement('link');
+        link.rel = 'icon';
+        link.type = type || 'image/svg+xml';
+        link.href = href || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E";
+        document.querySelectorAll('link[rel~="icon"]').forEach((el) => el.remove());
+        document.head.appendChild(link);
+      } catch (e) {}
+    }
+
     // The bar shows the app's GIF itself instead of its name — the file IS the
     // app, and on a guest's screen the thumbnail doubles as proof the bytes
     // have arrived (they are the exact bytes Steal copies). Name → title/alt.
@@ -12320,10 +12346,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Display-only <img>: strip the packed filesystem (gifos-gif.js
       // stripForDisplay — sanctioned for exactly this) so the app-bar icon
       // blobs the animation, not a 20 MB archive the decoder must step over.
-      try { if (GifOS.gif && GifOS.gif.stripForDisplay) bytes = GifOS.gif.stripForDisplay(bytes); } catch (e) {}
+      let stripped = false;
+      try { if (GifOS.gif && GifOS.gif.stripForDisplay) { bytes = GifOS.gif.stripForDisplay(bytes); stripped = true; } } catch (e) {}
       if (appGifUrl) { try { URL.revokeObjectURL(appGifUrl); } catch (e) {} }
       appGifUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
       img.src = appGifUrl; img.alt = name || 'App'; img.title = name || 'App';
+      // The tab takes the same blob: one object URL, revoked and re-pointed
+      // together above. Only ever the STRIPPED bytes.
+      if (stripped) setAppFavicon(appGifUrl, 'image/gif');
       img.style.display = 'block';
       document.getElementById('appname').style.display = 'none';
     }

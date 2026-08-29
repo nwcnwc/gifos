@@ -62,6 +62,17 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     });
     check('solo entry: the bar stays hidden after boot (the body rule agrees with the head rule)',
       late.bar === 'none', late);
+    // The tab is chrome too. This entry names a file that does not exist, so no
+    // ornament can ever arrive — the fallback is what the tab must be wearing,
+    // and it must not be the meeting's camera: a solo entry is not a meeting
+    // even when it fails.
+    const icon = await pg.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('link[rel~="icon"]'));
+      return { count: links.length, hrefs: links.map((l) => l.getAttribute('href') || '') };
+    });
+    check('solo entry with no file: the tab falls back to the package glyph, never the meeting camera',
+      icon.count === 1 && /%F0%9F%93%A6/i.test(icon.hrefs[0]) && !icon.hrefs.some((h) => /%F0%9F%93%B9/i.test(h)),
+      JSON.stringify({ count: icon.count, href: icon.hrefs[0].slice(0, 80) }));
     await pg.close();
   }
 
@@ -79,6 +90,11 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     await pg.waitForTimeout(3000);
     const bar = await pg.evaluate(() => { const el = document.querySelector('.bar'); return el ? getComputedStyle(el).display : 'absent'; });
     check('meeting entry: the meeting bar IS shown — the fix did not over-reach', bar !== 'none' && bar !== 'absent', { bar });
+    // Same over-reach test for the tab: a room's icon is the camera, and only a
+    // solo entry may replace it.
+    const icon = await pg.evaluate(() => Array.from(document.querySelectorAll('link[rel~="icon"]')).map((l) => l.getAttribute('href') || ''));
+    check('meeting entry: the tab KEEPS the meeting camera — the tab-icon fix is solo-only',
+      icon.length === 1 && /%F0%9F%93%B9/i.test(icon[0]), JSON.stringify(icon.map((h) => h.slice(0, 80))));
     await pg.close();
   }
 
