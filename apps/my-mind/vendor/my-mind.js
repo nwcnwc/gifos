@@ -4471,16 +4471,20 @@ ${text}`);
     execute() {
       let item = currentItem;
       let oldValue = item.value;
-      let newValue = prompt("Set item value", String(oldValue));
-      if (newValue == null) {
-        return;
-      }
-      if (!newValue.length) {
-        newValue = null;
-      }
-      let numValue = Number(newValue);
-      let action2 = new SetValue(item, isNaN(numValue) ? newValue : numValue);
-      action(action2);
+      // window.prompt returns NULL in an app frame without ever asking (no
+      // allow-modals), so this command did nothing at all. gifosAsk (app.js)
+      // is the same question asked in the page; the answer arrives late.
+      window.gifosAsk("Set item value", String(oldValue)).then(newValue => {
+        if (newValue == null) {
+          return;
+        }
+        if (!newValue.length) {
+          newValue = null;
+        }
+        let numValue = Number(newValue);
+        let action2 = new SetValue(item, isNaN(numValue) ? newValue : numValue);
+        action(action2);
+      });
     }
   }();
   new class Yes extends Command {

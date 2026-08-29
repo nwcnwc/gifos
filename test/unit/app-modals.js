@@ -69,13 +69,27 @@ if (!acorn) {
   check('acorn is available to parse app code', false, 'npm install acorn');
 } else {
   const NAMES = new Set(['prompt']);
+  // Vendor prompt() calls that a person cannot reach, each checked rather than
+  // assumed. Everything else — app code AND vendor — must not call prompt(),
+  // because the sandbox answers it with null and the feature simply does not
+  // happen. my-mind's "Set item value" and piskel's layer opacity were exactly
+  // that, and both now ask through gifosAsk instead.
+  const KNOWN_UNREACHABLE = new Set([
+    // dat.gui builds its preset UI only under gui.remember(), which fluid
+    // never calls, so the "Enter a new preset name" prompt is never created.
+    'fluid/vendor/dat.gui.min.js',
+    // emscripten's stdin shim. Reached only if the wasm module reads stdin;
+    // espeak is handed its text and tesseract its image, so neither does.
+    'offline-tts/vendor/espeak.js',
+    'tesseract/vendor/tesseract-core-simd-lstm.js'
+  ]);
   const offenders = [];
   let scanned = 0;
   for (const slug of fs.readdirSync(APPS)) {
     if (!fs.existsSync(path.join(APPS, slug, 'listing.json'))) continue;
     for (const file of walk(path.join(APPS, slug), [])) {
       const rel = path.relative(path.join(APPS, slug), file);
-      if (/(^|[\\/])vendor[\\/]/.test(rel)) continue; // upstream engines, not ours to rewrite
+      if (KNOWN_UNREACHABLE.has(slug + '/' + rel.split(path.sep).join('/'))) continue;
       const src = fs.readFileSync(file, 'utf8');
       let ast;
       try { ast = acorn.parse(src, { ecmaVersion: 'latest' }); }
@@ -104,7 +118,7 @@ if (!acorn) {
     }
   }
   check('the scan read the app trees', scanned > 200, scanned);
-  check('no app calls prompt() in its own code', offenders.length === 0, offenders);
+  check('nothing reachable calls prompt(), which the sandbox answers with null', offenders.length === 0, offenders);
 }
 
 if (failures) {

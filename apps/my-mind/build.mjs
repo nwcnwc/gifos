@@ -40,7 +40,7 @@ const pin = (rel, hex) => {
 
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
-pin('vendor/my-mind.js', '4f665de9666d0fd1ad9f5fc568b686354f35c7af9a35139fefc74ba205aaad73');
+pin('vendor/my-mind.js', '8a408302d55fe7b55273728c5967a54569ac106b87d366c5b1b5bd5c7ff33c6f');
 pin('vendor/my-mind.css', 'bf6038b3dd37f9b8178827c6f483ee0e6c3891b035076992b33f0db588be4682');
 
 for (const need of ['vendor/map-css.js', 'vendor/COPYING-my-mind.txt', 'vendor/UPSTREAM.txt', 'ls-stub.js', 'mp.js']) {

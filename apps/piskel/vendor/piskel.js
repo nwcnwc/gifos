@@ -24312,11 +24312,16 @@ return Q;
     } else if (el.classList.contains("layer-item-opacity")) {
       index = pskl.utils.Dom.getData(el, "layerIndex");
       var layer = this.piskelController.getLayerAt(parseInt(index, 10));
-      var opacity = window.prompt(
-        "Set layer opacity (value between 0 and 1)",
-        layer.getOpacity()
-      );
-      this.piskelController.setLayerOpacityAt(index, opacity);
+      // window.prompt returns NULL in an app frame without ever asking (no
+      // allow-modals), so this control did nothing. gifosAsk (boot.js) is the
+      // same question asked in the page; the answer arrives late.
+      var ctrl = this.piskelController;
+      var at = index;
+      window.gifosAsk("Set layer opacity (value between 0 and 1)", layer.getOpacity())
+        .then(function (opacity) {
+          if (opacity === null) { return; }
+          ctrl.setLayerOpacityAt(at, opacity);
+        });
     } else {
       var containingButton = el.closest(".button");
       if (containingButton && containingButton.classList.contains("button")) {
