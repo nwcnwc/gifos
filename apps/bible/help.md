@@ -83,3 +83,10 @@ Highlights, notes, voice notes and plans stay on this device, inside the app.
 There is no account and no cloud. **Save** keeps them with your copy of the
 app. Send that copy to someone and they open your Bible with the marks still
 in it.
+
+**Back up my data** (in Reading settings) writes everything yours — settings,
+highlights, notes, voice notes, reading plans — into one GIF file stamped
+DATA BACKUP, wearing this app's own animation so you can spot it in a folder.
+**Import** merges a backup in: records land by their place, and nothing that
+only exists on this device is deleted. The stamp is why you will never
+mistake the backup for the app itself.

@@ -16,7 +16,7 @@
 // new hash cannot drift from the manifest that pins it.
 //
 // Run: node apps/bible/build.mjs
-import { bibleIcon, screenshotPng } from './icon.mjs';
+import { bibleIcon, backupIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -128,7 +128,7 @@ const SCRIPTS = ['js/container.js', 'js/pack.js', 'js/render.js', 'js/library.js
                  'js/versify.js', 'js/store.js', 'js/catalog.js',
                  'js/packs-builtin.js', 'js/packs-sealed.js', 'js/helps.js', 'js/lexicon.js',
                  'js/apparatus.js', 'js/reader.js', 'js/reader2.js',
-                 'js/reader3.js', 'js/boot.js'];
+                 'js/reader3.js', 'js/backup.js', 'js/boot.js'];
 
 const files = {
   'manifest.json': JSON.stringify(manifest),
@@ -186,6 +186,18 @@ for (const id of BUILTIN) {
 
 const shot = screenshotPng();
 if (shot && shot[0] === 0x89) writeFileSync(join(dir, 'screenshot.png'), shot);
+
+// The backup host: this same animation stamped DATA BACKUP, packed as a file
+// so the running app can wrap an export around it (js/backup.js). gif.encode
+// always writes a GIFOS1.0 archive block; cutting that block out leaves a
+// plain animated GIF the OS will never mistake for an installable app.
+{
+  const stamped = await gif.encode({}, { preview: backupIcon(), accent: manifest.accent });
+  const span = gif.findAppExtSpan(stamped, gif.MARKER);
+  files['backup-host.gif'] = span
+    ? Buffer.concat([stamped.subarray(0, span.start), stamped.subarray(span.end)])
+    : stamped;
+}
 
 const bytes = await gif.encode(files, { preview: bibleIcon(), accent: manifest.accent });
 const out = join(root, 'site', 'apps', 'bible', 'bible.gif');
