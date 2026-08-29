@@ -533,6 +533,7 @@
 
     cam.x += (me.x - cam.x) * Math.min(1, dt * 8);
     cam.y += (me.y - cam.y) * Math.min(1, dt * 8);
+    clampCam();
 
     for (i = bullets.length - 1; i >= 0; i--) {
       b = bullets[i];
@@ -636,6 +637,25 @@
     var p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
     var m = [[v, t, p], [q, v, p], [p, v, t], [p, q, v], [t, p, v], [v, p, q]][i6];
     return 'rgb(' + ((m[0] * 255) | 0) + ',' + ((m[1] * 255) | 0) + ',' + ((m[2] * 255) | 0) + ')';
+  }
+
+  /*
+   * Hold the camera inside the dungeon.
+   *
+   * It followed the player with no bound, and draw() clamps its tile loop to
+   * the map, so standing anywhere near an edge put raw background on screen —
+   * measured at 1100x788 against a 40x28 tile map (1280x896 world px), a third
+   * of the frame was empty black to the right of the last column, with the
+   * player walking along the edge of nothing. On a viewport wider or taller
+   * than the world the camera centres on it instead, which is the only way a
+   * short window can avoid showing void on both sides at once.
+   */
+  function clampCam() {
+    var dpr = root.devicePixelRatio || 1;
+    var w = canvas.width / dpr, h = canvas.height / dpr;
+    var worldW = MAP_W * TILE, worldH = MAP_H * TILE;
+    cam.x = worldW <= w ? worldW / 2 : Math.max(w / 2, Math.min(worldW - w / 2, cam.x));
+    cam.y = worldH <= h ? worldH / 2 : Math.max(h / 2, Math.min(worldH - h / 2, cam.y));
   }
 
   function draw() {
@@ -924,7 +944,7 @@
         hue = root.Net.tintFor(id.id || 'local');
       }
       makeMe(name, hue);
-      cam.x = me.x; cam.y = me.y;
+      cam.x = me.x; cam.y = me.y; clampCam();
       if (root.Net && root.Net.count() > 1) { batsOn = false; monsters = []; }
       else spawnBats();
 
