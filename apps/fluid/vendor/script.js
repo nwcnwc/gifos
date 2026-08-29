@@ -31,7 +31,6 @@ function ga(){}
 // Simulation section
 
 const canvas = document.getElementsByTagName('canvas')[0];
-resizeCanvas();
 
 let config = window.FluidConfig = {
     SIM_RESOLUTION: 128,
@@ -193,6 +192,22 @@ function supportRenderTextureFormat (gl, internalFormat, format, type) {
     return status == gl.FRAMEBUFFER_COMPLETE;
 }
 
+function isMobile () {
+    return /Mobi|Android/i.test(navigator.userAgent);
+}
+
+// Everything from here down needs a WebGL context, and it is also where every
+// remaining function in this file is declared. Under 'use strict' a function
+// declaration inside a BLOCK is scoped to that block, so this guard has to open
+// ahead of the first of them. It used to open further down, which left startGUI
+// and captureScreenshot outside it with their calls to initFramebuffers and
+// updateKeywords unresolvable, and left the resizeCanvas() beside `const canvas`
+// calling a function that did not exist at that scope: the simulation threw a
+// ReferenceError on its first line, before `config` was ever assigned, and the
+// app painted a black rectangle. isMobile() is lifted above the guard instead,
+// because the prologue calls it while choosing the dye resolution.
+if (!window.FluidNoGL) {
+resizeCanvas();
 function startGUI () {
     var gui = new dat.GUI({ width: isMobile() ? 260 : 300 });
     window.FluidGUI = gui;
@@ -233,10 +248,6 @@ function startGUI () {
 
     if (isMobile())
         gui.close();
-}
-
-function isMobile () {
-    return /Mobi|Android/i.test(navigator.userAgent);
 }
 
 function captureScreenshot () {
@@ -306,7 +317,6 @@ function downloadURI (filename, uri) {
     document.body.removeChild(link);
 }
 
-if (!window.FluidNoGL) {
 class Material {
     constructor (vertexShader, fragmentShaderSource) {
         this.vertexShader = vertexShader;

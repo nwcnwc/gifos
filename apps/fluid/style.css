@@ -1,3 +1,9 @@
+/* `hidden` is a UA rule of display:none, and ANY author `display` outranks it.
+   .nogl below sets display:flex, so the no-WebGL panel — inset:0, opaque
+   #0a0c10, z-index 5 — was painted over the running simulation on every device
+   that does have WebGL, however hidden the attribute said it was. */
+[hidden] { display: none !important; }
+
 .hint {
   position: fixed;
   left: 12px;
