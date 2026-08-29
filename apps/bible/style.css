@@ -292,6 +292,10 @@ mark.hl-span[data-hl="under"]  { background: none; border-bottom: 2px solid var(
  * paints and still eats clicks. */
 [hidden] { display: none !important; }
 
+/* An armed two-tap confirm — see "Stop this plan" in reader3.js. window.confirm
+ * is ignored in an app frame, so the question is asked on the button itself. */
+.row-acts button.arm { color: #b3261e; border-color: #b3261e; font-weight: 600; }
+
 /* ---------- sheets ---------- */
 #scrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; }
 .sheet {
