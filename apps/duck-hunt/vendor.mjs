@@ -153,8 +153,13 @@ js = once(js, 'this.stage.hud.muteLink="mute (m)"', 'this.stage.hud.muteLink=""'
 js = once(js, 'this.stage.hud.fullscreenLink="fullscreen (f)"', 'this.stage.hud.fullscreenLink=""', 'fsHud');
 js = once(js, 'this.stage.hud.pauseLink=this.paused?"pause (p)":"unpause (p)"', 'this.stage.hud.pauseLink=""', 'pauseToggle');
 js = once(js, 'this.stage.hud.muteLink=this.muted?"mute (m)":"unmute (m)"', 'this.stage.hud.muteLink=""', 'muteToggle');
+// The whole ternary, not its tail: matching from the `?` branch left
+// `document.fullscreenElement?t.stage.hud.fullscreenLink=""` behind — a
+// conditional with no `:` arm, which is a SyntaxError, and a SyntaxError in
+// a 1.5 MB bundle means NOTHING in it runs. DuckHuntStart was never defined
+// and Play did nothing from 2026-08-24 until this was found.
 js = once(js,
-  't.stage.hud.fullscreenLink="unfullscreen (f)":t.stage.hud.fullscreenLink="fullscreen (f)"',
+  'document.fullscreenElement?t.stage.hud.fullscreenLink="unfullscreen (f)":t.stage.hud.fullscreenLink="fullscreen (f)"',
   't.stage.hud.fullscreenLink=""',
   'fsToggle');
 
