@@ -148,6 +148,23 @@ button.row-del svg { display: block; pointer-events: none; }
 .empty { color: var(--muted); padding: 1.2rem .9rem; }
 .gen { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; margin-top: .35rem; }
 .gen input[type=range] { width: 7rem; }
+/* window.confirm and window.prompt are ignored in an app frame (no
+   allow-modals), so anything they guarded was unreachable. This is the
+   in-page replacement — see ask() in app.js. */
+#ask {
+  position: fixed; inset: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, .55); padding: 1rem;
+}
+.ask-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 1rem 1.1rem; max-width: 26rem; width: 100%;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
+}
+.ask-card p { margin: 0 0 .8rem; }
+.ask-card input { display: block; width: 100%; margin-bottom: .9rem; }
+.ask-row { display: flex; gap: .5rem; justify-content: flex-end; }
+
 #toast {
   position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%);
   background: var(--accent); color: var(--accent-ink);
