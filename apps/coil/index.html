@@ -26,9 +26,12 @@ uniform float time;
 uniform sampler2D texture;
 uniform vec3 e0; uniform vec3 e1; uniform vec3 e2; uniform vec3 e3; uniform vec3 e4;
 uniform vec3 e5; uniform vec3 e6; uniform vec3 e7; uniform vec3 e8; uniform vec3 e9;
-float distance(vec2 p1, vec2 p2) {
-  float dx = p1.x-p2.x; float dy = p1.y-p2.y; return sqrt(dx*dx + dy*dy);
-}
+// GLSL ES already has distance(genType, genType), and redefining a built-in is
+// an error, not a shadow: ANGLE rejects the whole fragment shader with
+// "'distance' : built-in functions cannot be redefined". That took out the
+// glow-and-warp pass the orbs are drawn with — the app alerted "FS ERROR" and,
+// in the GifOS sandbox where alert() is ignored, failed silently. The built-in
+// computes the same length(p1 - p2), so the calls below need no change.
 float lightEffect(vec3 e, vec2 p) {
   if (e.z == 0.0) return 0.0;
   vec2 ep = -1.0 + 2.0 * e.xy / resolution.xy;
