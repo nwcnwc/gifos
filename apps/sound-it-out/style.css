@@ -24,7 +24,19 @@
   font-size: 16px;
 }
 
-html, body { height: 100%; }
+html, /* The app's messages. window.alert is ignored in an app frame, so say() in
+   ui.js puts the same words here instead. */
+#sio-toast {
+  position: fixed; left: 50%; bottom: max(1rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: min(30rem, calc(100vw - 2rem));
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: .6rem .9rem; font-size: .95rem; line-height: 1.35;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .55);
+  z-index: 90; text-align: center;
+}
+body { height: 100%; }
 body {
   background: var(--bg);
   color: var(--text);

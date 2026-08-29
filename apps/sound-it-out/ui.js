@@ -58,6 +58,28 @@
   async function saveSightWords() {
     await SIO.store.db('curriculum').put({ id: SIGHT_ID, words: state.sightWords });
   }
+  // window.alert DOES NOTHING in an app frame. The sandbox carries no
+  // allow-modals, so Chrome logs "Ignored call to 'alert()'" and returns
+  // without showing anything. Eight calls in this file were the app's only
+  // way of saying "recording needs GifOS", "the microphone follows the
+  // owner", "that did not work" — and every one of them was invisible.
+  // This is the replacement: a toast on the page, same words, same moments.
+  let toastTimer = 0;
+  function say(msg) {
+    let el = $('sio-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'sio-toast';
+      el.setAttribute('role', 'status');
+      el.hidden = true;
+      document.body.appendChild(el);
+    }
+    el.textContent = String(msg == null ? '' : msg);
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.hidden = true; }, 4200);
+  }
+
   // Apply the list to the curriculum, which is what actually changes what gets
   // sounded out. Called on load, on save, and whenever a peer changes it.
   function applySightWords() {
@@ -314,14 +336,14 @@
         const theme = SIO.frames.THEMES[state.prefs.theme] || SIO.frames.THEMES.night;
         openOverlay(SIO.player.openPlayer(plan, theme).close);
       } catch (e) {
-        alert(e && e.message || 'That did not work.');
+        say(e && e.message || 'That did not work.');
       }
     });
 
     $('btn-export').addEventListener('click', async () => {
       if (state.building) return;
       if (!SIO.exporter.supported()) {
-        alert('This browser cannot record video files. Playing on this screen still works.');
+        say('This browser cannot record video files. Playing on this screen still works.');
         return;
       }
       $('export-note').hidden = false;
@@ -340,7 +362,7 @@
         SIO.exporter.download(blob, `sound-it-out-${state.prefs.theme}.webm`);
         $('make-progress-text').textContent = 'Saved.';
       } catch (e) {
-        if (String(e && e.message) !== 'cancelled') alert(e && e.message || 'That did not work.');
+        if (String(e && e.message) !== 'cancelled') say(e && e.message || 'That did not work.');
       } finally {
         $('make-progress').hidden = true;
         $('btn-cancel-export').hidden = true;
@@ -420,9 +442,9 @@
   }
 
   function openStudio(items, onDone) {
-    if (!SIO.store.inGifOS()) { alert('Recording needs this app to be open inside GifOS.'); return; }
-    if (state.guest) { alert('Recording happens on the owner’s device — the microphone follows them, not the link.'); return; }
-    if (!items.length) { alert('Everything here is recorded. Use “Listen back & redo” to change one.'); return; }
+    if (!SIO.store.inGifOS()) { say('Recording needs this app to be open inside GifOS.'); return; }
+    if (state.guest) { say('Recording happens on the owner’s device — the microphone follows them, not the link.'); return; }
+    if (!items.length) { say('Everything here is recorded. Use “Listen back & redo” to change one.'); return; }
     studio.queue = items;
     studio.index = 0;
     studio.takes = [];
@@ -557,7 +579,7 @@
 
   // The walk-through for one entry: its unrecorded words, then the line.
   async function recordEntry(s) {
-    if (state.guest) { alert('Recording happens on the owner’s device — the microphone follows them, not the link.'); return; }
+    if (state.guest) { say('Recording happens on the owner’s device — the microphone follows them, not the link.'); return; }
     const done = await SIO.studio.doneMap();
     const items = SIO.library.walkthroughItems(s.text, new Set(done.keys()))
       .filter((it) => !done.has(SIO.studio.storageId(it)));
@@ -820,7 +842,7 @@
     });
     $('btn-backup').addEventListener('click', () => {
       if (window.gifos && window.gifos.save) window.gifos.save();
-      else alert('Open this app inside GifOS to save a backup.');
+      else say('Open this app inside GifOS to save a backup.');
     });
     $('sight-save').addEventListener('click', async () => {
       const words = SIO.curriculum.parseSightWords($('sight-input').value);
