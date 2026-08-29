@@ -373,7 +373,7 @@
           : escapeText(appName) + ' would like to…';
         bg.innerHTML = '<div class="perm-box"><h3>' + title + '</h3>' +
           launchBlock + capBlock() + handoffBlock() + netBlock +
-          '<p class="foot">You’re in control. It gets the <b>result</b> only — a clip, a photo, an answer — not your live camera, microphone, or keys. You can change this later from the app’s Abilities chip.</p>' +
+          '<p class="foot">You’re in control. The app only ever receives the finished thing — a photo you took, a clip you recorded, an answer from your AI. It can never watch through your camera, listen through your microphone, or get into your accounts. You can change any of this later with the <b>Abilities</b> button at the top of the app.</p>' +
           buttons + '</div>';
         doc.body.appendChild(bg);
         bg.addEventListener('change', function (ev) {
