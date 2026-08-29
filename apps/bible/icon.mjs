@@ -198,6 +198,74 @@ export function bibleIcon() {
   };
 }
 
+/* ---- the DATA BACKUP stamp ------------------------------------------------
+ * The backup GIF wears this same animation, but it must never be mistaken
+ * for the app: DATA BACKUP prints across every frame in bold red, with a
+ * one-pixel shadow so it reads on pages and cover alike. 5x7 capitals drawn
+ * as chunky blocks — a rubber stamp, not a caption. */
+const STAMP_RED = [211, 36, 30];
+const STAMP_SHADOW = [96, 12, 10];
+const STAMP_FONT = {
+  A: [0x0e, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11],
+  B: [0x1e, 0x11, 0x11, 0x1e, 0x11, 0x11, 0x1e],
+  C: [0x0e, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0e],
+  D: [0x1e, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1e],
+  K: [0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11],
+  P: [0x1e, 0x11, 0x11, 0x1e, 0x10, 0x10, 0x10],
+  T: [0x1f, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
+  U: [0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e],
+};
+function stampWord(idx, word, y0, scale, off, colorI) {
+  const cols = word.length * 6 - 1;
+  const x0 = Math.round((OUT - cols * scale) / 2);
+  for (let ci = 0; ci < word.length; ci++) {
+    const glyph = STAMP_FONT[word[ci]];
+    for (let gy = 0; gy < 7; gy++) {
+      for (let gx = 0; gx < 5; gx++) {
+        if (!((glyph[gy] >> (4 - gx)) & 1)) continue;
+        for (let dy = 0; dy < scale; dy++) {
+          for (let dx = 0; dx < scale; dx++) {
+            const px = x0 + (ci * 6 + gx) * scale + dx + off;
+            const py = y0 + gy * scale + dy + off;
+            if (px >= 0 && py >= 0 && px < OUT && py < OUT) idx[py * OUT + px] = colorI;
+          }
+        }
+      }
+    }
+  }
+}
+function stampOver(idx, redI, shadowI) {
+  // Shadows for both words first, then the red — so no letter's shadow ever
+  // lands on a neighbour's face.
+  stampWord(idx, 'DATA', 40, 3, 1, shadowI);
+  stampWord(idx, 'BACKUP', 67, 3, 1, shadowI);
+  stampWord(idx, 'DATA', 40, 3, 0, redI);
+  stampWord(idx, 'BACKUP', 67, 3, 0, redI);
+}
+
+export function backupIcon() {
+  const pal = buildPalette();
+  const redI = pal.length; pal.push(STAMP_RED);
+  const shadowI = pal.length; pal.push(STAMP_SHADOW);
+  const frames = [];
+  for (let f = 0; f < FRAMES; f++) {
+    const idx = frameIndices(pal, f);
+    stampOver(idx, redI, shadowI);
+    frames.push(idx);
+  }
+  const CT = 64;
+  const flat = new Array(CT * 3).fill(0);
+  for (let i = 0; i < pal.length && i < CT; i++) {
+    flat[i * 3] = pal[i][0] | 0;
+    flat[i * 3 + 1] = pal[i][1] | 0;
+    flat[i * 3 + 2] = pal[i][2] | 0;
+  }
+  return {
+    width: OUT, height: OUT, palette: flat, numColors: CT,
+    minCodeSize: 6, frames, delayCs: 12, transparentIndex: 0
+  };
+}
+
 // The cover is a REAL capture of the running app, retaken by the gauntlet;
 // this build never overwrites it with a drawing.
 export function screenshotPng() { return null; }

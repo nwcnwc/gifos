@@ -122,6 +122,17 @@
     aboutBtn.addEventListener('click', function () { self.openAbout(); });
     aboutRow.appendChild(aboutBtn);
 
+    // The reader's own data, out of the app and back in — one stamped GIF.
+    var bakRow = row('Back up my data', 'Settings, highlights, notes, voice notes and reading plans in one GIF file, stamped DATA BACKUP. Restore merges a backup in; nothing of yours is deleted.');
+    var expBtn = el('button', 'link', 'Export');
+    expBtn.type = 'button';
+    expBtn.addEventListener('click', function () { root.GifosBibleBackup.exportAll(self); });
+    bakRow.appendChild(expBtn);
+    var impBtn = el('button', 'link', 'Import');
+    impBtn.type = 'button';
+    impBtn.addEventListener('click', function () { root.GifosBibleBackup.importPick(self); });
+    bakRow.appendChild(impBtn);
+
     this.openSheet('sheet-more');
   };
 
