@@ -497,43 +497,14 @@
   // which is exactly what makes it a family act rather than distribution.
   const PENDING_KEY = 'gifos_pay_pending';   // fileIds awaiting desktop placement
 
-  function receiptViewerHtml(receipt, sheetData, appName) {
-    const esc2 = esc; // the sheet's escaper — receipt fields are data, not markup
-    const row = (k, v) => '<div class="r"><span>' + esc2(k) + '</span><b>' + esc2(v) + '</b></div>';
-    return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
-      '<title>GifOS Receipt</title><style>' +
-      'body{font:15px/1.55 system-ui,-apple-system,sans-serif;background:#14141f;color:#e8e8f4;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:1rem}' +
-      'main{max-width:22rem;width:100%;background:#0e0e17;border:1px solid #23233a;border-radius:.8rem;padding:1.1rem 1.2rem}' +
-      'h1{font-size:1.1rem;margin:0 0 .2rem}.sub{color:#9a9ab5;font-size:.82rem;margin:0 0 .9rem}' +
-      '.r{display:flex;justify-content:space-between;gap:.8rem;margin:.3rem 0;font-size:.9rem}.r span{color:#9a9ab5}' +
-      '.r b{text-align:right;word-break:break-all;font-weight:600}' +
-      '.foot{color:#9a9ab5;font-size:.78rem;margin-top:.9rem;border-top:1px solid #23233a;padding-top:.7rem}' +
-      '</style></head><body><main>' +
-      '<h1>🧾 ' + esc2(appName || receipt.appId || '') + '</h1>' +
-      '<p class="sub">' + (receipt.sku ? 'Purchase — unlocks <b>' + esc2(receipt.sku) + '</b>' : 'Tip — thank you!') + '</p>' +
-      row('Amount', fmtUsd(receipt.amount)) +
-      row('Paid', { paypal: 'by PayPal', x402: 'in USDC (Base Sepolia)', transfer: 'in USDC (wallet transfer)', fednow: 'by bank transfer (FedNow)' }[receipt.rail] || String(receipt.rail || '')) +
-      (sheetData && sheetData.payingTo ? row('To', sheetData.payingTo) : '') +
-      row('When', receipt.at ? new Date(receipt.at).toLocaleString() : '') +
-      row('Transaction', String(receipt.tx || '')) +
-      '<p class="foot">This file IS the proof: it carries a receipt signed by gifos.app, and opening it on any GifOS computer verifies the signature and registers the purchase there. Sharing it shares your license — the app treats whoever holds this receipt as the same buyer (same saves, same identity). Keep it with your backups.</p>' +
-      '</main></body></html>';
-  }
-
+  // The file's contents come from ONE builder (gifos-charge.js receiptFile)
+  // shared with the pay Worker, which packs the same file for an agent's
+  // purchase — the Worker's signed strings go in VERBATIM either way.
   async function mintReceiptFile(paid, request, sheetData, appName) {
-    const r = paid.receipt;
-    const label = 'Receipt — ' + (appName || r.appId) + (r.sku ? ' — ' + r.sku : ' — tip');
-    const files = {
-      'manifest.json': JSON.stringify({
-        gifos: '1.0', appId: 'gifos-receipt', name: label, entry: 'index.html',
-        receipt: true,                     // the mount hook's cue to ingest
-        accent: [255, 196, 57],
-      }),
-      // The Worker's signed strings VERBATIM — verification is byte-exact,
-      // so nothing may reformat them.
-      'receipt.json': JSON.stringify({ receiptJson: paid.receiptJson, sig: paid.sig }),
-      'index.html': receiptViewerHtml(r, sheetData, appName),
-    };
+    const { label, files } = GifOS.charge.receiptFile(paid.receipt, paid.receiptJson, paid.sig, {
+      appName: appName || paid.receipt.appId,
+      payingTo: sheetData && sheetData.payingTo,
+    });
     const bytes = await GifOS.gif.encode(files, { accent: [255, 196, 57] });
     const fileId = GifOS.store.uid('file');
     await GifOS.store.putFile({ id: fileId, name: label + '.gif', bytes, kind: 'gif', isApp: true, appId: 'gifos-receipt', mime: 'image/gif' });

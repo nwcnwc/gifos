@@ -473,6 +473,38 @@ mark.hl-span[data-hl="under"]  { background: none; border-bottom: 2px solid var(
   .col { padding: 1.75rem 1.6rem 30vh 1.6rem; }
 }
 
+/* ---------- the study panel, beside the text ----------
+ * Everything a verse opens — the marks, the notes, the commentary, the
+ * cross references, a dictionary entry — comes through #sheet-verse. On a
+ * phone that is a bottom sheet, and on a laptop it used to be a centred
+ * dialog sat on top of the very chapter it was talking about, behind a scrim,
+ * with a screen's worth of empty margin either side. From 900px it docks
+ * instead: the body becomes a grid, the text keeps its column on the left and
+ * the panel takes the right, no scrim, so the passage and what is said about
+ * it are read together and the text still scrolls under the mouse. body.docked
+ * is set by openSheet() only while this one sheet is open; the pickers
+ * (books, translations, search, settings) stay dialogs, because they are
+ * chosen from and dismissed, not read. */
+@media (min-width: 900px) {
+  body.docked {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(20rem, 34%, 30rem);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "bar bar" "follow follow" "page dock" "foot foot";
+  }
+  body.docked #bar { grid-area: bar; }
+  body.docked #follow { grid-area: follow; }
+  body.docked #page { grid-area: page; min-height: 0; }
+  body.docked #foot { grid-area: foot; }
+  body.docked #scrim { display: none !important; }
+  body.docked #sheet-verse {
+    grid-area: dock; min-height: 0;
+    position: static; transform: none; width: auto; max-height: none;
+    border: 0; border-left: 1px solid var(--rule); border-radius: 0;
+    animation: none;
+  }
+}
+
 /* right-to-left texts set themselves; the chrome stays as it is */
 .col[dir="rtl"] .chapter { text-align: right; }
 .col[dir="rtl"] .b-q { padding-left: 0; padding-right: 1.2em; text-indent: 0; }

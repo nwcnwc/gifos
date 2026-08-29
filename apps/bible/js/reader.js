@@ -359,6 +359,8 @@
   Reader.prototype.openSheet = function (id) {
     this.closeSheets();
     document.getElementById('scrim').hidden = false;
+    // The verse sheet docks beside the text on a wide screen (style.css).
+    document.body.classList.toggle('docked', id === 'sheet-verse');
     var s = document.getElementById(id);
     s.hidden = false;
     this._sheets.push(id);
@@ -374,6 +376,7 @@
   Reader.prototype.closeSheets = function () {
     this.hideHighlightBar();
     document.getElementById('scrim').hidden = true;
+    document.body.classList.remove('docked');
     var sheets = document.querySelectorAll('.sheet');
     for (var i = 0; i < sheets.length; i++) sheets[i].hidden = true;
     this._sheets = [];

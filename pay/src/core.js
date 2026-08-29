@@ -21,6 +21,17 @@
  *                       no public API): create a Request-for-Payment the
  *                       buyer approves in their own banking app;
  *                       /fednow/receipt/:id polls it to the same receipt
+ *   GET|POST /mpp/charge/:appId?sku=&amount=
+ *                       the AGENT rail — Machine Payments Protocol (HTTP
+ *                       402, mpp.dev), the wire Stripe's Link agent wallet
+ *                       speaks (link.com/agents): a 402 challenge, then a
+ *                       Shared Payment Token back, settled as a Stripe
+ *                       Connect destination charge to the author's
+ *                       connected account with the 3% as the platform's
+ *                       application fee; same signed receipt
+ *   POST /receipt/file  package a signed receipt as the receipt GIF the OS
+ *                       opens (verified first) — how an agent's purchase
+ *                       reaches the human's Purchases folder
  *
  * STATELESS by design — no KV, no Durable Object, no database. Everything a
  * receipt needs rides inside the PayPal order itself (custom_id carries
@@ -42,14 +53,18 @@
  * fetch, WebCrypto and configuration; nothing here touches either directly.
  */
 import '../../site/js/gifos-charge.js'; // attaches globalThis.GifOS.charge
+import '../../site/js/gifos-gif.js';    // attaches globalThis.GifOS.gif — pure, so it packs receipt files here too
+import { makeMpp } from './mpp.js';
 const CHARGE = globalThis.GifOS.charge;
+const GIF = globalThis.GifOS.gif;
 
 const CENT = 10000n; // USDC base units (6 dp) per whole cent
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Expose-Headers': 'WWW-Authenticate, Payment-Receipt',
 };
 const json = (obj, status) => new Response(JSON.stringify(obj), {
   status: status || 200,
@@ -515,6 +530,151 @@ export function makeCore(cfg) {
     return json({ status: 'COMPLETED', receiptJson, sig });
   }
 
+  // ---- the AGENT rail: MPP + a Stripe Shared Payment Token ------------------
+  // An agent (Claude, OpenClaw, anything running link.com/agents' Link CLI)
+  // cannot click a PayPal window, but it can answer an HTTP 402. This is the
+  // Machine Payments Protocol endpoint: no credential -> a `WWW-Authenticate:
+  // Payment … method="stripe"` challenge naming the price and OUR Stripe
+  // profile; the wallet asks the HUMAN to approve in the Link app (that is
+  // the consent step — theirs, not ours, exactly as the FedNow approval is
+  // the bank's); a Shared Payment Token comes back; we consume it as a
+  // Connect DESTINATION charge to the author's connected account with the
+  // 3% as application_fee_amount. The author is still seller of record and
+  // GifOS still holds nothing (docs/payments.md §FIVE RAILS).
+  //
+  // Stateless like every other rail: the challenge id is an HMAC over the
+  // challenge itself (mpp.js), and the route — appId, sku, amount — is the
+  // authority for what is being bought; a credential must echo a challenge
+  // for exactly this URL's purchase. Replay: Stripe's Idempotency-Key makes
+  // a second use of the same credential return the SAME intent marked
+  // `idempotent-replayed`, which we refuse — the hole mppx shipped with.
+  const MPP = makeMpp({ subtle });
+  const STRIPE_VERSION = '2026-07-29.preview';   // SPTs are preview API surface
+  const STRIPE_MIN_CENTS = 50n;                  // Stripe's card minimum
+
+  async function mppCharge(req, url) {
+    const appId = decodeURIComponent(url.pathname.slice('/mpp/charge/'.length));
+    // A human who followed the link: this is a machine endpoint, say so.
+    if (/text\/html/.test(req.headers.get('Accept') || '') && !req.headers.get('Authorization')) {
+      return html('<div style="font:16px system-ui;max-width:32rem;margin:3rem auto"><h2>This is the agent checkout for “' + appId.replace(/[&<>"]/g, '') + '”</h2>' +
+        '<p>It speaks the Machine Payments Protocol (HTTP 402) for AI agents paying with a Stripe Link wallet. To buy as a person, open the app in <a href="https://gifos.app">GifOS</a> and pay there.</p></div>', 402);
+    }
+    if (!cfg.stripeKey || !cfg.stripeProfileId || !cfg.mppSecret) return bad('the agent (MPP) rail is not configured on this deployment', 501);
+    if (!/^[\w.\-]{1,64}$/.test(appId)) return bad('bad appId');
+    const amount = url.searchParams.get('amount') || '';
+    if (!/^[0-9]+$/.test(amount)) return bad('amount must be a decimal integer string of base units ($1 = 1000000)');
+    let value; try { value = usdValue(amount); } catch (e) { return bad(e.message); }
+    const cents = BigInt(amount) / CENT;
+    if (cents < STRIPE_MIN_CENTS) return bad('Stripe takes nothing under $0.50 on this rail — $' + value + ' is too small; the USDC rails have no minimum');
+    const skuRaw = url.searchParams.get('sku');
+    const sku = skuRaw == null || skuRaw === '' ? null : String(skuRaw).slice(0, 64);
+    const reason = String(url.searchParams.get('reason') || '').slice(0, 140);
+    let app, identity;
+    try { ({ app, identity } = await identityFor(appId)); } catch (e) { return bad(String(e.message || e), 403); }
+    // Onboarded authors only: a destination charge needs a connected account,
+    // and that mapping is the platform's record (like FEDNOW_PAYEES), never
+    // a client value. Absent -> a plain refusal naming the way back.
+    const acct = (cfg.stripePayees || {})[identity.id];
+    if (!acct) return bad('"' + identity.id + '" is not onboarded for the agent rail — the author connects a Stripe account at gifos.app/pay (the PayPal and USDC rails need no onboarding)', 403);
+
+    const realm = url.host;
+    // The bound request: everything a wallet needs, derived from the ROUTE
+    // (not from the reason text, so a free-text query cannot change what
+    // the binding covers). Amount is CENTS AS A STRING on this wire.
+    const request = {
+      amount: String(cents), currency: 'usd',
+      description: 'GifOS: ' + (app.name || appId) + (sku ? ' / ' + sku : ' / tip'),
+      externalId: JSON.stringify({ a: appId, s: sku, u: amount }),
+      methodDetails: { networkId: cfg.stripeProfileId, paymentMethodTypes: ['card', 'link'] },
+    };
+    const fresh = async () => MPP.serializeChallenge(await MPP.challenge({ secret: cfg.mppSecret, realm, request, description: reason || request.description }));
+    // Every not-yet-paid answer is a 402 WITH a fresh challenge (the spec's
+    // table): plain when nothing was sent, a problem+json body when a
+    // credential was sent and failed.
+    const challenge = async (problem, detail) => new Response(
+      JSON.stringify(problem ? { type: problem, title: MPP.PROBLEMS[problem], detail, status: 402 } : { status: 402, error: 'payment required — answer the WWW-Authenticate: Payment challenge (link-cli mpp pay <this url>)' }),
+      { status: 402, headers: Object.assign({ 'Content-Type': problem ? 'application/problem+json' : 'application/json', 'Cache-Control': 'no-store', 'WWW-Authenticate': await fresh() }, CORS) });
+
+    const auth = req.headers.get('Authorization');
+    if (!auth) return challenge(null);
+    let cred, bound;
+    try {
+      cred = MPP.parseCredential(auth);
+      bound = await MPP.verifyCredential(cred, { secret: cfg.mppSecret, realm });
+    } catch (e) { return challenge(e.type || 'verification-failed', e.message); }
+    // The HMAC proved WE issued it; this proves it was for THIS purchase.
+    if (MPP.encodeRequest(bound) !== MPP.encodeRequest(request)) return challenge('invalid-challenge', 'the credential answers a different charge than this URL names');
+    const spt = cred.payload.spt;
+    if (typeof spt !== 'string' || !/^spt_[A-Za-z0-9_]{1,200}$/.test(spt)) return challenge('malformed-credential', 'the payload carries no shared payment token');
+
+    const feeCents = (cents * BigInt(cfg.feeBps)) / 10000n;
+    const form = new URLSearchParams({
+      amount: String(cents), currency: 'usd', confirm: 'true',
+      'automatic_payment_methods[enabled]': 'true',
+      'automatic_payment_methods[allow_redirects]': 'never',
+      shared_payment_granted_token: spt,
+      'transfer_data[destination]': acct,
+      application_fee_amount: String(feeCents),
+      'metadata[gifos_app]': appId,
+      'metadata[gifos_sku]': sku || '',
+      'metadata[machine_payment]': 'true',
+    });
+    const r = await F(cfg.stripeApi + '/v1/payment_intents', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Basic ' + btoa(cfg.stripeKey + ':'),
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Idempotency-Key': 'mpp_' + cred.challenge.id + '_' + spt,
+        'Stripe-Version': STRIPE_VERSION,
+      },
+      body: form.toString(),
+    });
+    const text = await r.text();
+    let pi = null; try { pi = JSON.parse(text); } catch (e) {}
+    if (!r.ok) return challenge('verification-failed', 'Stripe refused the payment: ' + ((pi && pi.error && pi.error.message) || text.slice(0, 200)));
+    if (r.headers.get('idempotent-replayed') === 'true') return challenge('invalid-challenge', 'this credential was already used — a replay, not a payment');
+    if (!pi || pi.status !== 'succeeded') return challenge('verification-failed', 'Stripe did not settle the payment (status ' + (pi && pi.status) + ')');
+
+    const at = Date.now();
+    const { receiptJson, sig } = await signedReceipt({
+      rail: 'mpp', appId, sku, amount, payee: acct, tx: pi.id, at,
+    });
+    return new Response(JSON.stringify({
+      status: 'COMPLETED', receiptJson, sig,
+      // How the purchase reaches the human: package it as the receipt FILE
+      // and hand it to them — opening it in any GifOS grants the entitlement.
+      file: { url: cfg.returnBase + '/receipt/file', method: 'POST', body: { receiptJson, sig } },
+    }), {
+      status: 200,
+      headers: Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Payment-Receipt': MPP.receiptHeader({ reference: pi.id, externalId: request.externalId, now: at }) }, CORS),
+    });
+  }
+
+  // ---- the receipt as a FILE, packed here -----------------------------------
+  // The OS mints receipt GIFs itself after a browser purchase; an agent has
+  // no OS page, so the Worker packs the same file — the SAME builder
+  // (gifos-charge.js receiptFile) and the SAME codec. Verified first: a
+  // receipt that does not verify against this deployment's key is refused,
+  // so this can never launder a forged receipt into a real-looking file.
+  async function receiptFile(req) {
+    let body; try { body = await req.json(); } catch (e) { return bad('body must be JSON'); }
+    if (typeof body.receiptJson !== 'string' || typeof body.sig !== 'string') return bad('needs {receiptJson, sig} — the signed receipt, verbatim');
+    if (!cfg.signKey.publicKey) return bad('this deployment cannot verify receipts', 501);
+    let sigBytes; try { sigBytes = Uint8Array.from(atob(body.sig), (c) => c.charCodeAt(0)); } catch (e) { return bad('sig is not base64'); }
+    const ok = await subtle.verify('Ed25519', cfg.signKey.publicKey, sigBytes, new TextEncoder().encode(body.receiptJson));
+    if (!ok) return bad('the receipt does not verify against this deployment\'s key — refusing to package it', 403);
+    let receipt; try { receipt = JSON.parse(body.receiptJson); } catch (e) { return bad('receiptJson is not JSON'); }
+    if (!receipt || receipt.kind !== 'gifos-pay-receipt') return bad('not a GifOS pay receipt', 403);
+    let appName = receipt.appId, payingTo = null;
+    try { const { app, identity } = await identityFor(receipt.appId); appName = app.name || appName; payingTo = identity.id; } catch (e) {}
+    const { label, files } = CHARGE.receiptFile(receipt, body.receiptJson, body.sig, { appName, payingTo });
+    const bytes = await GIF.encode(files, { accent: [255, 196, 57] });
+    return new Response(bytes, {
+      status: 200,
+      headers: Object.assign({ 'Content-Type': 'image/gif', 'Content-Disposition': 'attachment; filename="' + label.replace(/[^\w.\- ]+/g, '_') + '.gif"' }, CORS),
+    });
+  }
+
   return async function handle(req) {
     const url = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -527,6 +687,8 @@ export function makeCore(cfg) {
     if (req.method === 'POST' && url.pathname === '/transfer/receipt') return transferReceipt(req);
     if (req.method === 'POST' && url.pathname === '/fednow/rfp') return fednowRfp(req);
     if (req.method === 'GET' && url.pathname.startsWith('/fednow/receipt/')) return fednowReceipt(decodeURIComponent(url.pathname.slice('/fednow/receipt/'.length)));
+    if ((req.method === 'GET' || req.method === 'POST') && url.pathname.startsWith('/mpp/charge/')) return mppCharge(req, url);
+    if (req.method === 'POST' && url.pathname === '/receipt/file') return receiptFile(req);
     if (req.method === 'GET' && url.pathname === '/health') return json({ ok: true, mode: cfg.paypalBase.includes('sandbox') || cfg.paypalBase.includes('127.0.0.1') || cfg.paypalBase.includes('localhost') ? 'test' : 'LIVE' });
     return bad('no such endpoint', 404);
   };

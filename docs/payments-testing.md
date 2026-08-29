@@ -13,8 +13,11 @@ into a networked one. Payments will not repeat it.
 ## Tier 1 — pure unit (no network, no chain, no wallet)
 
 `test/unit/x402-wire.js`, `test/unit/pay-encoding.js` — and, added since:
-`charge-gate.js`, `charge-signed-payee.js`, `purse.js`, `cash-link.js`. All
-run in the normal unit tier, in Node, in milliseconds.
+`charge-gate.js`, `charge-signed-payee.js`, `purse.js`, `cash-link.js`,
+`mpp-wire.js` (the Machine Payments Protocol wire: JCS, the HMAC challenge
+binding slot for slot, and every credential refusal — edited amount,
+edited expiry, forged id, other realm, other secret, stale, malformed).
+All run in the normal unit tier, in Node, in milliseconds.
 
 Proves: the wire format parses; **every refusal fires** (mainnet quote, unknown
 token, over-ceiling, no-ceiling, bad scheme, non-address payee, non-integer
@@ -31,12 +34,15 @@ It spawns its own fixtures — `fake-paypal.js` (8795), `pay-local.js` (8796 —
 the SAME `pay/src/core.js` the Cloudflare Worker runs, signing receipts with
 a throwaway key served at `/test-pubkey`), `fake-facilitator.js` (8797), a
 test catalog (8798), `fake-chain.js` (8799 — read-only Base Sepolia RPC with
-a wallet-send test hook) and `fake-fednow.js` (8800 — the provider; approval
-is a test hook because the real one happens in a bank's own app) — signs an app in-browser with a fresh domain key, and
+a wallet-send test hook), `fake-fednow.js` (8800 — the provider; approval
+is a test hook because the real one happens in a bank's own app) and
+`fake-stripe.js` (8801 — PaymentIntents as far as the agent rail uses them:
+the Shared Payment Token test helper, one-use tokens, and Stripe's
+`idempotent-replayed` answer, which the replay check depends on) — signs an app in-browser with a fresh domain key, and
 walks the whole surface: acknowledgement, sheet, PayPal approval window,
 capture, signed receipt verified against the (route-intercepted) site key,
 entitlement, ledger, the x402 97/3 two-transfer settle via a stub wallet,
-the refusals (unsigned, double-buy, over-ceiling, decline), the receipt-file lifecycle — mint, lazy Purchases folder, the fresh-computer restore-by-opening — and all FOUR rails: PayPal, x402, the dust-unique wallet transfer (wrong amount never claimed), the FedNow RfP against the registered account, and the rails REGISTRY (unregistered and expired identities refused the fee-free rails plainly; current ones served). 36 checks.
+the refusals (unsigned, double-buy, over-ceiling, decline), the receipt-file lifecycle — mint, lazy Purchases folder, the fresh-computer restore-by-opening — and all FOUR rails: PayPal, x402, the dust-unique wallet transfer (wrong amount never claimed), the FedNow RfP against the registered account, and the rails REGISTRY (unregistered and expired identities refused the fee-free rails plainly; current ones served). Then the AGENT rail with no browser at all — an MPP client does what `link-cli mpp pay` does: 402, decode, token, credential, settle as a destination charge with the 3% fee — and its refusals (replay, edited amount, wrong purchase, malformed, not onboarded, under the minimum), the Worker-packed receipt file, and that file restoring the entitlement on a fresh computer. 53 checks.
 
 The paragraph below was the spec it was built to; kept for the parts
 (hostile quotes on the buying direction) not yet exercised. `test/servers/fake-x402.js` plays a paid

@@ -26,6 +26,7 @@ const FACILITATOR_URL = process.env.FACILITATOR_URL || 'http://127.0.0.1:8797';
 const BASE_RPC = process.env.BASE_RPC || 'http://127.0.0.1:8799/rpc';
 const FEDNOW_API = process.env.FEDNOW_API || 'http://127.0.0.1:8800';
 const REGISTRY_URL = process.env.REGISTRY_URL || 'http://127.0.0.1:8099/pay/registry.json';
+const STRIPE_API = process.env.STRIPE_API || 'http://127.0.0.1:8801';
 
 (async () => {
   const { makeCore } = await import('../../pay/src/core.js');
@@ -49,6 +50,13 @@ const REGISTRY_URL = process.env.REGISTRY_URL || 'http://127.0.0.1:8099/pay/regi
     fednowKey: null,
     fednowPayees: { 'gifos.app': 'ACCT-GIFOS', 'paytest.example.com': 'ACCT-PAYTEST' },
     registryUrl: REGISTRY_URL,
+    // The agent rail against fake-stripe: the platform's test key and
+    // profile, and the test seller onboarded as a connected account.
+    stripeApi: STRIPE_API,
+    stripeKey: 'sk_test_fake',
+    stripeProfileId: 'profile_test_gifos',
+    stripePayees: { 'gifos.app': 'acct_test_gifos', 'paytest.example.com': 'acct_test_paytest' },
+    mppSecret: 'test-mpp-secret',
     signKey: { privateKey: kp.privateKey, publicKey: kp.publicKey },
   });
 

@@ -20,6 +20,17 @@
  *   FEDNOW_PAYEES          JSON: signing identity -> provider account id
  *   REGISTRY_URL           the rails registry (site/pay/registry.json) — the
  *                          fee-free rails refuse identities not on it
+ *   STRIPE_API             (optional) https://api.stripe.com — the AGENT rail
+ *                          (MPP + Shared Payment Tokens); absent key -> 501
+ *   STRIPE_SECRET_KEY      (secret) the PLATFORM's key — sk_test_ until the
+ *                          mainnet flag day, like PayPal's sandbox
+ *   STRIPE_PROFILE_ID      the platform's Stripe profile (profile_…): the
+ *                          networkId agents' wallets scope their tokens to
+ *   STRIPE_PAYEES          JSON: signing identity -> connected account
+ *                          (acct_…) — authors onboarded for destination
+ *                          charges; everyone else gets a plain refusal
+ *   MPP_SECRET             (secret, optional) HMAC key binding MPP challenge
+ *                          ids; derived from STRIPE_SECRET_KEY when unset
  *   GIFOS_PAY_SIGN_JWK     Ed25519 private key as a JWK JSON string (wrangler
  *                          secret; its PUBLIC half must be site/gifos.key —
  *                          receipts verify against the site's published key)
@@ -50,6 +61,12 @@ async function init(env) {
     fednowKey: env.FEDNOW_KEY || null,
     fednowPayees: env.FEDNOW_PAYEES ? JSON.parse(env.FEDNOW_PAYEES) : {},
     registryUrl: env.REGISTRY_URL || null,
+    stripeApi: env.STRIPE_API || 'https://api.stripe.com',
+    stripeKey: env.STRIPE_SECRET_KEY || null,
+    stripeProfileId: env.STRIPE_PROFILE_ID || null,
+    stripePayees: env.STRIPE_PAYEES ? JSON.parse(env.STRIPE_PAYEES) : {},
+    // Same derivation as Stripe's own MPP sample, so one secret serves both.
+    mppSecret: env.MPP_SECRET || (env.STRIPE_SECRET_KEY ? 'mpp-challenge-signing:' + env.STRIPE_SECRET_KEY : null),
     signKey: { privateKey, publicKey },
   });
 }
