@@ -39,6 +39,41 @@
     clearTimeout(toast._t);
     toast._t = setTimeout(function () { el.hidden = true; }, 1600);
   }
+  // window.confirm and window.prompt DO NOTHING in an app frame. The sandbox
+  // carries no allow-modals, so Chrome logs "Ignored call to 'confirm()'" and
+  // returns FALSE (prompt returns null) without ever asking. Every action
+  // guarded by one was therefore unreachable: an entry could not be deleted,
+  // a group could not be named, and a vault could not be replaced or
+  // imported once one existed — the guard always said no. This is the
+  // in-page ask; #ask in index.html is its markup.
+  //
+  //   ask('Delete this?')                  -> Promise<boolean>
+  //   ask('Group name', 'New group')       -> Promise<string|null>
+  function ask(text, initial) {
+    var box = $('ask'), input = $('ask-input');
+    var wantsText = arguments.length > 1;
+    $('ask-text').textContent = text;
+    input.hidden = !wantsText;
+    input.value = wantsText ? (initial == null ? '' : String(initial)) : '';
+    box.hidden = false;
+    if (wantsText) { input.focus(); input.select(); } else $('ask-ok').focus();
+    return new Promise(function (resolve) {
+      function done(v) {
+        box.hidden = true;
+        $('ask-ok').onclick = null;
+        $('ask-cancel').onclick = null;
+        box.onkeydown = null;
+        resolve(v);
+      }
+      $('ask-ok').onclick = function () { done(wantsText ? (input.value.trim() || null) : true); };
+      $('ask-cancel').onclick = function () { done(wantsText ? null : false); };
+      box.onkeydown = function (e) {
+        if (e.key === 'Escape') { e.preventDefault(); done(wantsText ? null : false); }
+        else if (e.key === 'Enter' && wantsText) { e.preventDefault(); $('ask-ok').onclick(); }
+      };
+    });
+  }
+
   function setMsg(id, msg, kind) {
     var el = $(id);
     if (!el) return;
@@ -452,11 +487,13 @@
       toast('Entry saved');
     };
     $('d-del').onclick = function () {
-      if (!confirm('Move this entry to the Recycle Bin?')) return;
-      kdbx.remove(entry);
-      entryId = '';
-      persist();
-      render();
+      ask('Move this entry to the Recycle Bin?').then(function (yes) {
+        if (!yes) return;
+        kdbx.remove(entry);
+        entryId = '';
+        persist();
+        render();
+      });
     };
     $('d-title').oninput = function () {
       var h = $('d-title-h');
@@ -477,12 +514,13 @@
   function newGroup() {
     var parent = findGroup(groupId) || defaultGroup();
     if (!parent || isRecycle(parent)) parent = defaultGroup();
-    var name = prompt('Group name', 'New group');
-    if (!name) return;
-    var g = kdbx.createGroup(parent, name);
-    groupId = uidOf(g);
-    persist();
-    render();
+    ask('Group name', 'New group').then(function (name) {
+      if (!name) return;
+      var g = kdbx.createGroup(parent, name);
+      groupId = uidOf(g);
+      persist();
+      render();
+    });
   }
 
   function exportKdbx() {
@@ -524,7 +562,13 @@
     var a = $('pw-new').value || '', b = $('pw-new2').value || '';
     if (a.length < 8) { setMsg('create-status', 'Use at least 8 characters.', 'warn'); return; }
     if (a !== b) { setMsg('create-status', 'Passwords do not match.', 'warn'); return; }
-    if (stored && stored.b64 && !confirm('Replace the vault on this device? The old file is gone unless you exported it.')) return;
+    var guard = (stored && stored.b64)
+      ? ask('Replace the vault on this device? The old file is gone unless you exported it.')
+      : Promise.resolve(true);
+    guard.then(function (yes) { if (yes) reallyCreateVault(name, a); });
+  }
+
+  function reallyCreateVault(name, a) {
     setMsg('create-status', 'Creating…');
     withBusy(function () {
       return readKey($('key-new')).then(function (keyAb) {
@@ -551,7 +595,13 @@
     if (!importBuf) { setMsg('import-status', 'Choose a .kdbx file.', 'warn'); return; }
     var pw = $('pw-import').value || '';
     if (!pw) { setMsg('import-status', 'Enter the master password.', 'warn'); return; }
-    if (stored && stored.b64 && !confirm('Replace the vault on this device with this file?')) return;
+    var guard = (stored && stored.b64)
+      ? ask('Replace the vault on this device with this file?')
+      : Promise.resolve(true);
+    guard.then(function (yes) { if (yes) reallyImportVault(pw); });
+  }
+
+  function reallyImportVault(pw) {
     setMsg('import-status', 'Opening…');
     withBusy(function () {
       return readKey($('key-import')).then(function (keyAb) {
