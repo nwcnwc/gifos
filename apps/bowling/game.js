@@ -451,12 +451,33 @@
   /* paint — looking down the lane from behind the ball                  */
   /* ------------------------------------------------------------------ */
 
+  /*
+   * The camera. The floor's vanishing line is `horizon`, and everything on the
+   * floor is drawn below it — so the horizon decides how much of the frame the
+   * alley gets, and the focal length decides where the foul line lands.
+   *
+   * It used to be `H * 0.70` with `f = min(W, H) * 1.12`. That put the
+   * vanishing line seven tenths of the way down the frame and threw the foul
+   * line far below the bottom of it: measured at 1100x790, the pins landed at
+   * y = 714 of 790 and the whole alley was squeezed into the bottom fifth with
+   * empty dark above. It is the same shape on a phone (pins at 647 of 812), and
+   * nothing like the lane on the app's own store card, which is a lane filling
+   * the frame with the pins near the top.
+   *
+   * The vanishing line now sits just off the top and f is solved so the foul
+   * line (dz = 4.0, hence the 1.2 = camY / 4.0 * 1) lands exactly on the bottom
+   * edge. The pins come out around a sixth of the way down at any aspect, and
+   * the gutters run off the bottom corners the way they do on the card. f is
+   * also capped against W so a narrow portrait phone does not end up standing
+   * on the ball.
+   */
   function project(x, y, z, W, H) {
     var camY = 4.8, camZ = -12.2;
     var dz = z - camZ;
     if (dz < 0.35) dz = 0.35;
-    var f = Math.min(W, H) * 1.12;
-    return { x: W * 0.5 + x * f / dz, y: H * 0.70 - (y - camY) * f / dz, s: f / dz };
+    var horizon = H * 0.02;
+    var f = Math.min((H - horizon) / 1.2, W * 1.7);
+    return { x: W * 0.5 + x * f / dz, y: horizon + (camY - y) * f / dz, s: f / dz };
   }
 
   function laneQuad(ctx, W, H) {

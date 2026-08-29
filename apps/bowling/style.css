@@ -101,6 +101,24 @@ html, body {
   text-align: right;
   color: #ffe7a0;
 }
+/*
+ * A phone cannot spare 28px a frame. Ten of them plus the tenth's third box,
+ * the name and the running total came to ~380px inside the ~330px the sheet
+ * gets on a 390px screen, so the tenth frame and the TOTAL — the two numbers a
+ * bowler actually reads — were pushed off the right edge behind the sound
+ * button. #sheet is inside #hud, which is pointer-events: none, so there was no
+ * scrolling to them either. Tighter cells fit all ten and the total.
+ */
+@media (max-width: 520px) {
+  .frs { gap: 1px; }
+  .fr { min-width: 20px; font-size: 9px; }
+  .fr:last-child { min-width: 29px; }
+  .fr em { font-size: 9px; }
+  .who { min-width: 0; max-width: 4em; font-size: 10px; }
+  .prow { gap: 4px; padding: 3px 4px; }
+  .tot { font-size: 14px; min-width: 1.8em; }
+}
+
 #soundBtn, #againBtn {
   pointer-events: auto;
   position: absolute;
