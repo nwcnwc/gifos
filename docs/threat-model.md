@@ -94,6 +94,9 @@ the GifOS first-party infrastructure as adversaries (see §7).
 - App runs in an iframe `sandbox="allow-scripts allow-forms allow-downloads"` —
   **no `allow-same-origin`**, so it has an **opaque (null) origin**. `cookies`,
   `localStorage`, and `IndexedDB` throw; there is nothing to share or collide in.
+  `capabilities.links` is the one declared extra: `allow-popups` plus
+  `allow-popups-to-escape-sandbox`, so a tap on a link can open a **new**
+  ordinary tab. It never adds `allow-top-navigation` or `allow-same-origin`.
 - An injected **CSP** is the first child of `<head>` on every app document:
   `default-src 'none'`, `connect-src 'none'` (kills `fetch`/XHR/WebSocket/
   `EventSource`/beacons), no `worker-src` (workers blocked), `frame-src

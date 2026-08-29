@@ -50,7 +50,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // the one. The gated set mirrors gifos-perms.js CAP_LABELS; a role list
   // under capabilities.ai / .api / .pool counts, and so does a network host.
   const candidates = await d.evaluate(async (SYS) => {
-    const GATED = ['microphone', 'camera', 'motion', 'ai', 'api', 'agent', 'wasm', 'gpu', 'pointer', 'fullscreen', 'pool', 'pay', 'assets'];
+    const GATED = ['microphone', 'camera', 'motion', 'ai', 'api', 'agent', 'wasm', 'gpu', 'pointer', 'fullscreen', 'links', 'pool', 'pay', 'assets'];
     const files = (await GifOS.store.allFiles()).filter((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
     const out = [];
     for (const f of files) {

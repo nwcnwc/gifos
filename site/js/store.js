@@ -56,7 +56,7 @@
   const CAP_WORDS = {
     db: 'Saves data in the icon', multiplayer: 'Multiplayer', microphone: 'Microphone',
     camera: 'Camera', wasm: 'Runs WebAssembly', gpu: 'Uses the GPU', ai: 'AI', api: 'Third-party API', network: 'Network',
-    assets: 'Downloads extra files',
+    links: 'Opens web links', assets: 'Downloads extra files',
   };
   function capList(caps) {
     const out = [];
