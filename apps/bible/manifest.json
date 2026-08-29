@@ -3,7 +3,7 @@
   "appId": "offline-bible",
   "name": "Bible",
   "shortName": "Bible",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "minBuild": 1381,
   "entry": "index.html",
   "accent": [

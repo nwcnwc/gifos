@@ -508,7 +508,7 @@
       "appId": "offline-bible",
       "name": "Bible",
       "shortName": "Bible",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "tagline": "139 public-domain Bibles, offline from the first verse. No account.",
       "author": {
         "name": "GifOS",
@@ -534,7 +534,7 @@
         39
       ],
       "cover": "/apps/bible/cover.jpg",
-      "bytes": 4015345,
+      "bytes": 4015778,
       "download": 0,
       "optionalCount": 148,
       "optionalDownload": 155743007,
@@ -544,7 +544,7 @@
         "id": "gifos.app",
         "ts": "2026-08-29"
       },
-      "sha256": "5c3a23ed3eed7d7a1f942d165df93d331cb4759b57b0c287c74256d746e933c5"
+      "sha256": "f103e00ecd6a471c1afdca292e0b2bcee12545b10fd654c37ec18d8a12661316"
     },
     {
       "slug": "bingo",

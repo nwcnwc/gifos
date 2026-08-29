@@ -473,20 +473,18 @@ mark.hl-span[data-hl="under"]  { background: none; border-bottom: 2px solid var(
   .col { padding: 1.75rem 1.6rem 30vh 1.6rem; }
 }
 
-/* ---------- the study panel, beside the text ----------
- * Everything a verse opens — the marks, the notes, the commentary, the
- * cross references, a dictionary entry — comes through #sheet-verse, and
- * search hits through #sheet-search. On a phone those are bottom sheets, and
- * on a laptop they used to be a centred dialog sat on top of the very chapter
- * they were about, behind a scrim, with a screen's worth of empty margin
- * either side. From 900px they dock instead: the body becomes a grid, the text
- * keeps its column on the left and the panel takes the right, no scrim, so
- * the passage and what is said about it are read together, the text still
- * scrolls under the mouse, and a search hit or an outline row moves the text
- * without closing the panel (Reader.docked). body.docked is set by
- * openSheet() only while one of those two is open; the pickers (books,
- * translations, settings) stay dialogs, because they are chosen from and
- * dismissed, not read. Only one sheet is ever open, so .sheet is the panel. */
+/* ---------- the panel, beside the text ----------
+ * Every sheet — a verse's study, search, the books, the translations, a note,
+ * the plans, the settings — is a bottom sheet on a phone, and on a laptop
+ * used to be a centred dialog sat on top of the very chapter it was about,
+ * behind a scrim, with a screen's worth of empty margin either side. From
+ * 900px they all dock instead: the body becomes a grid, the text keeps its
+ * column and its measure on the left, the open sheet takes the right, no
+ * scrim, so the chapter is never covered and still scrolls under the mouse.
+ * A search hit, a plan reading or an outline row moves the text without
+ * closing the panel (Reader.docked), and a panel about a verse or a chapter
+ * follows the reader to the next chapter (Reader.followPanel). openSheet()
+ * sets body.docked; only one sheet is ever open, so .sheet is the panel. */
 @media (min-width: 900px) {
   body.docked {
     display: grid;

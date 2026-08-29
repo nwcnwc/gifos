@@ -44,7 +44,7 @@
         b.addEventListener('click', function () {
           var next = mark.colour === c ? '' : c;
           self.store.setHighlight(ref, next).then(function () { self.paint({ keepScroll: true }); });
-          self.closeSheets();
+          if (self.docked()) b.setAttribute('aria-pressed', next ? 'true' : 'false'); else self.closeSheets();
         });
         sw.appendChild(b);
       })(colours[i]);
@@ -54,7 +54,7 @@
     none.title = 'No highlight';
     none.addEventListener('click', function () {
       self.store.setHighlight(ref, '').then(function () { self.paint({ keepScroll: true }); });
-      self.closeSheets();
+      if (!self.docked()) self.closeSheets();
     });
     sw.appendChild(none);
 
@@ -125,6 +125,7 @@
     }
     this.apparatusInto(body, ref);
     this.openSheet('sheet-verse');
+    this._panel = { code: ref.code, chapter: ref.chapter, follow: true };
   };
 
   Reader.prototype.openScopeSheet = function (pack, ref, scope) {
@@ -146,6 +147,7 @@
     clear(body);
     this.fillCommentaryBody(body, ref, scope);
     this.openSheet('sheet-verse');
+    this._panel = { code: ref.code, chapter: ref.chapter, follow: true };
   };
 
   Reader.prototype.fillCommentaryBody = function (body, ref, scope) {
