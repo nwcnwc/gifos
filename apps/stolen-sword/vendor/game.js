@@ -3156,8 +3156,12 @@ function resize() {
   let vh = window.innerHeight;
   if(vw < vh / ASPECT_RATIO) vh = vw * ASPECT_RATIO;
   if(vh < vw * ASPECT_RATIO) vw = vh / ASPECT_RATIO;
-  canvas.style.width = Math.floor(vw);
-  canvas.style.height = Math.floor(vh);
+  // A number assigned to a CSS length is dropped — these two lines set nothing,
+  // so the canvas laid itself out at its INTRINSIC size, canvas.width CSS px.
+  // At devicePixelRatio 1 that is the same number and the bug is invisible; at
+  // 2 it is twice the viewport.
+  canvas.style.width = Math.floor(vw) + 'px';
+  canvas.style.height = Math.floor(vh) + 'px';
   canvas.width = Math.floor(vw * devicePixelRatio);
   canvas.height = Math.floor(vh * devicePixelRatio);
   ctx.textBaseline = 'middle';

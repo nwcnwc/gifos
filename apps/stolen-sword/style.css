@@ -10,6 +10,12 @@ canvas {
   display: block;
   touch-action: none;
   pointer-events: auto;
+  /* The game is 11:16, so on any window wider than that it is letterboxed. It
+     was pinned to the left edge and the rest of the window was dead black —
+     560px of it at 1100x788. Centre it horizontally only: onPressDown/Move
+     correct X by $canvasLeftOffset (recomputed in resize()) and use clientY
+     RAW, so the canvas must stay flush to the top. */
+  margin-inline: auto;
 }
 
 #hint {
