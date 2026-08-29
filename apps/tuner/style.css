@@ -1,3 +1,10 @@
+/* `hidden` is a UA rule of display:none at the lowest possible specificity, and
+   ANY author `display` on the same element outranks it. Rules in this file set
+   display on elements the app hides with el.hidden, so every one of those
+   assignments did nothing and the element stayed on screen. Put the semantic
+   back before anything else in the file can take it away again. */
+[hidden] { display: none !important; }
+
 :root {
   --bg: #12141c;
   --card: #1c1f2a;
