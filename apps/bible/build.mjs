@@ -160,7 +160,15 @@ for (const [n, s] of Object.entries(files)) {
   for (const bad of ['XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(']) {
     if (s.includes(bad)) throw new Error(n + ' uses ' + bad + ' — nothing leaves this tab.');
   }
-  if (/\bfetch\s*\(/.test(s)) throw new Error(n + ' uses fetch( — packs arrive through gifos.assets, never a fetch.');
+  // A fetch of a PACKED file — a quoted relative path, no scheme, no second
+  // argument — never leaves the tab: js/backup.js reads backup-host.gif that
+  // way, and this build packs it below. Every other shape is still refused,
+  // including a computed URL, so packs still arrive through gifos.assets.
+  const fetches = s.match(/\bfetch\s*\(/g) || [];
+  const packed = s.match(/\bfetch\s*\(\s*['"][^'":/][^'":]*['"]\s*\)/g) || [];
+  if (fetches.length !== packed.length) {
+    throw new Error(n + ' uses fetch( with a computed or absolute URL — packs arrive through gifos.assets, never a fetch.');
+  }
 }
 
 if (!manifest.capabilities || manifest.capabilities.db !== true) throw new Error('manifest must declare capabilities.db');

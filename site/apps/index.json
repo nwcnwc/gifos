@@ -99,15 +99,15 @@
         40
       ],
       "cover": "/apps/aim-and-shoot/cover.jpg",
-      "bytes": 259837,
+      "bytes": 259794,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-30"
       },
-      "sha256": "1833feffaf75437f6eede7a0fbf1b4d4bfc964ff093d672b67a12bace95df70e"
+      "sha256": "35ce5f5def9d0b7499895bfbb2940c99d949eb945dd93c36a456cefa888a2c42"
     },
     {
       "slug": "air-hockey",
@@ -534,7 +534,7 @@
         39
       ],
       "cover": "/apps/bible/cover.jpg",
-      "bytes": 4016244,
+      "bytes": 4069035,
       "download": 0,
       "optionalCount": 148,
       "optionalDownload": 155743007,
@@ -542,9 +542,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-29"
+        "ts": "2026-08-30"
       },
-      "sha256": "1ca3eb16e9eb5c652c00d223dd874903d61b61843e94c9c3854ef651ccce457f"
+      "sha256": "5ebb0d35a93c08982a82522c841dc3bdc79d9411b1a41456fff7a471174a1d0f"
     },
     {
       "slug": "bingo",
@@ -1776,9 +1776,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-30"
       },
-      "sha256": "3107b1af247710f50c4c2d3aa1d31f985a73d68526f6fe732e9b9f05930d9a54"
+      "sha256": "00ffe3ad17a7a6c0ec07084d06e3ee8be69c3dc818c3b638260a7cb53e059bc3"
     },
     {
       "slug": "fieldplay",
@@ -6005,9 +6005,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-30"
       },
-      "sha256": "57adc6c12743d6cf0cfcda55cdb766aa4ca9eafd17c137feb62852ff84a8a7be"
+      "sha256": "c07a466927ce536fde68cc84924559acee7310ffbd0692d6d4842c6dd028948a"
     },
     {
       "slug": "sound-it-out",
@@ -6098,9 +6098,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-30"
       },
-      "sha256": "1eeff12309f6173fc48aade730df1126727439e854b499ec65d3e8145b1e9f4c"
+      "sha256": "f3647cefea5df5bddb892fb6167fe3527df9c1fd6e19b437080c0d8c46925457"
     },
     {
       "slug": "splat",
@@ -7645,9 +7645,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-25"
+        "ts": "2026-08-30"
       },
-      "sha256": "7121c9d3743240648ba5476f21ba60186aa053b672c3b44e4c51a2dab4df131e"
+      "sha256": "58bb888d829a21048123d6a4344299766ca889d085b79a965b037227cbb78147"
     },
     {
       "slug": "yopass",
