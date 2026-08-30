@@ -38,15 +38,15 @@
   "cover": "/apps/aim-and-shoot/cover.jpg",
   "screenshots": [],
   "gif": "/apps/aim-and-shoot/aim-and-shoot.gif",
-  "bytes": 259837,
+  "bytes": 259794,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "1833feffaf75437f6eede7a0fbf1b4d4bfc964ff093d672b67a12bace95df70e",
+  "sha256": "35ce5f5def9d0b7499895bfbb2940c99d949eb945dd93c36a456cefa888a2c42",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-25"
+    "ts": "2026-08-30"
   },
   "porter": {
     "name": "GifOS",
