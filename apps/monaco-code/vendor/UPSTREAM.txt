@@ -1,0 +1,14 @@
+monaco-editor 0.52.2
+npm https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.52.2.tgz
+tarball sha256 c280cdcf0b0c13d1a2bf01af958d4387ed06d7f6c918401d00c4adcae1bc72b6
+vscodeRef a7d9e2c32d573e29e68975838196722ae9bb0f15
+subset: editor.all + basic-languages + json LS + typescript LS
+workers: classic IIFE (no type:module) for blob: Worker in the sandbox
+
+monaco.js  3808780  ab0f13e60ed47ce0af3ed856b2ce411506f9fc7e87107bb9cbe101c9ee7505d8
+monaco.css  238957  fa0fcbfa76a9806edfb01acff31c234e40d72eae99b2252e3090c9eb3126b2c8
+editor.worker.js  264054  93b80fa4192509fda60211a1d2bd1cccf20d171aa1e13970b1117349d348ec57
+json.worker.js  394817  7c271b72a333cfa4b6c28dd9905b12d166fb72f9bd210056cb49406783e48759
+ts.worker.js  6022799  feab25d0440e08c0f64629d9e2051a4db51df03da26664edf15ea2925f254b6c
+COPYING-monaco.txt  1098  33e4ff1a06ef62ba21788ea162564ee8165269a24a9ce6ef301837447eab0ac6
+ThirdPartyNotices.txt  63064  790537262fc78a764e121e6b92b959bcd3f5c310b47d9d9b9e92e17fe0af5336
