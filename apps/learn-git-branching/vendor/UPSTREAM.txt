@@ -1,0 +1,14 @@
+Learn Git Branching
+https://github.com/pcottle/learnGitBranching
+commit b6270c582fb34c1558cb68853a1357a91aeabb09
+MIT License (Peter Cottle, 2012-2025)
+
+This GifOS port vendors:
+- the English lesson corpus (start trees, goals, hints, dialogs, solutions)
+  as vendor/levels.js, extracted from src/levels/
+- a headless reimplementation of the commit-graph engine
+  (src/js/git/index.js + src/js/git/commands.js + src/js/graph/treeCompare.js)
+  as vendor/git-engine.js — same tree format, same command semantics, no
+  Backbone / Raphael / React / jQuery
+
+The original is a 100% client-side visualizer. Nothing is fetched at runtime.

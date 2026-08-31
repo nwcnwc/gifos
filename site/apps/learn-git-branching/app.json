@@ -1,0 +1,62 @@
+{
+  "catalog": "1.0",
+  "slug": "learn-git-branching",
+  "appId": "learn-git-branching",
+  "name": "Learn Git Branching",
+  "shortName": "Git",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "The git trainer that lives in a GIF — close it, come back, still on the same commit.",
+  "description": "Works offline. Your solved lessons sit inside the file, so sharing the GIF shares the progress. Press Play a friend, then Invite in the bar above: you both land on the same lesson, first to match the goal tree wins.\n\nOn your own it is Learn Git Branching. Type real git — commit, branch, checkout, merge, rebase, cherry-pick, fetch, pull, push — and the commit graph next to the prompt updates. Thirty-six lessons from the first commit through remotes, plus a sandbox. Hint, undo, reset. On a phone the graph sits above a command box and shortcut chips.\n\nAn unofficial port of Learn Git Branching by Peter Cottle. The lessons, the trees and the git semantics are his. This copy keeps them without an account or a network.",
+  "author": {
+    "name": "pcottle",
+    "url": "https://github.com/pcottle/learnGitBranching"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Learning",
+    "Developer"
+  ],
+  "tags": [
+    "git",
+    "branching",
+    "tutorial",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2012-2025 Peter Cottle",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/learn-git-branching",
+  "accent": [
+    61,
+    159,
+    216
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/learn-git-branching/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/learn-git-branching/learn-git-branching.gif",
+  "bytes": 205566,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "f0ff7062701d66e8534d0ef6d672e8ba2d1637139430c668d26eda5e380fa9e3",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Learn Git Branching",
+    "url": "https://github.com/pcottle/learnGitBranching",
+    "blessed": false
+  }
+}

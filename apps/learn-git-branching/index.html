@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Learn Git Branching</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <label class="sr" for="select">Lesson</label>
+    <select id="select"></select>
+    <button type="button" id="friendBtn" class="accent">Play a friend</button>
+  </header>
+
+  <div id="friend-bar" hidden>
+    <p id="friend-status"></p>
+    <ul id="friend-scores"></ul>
+    <div class="friend-actions">
+      <button type="button" id="againBtn" hidden>Next lesson</button>
+      <button type="button" class="ghost" id="leaveBtn">← Solo</button>
+    </div>
+  </div>
+
+  <div id="stage">
+    <div id="graphs">
+      <svg id="graph" aria-label="Commit graph"></svg>
+      <div id="origin-wrap" hidden>
+        <svg id="origin" aria-label="Origin graph"></svg>
+      </div>
+    </div>
+    <aside id="side">
+      <div id="goal-block">
+        <b>Goal</b>
+        <svg id="goal" aria-label="Goal graph"></svg>
+      </div>
+      <div id="status"></div>
+      <div id="solved-banner" hidden>
+        <span>Solved ✓</span>
+        <button type="button" id="nextBtn">Next lesson</button>
+      </div>
+      <div id="log" aria-live="polite"></div>
+    </aside>
+  </div>
+
+  <div id="chips">
+    <button type="button" data-chip="git commit">commit</button>
+    <button type="button" data-chip="git checkout -b ">branch</button>
+    <button type="button" data-chip="git merge ">merge</button>
+    <button type="button" data-chip="git rebase ">rebase</button>
+    <button type="button" data-chip="undo">undo</button>
+    <button type="button" data-chip="reset">reset</button>
+    <button type="button" data-chip="hint">hint</button>
+    <button type="button" data-chip="levels">lessons</button>
+  </div>
+
+  <form id="cmdrow" action="#" onsubmit="return false">
+    <label class="sr" for="cmd">Git command</label>
+    <span class="prompt">$</span>
+    <input id="cmd" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      placeholder="git commit">
+    <button type="button" id="runBtn">Run</button>
+  </form>
+</div>
+
+<div id="lesson" class="sheet" hidden>
+  <div class="sheet-card wide">
+    <div id="lesson-body" class="prose"></div>
+    <div id="lesson-demo" hidden>
+      <svg id="lesson-graph" aria-label="Demo graph"></svg>
+      <button type="button" id="lesson-run" class="accent">Run</button>
+    </div>
+    <div class="sheet-actions">
+      <span id="lesson-pos"></span>
+      <button type="button" id="lesson-back">Back</button>
+      <button type="button" id="lesson-skip" class="ghost">Skip</button>
+      <button type="button" id="lesson-next" class="accent">Next</button>
+    </div>
+  </div>
+</div>
+
+<div id="level-sheet" class="sheet" hidden>
+  <div class="sheet-card wide">
+    <h2>Lessons</h2>
+    <div id="level-list"></div>
+    <div class="sheet-actions">
+      <button type="button" id="sandboxBtn" class="ghost">Sandbox</button>
+      <button type="button" id="level-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="hint-sheet" class="sheet" hidden>
+  <div class="sheet-card">
+    <h2>Hint</h2>
+    <div id="hint-body" class="prose"></div>
+    <div class="sheet-actions">
+      <button type="button" id="hint-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="rebase-sheet" class="sheet" hidden>
+  <div class="sheet-card">
+    <h2>Interactive rebase</h2>
+    <p class="muted">Pick, drop, or reorder. Confirm to replay onto the new base.</p>
+    <ul id="rebase-list"></ul>
+    <div class="sheet-actions">
+      <button type="button" id="rebase-abort" class="ghost">Abort</button>
+      <button type="button" id="rebase-ok" class="accent">Rebase</button>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/git-engine.js"></script>
+<script src="vendor/levels.js"></script>
+<script src="vis.js"></script>
+<script src="net.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

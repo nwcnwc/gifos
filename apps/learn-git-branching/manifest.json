@@ -1,0 +1,25 @@
+{
+  "gifos": "1.0",
+  "appId": "learn-git-branching",
+  "name": "Learn Git Branching",
+  "shortName": "Git",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [61, 159, 216],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "players": { "visibility": "read-write" }
+  },
+  "launch": {
+    "level": {
+      "label": "Open this lesson",
+      "detail": "A lesson id such as intro-commits or remote-fetch."
+    }
+  }
+}
