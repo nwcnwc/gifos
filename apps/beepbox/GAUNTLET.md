@@ -22,6 +22,12 @@ Zoom chips and two-finger pinch scale the editor; overflow pan. Default 135% und
 
 Icon: piano-roll with a white playhead walking the bar. Cover: mid-song, cyan melody + yellow bass + orange pad + drums, playhead a third of the way in, "2 JAMMING". Tagline leads with the GIF-is-the-save and Invite jam.
 
+## Round 5 — boot actually finishes
+
+The sandbox CSP (`script-src 'unsafe-inline'`, no `unsafe-eval`) refused the editor's Function-constructor synth compile. `SongEditor` painted, then threw; `BeepEditor` was never assigned; a catch retry constructed a second editor on the same container (doubled Play / pattern rows); persist, zoom, File-menu traps, and jam never wired; `gifos.db('songs')` stayed empty.
+
+Fix: `shim.js` compiles those functions by inserting a classic `<script>` (same hatch as TiddlyWiki). `build.mjs` rewrites the three packed call sites onto `GifOSBeepboxShim.compile`, and wraps the constructor tail so `history.scrollRestoration` and `serviceWorker.register` cannot throw SecurityError in the opaque-origin sandbox (that throw painted the chrome, then aborted before `BeepEditor` was assigned). Boot constructs `SongEditor` once, applies the seed if the grid came up empty, writes `songs`/`current` on first boot, and attaches zoom + jam + File-menu stripping after the editor exists. The 710px container cap is gone so the viewport width matches the editor's own 711px layout breakpoint. Seed pitches sit two octaves up so they land in the visible piano-roll window (octave 3 + pitches 0–4 were off the bottom of the grid).
+
 ## Remaining gap
 
 Two people editing the same bar at the same moment last-write-wins the whole song (no per-note OT). Fine for a jam, not a DAW. MP3 export is refused (upstream fetched lamejs). WAV / MIDI / JSON stay.

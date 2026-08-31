@@ -96,11 +96,15 @@
   }
 
   function hideFileTraps() {
-    var bad = ['shortenUrl', 'viewPlayer', 'copyEmbed', 'copyUrl', 'shareUrl'];
+    var bad = { shortenUrl: 1, viewPlayer: 1, copyEmbed: 1, copyUrl: 1, shareUrl: 1 };
     var opts = document.querySelectorAll('select option');
-    var i;
-    for (i = 0; i < opts.length; i++) {
-      if (bad.indexOf(opts[i].value) >= 0) opts[i].remove();
+    var i, v, t;
+    for (i = opts.length - 1; i >= 0; i--) {
+      v = opts[i].value;
+      t = (opts[i].textContent || '').toLowerCase();
+      if (bad[v] || /song url|html embed|song player|shorten song/.test(t)) {
+        opts[i].remove();
+      }
     }
   }
 
@@ -112,10 +116,66 @@
     } catch (e6) { return ''; }
   }
 
+  function hasNotes(json) {
+    return !!(json && json.channels && json.channels[0] && json.channels[0].patterns &&
+      json.channels[0].patterns[0] && json.channels[0].patterns[0].notes &&
+      json.channels[0].patterns[0].notes.length);
+  }
+
+  var triedEditor = false;
+  function startEditor(box) {
+    if (editor || triedEditor) return editor;
+    triedEditor = true;
+    try {
+      editor = new root.beepbox.SongEditor(box);
+    } catch (eStart) {
+      root.BeepBootError = (eStart && eStart.stack) || String(eStart);
+      try { console.warn('BeepBox: SongEditor', eStart); } catch (e8) {}
+    }
+    root.BeepEditor = editor;
+    return editor;
+  }
+
+  var attached = false;
+  function attach() {
+    if (attached) return;
+    attached = true;
+    hideFileTraps();
+    setTimeout(hideFileTraps, 0);
+    setTimeout(hideFileTraps, 400);
+
+    if (editor && editor.doc && editor.doc.notifier && editor.doc.notifier.watch) {
+      editor.doc.notifier.watch(scheduleSave);
+    }
+    root.addEventListener('hashchange', scheduleSave);
+
+    if (root.BeepTouch) root.BeepTouch.init();
+
+    if (root.BeepNet) {
+      root.BeepNet.init({
+        getJson: songJson,
+        applyJson: function (j) { applySong(j, false); }
+      });
+    }
+
+    if (root.gifos && root.gifos.onBack) {
+      root.gifos.onBack(function () {
+        if (editor && editor.doc && editor.doc.undo) editor.doc.undo();
+      });
+    }
+
+    root.addEventListener('pagehide', function () { persist(); flushPrefs(); });
+    root.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') { persist(); flushPrefs(); }
+    });
+    setInterval(flushPrefs, 8000);
+    setInterval(persist, 2500);
+  }
+
   function boot() {
     var box = document.getElementById('beepboxEditorContainer');
     if (!box || !root.beepbox || !root.beepbox.SongEditor) {
-      box.textContent = 'BeepBox failed to load.';
+      if (box) box.textContent = 'BeepBox failed to load.';
       return;
     }
 
@@ -126,56 +186,33 @@
         if (hash) {
           try { root.location.hash = hash; } catch (e7) {}
         }
-        lastPacked = pack(initial);
       }
 
-      editor = new root.beepbox.SongEditor(box);
-      root.BeepEditor = editor;
-      hideFileTraps();
+      startEditor(box);
 
-      if (initial && (!saved || !root.location.hash)) {
-        applySong(initial, !saved);
+      if (initial) {
+        if (!hasNotes(songJson())) {
+          lastPacked = '';
+          applySong(initial, !saved);
+        } else {
+          lastPacked = pack(songJson());
+        }
       }
-
-      if (editor.doc && editor.doc.notifier && editor.doc.notifier.watch) {
-        editor.doc.notifier.watch(scheduleSave);
-      }
-      root.addEventListener('hashchange', scheduleSave);
-
-      if (root.BeepTouch) root.BeepTouch.init();
-
-      if (root.BeepNet) {
-        root.BeepNet.init({
-          getJson: songJson,
-          applyJson: function (j) { applySong(j, false); }
-        });
-      }
-
-      if (root.gifos && root.gifos.onBack) {
-        root.gifos.onBack(function () {
-          if (editor && editor.doc && editor.doc.prompt) {
-            editor.doc.undo();
-          }
-        });
-      }
-
-      root.addEventListener('pagehide', function () { persist(); flushPrefs(); });
-      root.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'hidden') { persist(); flushPrefs(); }
-      });
-      setInterval(flushPrefs, 8000);
 
       if (!started) {
         started = true;
-        if (!saved && songsDb && initial) {
-          songsDb.put({ id: 'current', json: initial, at: Date.now() }).catch(function () {});
+        var json = songJson() || initial;
+        if (songsDb && json) {
+          songsDb.put({ id: 'current', json: json, at: Date.now() }).catch(function () {});
+          lastPacked = pack(json);
         }
       }
+
+      attach();
     }).catch(function (err) {
-      try { console.warn(err); } catch (e8) {}
-      editor = new root.beepbox.SongEditor(box);
-      hideFileTraps();
-      if (root.BeepTouch) root.BeepTouch.init();
+      try { console.warn(err); } catch (e9) {}
+      startEditor(box);
+      attach();
     });
   }
 

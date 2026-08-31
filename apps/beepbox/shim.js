@@ -100,6 +100,29 @@
     }
   }
 
+  try {
+    var sw = root.navigator && root.navigator.serviceWorker;
+    if (sw && typeof sw.register === 'function') {
+      sw.register = function () {
+        return Promise.resolve({
+          installing: null, waiting: null, active: null,
+          addEventListener: function () {},
+          removeEventListener: function () {}
+        });
+      };
+    }
+  } catch (eSw) {}
+
+  try {
+    if (root.history) {
+      Object.defineProperty(root.history, 'scrollRestoration', {
+        configurable: true,
+        get: function () { return 'manual'; },
+        set: function () {}
+      });
+    }
+  } catch (eSr) {}
+
   var origOpen = root.open;
   root.open = function (url) {
     var u = String(url || '');
@@ -110,5 +133,45 @@
     return null;
   };
 
-  root.GifOSBeepboxShim = { local: local, session: session, memL: memL, memS: memS };
+  /* The sandbox CSP is script-src 'unsafe-inline' with no unsafe-eval.
+     BeepBox compiles FM / picked-string / effects synths with the Function
+     constructor (Chrome reports that as eval and refuses). An inline
+     <script> is legal, so compile the same function by inserting one and
+     reading it back. TiddlyWiki uses this hatch for the same wall. */
+  function compileFn(names, body) {
+    var k = '__bbfn' + Math.random().toString(36).slice(2);
+    var s = document.createElement('script');
+    s.textContent = 'window.' + k + '=function(' + names.join(',') + '){\n' + body + '\n};';
+    (document.documentElement || document.head).appendChild(s);
+    s.parentNode.removeChild(s);
+    var f = root[k];
+    try { delete root[k]; } catch (e7) { root[k] = undefined; }
+    if (typeof f !== 'function') throw new Error('BeepBox could not compile a synth function');
+    return f;
+  }
+
+  function compile(a, b, body) {
+    return compileFn([String(a), String(b)], String(body));
+  }
+
+  try {
+    var NativeFn = root.Function;
+    function SafeFn() {
+      var args = [], i, body;
+      for (i = 0; i < arguments.length; i++) args[i] = arguments[i];
+      body = args.length ? String(args.pop()) : '';
+      for (i = 0; i < args.length; i++) args[i] = String(args[i]);
+      return compileFn(args, body);
+    }
+    SafeFn.prototype = NativeFn.prototype;
+    try {
+      Object.defineProperty(root, 'Function', { configurable: true, writable: true, value: SafeFn });
+    } catch (e8) {
+      root.Function = SafeFn;
+    }
+  } catch (eFn) {}
+
+  root.GifOSBeepboxShim = {
+    local: local, session: session, memL: memL, memS: memS, compile: compile
+  };
 })(window);

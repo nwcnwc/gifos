@@ -105,13 +105,32 @@ const help = read('help.md').replace(/^\uFEFF/, '');
 if (help.trim().length < 400) throw new Error('help.md is missing or too short — need >= 400 trimmed characters');
 if (!/^#\s+\S/.test(help.trim())) throw new Error('help.md must start with # <App Name>');
 
+const FN_NEEDLE = 'new Function("Config","Synth",';
+const FN_REPL = 'window.GifOSBeepboxShim.compile("Config","Synth",';
+let editorSrc = editorBuf.toString('utf8').replace(/\n\/\/# sourceMappingURL=.*$/, '');
+const fnSites = editorSrc.split(FN_NEEDLE).length - 1;
+if (fnSites !== 3) {
+  throw new Error('editor Function-constructor sites: ' + fnSites + ' (expected 3 — FM, picked string, effects)');
+}
+editorSrc = editorSrc.split(FN_NEEDLE).join(FN_REPL);
+
+const TAIL = 'this.whenUpdated(),this.mainLayer.focus(),';
+const TAIL_SAFE = 'this.whenUpdated(),(function(el){try{el.focus()}catch(e0){}})(this.mainLayer),';
+if (!editorSrc.includes(TAIL)) throw new Error('SongEditor constructor tail (whenUpdated/focus) moved — update the sandbox patch');
+editorSrc = editorSrc.split(TAIL).join(TAIL_SAFE);
+
+const SW = 'this.updatePlayButton(),"scrollRestoration"in history&&(history.scrollRestoration="manual"),"serviceWorker"in navigator&&navigator.serviceWorker.register("/service_worker.js",{updateViaCache:"all",scope:"/"}).catch((()=>{}))';
+const SW_SAFE = 'this.updatePlayButton();try{if("scrollRestoration"in history)history.scrollRestoration="manual"}catch(e1){}try{if("serviceWorker"in navigator&&navigator.serviceWorker.register)navigator.serviceWorker.register("/service_worker.js",{updateViaCache:"all",scope:"/"}).catch(function(){})}catch(e2){}';
+if (!editorSrc.includes(SW)) throw new Error('SongEditor constructor serviceWorker/scrollRestoration tail moved — update the sandbox patch');
+editorSrc = editorSrc.split(SW).join(SW_SAFE);
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
   'style.css': read('style.css'),
   'shim.js': safeScript(read('shim.js')),
   'vendor/seed.js': safeScript(read('vendor/seed.js')),
-  'vendor/beepbox_editor.min.js': safeScript(editorBuf.toString('utf8').replace(/\n\/\/# sourceMappingURL=.*$/, '')),
+  'vendor/beepbox_editor.min.js': safeScript(editorSrc),
   'net.js': safeScript(read('net.js')),
   'touch.js': safeScript(read('touch.js')),
   'boot.js': safeScript(read('boot.js')),
@@ -135,6 +154,18 @@ if (/<button[^>]*>\s*Invite/i.test(html) || /id=["']invite/i.test(html)) {
 const src = files['shim.js'] + files['net.js'] + files['touch.js'] + files['boot.js'];
 for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(']) {
   if (src.includes(bad)) throw new Error('a shell script uses ' + bad);
+}
+if (!files['shim.js'].includes('createElement("script")') && !files['shim.js'].includes("createElement('script')")) {
+  throw new Error('shim must compile synth functions via an inline script — CSP has no unsafe-eval');
+}
+if (!files['shim.js'].includes('GifOSBeepboxShim') || !files['shim.js'].includes('compile:')) {
+  throw new Error('shim must expose GifOSBeepboxShim.compile for the packed editor');
+}
+if (files['vendor/beepbox_editor.min.js'].includes(FN_NEEDLE)) {
+  throw new Error('packed editor still contains ' + FN_NEEDLE + ' — CSP will refuse it');
+}
+if ((files['boot.js'].split('new root.beepbox.SongEditor').length - 1) !== 1) {
+  throw new Error('boot must construct SongEditor exactly once — a catch retry doubled the chrome');
 }
 if (!files['boot.js'].includes("db('songs')")) {
   throw new Error('boot must persist the song in gifos.db(\'songs\')');
