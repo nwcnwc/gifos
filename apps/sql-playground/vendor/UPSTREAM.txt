@@ -1,0 +1,15 @@
+sql-js/sql.js 1.14.2
+https://github.com/sql-js/sql.js
+MIT, Copyright (c) 2017 sql.js authors (see AUTHORS)
+SQLite itself is public domain (https://www.sqlite.org/copyright.html)
+
+files:
+  sql-wasm.js
+  sha256: f1c84000dbc856c9d87f4f3aabc4d3654bd436165db4be3da13751db3a9c20d7
+  sql-wasm.wasm
+  sha256: 38c14f6e379210bc942bdc4ebca44e7bfdb4318ecc1c72ca666a28fdce96670a
+
+The engine is instantiated from its own bytes as a blob: URL
+(capabilities.wasm). Nothing is fetched at runtime. Their GUI at sql.js.org
+is not shipped; this directory is a new playground surface. The database is
+saved in the app file and shared on Invite.

@@ -1,0 +1,63 @@
+{
+  "catalog": "1.0",
+  "slug": "sql-playground",
+  "appId": "sql-playground",
+  "name": "SQL Playground",
+  "shortName": "SQL",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "A SQLite database that lives in this file. Invite shares it.",
+  "description": "The database is the file. Close it, come back, your tables are still there. Press Invite and someone else lands on the same database — they can query and change it, with no server and no account. It works on a plane.\n\nA tiny music shop (artists, albums, tracks, invoices) is already loaded, so the first query can join tables. Type SQL and press Run. The schema is on the left; tap a table to select it. Open a .sqlite from this device, or save one out.\n\nUnofficial port of sql.js (SQLite compiled to run in the browser). Their demo forgets the database when you close the tab. This one does not.",
+  "author": {
+    "name": "sql.js authors",
+    "url": "https://github.com/sql-js/sql.js"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Developer",
+    "Utilities"
+  ],
+  "tags": [
+    "sql",
+    "sqlite",
+    "database",
+    "query",
+    "offline"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2017 sql.js authors (see AUTHORS); Copyright 2017 Ryusei Yamaguchi",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/sql-playground",
+  "accent": [
+    61,
+    190,
+    160
+  ],
+  "capabilities": {
+    "db": true,
+    "wasm": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/sql-playground/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/sql-playground/sql-playground.gif",
+  "bytes": 751808,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "96ef76c1463d2768702fe3e0c3aea945664b8296157bfe07f77e1e37ba69630f",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "sql.js",
+    "url": "https://github.com/sql-js/sql.js",
+    "blessed": false
+  }
+}

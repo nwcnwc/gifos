@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SQL Playground</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <div>
+      <h1>SQL Playground</h1>
+      <p class="lead">A SQLite database that lives in this file. Invite shares it.</p>
+    </div>
+    <button type="button" id="schemaBtn" class="schema-toggle" aria-expanded="false" aria-controls="schema">Tables</button>
+  </header>
+
+  <div class="actions">
+    <button type="button" id="runBtn" class="go">Run</button>
+    <button type="button" id="explainBtn">Explain</button>
+    <button type="button" id="sampleBtn">Sample</button>
+    <button type="button" id="newBtn">New</button>
+    <label class="file">Open
+      <input id="file" type="file" accept=".sqlite,.db,.sqlite3,application/octet-stream">
+    </label>
+    <button type="button" id="saveBtn">Save</button>
+  </div>
+
+  <div class="layout">
+    <aside id="schema" class="schema">
+      <h2>Tables</h2>
+      <div id="schemaList"></div>
+    </aside>
+    <section class="main">
+      <label class="sql-lab" for="sql">SQL</label>
+      <textarea id="sql" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"
+                placeholder="SELECT * FROM artists;"></textarea>
+      <p class="keys">Ctrl+Enter or Cmd+Enter runs. Several statements are fine.</p>
+      <div id="chips" class="chips" aria-label="Example queries"></div>
+      <div id="hist" class="chips hist" aria-label="Recent queries"></div>
+      <div id="results" class="results" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <p id="status" class="status"></p>
+  <p id="meet" class="meet">Press <b>Invite</b> (top bar) to share this database. Anyone on the link can query and change it.</p>
+</div>
+
+<script src="sql-wasm-b64.js"></script>
+<script src="vendor/sql-wasm.js"></script>
+<script src="sample.js"></script>
+<script src="engine.js"></script>
+<script src="mp.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
