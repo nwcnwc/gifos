@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Smartcrop</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Smartcrop</h1>
+    <p class="lead">Content-aware crop on this device. Faces stay in the frame.</p>
+  </header>
+
+  <div id="stage" class="stage">
+    <div id="empty" class="empty">
+      <div class="empty-ico" aria-hidden="true">▣</div>
+      <p class="empty-title">No photo yet</p>
+      <p class="empty-copy">Take a still or open a picture. The crop runs here — faces stay in the frame, nothing is uploaded.</p>
+      <div class="empty-actions">
+        <button type="button" id="emptyPhoto">Take photo</button>
+        <button type="button" id="emptyChoose" class="ghost">Choose a picture</button>
+        <button type="button" id="sampleBtn" class="ghost">Try a sample</button>
+      </div>
+    </div>
+    <canvas id="overlay" hidden></canvas>
+    <div id="resultwrap" class="resultwrap" hidden>
+      <canvas id="result"></canvas>
+    </div>
+    <p id="holdhint" class="holdhint" hidden>Hold for the crop, full size</p>
+  </div>
+
+  <div id="cands" class="cands" hidden></div>
+
+  <div id="work" class="work" hidden>
+    <div class="row">
+      <button type="button" id="photoBtn">Take photo</button>
+      <button type="button" id="chooseBtn" class="ghost">Choose</button>
+      <button type="button" id="saveBtn">Download JPEG</button>
+    </div>
+
+    <section class="aspects">
+      <div class="row-head">Frame</div>
+      <div id="aspectlist"></div>
+    </section>
+
+    <section class="controls">
+      <label>Keep more <span id="scaleVal">1.0</span>
+        <input type="range" id="minScale" min="0.5" max="1" step="0.05" value="1">
+      </label>
+      <div class="toggles">
+        <label class="chk"><input type="checkbox" id="thirds" checked> Rule of thirds</label>
+        <label class="chk"><input type="checkbox" id="heatmap"> Heatmap</label>
+      </div>
+      <p id="sizehint" class="hint"></p>
+    </section>
+  </div>
+
+  <input type="file" id="file" accept="image/*">
+  <p id="status" role="status"></p>
+  <p class="foot">Unofficial port of smartcrop.js by Jonas Wagner. The picture never leaves this device.</p>
+</div>
+<script src="vendor/smartcrop.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

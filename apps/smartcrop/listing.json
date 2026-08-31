@@ -1,0 +1,33 @@
+{
+  "tagline": "Content-aware crop on this device — faces stay in the frame.",
+  "description": "The crop runs on this device. Open a picture or take a still — nothing is uploaded. Pick a frame the size of a profile square, a wide banner, a story — the box jumps to the faces and the interesting bits, not the empty sky. Download the JPEG.\n\nThis is not a manual crop tool. You do not drag the handles: the picture tells it where to cut, and you can tap a runner-up if you prefer that frame.\n\nThe last picture and the last frame come back the next time you open the app, inside this file.\n\nAn unofficial port of smartcrop.js by Jonas Wagner.",
+  "author": {
+    "name": "Jonas Wagner",
+    "url": "https://github.com/jwagner/smartcrop.js"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "smartcrop.js",
+    "url": "https://github.com/jwagner/smartcrop.js",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "crop",
+    "photo",
+    "faces",
+    "twitter",
+    "offline",
+    "smartcrop"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/smartcrop",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
