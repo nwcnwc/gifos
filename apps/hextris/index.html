@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Hextris</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="overlay" class="faded overlay"></div>
+<div id="startBtn"></div>
+<div id="helpScreen" class="unselectable">
+  <div id="inst_main_body"></div>
+</div>
+<img id="openSideBar" class="helpText" src="images/btn_help.svg" alt="How to play">
+<img id="pauseBtn" src="images/btn_pause.svg" alt="Pause">
+<img id="restartBtn" src="images/btn_restart.svg" alt="Restart">
+<div id="highScoreInGameText">
+  <div id="highScoreInGameTextHeader">HIGH SCORE</div>
+  <div id="currentHighScore">0</div>
+</div>
+
+<div id="friend-bar" hidden>
+  <p id="friend-status"></p>
+  <ul id="friend-scores"></ul>
+  <div class="friend-actions">
+    <button type="button" id="againBtn" hidden>Play again</button>
+    <button type="button" id="leaveBtn">Solo</button>
+  </div>
+  <div id="them-wrap" hidden>
+    <div id="them-name">Friend</div>
+    <canvas id="them" width="140" height="140"></canvas>
+  </div>
+</div>
+<button type="button" id="friendBtn">Play a friend</button>
+
+<div id="gameoverscreen">
+  <div id="container">
+    <div id="gameOverBox" class="GOTitle">GAME OVER</div>
+    <div id="cScore">0</div>
+    <div id="highScoresTitle" class="GOTitle">HIGH SCORES</div>
+    <div class="score"><span class="scoreNum">1.</span> <div id="1place" style="display:inline;">0</div></div>
+    <div class="score"><span class="scoreNum">2.</span> <div id="2place" style="display:inline;">0</div></div>
+    <div class="score"><span class="scoreNum">3.</span> <div id="3place" style="display:inline;">0</div></div>
+  </div>
+  <div id="bottomContainer">
+    <img id="restart" src="images/btn_restart.svg" height="57" alt="Play again">
+    <div id="buttonCont"></div>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <button class="t-btn" data-act="left" type="button">LEFT</button>
+  <button class="t-btn" data-act="fast" type="button">FAST</button>
+  <button class="t-btn" data-act="right" type="button">RIGHT</button>
+</div>
+
+<script src="jq.js"></script>
+<script src="vendor/save-state.js"></script>
+<script src="vendor/view.js"></script>
+<script src="vendor/wavegen.js"></script>
+<script src="vendor/math.js"></script>
+<script src="vendor/Block.js"></script>
+<script src="vendor/Hex.js"></script>
+<script src="vendor/Text.js"></script>
+<script src="vendor/comboTimer.js"></script>
+<script src="vendor/checking.js"></script>
+<script src="vendor/update.js"></script>
+<script src="vendor/render.js"></script>
+<script src="vendor/input.js"></script>
+<script src="vendor/main.js"></script>
+<script src="vendor/initialization.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
