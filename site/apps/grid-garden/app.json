@@ -42,11 +42,11 @@
   "cover": "/apps/grid-garden/cover.jpg",
   "screenshots": [],
   "gif": "/apps/grid-garden/grid-garden.gif",
-  "bytes": 422655,
+  "bytes": 422980,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "5764d4d6c82c6cecb3f9948940c1148d42f59619182ddd806e1fbb373ce27414",
+  "sha256": "e5bc22973f902a459cced7660fc87c3c62598a6763ce63234ae648f6da92f27d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
