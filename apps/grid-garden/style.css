@@ -262,6 +262,7 @@ button:not(.disabled):hover { background-color: #C97B00; }
   overflow: hidden;
   border: 12px solid #6D5720;
   border-radius: 12px;
+  container-type: size;
 }
 #garden, #plants, #soil, #overlay {
   display: grid;
@@ -277,7 +278,8 @@ button:not(.disabled):hover { background-color: #C97B00; }
   width: 100%; height: 100%;
   background-color: #836B32;
   background-image: url('vendor/images/dirt.svg');
-  background-size: 100% 100%;
+  background-size: var(--cell, 20cqw) var(--cell, 20cqw);
+  background-repeat: repeat;
 }
 #overlay .plot {
   z-index: 50;
@@ -293,7 +295,9 @@ button:not(.disabled):hover { background-color: #C97B00; }
 .plant .bg, .treatment .bg {
   width: 100%; height: 100%;
   background-position: left top;
-  background-size: 100% 100%;
+  /* One board cell, repeating — a spanned bed is a FIELD of carrots, not one stretched sheet. */
+  background-size: var(--cell, 20cqw) var(--cell, 20cqw);
+  background-repeat: repeat;
 }
 .plant.carrot .bg { background-image: url('vendor/images/carrots.svg'); }
 .plant.weed .bg { background-image: url('vendor/images/weeds.svg'); }
@@ -360,7 +364,7 @@ button:not(.disabled):hover { background-color: #C97B00; }
 
 @keyframes scroll {
   0% { background-position: 0 0; }
-  100% { background-position: 0 100%; }
+  100% { background-position: 0 var(--cell, 20cqw); }
 }
 @keyframes tada {
   from { transform: scale3d(1, 1, 1); }

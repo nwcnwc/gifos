@@ -18,6 +18,16 @@
   function show(el) { if (el) el.style.display = ''; }
   function hide(el) { if (el) el.style.display = 'none'; }
 
+  function fitBed() {
+    var b = $('board');
+    if (!b) return;
+    var cell = b.clientWidth / 5;
+    if (!(cell > 0)) return;
+    var px = cell + 'px';
+    b.style.setProperty('--cell', px);
+    document.documentElement.style.setProperty('--cell', px);
+  }
+
   var COLORS = { c: 'carrot', w: 'weed' };
 
   var game = {
@@ -37,6 +47,9 @@
       this.loadMenu();
       this.translate();
       this.loadLevel(levels[this.level]);
+      fitBed();
+      if (root.requestAnimationFrame) root.requestAnimationFrame(fitBed);
+      on(root, 'resize', fitBed);
       var d = document.documentElement.style;
       if (!('gridArea' in d)) {
         var warning = (messages.warningUnsupported[game.language] || messages.warningUnsupported.en);
@@ -277,6 +290,7 @@
 
       game.changed = false;
       game.applyStyles();
+      fitBed();
       game.check();
       if (!opts.silent) game.persist();
       if (typeof game.onLevel === 'function' && !opts.remote) game.onLevel(game.level);

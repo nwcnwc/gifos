@@ -2,7 +2,7 @@
 // Uses the SAME codec the GifOS desktop uses (site/js/gifos-gif.js).
 //
 // Run:  node apps/grid-garden/build.mjs
-import { gardenIcon, screenshotPng } from './icon.mjs';
+import { gardenIcon } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -159,10 +159,23 @@ for (const [n, s] of Object.entries(files)) {
 if (!files['net.js'].includes('Invite') || !files['net.js'].includes('garden')) {
   throw new Error('net.js must share the garden and mention Invite');
 }
+{
+  const rawCss = read('style.css');
+  if (/\.plant \.bg[\s\S]{0,200}background-size:\s*100%\s*100%/.test(rawCss) ||
+      /\.plot \{[\s\S]{0,280}background-size:\s*100%\s*100%/.test(rawCss)) {
+    throw new Error('garden sheets must tile at one cell (--cell / 20cqw), not stretch 100%');
+  }
+  if (!rawCss.includes('--cell') || !rawCss.includes('background-repeat: repeat')) {
+    throw new Error('style.css must size the carrot/weed/water/dirt sheet to one cell and repeat');
+  }
+}
 
-const shot = screenshotPng();
-if (shot.length < 1000) throw new Error('screenshot png looks empty');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+if (!existsSync(shotPath)) throw new Error('screenshot.png is missing — capture the real window at level 16');
+const shot = readFileSync(shotPath);
+if (shot.length < 40000 || shot[0] !== 0x89 || shot[1] !== 0x50) {
+  throw new Error('screenshot.png must be a real PNG of the running garden at level 16, not a mockup');
+}
 
 const bytes = await gif.encode(files, { preview: gardenIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'grid-garden', 'grid-garden.gif');
