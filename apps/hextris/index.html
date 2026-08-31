@@ -13,9 +13,9 @@
 <div id="helpScreen" class="unselectable">
   <div id="inst_main_body"></div>
 </div>
-<img id="openSideBar" class="helpText" src="images/btn_help.svg" alt="How to play">
-<img id="pauseBtn" src="images/btn_pause.svg" alt="Pause">
-<img id="restartBtn" src="images/btn_restart.svg" alt="Restart">
+<img id="openSideBar" class="helpText" src="images/btn_help.svg" data-btn="help" alt="How to play">
+<img id="pauseBtn" src="images/btn_pause.svg" data-btn="pause" alt="Pause">
+<img id="restartBtn" src="images/btn_restart.svg" data-btn="restart" alt="Restart">
 <div id="highScoreInGameText">
   <div id="highScoreInGameTextHeader">HIGH SCORE</div>
   <div id="currentHighScore">0</div>
@@ -45,7 +45,14 @@
     <div class="score"><span class="scoreNum">3.</span> <div id="3place" style="display:inline;">0</div></div>
   </div>
   <div id="bottomContainer">
-    <img id="restart" src="images/btn_restart.svg" height="57" alt="Play again">
+    <img id="restart" src="images/btn_restart.svg" data-btn="restart" height="57" alt="Play again">
+    <div id="hex-assets" hidden aria-hidden="true">
+      <img id="asset-pause" src="images/btn_pause.svg" alt="">
+      <img id="asset-resume" src="images/btn_resume.svg" alt="">
+      <img id="asset-restart" src="images/btn_restart.svg" alt="">
+      <img id="asset-help" src="images/btn_help.svg" alt="">
+      <img id="asset-back" src="images/btn_back.svg" alt="">
+    </div>
     <div id="buttonCont"></div>
   </div>
 </div>

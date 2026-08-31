@@ -90,6 +90,12 @@ for (const s of SCRIPTS) {
   if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);
 }
 if (!html.includes('href="style.css"')) throw new Error('index.html does not load style.css');
+if (!files['jq.js'].includes("'resize'")) {
+  throw new Error('jq.js must shim .resize — initialize() calls $(window).resize(scaleCanvas)');
+}
+if (!html.includes('id="asset-resume"') || !html.includes('id="asset-back"')) {
+  throw new Error('index.html must preload resume/back SVGs so the packer inlines them');
+}
 if (manifest.name !== 'Hextris') throw new Error('manifest.name must be Hextris');
 if (!manifest.capabilities || manifest.capabilities.db !== true) {
   throw new Error('manifest must declare capabilities.db');

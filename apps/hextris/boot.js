@@ -104,7 +104,24 @@
     return false;
   }
 
+  function snapAsset(id) {
+    var el = document.getElementById(id);
+    if (!el) return '';
+    return el.currentSrc || el.src || el.getAttribute('src') || '';
+  }
+
+  function bindAssets() {
+    HT.img = {
+      pause: snapAsset('asset-pause') || snapAsset('pauseBtn'),
+      resume: snapAsset('asset-resume'),
+      restart: snapAsset('asset-restart') || snapAsset('restartBtn'),
+      help: snapAsset('asset-help') || snapAsset('openSideBar'),
+      back: snapAsset('asset-back')
+    };
+  }
+
   function boot() {
+    bindAssets();
     wrapHooks();
     initialize();
     if (root.Touch) root.Touch.init();
