@@ -1,0 +1,24 @@
+rawgraphs/rawgraphs-app
+https://github.com/rawgraphs/rawgraphs-app
+Apache-2.0
+Copyright (c), 2013-2021 DensityDesign Lab, Calibro, INMAGIK <hello@rawgraphs.io>
+
+rawgraphs/rawgraphs-core
+https://github.com/rawgraphs/rawgraphs-core
+Apache-2.0, same copyright.
+
+rawgraphs/rawgraphs-charts
+https://github.com/rawgraphs/rawgraphs-charts
+Apache-2.0, same copyright.
+
+The public RAWGraphs app is a React GUI around those two libraries. The
+GifOS copy keeps the load → choose a visual model → map columns → draw SVG
+loop and a working set of those models (alluvial, treemap, bar, stacked bar,
+line, bubble, pie, bump, beeswarm, sunburst, circle packing, streamgraph).
+The React shell, the Excel importer, and charts that pull extra d3 plugins
+(hexbin, voronoi-treemap, chord, contour) are not shipped: the sandbox has
+no eval and no network, and lodash/d3 UMD builds call Function() at load.
+
+Chart renders here follow the same visual-variable names (bars, steps,
+hierarchy, size, series) so a mapping from the original still makes sense.
+The last CSV and the last mapping are saved privately. Upstream has no save.

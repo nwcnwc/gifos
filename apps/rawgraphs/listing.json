@@ -1,0 +1,35 @@
+{
+  "tagline": "Paste a CSV, map columns onto a chart — the dataset lives in the GIF.",
+  "description": "The table you paste stays on this device, inside the app. Close it, come back, the last dataset and the last mapping are still there. Nothing is uploaded.\n\nLoad a CSV or paste comma-separated text. Pick an alluvial, a treemap, a bump, a beeswarm — the unusual charts RAWGraphs is for, not just bars. Point columns at Steps, Size, Hierarchy. Copy SVG takes the picture with you.\n\nWant a friend looking at the same chart? Press Play together, then Invite in the bar above, and send the link. When anyone remaps a field, everyone sees the new picture.\n\nAn unofficial port of RAWGraphs by DensityDesign Lab, Calibro and INMAGIK. This copy keeps the load → map → draw loop and a working set of visual models, fully offline. Excel workbooks are not read — save as CSV first.",
+  "author": {
+    "name": "DensityDesign Lab, Calibro, INMAGIK",
+    "url": "https://github.com/rawgraphs/rawgraphs-app"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "RAWGraphs",
+    "url": "https://github.com/rawgraphs/rawgraphs-app",
+    "donate": "https://github.com/sponsors/rawgraphs",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Productivity",
+    "Utilities"
+  ],
+  "tags": [
+    "charts",
+    "visualization",
+    "csv",
+    "alluvial",
+    "treemap",
+    "offline"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/rawgraphs",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
