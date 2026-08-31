@@ -1,0 +1,33 @@
+{
+  "tagline": "High score lives in the file. Invite a friend: two paddles, one wall.",
+  "description": "Send the Invite in the bar above. A second paddle appears on the same brick wall — you both keep the ball up, you both clear the same bricks. Your high score is saved in this file, so close it and come back still on the same run of luck.\n\nOn your own it is the original: an orange paddle, a wall of colourful bricks, three lives. Drag the paddle or use the arrows. Space launches the ball. Up and down pick a level from the menu before you start.\n\nOn a phone the paddle follows your finger. There is no account and nothing to install. A third person who opens the link can watch; they do not get a paddle.\n\nAn unofficial port of Jake Gordon's JavaScript Breakout, MIT-licensed. This copy adds the extra paddle, and keeps the score in the file.",
+  "author": {
+    "name": "Jake Gordon",
+    "url": "https://github.com/jakesgordon/javascript-breakout"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "JavaScript Breakout",
+    "url": "https://github.com/jakesgordon/javascript-breakout",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "breakout",
+    "arkanoid",
+    "arcade",
+    "bricks",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/breakout",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

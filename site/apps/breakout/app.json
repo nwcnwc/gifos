@@ -1,0 +1,62 @@
+{
+  "catalog": "1.0",
+  "slug": "breakout",
+  "appId": "breakout",
+  "name": "Breakout",
+  "shortName": "Breakout",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "High score lives in the file. Invite a friend: two paddles, one wall.",
+  "description": "Send the Invite in the bar above. A second paddle appears on the same brick wall — you both keep the ball up, you both clear the same bricks. Your high score is saved in this file, so close it and come back still on the same run of luck.\n\nOn your own it is the original: an orange paddle, a wall of colourful bricks, three lives. Drag the paddle or use the arrows. Space launches the ball. Up and down pick a level from the menu before you start.\n\nOn a phone the paddle follows your finger. There is no account and nothing to install. A third person who opens the link can watch; they do not get a paddle.\n\nAn unofficial port of Jake Gordon's JavaScript Breakout, MIT-licensed. This copy adds the extra paddle, and keeps the score in the file.",
+  "author": {
+    "name": "Jake Gordon",
+    "url": "https://github.com/jakesgordon/javascript-breakout"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "breakout",
+    "arkanoid",
+    "arcade",
+    "bricks",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2011, 2012, 2013, 2014, 2015, 2016 Jake Gordon and contributors",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/breakout",
+  "accent": [
+    245,
+    111,
+    37
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/breakout/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/breakout/breakout.gif",
+  "bytes": 272567,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "e7ac0226a9ee7c84a1fbc96223be08310e8dea0afa1bb671fbb90c78fc93e5be",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "JavaScript Breakout",
+    "url": "https://github.com/jakesgordon/javascript-breakout",
+    "blessed": false
+  }
+}

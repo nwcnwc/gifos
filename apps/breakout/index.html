@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Breakout</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="bar">
+    <div id="leftName">YOU</div>
+    <div id="best"></div>
+    <button id="soundBtn" type="button" aria-label="Sound">♪</button>
+    <div id="rightName"></div>
+  </div>
+  <div id="play">
+    <div id="breakout">
+      <div id="court">
+        <canvas id="canvas">Sorry, this game needs a canvas.</canvas>
+        <div id="levels">
+          <button id="next" type="button" title="next level" aria-label="Next level">▲</button>
+          <button id="prev" type="button" title="previous level" aria-label="Previous level">▼</button>
+          <span id="label">level:</span><span id="level">1</span>
+        </div>
+        <div id="instructions">
+          <div class="keyboard">
+            <b>space</b> to start<br>
+            <b>left/right</b> to move paddle<br>
+            <b>up/down</b> to change level
+          </div>
+          <div class="touch">
+            <b>tap here</b> to start<br>
+            <b>drag</b> paddle to move
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="hint">Tap to play · drag your paddle</div>
+  <div id="pads" hidden>
+    <button type="button" data-dir="left" aria-label="Paddle left">◀</button>
+    <button type="button" data-dir="right" aria-label="Paddle right">▶</button>
+  </div>
+</div>
+<input id="sound" type="checkbox" hidden>
+<script src="vendor/game.js"></script>
+<script src="vendor/breakout.js"></script>
+<script src="vendor/levels.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
