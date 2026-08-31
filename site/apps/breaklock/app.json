@@ -1,0 +1,62 @@
+{
+  "catalog": "1.0",
+  "slug": "breaklock",
+  "appId": "breaklock",
+  "name": "BreakLock",
+  "shortName": "BreakLock",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "You draw the secret. They have to crack it. Your streak lives in the file.",
+  "description": "Send the Invite in the bar above. You draw a pattern on the 3×3 lock; they have to find it. Close the app and your streak, best scores, and the lock you were on are still there.\n\nOn your own it is the original BreakLock: Android's pattern lock scored like Mastermind. Link four, five or six dots. After every try a filled peg means that dot is in the right place; an empty peg means it belongs, but in another order. Practice is unlimited. Challenge gives you ten tries. Countdown is one minute.\n\nA game you're gonna love to hate.\n\nAn unofficial port of BreakLock by maxwellito, MIT-licensed. This copy keeps your stats and turns one link into a lock you set.",
+  "author": {
+    "name": "maxwellito",
+    "url": "https://github.com/maxwellito/breaklock"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "puzzle",
+    "lock",
+    "mastermind",
+    "pattern",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2017 maxwellito",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/breaklock",
+  "accent": [
+    17,
+    102,
+    153
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/breaklock/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/breaklock/breaklock.gif",
+  "bytes": 263472,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "ee2cc3b8832a858a714df8e566dbc380240a50128394f24c39339d900bf41e6a",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "BreakLock",
+    "url": "https://github.com/maxwellito/breaklock",
+    "blessed": false
+  }
+}

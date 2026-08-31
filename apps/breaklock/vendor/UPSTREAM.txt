@@ -1,0 +1,25 @@
+BreakLock — pattern model, lock drawing, Mastermind pegs, modes and copy.
+
+  https://github.com/maxwellito/breaklock
+  commit  a06fb28a3fa6072a089ca664c66a7bf08c0a3e99
+          (main, cloned 2026-08-30)
+  license MIT (COPYING-breaklock.txt)  Copyright (c) 2017 maxwellito
+
+vendor/pattern.js      src/models/pattern.js
+vendor/pattern-svg.js  src/utils/patternSVG.js
+vendor/dom.js          src/utils/dom.js
+vendor/color.js        src/utils/color.js
+vendor/lock.js         src/controllers/lock/lock.ctrl.js
+                       (pointer events; original was touch + mouse)
+vendor/quotes.js       src/controllers/summary/summaryFeedback.js
+                       + src/l10n/en.yml (the English snark, baked in)
+
+Upstream is webpack + ES modules + SCSS + a Roboto Mono webfont + a
+service worker. GifOS inlines <script src> and drops type="module", and
+the sandbox has nowhere to fetch a font or a CDN from. boot.js is a
+classic-script shell around the same 3×3 lock, the same pegs, and the
+same three modes (practice / 10-try challenge / 60s countdown), plus
+gifos.db streaks and a live "I set a pattern, you crack it" room.
+
+Nothing is fetched at runtime. The notice COPYING-breaklock.txt is packed
+inside the GIF as well as sitting here.

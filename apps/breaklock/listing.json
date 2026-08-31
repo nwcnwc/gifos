@@ -1,0 +1,33 @@
+{
+  "tagline": "You draw the secret. They have to crack it. Your streak lives in the file.",
+  "description": "Send the Invite in the bar above. You draw a pattern on the 3×3 lock; they have to find it. Close the app and your streak, best scores, and the lock you were on are still there.\n\nOn your own it is the original BreakLock: Android's pattern lock scored like Mastermind. Link four, five or six dots. After every try a filled peg means that dot is in the right place; an empty peg means it belongs, but in another order. Practice is unlimited. Challenge gives you ten tries. Countdown is one minute.\n\nA game you're gonna love to hate.\n\nAn unofficial port of BreakLock by maxwellito, MIT-licensed. This copy keeps your stats and turns one link into a lock you set.",
+  "author": {
+    "name": "maxwellito",
+    "url": "https://github.com/maxwellito/breaklock"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "BreakLock",
+    "url": "https://github.com/maxwellito/breaklock",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "puzzle",
+    "lock",
+    "mastermind",
+    "pattern",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/breaklock",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
