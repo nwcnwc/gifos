@@ -1,0 +1,63 @@
+{
+  "catalog": "1.0",
+  "slug": "otpauth",
+  "appId": "otpauth",
+  "name": "OTP Auth",
+  "shortName": "OTP",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Authenticator codes that live in this file. Works on a plane. Nothing is uploaded.",
+  "description": "Accounts stay inside this file, on this device. Close it and come back — the same codes are still ticking. There is no account, no cloud, and an invite does not share a secret. Works on a plane.\n\nPaste an otpauth:// link or a base32 secret. Codes refresh every 30 seconds. Tap a code to copy it. Import an Aegis JSON backup, export the same, or show a backup QR for one account. Handing someone a copy of this file hands them the codes — treat it like the authenticator itself.\n\nUnofficial wrap of OTPAuth by Héctor Molinero Fernández. The library writes the codes; this is the authenticator around it.",
+  "author": {
+    "name": "Héctor Molinero Fernández",
+    "url": "https://github.com/hectorm/otpauth"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "totp",
+    "hotp",
+    "authenticator",
+    "2fa",
+    "otp",
+    "offline",
+    "privacy"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2022 Paul Miller (https://paulmillr.com); Copyright © Héctor Molinero Fernández; Copyright (c) 2009 Kazuhiko Arase; Copyright (c) 2012 davidshimjs",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/otpauth",
+  "accent": [
+    64,
+    210,
+    180
+  ],
+  "capabilities": {
+    "db": true
+  },
+  "cover": "/apps/otpauth/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/otpauth/otpauth.gif",
+  "bytes": 231802,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "e708ee60acc020e2b82dd1d45cdf6f1f4e0f9e1175a436a4647408937e695819",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "OTPAuth",
+    "url": "https://github.com/hectorm/otpauth",
+    "blessed": false,
+    "donate": "https://github.com/sponsors/hectorm"
+  }
+}
