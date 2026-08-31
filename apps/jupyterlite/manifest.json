@@ -1,0 +1,35 @@
+{
+  "gifos": "1.0",
+  "appId": "jupyterlite",
+  "name": "JupyterLite",
+  "shortName": "Jupyter",
+  "version": "1.0.0",
+  "minBuild": 1381,
+  "description": "A Python notebook that lives in this file. Invite shares the cells.",
+  "entry": "index.html",
+  "accent": [243, 118, 38],
+  "capabilities": {
+    "db": true,
+    "wasm": true,
+    "multiplayer": true
+  },
+  "data": {
+    "notebook": { "visibility": "read-write" },
+    "prefs": { "visibility": "private" }
+  },
+  "launch": {
+    "src": {
+      "label": "Open a notebook with this Python",
+      "detail": "A Python snippet to put in a cell and run."
+    }
+  },
+  "assets": [
+    {
+      "url": "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.asm.wasm",
+      "sha256": "a50dd1843f805a0b7c45b61037ee0d7b26dfe85efe0e18ef95a34ad24e401f5f",
+      "path": "pyodide.asm.wasm",
+      "bytes": 10105545,
+      "optional": true
+    }
+  ]
+}

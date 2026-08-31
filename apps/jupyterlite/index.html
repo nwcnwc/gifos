@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>JupyterLite</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <input id="title" type="text" spellcheck="false" autocomplete="off" aria-label="Notebook name" value="Welcome.ipynb">
+    <span id="kstatus" class="kstatus">Python starting…</span>
+    <button type="button" id="run" class="go">Run</button>
+    <button type="button" id="runall">Run all</button>
+    <button type="button" id="addcode">+ Code</button>
+    <button type="button" id="addmd">+ Text</button>
+    <button type="button" id="restart">Restart</button>
+    <label class="file">Open
+      <input id="file" type="file" accept=".ipynb,application/json,.json">
+    </label>
+    <button type="button" id="dl">Download</button>
+    <button type="button" id="fresh">New</button>
+  </header>
+  <div id="prog" class="prog" hidden><i id="progfill"></i></div>
+  <p id="status" class="status"></p>
+  <div id="cells" class="cells"></div>
+</div>
+<script src="worker-src.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

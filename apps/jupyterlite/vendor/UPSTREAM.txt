@@ -1,0 +1,33 @@
+Pinned Pyodide 0.27.7 (CPython 3.12.7, emscripten 3.1.58, abi 2024_0).
+
+  https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js
+    sha256 b4cb23a53aba19c221659b9fb40a2f18281d685691dc06647fb0afd0681baf98
+    bytes  14913
+  https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.asm.js
+    sha256 6b4c90de5b7172873f04f21884d0e9d2274e305fe32116558fe3e4fbe3618d51
+    bytes  1255688
+  https://cdn.jsdelivr.net/pyodide/v0.27.7/full/python_stdlib.zip
+    sha256 16611534726e5d8ac2bd8f926410b2dcb8d6f49aa24913463533b457a2115c16
+    bytes  2360737
+  https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide-lock.json
+    sha256 9c45b916001a750f4102fc287494f3eab215909c7535c626a20db80fd6333e2c
+    bytes  112205
+
+The interpreter wasm is NOT in this directory. It rides an optional
+gifos.assets pin (manifest.json) so the GIF stays a notebook you can
+open before Python arrives:
+
+  https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.asm.wasm
+    sha256 a50dd1843f805a0b7c45b61037ee0d7b26dfe85efe0e18ef95a34ad24e401f5f
+    bytes  10105545
+
+JupyterLite itself is the product this app is a port of
+(https://github.com/jupyterlite/jupyterlite, BSD-3-Clause). The full
+JupyterLab shell is not vendored — it is a webpack forest of relative
+fetches and a service worker, which cannot run as a GifOS srcdoc.
+The kernel is the same idea JupyterLite uses: CPython via Pyodide,
+cells in one notebook, last-expression as Out. The notebook lives in
+this file instead of IndexedDB.
+
+Rebuild the four files above from those URLs and keep the hashes in
+this file, build.mjs, and manifest.json in agreement.
