@@ -200,6 +200,7 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
   if (listingBlob.includes(bad)) throw new Error('listing mentions ' + bad);
 }
 
+if (!files['boot.js'].includes('originalOnload')) throw new Error('boot must hold main.js onload until assets land');
 if (!files['boot.js'].includes("db('progress')")) throw new Error('chapter save');
 if (!files['boot.js'].includes('onBack')) throw new Error('onBack');
 if (!files['boot.js'].includes('gifos.assets')) throw new Error('assets load');
@@ -207,6 +208,15 @@ if (!files['net.js'].includes("db('play')")) throw new Error('play collection');
 if (!files['net.js'].includes('TRUST.seed')) throw new Error('shared seed');
 if (!files['fetch-hook.js'].includes('TRUST.land')) throw new Error('fetch-hook land');
 if (!files['vendor/js/core/Loader.js'].includes('mp3|wav')) throw new Error('Loader wav');
+if (files['vendor/js/core/Loader.js'].includes('loader.add(')) {
+  throw new Error('Loader must not PIXI.loader.add — relative XHR dies on about:srcdoc');
+}
+if (!files['vendor/js/core/Loader.js'].includes('_blobUrl') || !files['vendor/js/core/Loader.js'].includes('_loadSpritesheet')) {
+  throw new Error('Loader must feed PIXI from TRUST blobs');
+}
+if (!files['vendor/js/core/Loader.js'].includes('noWebGL') && !files['vendor/js/core/Loader.js'].includes('CanvasRenderer')) {
+  throw new Error('Loader must force canvas — WebGL kills the srcdoc renderer');
+}
 if (files['vendor/js/core/Button.js'].includes('button1.mp3')) throw new Error('button mp3 still referenced');
 
 for (const [n, s] of Object.entries(files)) {

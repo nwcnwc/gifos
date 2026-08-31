@@ -28,16 +28,21 @@ Scratcher.scratch = function(gotoID){
 
 	Scratcher.scratchAnim(dom, true)
 	.then(function(){
-		if(gotoID){
-			publish("slideshow/goto", [gotoID]);
-		}else{
-			publish("slideshow/next");
-		}
+		try {
+			if(gotoID){
+				publish("slideshow/goto", [gotoID]);
+			}else{
+				publish("slideshow/next");
+			}
+		} catch (e) {}
 	})
 	.then(function(){
 		return Scratcher.scratchAnim(dom, false);
 	})
 	.then(function(){
+		dom.style.display = "none";
+		Scratcher.isTransitioning = false;
+	}, function(){
 		dom.style.display = "none";
 		Scratcher.isTransitioning = false;
 	});

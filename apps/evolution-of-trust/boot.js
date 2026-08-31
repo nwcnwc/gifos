@@ -11,6 +11,11 @@
   var CHAPTERS = ['intro', 'oneoff', 'iterated', 'tournament', 'evolution', 'distrust', 'noise', 'sandbox', 'conclusion', 'credits'];
   var prefs = { chapter: '', mute: false, furthest: '' };
   var started = false;
+  // main.js assigns window.onload. A srcdoc has nothing left to load, so
+  // that fires in the gap while gifos.assets() is still landing pictures —
+  // Splash then throws (no sprites) and a second start cannot find #preloader.
+  var originalOnload = root.onload;
+  root.onload = function () {};
 
   function $(id) { return document.getElementById(id); }
 
@@ -19,14 +24,19 @@
     return i < 0 ? -1 : i;
   }
 
+  var saveTimer = null;
   function savePrefs() {
     if (!root.gifos || !root.gifos.db) return;
-    root.gifos.db('progress').put({
-      id: 'progress',
-      chapter: prefs.chapter || '',
-      furthest: prefs.furthest || '',
-      mute: !!prefs.mute
-    }).catch(function () {});
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      saveTimer = null;
+      root.gifos.db('progress').put({
+        id: 'progress',
+        chapter: prefs.chapter || '',
+        furthest: prefs.furthest || '',
+        mute: !!prefs.mute
+      }).catch(function () {});
+    }, 40);
   }
 
   function loadPrefs() {
@@ -169,14 +179,18 @@
   function restoreChapter() {
     if (!prefs.chapter || chapterIndex(prefs.chapter) < 0) return;
     if (prefs.chapter === 'intro' && !started) return;
+    var want = prefs.chapter;
     try {
       if (!started) {
-        root.publish('start/game');
+        started = true;
+        var sel = $('select');
+        if (sel) sel.style.display = 'block';
         if (!prefs.mute && root.Loader && Loader.sounds && Loader.sounds.bg_music) {
           Loader.sounds.bg_music.volume(0.75).loop(true).play();
         }
       }
-      root.publish('slideshow/scratch', [prefs.chapter]);
+      if (root.slideshow && slideshow.gotoSlide) slideshow.gotoSlide(want);
+      else root.publish('slideshow/scratch', [want]);
     } catch (e) {}
   }
 
@@ -191,6 +205,7 @@
       if (sel) sel.style.display = 'block';
     });
     root.subscribe('preloader/done', function () {
+      document.body.setAttribute('data-trust-play', '1');
       var guest = root.Net && root.Net.live() && !root.Net.owner();
       if (!guest) restoreChapter();
     });
@@ -236,24 +251,52 @@
     });
   }
 
+  function noteError(msg) {
+    msg = String(msg || 'error');
+    document.body.setAttribute('data-trust-err', msg.slice(0, 240));
+    bootBar(1, msg);
+  }
+
   function startOriginal() {
+    window.addEventListener('error', function (e) {
+      noteError((e && e.error && e.error.message) || (e && e.message) || 'error');
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e && e.reason;
+      noteError((r && r.message) || String(r) || 'rejection');
+    });
+    document.body.setAttribute('data-trust-step', 'start');
     patchWords();
     if (root.TRUST && root.TRUST.bakeCss) root.TRUST.bakeCss();
+    document.body.setAttribute('data-trust-step', 'css');
     fitStage();
     wireNotes();
-    var run = root.onload;
+    var run = originalOnload;
+    originalOnload = null;
     root.onload = null;
     wireSlideshow();
-    if (typeof run === 'function') run();
+    document.body.setAttribute('data-trust-step', 'run');
+    if (typeof run === 'function') {
+      try { run(); } catch (e) { noteError(e && e.message || e); }
+    }
+    document.body.setAttribute('data-trust-step', 'ran');
     fitStage();
     wireSound();
     wireBack();
     if (root.Net && root.Net.init) {
       root.Net.init({ chapters: CHAPTERS }).catch(function () {});
     }
+    var waited = 0;
     (function waitMain() {
       var main = $('main');
-      if (main && main.style.display === 'block') { hideBoot(); return; }
+      var painted = document.querySelector('#slideshow canvas') ||
+        (document.querySelector('.textbox') && (document.querySelector('.textbox').innerText || '').length > 2);
+      if (main && main.style.display === 'block' && painted) { hideBoot(); return; }
+      waited += 40;
+      if (waited >= 15000) {
+        noteError(document.body.getAttribute('data-trust-err') || 'The essay did not paint.');
+        return;
+      }
       setTimeout(waitMain, 40);
     })();
   }
@@ -262,7 +305,10 @@
     window.addEventListener('resize', fitStage);
     loadPrefs().then(function () {
       return loadPackedAssets();
-    }).then(startOriginal).catch(function (err) {
+    }).then(function () {
+      document.body.setAttribute('data-trust-step', 'landed');
+      setTimeout(startOriginal, 0);
+    }).catch(function (err) {
       bootBar(1, (err && err.message) || 'Could not start.');
       startOriginal();
     });

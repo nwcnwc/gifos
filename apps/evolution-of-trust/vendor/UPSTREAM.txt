@@ -16,7 +16,7 @@ Not copied (not needed to play the essay, or not CC0):
   (lukaso, CC Sampling+ — replaced with a rising beep)
 
 Local patches (search for "TRUST" / ".wav" / "bounding rect"):
-- js/core/Loader.js     treat .wav as sound
+- js/core/Loader.js     rewritten: Image/Howl from TRUST blob URLs, never PIXI.loader.add/XHR
 - js/core/Button.js     .wav paths; null-safe play
 - js/core/Scratcher.js  null-safe play
 - js/core/Slider.js     aim using the painted rect (phone CSS scale)

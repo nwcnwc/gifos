@@ -42,8 +42,16 @@
   }
 
   TRUST.lookup = function (url) {
+    var raw = String(url || '');
+    if (raw.indexOf('blob:') === 0 && TRUST.blobToPath[raw]) {
+      return TRUST.lookup(TRUST.blobToPath[raw]);
+    }
     var u = norm(url);
     if (!u) return null;
+    if (u.indexOf('blob:') === 0 || u.indexOf('data:') === 0) {
+      if (TRUST.blobToPath[u]) return TRUST.lookup(TRUST.blobToPath[u]);
+      return null;
+    }
     if (TRUST.blobs[u]) return { path: u, blob: TRUST.blobs[u], bytes: TRUST.bytes[u], mime: TRUST.mime[u] };
     if (TRUST.bytes[u]) return { path: u, blob: TRUST.blobs[u], bytes: TRUST.bytes[u], mime: TRUST.mime[u] };
     var b = basename(u);
@@ -58,6 +66,8 @@
     return null;
   };
 
+  TRUST.blobToPath = TRUST.blobToPath || {};
+
   TRUST.land = function (path, buf) {
     var p = norm(path);
     var mime = mimeOf(p);
@@ -66,6 +76,7 @@
     TRUST.mime[p] = mime;
     if (typeof URL !== 'undefined' && URL.createObjectURL) {
       TRUST.blobs[p] = URL.createObjectURL(new Blob([bytes], { type: mime }));
+      TRUST.blobToPath[TRUST.blobs[p]] = p;
     }
     var b = basename(p);
     if (b && b !== p) {
@@ -139,6 +150,13 @@
           xhr.__trust = hit;
           return;
         }
+        // about:srcdoc has no base URL — a relative open throws Invalid URL.
+        // Never let PIXI/Howler/pegasus hit the network stack with one.
+        var s = String(u || '');
+        if (!/^(blob:|data:|https?:)/i.test(s)) {
+          xhr.__trust = { miss: true, html: '', bytes: new ArrayBuffer(0), mime: 'text/plain' };
+          return;
+        }
         return open.apply(this, arguments);
       };
       xhr.send = function () {
@@ -147,7 +165,13 @@
         var type = xhr.responseType || '';
         var finish = function () {
           try {
-            if (hit.html != null) {
+            if (hit.miss) {
+              Object.defineProperty(xhr, 'status', { configurable: true, get: function () { return 404; } });
+              Object.defineProperty(xhr, 'statusText', { configurable: true, get: function () { return 'Not Found'; } });
+              Object.defineProperty(xhr, 'responseText', { configurable: true, get: function () { return ''; } });
+              Object.defineProperty(xhr, 'response', { configurable: true, get: function () { return xhr.responseType === 'arraybuffer' ? new ArrayBuffer(0) : ''; } });
+              Object.defineProperty(xhr, 'readyState', { configurable: true, get: function () { return 4; } });
+            } else if (hit.html != null) {
               Object.defineProperty(xhr, 'responseText', { configurable: true, get: function () { return hit.html; } });
               Object.defineProperty(xhr, 'response', { configurable: true, get: function () { return hit.html; } });
             } else if (type === 'arraybuffer') {
@@ -163,9 +187,11 @@
               Object.defineProperty(xhr, 'responseText', { configurable: true, get: function () { return txt; } });
               Object.defineProperty(xhr, 'response', { configurable: true, get: function () { return txt; } });
             }
-            Object.defineProperty(xhr, 'status', { configurable: true, get: function () { return 200; } });
-            Object.defineProperty(xhr, 'statusText', { configurable: true, get: function () { return 'OK'; } });
-            Object.defineProperty(xhr, 'readyState', { configurable: true, get: function () { return 4; } });
+            if (!hit.miss) {
+              Object.defineProperty(xhr, 'status', { configurable: true, get: function () { return 200; } });
+              Object.defineProperty(xhr, 'statusText', { configurable: true, get: function () { return 'OK'; } });
+              Object.defineProperty(xhr, 'readyState', { configurable: true, get: function () { return 4; } });
+            }
           } catch (e) {}
           if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
           if (typeof xhr.onload === 'function') xhr.onload();
@@ -203,26 +229,12 @@
   }
 
   TRUST.bakeCss = function () {
-    var sheets = document.styleSheets;
-    var i, j, rules, r, p, name, val;
-    if (!sheets) return;
-    for (i = 0; i < sheets.length; i++) {
-      try { rules = sheets[i].cssRules; } catch (e) { continue; }
-      if (!rules) continue;
-      for (j = 0; j < rules.length; j++) {
-        r = rules[j];
-        if (r && r.style) {
-          for (p = r.style.length - 1; p >= 0; p--) {
-            name = r.style[p];
-            val = r.style.getPropertyValue(name);
-            if (val && val.indexOf('url(') !== -1) {
-              r.style.setProperty(name, TRUST.remapCss(val), r.style.getPropertyPriority(name));
-            }
-          }
-        } else if (r && r.cssRules) {
-          /* skip nested */
-        }
-      }
+    var styles = document.querySelectorAll('style');
+    var i, t, n;
+    for (i = 0; i < styles.length; i++) {
+      t = styles[i].textContent;
+      n = TRUST.remapCss(t);
+      if (n !== t) styles[i].textContent = n;
     }
   };
 
