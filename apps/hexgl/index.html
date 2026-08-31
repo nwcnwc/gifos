@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>HexGL</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="boot">
+  <div class="boot-card">
+    <div class="boot-title">HEXGL</div>
+    <div id="boot-note">Carrying the track in…</div>
+    <div class="boot-track"><div id="boot-bar"></div></div>
+  </div>
+</div>
+
+<div id="menu">
+  <div id="title">HEXGL</div>
+  <div class="sub">Cityscape · three laps</div>
+  <div id="best-line">Best —</div>
+  <div id="menu-list">
+    <div id="start">Start</div>
+    <div id="s-quality">Quality: Mid</div>
+    <div id="s-hud">HUD: On</div>
+    <div id="s-mute">Sound: On</div>
+    <div id="s-credits">Credits</div>
+  </div>
+  <div id="room-note"></div>
+</div>
+
+<div id="credits" hidden>
+  <h3>HexGL</h3>
+  <p><b>Concept and development</b><br>Thibaut Despoulain (BKcore)</p>
+  <p><b>Contributors</b><br>townxelliot<br>mahesh.kk</p>
+  <p><b>HexMKI base model</b><br>Charnel</p>
+  <p><b>Track texture</b><br>Nobiax</p>
+  <p>An unofficial port. Tap to close.</p>
+</div>
+
+<div id="load" hidden>
+  <div id="progressbar"></div>
+  <div id="load-note">Building the city…</div>
+</div>
+
+<div id="race" hidden>
+  <div id="overlay"></div>
+  <div id="main"></div>
+  <div id="ghost-board" hidden>
+    <div class="board-title">Ghosts</div>
+    <div id="board-rows"></div>
+  </div>
+</div>
+
+<div id="finish" hidden>
+  <div id="finish-state">Finished</div>
+  <div id="finish-time">—</div>
+  <div id="finish-msg"></div>
+  <div id="finish-laps"></div>
+  <div id="finish-best"></div>
+  <button type="button" id="again">Race again</button>
+  <button type="button" id="to-menu">Menu</button>
+</div>
+
+<div id="nowebgl" hidden>
+  <div class="boot-card">
+    <div class="boot-title">HEXGL</div>
+    <p>This device cannot draw the track (no WebGL).</p>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div id="t-steer" class="t-pad"><div class="t-knob"></div></div>
+  <div id="t-actions">
+    <button type="button" id="t-brake" class="t-btn">BRAKE</button>
+    <button type="button" id="t-go" class="t-btn t-go">GO</button>
+  </div>
+</div>
+
+<script src="vendor/three.js"></script>
+<script src="vendor/ShaderExtras.js"></script>
+<script src="vendor/postprocessing/EffectComposer.js"></script>
+<script src="vendor/postprocessing/RenderPass.js"></script>
+<script src="vendor/postprocessing/BloomPass.js"></script>
+<script src="vendor/postprocessing/ShaderPass.js"></script>
+<script src="vendor/postprocessing/MaskPass.js"></script>
+<script src="vendor/Timer.js"></script>
+<script src="vendor/ImageData.js"></script>
+<script src="vendor/Utils.js"></script>
+<script src="vendor/RenderManager.js"></script>
+<script src="vendor/Shaders.js"></script>
+<script src="vendor/Particles.js"></script>
+<script src="vendor/Loader.js"></script>
+<script src="vendor/Audio.js"></script>
+<script src="vendor/HUD.js"></script>
+<script src="vendor/RaceData.js"></script>
+<script src="vendor/ShipControls.js"></script>
+<script src="vendor/ShipEffects.js"></script>
+<script src="vendor/CameraChase.js"></script>
+<script src="vendor/Gameplay.js"></script>
+<script src="vendor/Cityscape.js"></script>
+<script src="vendor/HexGL.js"></script>
+<script src="assets-index.js"></script>
+<script src="patch.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
