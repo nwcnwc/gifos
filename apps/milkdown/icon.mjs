@@ -243,39 +243,37 @@ export function screenshotPng() {
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
 
-  fill(0, 0, W, H, 10, 10, 15);
-  drawText(put, 40, 24, 'MILKDOWN', 6, 236, 239, 244);
-  drawText(put, 40, 78, 'TYPE MARKDOWN. SEE THE PAGE.', 3, 138, 147, 163);
+  fill(0, 0, W, H, 18, 22, 30);
+  fill(0, 0, W, 56, 14, 18, 24);
+  fill(0, 56, W, 57, 42, 49, 64);
 
-  fill(40, 118, 220, 162, 136, 192, 208);
-  drawText(put, 68, 132, 'WRITE', 3, 10, 18, 22);
-  fill(236, 118, 416, 162, 26, 32, 42);
-  drawText(put, 256, 132, 'SOURCE', 3, 180, 188, 200);
+  fill(16, 12, 118, 44, 136, 192, 208);
+  drawText(put, 32, 20, 'WRITE', 2, 10, 18, 22);
+  fill(122, 12, 228, 44, 26, 32, 42);
+  drawText(put, 138, 20, 'SOURCE', 2, 180, 188, 200);
+  drawText(put, 252, 20, 'B  I  S  H1  H2  "  LIST  TABLE  LINK', 2, 200, 208, 220);
 
-  fill(40, 178, 1160, 226, 26, 32, 42);
-  drawText(put, 56, 192, 'B   I   S   H1  H2  QUOTE  LIST  TABLE  LINK', 2, 200, 208, 220);
+  drawText(put, 48, 84, 'PACKING FOR THE TRAIN', 6, 136, 192, 208);
+  drawText(put, 48, 150, 'THE NOTES LIVE IN THIS FILE. CLOSE IT, COME BACK.', 2, 220, 224, 230);
+  drawText(put, 48, 198, 'BRING', 4, 136, 192, 208);
+  drawText(put, 48, 252, 'X  TICKETS', 3, 163, 190, 140);
+  drawText(put, 48, 300, '   CHARGERS', 3, 236, 239, 244);
+  drawText(put, 48, 348, '   THE PAPERBACK', 3, 236, 239, 244);
 
-  fill(40, 238, 1160, 640, 18, 22, 30);
+  fill(48, 404, 54, 488, 94, 129, 172);
+  drawText(put, 72, 412, 'IF WE MISS THE 09:40, THE 10:12', 2, 200, 208, 220);
+  drawText(put, 72, 448, 'STILL GETS US THERE.', 2, 200, 208, 220);
 
-  drawText(put, 64, 260, 'PACKING FOR THE TRAIN', 5, 136, 192, 208);
-  drawText(put, 64, 318, 'THE NOTES LIVE IN THIS FILE. CLOSE IT, COME BACK.', 2, 220, 224, 230);
-  drawText(put, 64, 358, 'BRING', 3, 136, 192, 208);
-  drawText(put, 64, 402, '- TICKETS', 3, 163, 190, 140);
-  drawText(put, 64, 442, '- CHARGERS', 3, 236, 239, 244);
-  drawText(put, 64, 482, '- THE PAPERBACK', 3, 236, 239, 244);
+  drawText(put, 48, 512, 'WHO HAS WHAT:', 3, 220, 224, 230);
+  fill(48, 556, 720, 684, 22, 28, 38);
+  drawText(put, 68, 568, 'WHO           JOB', 3, 136, 192, 208);
+  fill(68, 606, 700, 608, 42, 49, 64);
+  drawText(put, 68, 620, 'YOU           SNACKS', 3, 236, 239, 244);
+  drawText(put, 68, 656, 'THEM          MAPS', 3, 236, 239, 244);
 
-  fill(64, 530, 64 + 6, 610, 94, 129, 172);
-  drawText(put, 88, 538, 'IF WE MISS THE 09:40, THE 10:12', 2, 200, 208, 220);
-  drawText(put, 88, 572, 'STILL GETS US THERE.', 2, 200, 208, 220);
-
-  fill(700, 390, 1140, 610, 22, 28, 38);
-  drawText(put, 724, 410, 'WHO     JOB', 3, 136, 192, 208);
-  fill(724, 448, 1116, 450, 42, 49, 64);
-  drawText(put, 724, 466, 'YOU     SNACKS', 3, 236, 239, 244);
-  drawText(put, 724, 514, 'THEM    MAPS', 3, 236, 239, 244);
-  drawText(put, 724, 562, 'BOTH    TICKETS', 3, 163, 190, 140);
-
-  drawText(put, 40, 664, 'SAVED IN THIS FILE. INVITE IS THE SAME DOCUMENT.', 3, 138, 147, 163);
+  fill(0, 696, W, H, 14, 18, 24);
+  fill(0, 696, W, 697, 42, 49, 64);
+  drawText(put, 48, 704, '93 WORDS  SAVED ON THIS DEVICE', 2, 138, 147, 163);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

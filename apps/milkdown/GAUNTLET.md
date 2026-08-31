@@ -18,14 +18,17 @@
 | Source | one tap, same document | in |
 | Persist | gifos.db save, last document | in |
 | Invite | read-write room, last write wins | in |
-| Phone | 42px tabs/toolbar, Back leaves Source / link sheet | in |
+| Phone | thin hud, document first, table on the glass, Back leaves Source | in |
 
 ## Rounds
 
 1. First build: kit vendored as IIFE (no Crepe/Vue/CodeMirror/KaTeX), dark paper, Write/Source, toolbar, sample packing note, invite.
 2. Cover and icon judged as a page mid-use, not an empty boot.
 3. Phone: Write/Source full-width, toolbar scrolls, Back closes the sheet.
+4. The note is the page: title/slogan/actions/meet-line gone, one thin hud, toolbar scrolls not wraps, table on the 390 glass.
 
 ## Remaining gap
 
 Crepe’s slash menu, CodeMirror fences, and KaTeX are not in the sandbox — the kit still turns `# ` into a heading the way Typora does, and the GIF is the save.
+
+**READY-TO-SIGN**

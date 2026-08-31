@@ -4,7 +4,7 @@
   'use strict';
 
   var api = null, room = null, me = { id: null, name: 'You' };
-  var on = false, subscribed = false;
+  var on = false, subscribed = false, owner = true;
   var lastAt = 0, lastBy = '';
   var skip = false;
   var hb = 0;
@@ -17,8 +17,7 @@
         if (r.id !== 'who_' + me.id) names.push(r.name || 'Friend');
       }
     });
-    if (!on) return 'Press Invite in the bar above to write the same document with a friend.';
-    if (n <= 1) return 'Waiting for a friend… Invite sends the link. They get this document.';
+    if (!on || n <= 1) return 'Press Invite in the bar above to write the same document with a friend.';
     if (names.length === 1) return names[0] + ' is on this document.';
     return names.length + ' friends on this document.';
   }
@@ -67,9 +66,10 @@
     var who = api.me ? api.me() : Promise.resolve({ id: 'local', name: 'You' });
     var info = api.info ? api.info() : Promise.resolve({ owner: true });
     Promise.all([who, info]).then(function (pair) {
-      var id = pair[0];
+      var id = pair[0], inf = pair[1];
       me.id = (id && id.id) || 'local';
       me.name = (id && id.name) || 'You';
+      owner = !(inf && inf.owner === false);
       on = true;
       if (!subscribed) {
         subscribed = true;
@@ -78,7 +78,11 @@
           applyList(list);
         });
       }
-      publish();
+      /* Guest must not publish SAMPLE over the host's live row. */
+      if (owner) publish();
+      else if (me.id) {
+        room.put({ id: 'who_' + me.id, at: Date.now(), name: me.name }).catch(function () {});
+      }
       if (!hb) {
         hb = setInterval(function () {
           if (!on || !room || !me.id) return;

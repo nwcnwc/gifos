@@ -9,9 +9,9 @@ history/clipboard/cursor. Crepe’s Vue / CodeMirror / KaTeX tree is not
 shipped: no webfonts, no eval, no network.
 
 ```
-index.html           Write / Source, toolbar, link sheet
-style.css            dark paper, system fonts
-app.js               last document, toolbar, source toggle
+index.html           thin hud, Write / Source, toolbar, ⋯, link sheet
+style.css            the paper is the window, system fonts
+app.js               last document, toolbar, source toggle, ⋯ menu
 mp.js                invite shares the live page (last write wins)
 vendor/milkdown.js   kit IIFE, global Milkdown
 vendor/milkdown.css  ProseMirror + table + gapcursor
