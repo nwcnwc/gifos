@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>jsnes</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="bar">
+  <button type="button" id="btn-games">Games</button>
+  <span id="cart-name">jsnes</span>
+  <span id="who" hidden></span>
+  <span class="grow"></span>
+  <button type="button" id="btn-slot" title="Quick-state slot">1</button>
+  <button type="button" id="btn-save" title="Save state (F5)">Save</button>
+  <button type="button" id="btn-load" title="Load state (F7)">Load</button>
+  <button type="button" id="btn-pause">Pause</button>
+  <button type="button" id="btn-reset">Reset</button>
+  <button type="button" id="btn-mute">Mute</button>
+</div>
+
+<div id="stage">
+  <canvas id="screen" width="256" height="240"></canvas>
+  <div id="hint">Open Games, or drop a .nes dump here.</div>
+</div>
+
+<div id="library" hidden>
+  <div class="lib-card">
+    <header>
+      <h1>Games</h1>
+      <button type="button" id="lib-close" aria-label="Close">Done</button>
+    </header>
+    <p class="lib-lead">Two homebrew carts come with this file. Drop your own dump if you have one — nothing Nintendo ships here.</p>
+    <h2>In this file</h2>
+    <div id="lib-samples"></div>
+    <h2>Your dumps</h2>
+    <div id="lib-user"></div>
+    <button type="button" id="btn-drop" class="wide">Drop a .nes dump</button>
+    <p class="lib-foot">Battery saves stay in this file, per game.</p>
+  </div>
+</div>
+
+<input id="file" type="file" accept=".nes,.NES,application/octet-stream" hidden>
+
+<div id="touch" hidden>
+  <div id="dpad" aria-label="D-pad">
+    <div class="d-plus"></div>
+    <div class="d-nub"></div>
+  </div>
+  <div id="sys">
+    <button type="button" class="sys" data-bit="2">Select</button>
+    <button type="button" class="sys" data-bit="3">Start</button>
+  </div>
+  <div id="face">
+    <button type="button" class="face b" data-bit="1">B</button>
+    <button type="button" class="face a" data-bit="0">A</button>
+  </div>
+</div>
+
+<script src="vendor/jsnes.min.js"></script>
+<script src="roms.js"></script>
+<script src="emu.js"></script>
+<script src="touch.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
