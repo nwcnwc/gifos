@@ -1,0 +1,34 @@
+{
+  "tagline": "A PC inside a GIF — FreeDOS boots offline, and the floppy is the save.",
+  "description": "copy.sh/v86 needs the network for BIOS and disks. This copy does not: SeaBIOS, the VGA BIOS, and a 720K FreeDOS floppy ride inside the file, so it boots on a plane.\n\nIt is a real x86 PC (Pentium-class, 16 MB RAM) running FreeDOS. Type DIR. Play invaders, snake, tetris or rogue. Assemble HELLO.ASM with nasm, edit with vim. Files you write on the floppy stay in the icon — close it, open it, the disk is still yours. Sleep keeps the running machine too, when the snapshot fits.\n\nThis floppy is the FreeDOS Ripcord boot disk (GPL). No Windows, no macOS, no remote BIOS fetch. An unofficial port of v86 by copy.",
+  "author": {
+    "name": "copy / v86 contributors",
+    "url": "https://github.com/copy/v86"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "v86",
+    "url": "https://github.com/copy/v86",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "emulator",
+    "pc",
+    "dos",
+    "freedos",
+    "x86",
+    "offline",
+    "retro"
+  ],
+  "license": "BSD-2-Clause",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/v86",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

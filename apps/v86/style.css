@@ -1,0 +1,125 @@
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #07080a;
+  color: #c8f0c8;
+  font-family: "Courier New", Courier, ui-monospace, monospace;
+}
+#app {
+  display: flex; flex-direction: column;
+  width: 100%; height: 100%;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+#bar {
+  display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+  flex-wrap: wrap;
+  padding: .45rem .7rem;
+  background: #10140f;
+  border-bottom: 1px solid #1e2a1c;
+  flex: 0 0 auto;
+}
+#brand { display: flex; align-items: center; gap: .55rem; min-width: 0; }
+#brand b { display: block; font-size: .95rem; letter-spacing: .08em; color: #9dff9a; }
+#brand span { display: block; font-size: .68rem; color: #6a8a6a; letter-spacing: .04em; }
+#led {
+  width: .62rem; height: .62rem; border-radius: 50%;
+  background: #143014; box-shadow: inset 0 0 0 1px #0a0;
+  flex: 0 0 auto;
+}
+body.live #led { background: #3dff4a; box-shadow: 0 0 8px #3dff4a; }
+body.paused #led { background: #c9a227; box-shadow: 0 0 6px #c9a227; }
+#acts { display: flex; flex-wrap: wrap; gap: .28rem; }
+#acts button {
+  appearance: none; border: 1px solid #2a3d28; background: #151c14;
+  color: #b8e0b8; font: 700 .68rem/1 inherit; letter-spacing: .06em;
+  text-transform: uppercase; padding: .38rem .5rem; border-radius: .35rem;
+  cursor: pointer;
+}
+#acts button:hover, #acts button.on { background: #1e2e1c; color: #d8ffd8; border-color: #4a8a4a; }
+#acts button:disabled { opacity: .4; cursor: default; }
+
+#stage {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: .55rem .7rem;
+}
+#bezel {
+  background: linear-gradient(160deg, #2a2c28, #141612 55%, #0c0d0b);
+  border-radius: 1.15rem;
+  padding: 1rem 1.05rem 1.25rem;
+  box-shadow: 0 10px 0 #050505, 0 18px 40px rgba(0,0,0,.55);
+  max-width: 100%; max-height: 100%;
+}
+#crt {
+  position: relative;
+  background: #020402;
+  border-radius: .45rem;
+  overflow: hidden;
+  box-shadow: inset 0 0 40px rgba(40, 255, 80, .08);
+}
+#screen_container {
+  position: relative;
+  background: #000;
+  min-width: 640px; min-height: 200px;
+}
+#screen_container > div {
+  color: #7CFF7C !important;
+  background: #000;
+  text-shadow: 0 0 6px rgba(80,255,80,.35);
+}
+#screen_container canvas { display: block; image-rendering: pixelated; }
+#scan {
+  position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 2px,
+    rgba(0,0,0,.16) 2px 3px
+  );
+  mix-blend-mode: multiply;
+}
+#boot-msg {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem; letter-spacing: .12em; text-transform: uppercase;
+  color: #6fbb6f; background: rgba(0,8,0,.55);
+  pointer-events: none;
+}
+body.live #boot-msg, body.paused #boot-msg, body.err #boot-msg { display: none; }
+body.err #boot-msg { display: flex; color: #ffb0b0; background: rgba(40,0,0,.7); }
+
+#keys {
+  flex: 0 0 auto;
+  padding: .35rem .5rem .5rem;
+  background: #0d100d;
+  border-top: 1px solid #1e2a1c;
+}
+#keys[hidden] { display: none; }
+.krow { display: flex; flex-wrap: wrap; gap: .28rem; justify-content: center; margin: .18rem 0; }
+.krow button {
+  appearance: none; min-width: 2.4rem; min-height: 2.1rem;
+  border: 1px solid #2a3d28; background: #151c14; color: #c8f0c8;
+  font: 700 .72rem/1 inherit; border-radius: .35rem; padding: 0 .4rem;
+  cursor: pointer;
+}
+.krow button.on { background: #3dff4a; color: #061006; border-color: #9dff9a; }
+#btn-type { min-width: 4.2rem; }
+
+#status {
+  flex: 0 0 auto;
+  display: flex; justify-content: space-between; gap: .6rem;
+  padding: .28rem .7rem .4rem;
+  font-size: .68rem; letter-spacing: .04em; color: #6a8a6a;
+}
+#stat-disk { color: #9dff9a; }
+
+.phone_keyboard {
+  position: absolute; left: 0; bottom: 0; width: 1px; height: 1px;
+  opacity: 0; border: 0; padding: 0;
+}
+
+@media (max-width: 720px) {
+  #screen_container { min-width: 0; width: 100%; }
+  #bezel { padding: .55rem .55rem .7rem; border-radius: .7rem; }
+  #brand span { display: none; }
+  #acts button { padding: .32rem .4rem; font-size: .62rem; }
+}
