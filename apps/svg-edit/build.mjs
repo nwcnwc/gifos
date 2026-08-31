@@ -7,7 +7,7 @@
 // pinned svgedit package and is run only when the pin moves.
 //
 // Run:  node apps/svg-edit/build.mjs
-import { svgEditIcon, screenshotPng } from './icon.mjs';
+import { svgEditIcon } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -96,8 +96,9 @@ for (const [n, s] of Object.entries(files)) {
   if (/<\/script/i.test(s)) throw new Error(n + ' contains </script — cannot inline safely');
 }
 
-const shot = screenshotPng();
-writeFileSync(join(dir, 'screenshot.png'), shot);
+if (!existsSync(join(dir, 'screenshot.png'))) {
+  throw new Error('screenshot.png missing — capture from the live window (apps/svg-edit/tools/prove.js)');
+}
 
 const bytes = await gif.encode(files, { preview: svgEditIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'svg-edit', 'svg-edit.gif');

@@ -245,6 +245,7 @@
       no_save_warning: true,
       extensions: [],
       userExtensions: [],
+      extPath: './extensions',
       imgPath: './images',
       showRulers: true,
       dimensions: [800, 600]
@@ -281,16 +282,20 @@
       e.preventDefault();
       openFile(f);
     });
-    document.addEventListener('pointerdown', function () { dragging += 1; });
-    document.addEventListener('pointerup', function () {
-      dragging = Math.max(0, dragging - 1);
-      if (!dragging && queuedRemote) {
+    function beginDrag() { dragging += 1; }
+    function endDrag() {
+      dragging = 0;
+      if (queuedRemote) {
         var row = queuedRemote;
         queuedRemote = null;
         applyRemote(row);
       }
       scheduleSave();
-    });
+    }
+    document.addEventListener('pointerdown', beginDrag);
+    document.addEventListener('mousedown', beginDrag);
+    document.addEventListener('pointerup', endDrag);
+    document.addEventListener('mouseup', endDrag);
     document.addEventListener('pointercancel', function () { dragging = 0; });
     document.addEventListener('keyup', function (e) {
       if (e.key === 's' && (e.ctrlKey || e.metaKey)) {

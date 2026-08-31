@@ -3,8 +3,35 @@
 // A sandboxed frame is an opaque origin: localStorage throws, relative
 // image URLs have no directory, window.open cannot pop an export tab, and
 // fetch(data:) is blocked by connect-src 'none'. boot.js runs first.
+//
+// about:srcdoc is a valid URL but not a valid BASE — `new URL('./x', it)`
+// throws. SVG-Edit's Editor constructor does exactly that for extPath.
 (function (root) {
   'use strict';
+
+  (function () {
+    var Orig = root.URL;
+    if (!Orig) return;
+    function isAboutBase(b) {
+      if (b == null) return false;
+      var s = '';
+      try { s = typeof b === 'string' ? b : String(b.href != null ? b.href : b); }
+      catch (e) { try { s = String(b); } catch (e2) { return false; } }
+      return /^about:(srcdoc|blank)$/i.test(s);
+    }
+    function GifosURL(url, base) {
+      if (arguments.length >= 2 && isAboutBase(base)) {
+        return Reflect.construct(Orig, [url, 'gifos://app/']);
+      }
+      return arguments.length >= 2
+        ? Reflect.construct(Orig, [url, base])
+        : Reflect.construct(Orig, [url]);
+    }
+    GifosURL.prototype = Orig.prototype;
+    Object.setPrototypeOf(GifosURL, Orig);
+    try { Object.defineProperty(root, 'URL', { configurable: true, writable: true, value: GifosURL }); }
+    catch (e) { root.URL = GifosURL; }
+  })();
 
   var hydrating = true;
   function memoryStore() {
