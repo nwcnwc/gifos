@@ -42,11 +42,11 @@
   "cover": "/apps/evolution-of-trust/cover.jpg",
   "screenshots": [],
   "gif": "/apps/evolution-of-trust/evolution-of-trust.gif",
-  "bytes": 4783048,
+  "bytes": 4785786,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "0b7f94d1acc8bb26389da676f3ff18dd6ae5e98220a3ffdd32a58df509162bf0",
+  "sha256": "fffacce13984da9676465daf6fa5068049146284d6414cf4b926dd49a0fbb925",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

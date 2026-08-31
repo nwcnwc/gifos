@@ -14,6 +14,10 @@
 3. Invite: host broadcasts chapter + sandbox knobs + Start/Step/Reset with a shared seed. Guests watch; they do not turn the pages.
 4. Icon: two peeps play the Game of Trust (coin, then a cheat). Cover: mid-tournament ring. Listing leads with the bookmark and the invite.
 
+## Srcdoc boot (critic COMP)
+
+The packed GIF now reaches PLAY inside `run.html` `about:srcdoc`. PIXI never `loader.add`s (relative XHR is an Invalid URL on a document with no base). Sprites come from TRUST blobs; WebGL is forced off (canvas renderer — the copied `isWebGLSupported` would otherwise kill the opaque-origin renderer). `window.onload` from `main.js` is held until `gifos.assets` has landed. Close on the noise chapter, reopen, still on noise (7th dot, Copycat vs Copycat, COOPERATE). No `Cannot add resources while the loader is running.`
+
 ## Remaining gap
 
-Guests follow the host’s *chapter*, not every sub-slide of the essay — a friend who joins mid-match still sees the same pond, not the exact sentence the host is reading.
+Cover is still a procedural drawing, not a frame of the running tournament. Guests follow the host’s chapter, not every sub-slide. Catalog listing is owned elsewhere.
