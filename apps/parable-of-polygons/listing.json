@@ -1,0 +1,34 @@
+{
+  "tagline": "Nicky Case’s Schelling explorable, offline — last sliders stay, one invite shares the town.",
+  "description": "Close it and the sliders are where you left them. Send the invite and a friend lands in the same triangle/square town. No account, no tab left open on the original site, and it runs on a plane.\n\nThis is still the playable post: the words, the unhappy wiggle, the graph that climbs as a tiny bias splits a mixed crowd. Drag the shaking ones. Start the sim. Lower the bias on a world that already segregated — nothing mixes back until someone demands a little diversity.\n\nAn unofficial port of Parable of the Polygons by Vi Hart and Nicky Case, public domain. The essay is the point; this copy just keeps the town.",
+  "author": {
+    "name": "Vi Hart & Nicky Case",
+    "url": "https://ncase.me/polygons/"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Parable of the Polygons",
+    "url": "https://github.com/ncase/polygons",
+    "donate": "https://www.patreon.com/ncase",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-31",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "polygons",
+    "schelling",
+    "segregation",
+    "explorable",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/parable-of-polygons",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
