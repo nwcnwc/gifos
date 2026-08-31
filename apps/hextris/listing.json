@@ -1,0 +1,33 @@
+{
+  "tagline": "Race a friend from the same falling hexes — your high score lives in the GIF.",
+  "description": "On your own it is Hextris, fully offline: rotate the hex, match three of a colour, keep the stacks inside the grey ring. Close it, come back, your top three scores are still in this file.\n\nSend the Invite in the bar above and it becomes a race. You both get the same sequence of falling blocks, each on your own hex. Last one still stacking wins. There is no account and no server — the link is the room.\n\nOn a phone, tap the left and right sides, or use LEFT / RIGHT / FAST under your thumbs. On a computer it is the arrows (or A/D) and down to hurry a block in.\n\nAn unofficial port of Hextris by Logan Engstrom, Garrett Finucane, Noah Moroze and Michael Yang, GPL-3.0. This copy keeps the high score in the file and adds the race.",
+  "author": {
+    "name": "Logan Engstrom, Garrett Finucane, Noah Moroze, Michael Yang",
+    "url": "https://github.com/Hextris/hextris"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Hextris",
+    "url": "https://github.com/Hextris/hextris",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "hextris",
+    "hexagon",
+    "puzzle",
+    "arcade",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hextris",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

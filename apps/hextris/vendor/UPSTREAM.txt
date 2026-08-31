@@ -1,0 +1,19 @@
+Hextris — pinned upstream
+=========================
+
+repo    https://github.com/Hextris/hextris
+branch  gh-pages
+commit  3f4847dc8fd7dab3d1c87e6324b9159d92fbd396
+date    2022-02-08
+license GNU GPL v3 or later (LICENSE.md in that tree)
+
+Vendored files are the original `js/*.js` with the sandbox seams applied
+in place (seeded randInt, hexHistory instead of window.history, no
+analytics / score phone-home / remote a.js, native keyboard instead of
+keypress.js, FontAwesome play-glyph drawn as a triangle, high scores
+through HT.ls* instead of localStorage). Images for pause / resume /
+restart / help / back are the original SVGs.
+
+Not shipped: jQuery, keypress, hammer, js.cookie, jsonfn, sweet-alert,
+rrssb, Font Awesome, Exo/Roboto webfonts, Google Analytics, AdSense,
+app-store badges, social share.

@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "hextris",
+  "name": "Hextris",
+  "shortName": "Hextris",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [231, 76, 60],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
