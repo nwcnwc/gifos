@@ -42,11 +42,11 @@
   "cover": "/apps/v86/cover.jpg",
   "screenshots": [],
   "gif": "/apps/v86/v86.gif",
-  "bytes": 2230512,
+  "bytes": 2231480,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "e9e162401bbec7c3710f86a12203a437dbe7cfeaf3a41574506a6292c2d5dc7f",
+  "sha256": "ab99f2443e0e0dec27b9af2781d35caf891ed9f6d1d995aa465ce92e5d7c00e6",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

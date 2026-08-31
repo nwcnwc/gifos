@@ -39,35 +39,52 @@ body.paused #led { background: #c9a227; box-shadow: 0 0 6px #c9a227; }
 #acts button:disabled { opacity: .4; cursor: default; }
 
 #stage {
-  flex: 1 1 auto; min-height: 0;
+  flex: 1 1 auto; min-height: 0; min-width: 0;
   display: flex; align-items: center; justify-content: center;
   padding: .55rem .7rem;
+  overflow: hidden;
 }
 #bezel {
   background: linear-gradient(160deg, #2a2c28, #141612 55%, #0c0d0b);
   border-radius: 1.15rem;
   padding: 1rem 1.05rem 1.25rem;
   box-shadow: 0 10px 0 #050505, 0 18px 40px rgba(0,0,0,.55);
-  max-width: 100%; max-height: 100%;
+  width: 100%; height: 100%;
+  min-width: 0; min-height: 0;
+  box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
 }
 #crt {
   position: relative;
   background: #020402;
   border-radius: .45rem;
   overflow: hidden;
+  /* Gutter > radius so the curve never eats column 0 of the 80×25. */
+  padding: 12px;
   box-shadow: inset 0 0 40px rgba(40, 255, 80, .08);
+  min-width: 0;
+  max-width: 100%;
+  max-height: 100%;
+  box-sizing: border-box;
 }
 #screen_container {
   position: relative;
   background: #000;
-  min-width: 640px; min-height: 200px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 #screen_container > div {
   color: #7CFF7C !important;
   background: #000;
   text-shadow: 0 0 6px rgba(80,255,80,.35);
+  transform-origin: 0 0 !important;
 }
-#screen_container canvas { display: block; image-rendering: pixelated; }
+#screen_container canvas {
+  display: block;
+  image-rendering: pixelated;
+  transform-origin: 0 0 !important;
+}
 #scan {
   position: absolute; inset: 0; pointer-events: none;
   background: repeating-linear-gradient(
@@ -118,7 +135,6 @@ body.err #boot-msg { display: flex; color: #ffb0b0; background: rgba(40,0,0,.7);
 }
 
 @media (max-width: 720px) {
-  #screen_container { min-width: 0; width: 100%; }
   #bezel { padding: .55rem .55rem .7rem; border-radius: .7rem; }
   #brand span { display: none; }
   #acts button { padding: .32rem .4rem; font-size: .62rem; }

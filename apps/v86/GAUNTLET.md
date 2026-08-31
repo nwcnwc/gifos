@@ -12,10 +12,11 @@ A stranger who knows copy.sh/v86 uses this copy because the PC is the GIF: SeaBI
 3. **Disk as save.** `get_disk_fda()` into `gifos.db('disk')`. Factory restores the original floppy. Sleep compresses RAM when it fits.
 4. **ICON / COVER / LISTING.** CRT sticker boots to `A:\>` with a blinking cursor. Cover is mid-session DIR + `invaders`. Tagline leads with the GIF-is-the-PC reason.
 5. **Phone keys.** System keyboard for letters; extra row for Esc/Ctrl/Alt/Fn/arrows.
+6. **80×25 in the glass.** `#crt` gutter > radius; `fitScreen` scales from the unscaled 80×25 (floor 0.2, origin 0 0) so column 0 (`A:\>`) is inside the bezel on desktop and a 390-wide phone.
 
 ## Remaining gap
 
-One legal floppy, not copy.sh's OS zoo (no Linux ISO in this build — FreeDOS is the working boot). Live invite of a 16 MB RAM machine is not in.
+One legal floppy, not copy.sh's OS zoo (no Linux ISO in this build — FreeDOS is the working boot). Live invite of a 16 MB RAM machine is not in. Catalog listing is the orchestrator's sign step.
 
 ## Win
 
