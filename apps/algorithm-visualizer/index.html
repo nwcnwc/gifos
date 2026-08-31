@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Algorithm Visualizer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <h1>Algorithms</h1>
+    <nav id="catalog"></nav>
+  </aside>
+
+  <header id="head">
+    <button id="menu" type="button" aria-label="Algorithms">☰</button>
+    <div id="titles">
+      <div id="title">Algorithm Visualizer</div>
+      <div id="blurb">Pick an algorithm. Play walks every comparison, swap, visit.</div>
+    </div>
+    <div id="room" hidden></div>
+  </header>
+
+  <div id="stage"></div>
+
+  <div id="inputbar">
+    <div id="inputs"></div>
+    <button id="apply" class="btn" type="button">Run</button>
+    <button id="shuffle" class="btn" type="button">Shuffle</button>
+  </div>
+
+  <div id="player">
+    <button id="prev" class="btn" type="button" aria-label="Previous step">Prev</button>
+    <button id="play" class="btn primary" type="button">Play</button>
+    <button id="next" class="btn" type="button" aria-label="Next step">Next</button>
+    <input id="seek" type="range" min="0" max="1" value="0" aria-label="Step">
+    <span id="count">0 / 0</span>
+    <select id="speed" aria-label="Speed">
+      <option value="0.5">0.5×</option>
+      <option value="1" selected>1×</option>
+      <option value="2">2×</option>
+      <option value="4">4×</option>
+      <option value="8">8×</option>
+    </select>
+  </div>
+</div>
+
+<script src="tracer.js"></script>
+<script src="algos.js"></script>
+<script src="render.js"></script>
+<script src="player.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
