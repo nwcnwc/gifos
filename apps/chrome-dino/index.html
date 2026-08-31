@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Chrome Dino</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body id="t" class="offline">
+<div id="main-frame-error" class="interstitial-wrapper">
+  <div id="main-content">
+    <div class="icon icon-offline" alt=""></div>
+  </div>
+  <div id="offline-resources">
+    <img id="offline-resources-1x" src="vendor/sprites-1x.png" alt="">
+    <img id="offline-resources-2x" src="vendor/sprites-2x.png" alt="">
+    <template id="audio-resources">
+      <audio id="offline-sound-press" src="vendor/sound-press.ogg"></audio>
+      <audio id="offline-sound-hit" src="vendor/sound-hit.ogg"></audio>
+      <audio id="offline-sound-reached" src="vendor/sound-reached.ogg"></audio>
+    </template>
+  </div>
+</div>
+
+<div id="hint">SPACE / TAP JUMP &nbsp; DOWN DUCK</div>
+<div id="racebar" hidden></div>
+
+<div id="touch" hidden>
+  <div id="t-left" class="t-col">
+    <button class="t-btn wide" data-act="duck" type="button" aria-label="Duck">DUCK</button>
+  </div>
+  <div id="t-right" class="t-col">
+    <button class="t-btn wide" data-act="jump" type="button" aria-label="Jump">JUMP</button>
+  </div>
+</div>
+
+<script src="vendor/game.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
