@@ -1,0 +1,40 @@
+{
+  "tagline": "The cart lives in this GIF. Close it, the game is still in there. Invite, and they play the one you just made.",
+  "description": "tic80.com is a tab that forgets the disk when you close it. This copy keeps every cart you save inside the GIF, so you can close it, come back, or hand the file to someone, and the same tiny computer is still in there.\n\nIt is the real TIC-80 — Lua and JavaScript, the sprite and map editors, the tracker, the console. Two MIT carts ride along: the default HELLO WORLD, and a fire demo. Drop your own .tic / .lua / .gif cart if you have one. Nothing commercial, nothing from PICO-8's store.\n\nPress Invite. Whoever opens the link sees the carts on your desk and can play them on their phone or their computer, no account. On a phone a pad sits under your thumbs.\n\nAn unofficial port of TIC-80 by Vadim Grigoruk (nesbox), MIT-licensed. The engine is theirs. The disk in the icon, and the desk on a second device, are this copy.",
+  "author": {
+    "name": "Vadim Grigoruk",
+    "url": "https://github.com/nesbox/TIC-80"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "TIC-80",
+    "url": "https://github.com/nesbox/TIC-80",
+    "donate": "https://github.com/sponsors/nesbox",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Games",
+    "Creativity"
+  ],
+  "tags": [
+    "tic-80",
+    "pico-8",
+    "fantasy-computer",
+    "lua",
+    "pixel",
+    "offline",
+    "multiplayer",
+    "cart"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tic80",
+  "cover": "screenshot.png",
+  "coverCrop": {
+    "top": 36
+  },
+  "screenshots": []
+}

@@ -1,0 +1,30 @@
+{
+  "gifos": "1.0",
+  "appId": "tic80",
+  "name": "TIC-80",
+  "shortName": "TIC-80",
+  "version": "1.1.2837",
+  "minBuild": 1314,
+  "entry": "index.html",
+  "accent": [65, 166, 246],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "wasm": true,
+    "multiplayer": true,
+    "fullscreen": true
+  },
+  "launch": {
+    "cart": {
+      "label": "Run this cart",
+      "detail": "A cart on the disk: hello, fire, or a name you saved."
+    }
+  },
+  "data": {
+    "disk": { "visibility": "private" },
+    "prefs": { "visibility": "private" },
+    "desk": { "visibility": "read-write" },
+    "pads": { "visibility": "read-write" },
+    "session": { "visibility": "read-only" }
+  }
+}

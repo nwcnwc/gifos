@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>TIC-80</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="bar">
+  <button type="button" id="btn-carts">Carts</button>
+  <span id="cart-name">TIC-80</span>
+  <span id="who" hidden></span>
+  <span class="grow"></span>
+  <button type="button" id="btn-drop" title="Drop a cart">Drop</button>
+</div>
+
+<div id="stage">
+  <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+  <div id="hint">Tap to start the tiny computer.</div>
+</div>
+
+<div id="start">
+  <div class="start-card">
+    <h1>TIC-80</h1>
+    <p>A tiny computer. Carts you save stay in this file.</p>
+    <button type="button" id="btn-start">Start</button>
+    <p id="status" hidden></p>
+  </div>
+</div>
+
+<div id="library" hidden>
+  <div class="lib-card">
+    <header>
+      <h1>Carts</h1>
+      <button type="button" id="lib-close" aria-label="Close">Done</button>
+    </header>
+    <p class="lib-lead">Two MIT carts come with this file. Drop your own <code>.tic</code> / <code>.lua</code> / <code>.gif</code> if you have one — nothing from PICO-8's store ships here.</p>
+    <h2>In this file</h2>
+    <div id="lib-samples"></div>
+    <h2>On the desk</h2>
+    <div id="lib-user"></div>
+    <button type="button" id="btn-drop2" class="wide">Drop a cart</button>
+    <p class="lib-foot">Escape is the console. <code>load fire</code> then Enter to run. Saves stay in this file.</p>
+  </div>
+</div>
+
+<input id="file" type="file" accept=".tic,.lua,.js,.gif,.png,.moon,.fnl,.wren,.rb,.py,.janet,.nut,.scm" hidden>
+
+<div id="add-modal" class="modal" style="display:none">
+  <div class="modal-card">
+    <span class="close" aria-label="Close">&times;</span>
+    <p>Select a file to add to the computer</p>
+    <input id="upload-input" type="file">
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div id="dpad" aria-label="D-pad">
+    <div class="d-plus"></div>
+    <div class="d-nub"></div>
+  </div>
+  <div id="sys">
+    <button type="button" class="sys" data-key="Escape">Esc</button>
+    <button type="button" class="sys" data-key="Enter">Run</button>
+  </div>
+  <div id="face">
+    <button type="button" class="face b" data-key="x">B</button>
+    <button type="button" class="face a" data-key="z">A</button>
+  </div>
+</div>
+
+<script src="tic80-start.js"></script>
+<script src="carts.js"></script>
+<script src="fs.js"></script>
+<script src="touch.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
