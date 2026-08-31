@@ -1,0 +1,20 @@
+{
+  "gifos": "1.0",
+  "appId": "matter-sandbox",
+  "name": "Matter Sandbox",
+  "shortName": "Matter",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "A 2D physics toy box. The scene lives in the GIF; one invite is the same world.",
+  "entry": "index.html",
+  "accent": [241, 150, 72],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "world": { "visibility": "read-only" },
+    "players": { "visibility": "read-write" }
+  }
+}

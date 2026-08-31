@@ -1,0 +1,153 @@
+/* Dark toy box. Chrome stays thin so a phone still sees the pile. */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0b0d14;
+  color: #e8eef4;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 10px calc(8px + env(safe-area-inset-bottom, 0px));
+}
+#shell {
+  flex: 1;
+  min-height: 0;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  flex: 0 0 auto;
+}
+#brand { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+#hint {
+  margin-left: auto;
+  font-size: 13px;
+  color: #8aa0b0;
+}
+.actions, .ops { display: flex; flex-wrap: wrap; gap: 6px; flex: 0 0 auto; }
+.actions button, .ops button, #leaveBtn {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 8px 12px;
+  min-height: 40px;
+  border: 1px solid #2a3a44;
+  background: #121820;
+  color: #e8eef4;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.actions button.on {
+  background: #f19648;
+  color: #1a1208;
+  border-color: #d07a30;
+}
+#shareBtn { background: #f19648; color: #1a1208; border-color: #d07a30; }
+#resetBtn { background: #1a2430; }
+body.friend #shareBtn { display: none; }
+body.paused #pauseBtn { background: #4ecdc4; color: #072024; border-color: #3aa8a2; }
+
+#friend-bar {
+  background: #121820;
+  border: 1px solid #2a3a44;
+  border-radius: 8px;
+  padding: 8px 12px 6px;
+  flex: 0 0 auto;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 6px; font-size: 14px; line-height: 1.4; }
+#friend-hint b { color: #f5d259; }
+#friend-status { font-weight: 700; min-height: 1.2em; }
+#friend-scores {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+}
+#friend-scores li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-top: 1px solid #1e2a34;
+}
+#friend-scores li:first-child { border-top: none; }
+#friend-scores .name { font-weight: 700; }
+#friend-scores .me .name { color: #f19648; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+#stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  touch-action: none;
+}
+#world {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  background: #0b0d14;
+  touch-action: none;
+  cursor: grab;
+  border: 1px solid #2a3344;
+  border-radius: 6px;
+}
+#world:active { cursor: grabbing; }
+
+#knobs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  font-size: 14px;
+  color: #c0ccd6;
+  flex: 0 0 auto;
+}
+#knobs label { display: flex; align-items: center; gap: 8px; flex: 1 1 200px; min-width: 0; }
+#knobs input[type="range"] {
+  flex: 1;
+  min-width: 80px;
+  accent-color: #f19648;
+}
+#gravN { font-variant-numeric: tabular-nums; color: #8aa0b0; min-width: 2.4em; }
+
+#how, .foot {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #8aa0b0;
+  flex: 0 0 auto;
+}
+.foot { color: #667888; }
+
+@media (max-width: 520px) {
+  #brand { font-size: 16px; }
+  #how, .foot { display: none; }
+  #friend-hint { display: none; }
+  #shareBtn .rest { display: none; }
+  .actions, .ops { flex-wrap: wrap; }
+  .actions button, .ops button, #leaveBtn {
+    min-height: 44px;
+    padding: 8px 6px;
+    font-size: 13px;
+    flex: 1 1 0;
+  }
+  #stage { min-height: 220px; }
+  #hint { font-size: 12px; }
+}

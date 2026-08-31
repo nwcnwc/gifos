@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Matter Sandbox</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="hud">
+      <div id="brand">Matter Sandbox</div>
+      <div id="hint">Drag anything.</div>
+    </header>
+
+    <div class="actions">
+      <button type="button" data-tool="grab" class="on">Grab</button>
+      <button type="button" data-tool="box">Box</button>
+      <button type="button" data-tool="ball">Ball</button>
+      <button type="button" data-tool="ragdoll">Ragdoll</button>
+      <button type="button" data-tool="sling">Sling</button>
+      <button type="button" id="stackBtn">Stack</button>
+    </div>
+    <div class="ops">
+      <button type="button" id="pauseBtn">Pause</button>
+      <button type="button" id="resetBtn">Reset</button>
+      <button type="button" id="shareBtn">Share<span class="rest"> the room</span></button>
+    </div>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> in the bar above the app and send the link. A friend lands in this same pile — they drop, grab, and sling too.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+
+    <div id="stage">
+      <canvas id="world" width="800" height="600">This toy needs a canvas.</canvas>
+    </div>
+
+    <div id="knobs">
+      <label>Gravity <input id="grav" type="range" min="-20" max="20" step="1" value="10"> <span id="gravN">1.0</span></label>
+    </div>
+
+    <p id="how">Grab a block and throw it, or pull the slingshot at the pyramid. Drop boxes, balls, or a ragdoll. Slide gravity — zero is space, below that is upside down. The pile lives in this file.</p>
+    <p class="foot">Unofficial port of matter.js by Liam Brummitt (MIT). Playing alone is the original toy box. A shared room is the same pile, everyone grabbing on their own.</p>
+  </div>
+
+  <script src="vendor/matter.min.js"></script>
+  <script src="physics.js"></script>
+  <script src="app.js"></script>
+  <script src="net.js"></script>
+  <script src="boot.js"></script>
+</body>
+</html>

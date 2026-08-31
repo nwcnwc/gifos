@@ -1,0 +1,65 @@
+{
+  "catalog": "1.0",
+  "slug": "matter-sandbox",
+  "appId": "matter-sandbox",
+  "name": "Matter Sandbox",
+  "shortName": "Matter",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "A 2D physics toy box. The pile lives in the GIF; one invite is the same room.",
+  "description": "Close it, keep the GIF, and the stack is still there. Send the invite and a friend drops boxes in the same room — no account, no install, works on a plane.\n\nGrab anything and throw it. Tap to drop boxes, balls, or a ragdoll. Pull the slingshot at a pyramid. Slide gravity from moon-light through reverse. Reset for a fresh pile.\n\nThe Matter.js demos are a page you visit. This one is a file you keep, and a room you share.",
+  "author": {
+    "name": "Liam Brummitt",
+    "url": "https://github.com/liabru/matter-js"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Creativity",
+    "Games"
+  ],
+  "tags": [
+    "physics",
+    "sandbox",
+    "ragdoll",
+    "slingshot",
+    "matter",
+    "toy",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) Liam Brummitt and contributors.",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/matter-sandbox",
+  "accent": [
+    241,
+    150,
+    72
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/matter-sandbox/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/matter-sandbox/matter-sandbox.gif",
+  "bytes": 269440,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "44b262612bcde35ce7918a1fd7992e0420b3e90728f10f2ee09ad6dc2d0828c2",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "matter.js",
+    "url": "https://github.com/liabru/matter-js",
+    "blessed": false
+  }
+}
