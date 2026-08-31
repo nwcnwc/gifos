@@ -15,6 +15,10 @@ Arena first-boot matches the official slingshot silhouette (posts, rock, two pyr
 - Cover: a real stepped world — ragdoll flopped, rock in flight at the stack, sling selected, two in the room.
 - Listing leads with the file-is-the-save and the shared room, not a feature list.
 
+## Round 3 — the pile lives in the GIF
+
+**Gap closed:** dropped boxes survive close. `persist()` no longer retriggers its 800 ms debounce on every dirty frame, so the write actually fires; pagehide / visibilitychange flush immediately. Reopen body count includes the extras.
+
 ## Remaining gap
 
-Guest hands wait on the host’s next pose (~100 ms). Fine for a toy; not Algodoo’s local feel on a laggy link. No gears/fluids — this is the rigid-body toy box, not a CAD lab.
+Guest hands wait on the host’s next pose (~100 ms). Fine for a toy; not Algodoo’s local feel on a laggy link. No gears/fluids — this is the rigid-body toy box, not a CAD lab. Catalog index is owned elsewhere.
