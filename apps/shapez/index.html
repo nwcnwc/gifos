@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>shapez.io</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="map"></canvas>
+
+<div id="hud">
+  <div id="goal-card">
+    <canvas id="goal-shape" width="96" height="96"></canvas>
+    <div id="goal-meta">
+      <div id="lvl">Level 1</div>
+      <div id="goal-name">Uncolored circles</div>
+      <div id="goal-count">0 / 20</div>
+      <div id="bar"><i></i></div>
+    </div>
+  </div>
+  <div id="chrome-btns">
+    <button id="btn-pause" type="button" title="Pause (space)">❚❚</button>
+    <button id="btn-speed" type="button" title="Speed"> <span id="speed">1×</span></button>
+    <button id="btn-hub" type="button" title="Recentre on hub (H)">Hub</button>
+    <button id="btn-zoom-out" type="button" title="Zoom out">−</button>
+    <span id="zoom-lab">100%</span>
+    <button id="btn-zoom-in" type="button" title="Zoom in">+</button>
+    <button id="btn-reset" type="button" title="Clear factory">Reset</button>
+  </div>
+</div>
+
+<div id="roster" hidden></div>
+<div id="hint"></div>
+<div id="toast" hidden></div>
+
+<div id="tools"></div>
+<div id="keys">Drag belts · R rotate · X delete · wheel zoom · WASD pan</div>
+
+<script src="shapes.js"></script>
+<script src="game.js"></script>
+<script src="draw.js"></script>
+<script src="net.js"></script>
+<script src="ui.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
