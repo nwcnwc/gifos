@@ -1,0 +1,66 @@
+{
+  "catalog": "1.0",
+  "slug": "trianglify-studio",
+  "appId": "trianglify-studio",
+  "name": "Trianglify",
+  "shortName": "Trianglify",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Low-poly triangle wallpapers. The seed lives in the file. One invite shares it.",
+  "description": "trianglify.io needs a tab on the internet, and a paid download for a high-res file. This is a GIF on your Home Screen: it works on a plane, the last palette and seed stay in the file so close-and-come-back is the same wallpaper, and a friend who opens your invite is looking at the same one — roll a new seed, they get the roll.\n\nPick a palette, type a seed (or roll one), drag how chunky the triangles are. Download a PNG or SVG at wallpaper size, no account.\n\nAn unofficial port of Trianglify by Quinn Rohlf, GPL-3.0. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Quinn Rohlf",
+    "url": "https://github.com/qrohlf/trianglify"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "triangles",
+    "wallpaper",
+    "low-poly",
+    "generator",
+    "palette",
+    "svg",
+    "png",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "GPL-3.0",
+  "copyright": "",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/trianglify-studio",
+  "accent": [
+    41,
+    182,
+    196
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/trianglify-studio/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/trianglify-studio/trianglify-studio.gif",
+  "bytes": 251624,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "7b4da196341648720d73e4af72feb41307519f2bdb06e64137fa6aa61a888f7a",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Trianglify",
+    "url": "https://github.com/qrohlf/trianglify",
+    "blessed": false,
+    "donate": "https://trianglify.io"
+  }
+}

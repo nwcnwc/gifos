@@ -1,0 +1,29 @@
+{
+  "gifos": "1.0",
+  "appId": "trianglify-studio",
+  "name": "Trianglify",
+  "shortName": "Trianglify",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Low-poly triangle wallpapers. The seed lives in the file. One invite shares it.",
+  "entry": "index.html",
+  "accent": [41, 182, 196],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  },
+  "launch": {
+    "seed": {
+      "label": "Open a wallpaper from a seed",
+      "detail": "A word or number. The same seed always paints the same triangles."
+    },
+    "palette": {
+      "label": "Open a named palette",
+      "detail": "A palette name like YlGnBu, Spectral, or RdPu."
+    }
+  }
+}
