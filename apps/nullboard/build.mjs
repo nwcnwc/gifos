@@ -41,7 +41,7 @@ const pin = (rel, hex) => {
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
 pin('vendor/jquery-3.6.0.min.js', 'ff1523fb7389539c84c65aba19260648793bb4f5e29329d2ee8804bc37a3fe6e');
-pin('vendor/nullboard.js', 'c7d1275f9bee944957d6bef873b79461401a1c7360f8bd1c64e83426149f9d9c');
+pin('vendor/nullboard.js', '9b2ff275eafcfe38bdad8daf65a0181608b76d25de044834316b8c4b31b832c2');
 pin('vendor/nullboard.css', 'e7b4453c3279d21fb686f75ff930f636e2a81c76ac58a84a190e55978a794279');
 
 for (const need of [
@@ -121,6 +121,21 @@ if (!files['boot.js'].includes("db('save')") || !files['ls-stub.js'].includes('_
 if (!files['mp.js'].includes("db('room')")) throw new Error('mp.js must open the room');
 if (!files['vendor/nullboard.js'].includes('window.startNullboard')) {
   throw new Error('vendor must wrap init as startNullboard');
+}
+if (!/var NB;\s*\n\twindow\.startNullboard/.test(files['vendor/nullboard.js'])) {
+  throw new Error('NB must be a real global, not a var inside startNullboard');
+}
+if (!files['vendor/nullboard.js'].includes('NB = window.NB =')) {
+  throw new Error('window.NB must be assigned before vendor helpers run');
+}
+const nbAssign = files['vendor/nullboard.js'].indexOf('NB = window.NB =');
+const startFn = files['vendor/nullboard.js'].indexOf('window.startNullboard');
+const nbBackups = files['vendor/nullboard.js'].indexOf('NB.storage.initBackups', startFn);
+if (nbAssign < 0 || startFn < 0 || nbBackups < 0 || nbAssign > nbBackups) {
+  throw new Error('window.NB must be assigned before initBackups');
+}
+if (files['boot.js'].includes('.catch(boot)')) {
+  throw new Error('boot must not re-enter after a throw');
 }
 if (!files['vendor/nullboard.css'].includes('data:font/woff;base64,')) {
   throw new Error('css must inline Barlow');

@@ -15,6 +15,7 @@
 4. **Phone.** Tap ≡ opens menus hover would. Lists swipe. Bottom bar: + Note / + List / Undo / Boards. Pointer drag.
 5. **Invite.** `room` is read-write; newest `at` is the board on every screen. Roster line when someone else is in.
 6. **Icon / cover / listing.** Icon: a card slides Doing → Done. Cover: Ship 0.9.11 with Inbox / Doing / Done, real notes. Tagline leads with the file and the missing Trello account.
+7. **Boot (critic COMP).** `var NB` inside `startNullboard` left vendor helpers reading an empty global; `initBackups` threw `NB is not defined` and `hydrate().then(boot).catch(boot)` re-entered. `NB` is a real global again, assigned to `window.NB` before any helper runs; boot is one-shot. Prove: first paint is the demo board (3 lists, 29 notes), add-note lands, `gifos.db('save')` is put.
 
 ## Remaining gap
 
