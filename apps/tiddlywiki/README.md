@@ -34,6 +34,13 @@ with `Function("return "+code)`. `vendor.mjs` rewrites that one call in
 `$:/boot/boot.js` to insert a classic `<script>` (legal under
 `'unsafe-inline'`) and read the function back.
 
+The default editor is a textarea in a **child iframe** so toolbar clicks
+keep the selection. A GifOS app is itself a sandbox without
+`allow-same-origin`, so that child is a unique opaque origin and
+`contentWindow.document` throws. `vendor.mjs` wires `edit-text` to
+SimpleEngine for both the toolbar and non-toolbar cases — same document,
+no nested Window.
+
 Markdown (`tiddlywiki/markdown`, markdown-it) is bundled so a note can be
 typed as Markdown without a plugin dance.
 

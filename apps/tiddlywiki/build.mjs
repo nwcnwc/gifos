@@ -56,6 +56,10 @@ if (!wiki.includes('suppressBoot') || !wiki.includes('src="boot.js"')) {
 if (!wiki.includes('__twfn') || wiki.includes('Function("return " + code')) {
   throw new Error('vendor wiki HTML is missing the CSP eval patch — rerun vendor.mjs');
 }
+if (wiki.includes('editTextWidgetFactory(FramedEngine,SimpleEngine)') ||
+    !wiki.includes('editTextWidgetFactory(SimpleEngine,SimpleEngine)')) {
+  throw new Error('vendor wiki HTML still uses the framed editor iframe — rerun vendor.mjs');
+}
 if (!wiki.includes('href="style.css"')) {
   throw new Error('vendor wiki HTML does not load style.css');
 }
