@@ -27,10 +27,13 @@ build.mjs       packs site/apps/pdf-reader/pdf-reader.gif
 4.x uses dynamic `import()`, and the app CSP has no `blob:` in `script-src`.
 2.16 is classic scripts. The app runs it with **`isEvalSupported: false`** so
 its `new Function`/`eval` fast-paths (which the CSP forbids) are never taken,
-and hands pdf.js a **real `Worker` built from a `blob:` URL** via `workerPort`
-— `worker-src blob:` is the `capabilities.wasm` hatch. Setting only `workerSrc`
-would send pdf.js down its fake-worker path, which injects a `<script src="blob:">`
-that `script-src` refuses. Same recipe as `apps/pdf-tables`.
+and hands pdf.js a **real `Worker` built from a `blob:` URL** as a fresh
+`PDFWorker` **per open** — `worker-src blob:` is the `capabilities.wasm` hatch.
+A singleton `GlobalWorkerOptions.workerPort` is not used: `pdf.destroy()`
+leaves that port's `PDFWorker` destroyed, and `fromPort` hands the next
+`getDocument` the dead instance (spinner forever, previous page still showing).
+Setting only `workerSrc` would send pdf.js down its fake-worker path, which
+injects a `<script src="blob:">` that `script-src` refuses.
 
 ## capabilities
 
@@ -46,7 +49,8 @@ chrome. Needs nothing newer than the App Store itself, so `minBuild` is **947**.
 ## Building
 
 ```bash
-node apps/pdf-reader/build.mjs   # -> site/apps/pdf-reader/pdf-reader.gif
+node apps/pdf-reader/build.mjs        # -> site/apps/pdf-reader/pdf-reader.gif
+node apps/pdf-reader/prove-open.cjs   # sample then rate-table.pdf, twice, no hang
 ```
 
 ## Licence

@@ -4,14 +4,36 @@
 (function (root) {
   'use strict';
 
-  var pdfReady = false;
-  function ensurePdf() {
-    if (pdfReady) return true;
-    if (!root.pdfjsLib || !root.PDF_WORKER_SRC) return false;
-    var blob = new Blob([root.PDF_WORKER_SRC], { type: 'text/javascript' });
-    root.pdfjsLib.GlobalWorkerOptions.workerPort = new Worker(URL.createObjectURL(blob));
-    pdfReady = true;
-    return true;
+  // One Worker per document. A shared worker port reused after
+  // pdf.destroy() hands getDocument a destroyed PDFWorker (fromPort returns
+  // the same instance) and the second file hangs forever — spinner up, old
+  // page still on screen, no error.
+  var workerSrcUrl = '';
+  function workerSrc() {
+    if (!root.PDF_WORKER_SRC) return '';
+    if (!workerSrcUrl) {
+      var blob = new Blob([root.PDF_WORKER_SRC], { type: 'text/javascript' });
+      workerSrcUrl = URL.createObjectURL(blob);
+    }
+    return workerSrcUrl;
+  }
+  function mintWorker() {
+    var src = workerSrc();
+    if (!src) return null;
+    return new Worker(src);
+  }
+  function copyU8(buf) {
+    var src = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+    var out = new Uint8Array(src.byteLength);
+    out.set(src);
+    return out;
+  }
+  function withTimeout(promise, ms, msg) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject(new Error(msg)); }, ms);
+      promise.then(function (v) { clearTimeout(t); resolve(v); },
+                   function (e) { clearTimeout(t); reject(e); });
+    });
   }
 
   function Viewer(el) {
@@ -39,17 +61,25 @@
     this.onPassword = null;
     this._cssW = 0;
     this._cssH = 0;
+    this._gen = 0;
+    this._loadingTask = null;
+    this._pdfWorker = null;
+    this._port = null;
   }
 
   Viewer.prototype.open = function (name, buf, password) {
-    if (!ensurePdf()) return Promise.reject(new Error('The PDF engine did not load.'));
+    if (!root.pdfjsLib || !root.PDF_WORKER_SRC) {
+      return Promise.reject(new Error('The PDF engine did not load.'));
+    }
     var self = this;
-    this.close();
-    var data = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-    this.bytes = data;
-    this.name = name || 'document.pdf';
+    var gen = ++this._gen;
+    var data = copyU8(buf);
+    var port = mintWorker();
+    if (!port) return Promise.reject(new Error('The PDF engine did not load.'));
+    var worker = new root.pdfjsLib.PDFWorker({ port: port });
     var opts = {
-      data: data,
+      data: new Uint8Array(data),
+      worker: worker,
       password: password || '',
       isEvalSupported: false,
       disableStream: true,
@@ -59,34 +89,93 @@
       verbosity: 0
     };
     var task = root.pdfjsLib.getDocument(opts);
+    var waitingOnPassword = false;
+    var adopted = false;
     if (this.onPassword) {
       task.onPassword = function (update, reason) {
+        waitingOnPassword = true;
         self.onPassword(update, reason);
       };
     }
-    return task.promise.then(function (pdf) {
-      self.pdf = pdf;
-      self.numPages = pdf.numPages;
-      if (self.page < 1 || self.page > self.numPages) self.page = 1;
+    return withTimeout(task.promise, 15000, 'Could not open this PDF.')
+      .then(function (pdf) {
+        if (gen !== self._gen) {
+          Promise.resolve(task.destroy && task.destroy()).catch(function () {});
+          try { worker.destroy(); } catch (x) {}
+          try { port.terminate(); } catch (x) {}
+          return;
+        }
+        return self._adopt(name, data, pdf, task, worker, port, gen).then(function () {
+          adopted = true;
+        });
+      })
+      .catch(function (e) {
+        if (!adopted) {
+          Promise.resolve(task.destroy && task.destroy()).catch(function () {});
+          try { worker.destroy(); } catch (x) {}
+          try { port.terminate(); } catch (x) {}
+        }
+        if (waitingOnPassword && /timeout|could not open/i.test((e && e.message) || '')) {
+          throw new Error('The file is locked.');
+        }
+        throw e;
+      });
+  };
+
+  Viewer.prototype._adopt = function (name, data, pdf, task, worker, port, gen) {
+    var self = this;
+    var old = this._teardown();
+    this.pdf = pdf;
+    this.bytes = data;
+    this.name = name || 'document.pdf';
+    this._loadingTask = task;
+    this._pdfWorker = worker;
+    this._port = port;
+    this.numPages = pdf.numPages;
+    if (this.page < 1 || this.page > this.numPages) this.page = 1;
+    this.matches = [];
+    this.matchI = -1;
+    return Promise.resolve(old).then(function () {
+      if (gen !== self._gen) return;
       return self.draw();
     });
   };
 
-  Viewer.prototype.close = function () {
+  Viewer.prototype._teardown = function () {
+    this.rendering = false;
+    this.pending = false;
     if (this.renderTask && this.renderTask.cancel) {
       try { this.renderTask.cancel(); } catch (e) {}
     }
     this.renderTask = null;
-    if (this.pdf && this.pdf.destroy) {
-      try { this.pdf.destroy(); } catch (e) {}
-    }
+    var task = this._loadingTask;
+    var worker = this._pdfWorker;
+    var port = this._port;
+    var pdf = this.pdf;
+    this._loadingTask = null;
+    this._pdfWorker = null;
+    this._port = null;
     this.pdf = null;
+    var jobs = [];
+    if (task && task.destroy) jobs.push(Promise.resolve(task.destroy()).catch(function () {}));
+    else if (pdf && pdf.destroy) jobs.push(Promise.resolve(pdf.destroy()).catch(function () {}));
+    var done = jobs.length ? Promise.all(jobs) : Promise.resolve();
+    var cap = new Promise(function (res) { setTimeout(res, 1500); });
+    return Promise.race([done, cap]).then(function () {
+      if (worker && worker.destroy) try { worker.destroy(); } catch (e) {}
+      if (port && port.terminate) try { port.terminate(); } catch (e) {}
+    });
+  };
+
+  Viewer.prototype.close = function () {
+    this._gen++;
     this.matches = [];
     this.matchI = -1;
+    return this._teardown();
   };
 
   Viewer.prototype.baseScale = function () {
-    if (!this.pdf) return 1;
+    if (!this.pdf) return Promise.resolve(1);
     var self = this;
     return this.pdf.getPage(this.page).then(function (page) {
       var vp1 = page.getViewport({ scale: 1, rotation: self.rot });
@@ -101,6 +190,7 @@
 
   Viewer.prototype.draw = function () {
     var self = this;
+    var gen = this._gen;
     if (!this.pdf) return Promise.resolve();
     if (this.rendering) {
       this.pending = true;
@@ -112,9 +202,11 @@
       try { this.renderTask.cancel(); } catch (e) {}
     }
     return this.baseScale().then(function (s) {
+      if (gen !== self._gen || !self.pdf) return null;
       self.scale = s;
       return self.pdf.getPage(self.page);
     }).then(function (page) {
+      if (!page || gen !== self._gen) return null;
       var dpr = Math.min(root.devicePixelRatio || 1, 2.5);
       var cssVp = page.getViewport({ scale: self.scale, rotation: self.rot });
       var vp = page.getViewport({ scale: self.scale * dpr, rotation: self.rot });
@@ -136,8 +228,10 @@
       var task = page.render({ canvasContext: ctx, viewport: vp });
       self.renderTask = task;
       return task.promise.then(function () {
+        if (gen !== self._gen) return null;
         return page.getTextContent();
       }).then(function (tc) {
+        if (!tc || gen !== self._gen) return;
         self._lastTc = tc;
         self._lastCssVp = cssVp;
         if (root.pdfjsLib.renderTextLayer) {
@@ -155,6 +249,7 @@
       if (/cancelled/i.test(msg)) return;
       throw e;
     }).then(function () {
+      if (gen !== self._gen) return;
       self.rendering = false;
       self.onChange(self.snapshot());
       if (self.pending) return self.draw();
@@ -303,5 +398,4 @@
   };
 
   root.PdfViewer = Viewer;
-  root.ensurePdfEngine = ensurePdf;
 })(typeof window !== 'undefined' ? window : this);

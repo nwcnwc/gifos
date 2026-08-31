@@ -41,11 +41,11 @@
   "cover": "/apps/pdf-reader/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pdf-reader/pdf-reader.gif",
-  "bytes": 831178,
+  "bytes": 832299,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "2e6c674584d62a43cb33aa59a7a21683e13aeeb92a1b403dcd3c5927e466d78c",
+  "sha256": "914082028f47e51a09a8789e398e3861a5eac21c93045ade6dd6b08eab180e8a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

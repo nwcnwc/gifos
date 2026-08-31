@@ -16,9 +16,15 @@ function lines(font, size, x, y, leading, arr) {
   return s;
 }
 
+function redBar() {
+  // Reset fill to black. Without `0 0 0 rg`, every later Tj inherits the
+  // header red and the first-run page looks like a failed render.
+  return '0.86 0.18 0.18 rg 54 742 504 8 re f\n0 0 0 rg\n';
+}
+
 function page1() {
   let s = '';
-  s += '0.86 0.18 0.18 rg 54 742 504 8 re f\n';
+  s += redBar();
   s += T('Fb', 36, 72, 680, 'Paper Planes');
   s += T('Fi', 14, 72, 650, 'How to fold a dart, and why it stays up');
   s += '0.2 0.2 0.22 RG 0.6 w 72 636 468 0 m S\n';
@@ -40,7 +46,7 @@ function page1() {
 
 function page2() {
   let s = '';
-  s += '0.86 0.18 0.18 rg 54 742 504 8 re f\n';
+  s += redBar();
   s += T('Fb', 22, 72, 700, 'Folding a dart');
   s += T('Fi', 12, 72, 676, 'Letter or A4. Work on a table. Sharp creases fly straighter.');
   const steps = [
@@ -64,7 +70,7 @@ function page2() {
 
 function page3() {
   let s = '';
-  s += '0.86 0.18 0.18 rg 54 742 504 8 re f\n';
+  s += redBar();
   s += T('Fb', 22, 72, 700, 'Why it glides');
   s += lines('Fr', 12, 72, 664, 18, [
     'Four forces, same as any aeroplane, just quieter.',

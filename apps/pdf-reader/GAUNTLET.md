@@ -7,12 +7,13 @@ The PDF lives in the app, works on a plane, and one invite is follow-along — t
 
 ## Rounds
 
-1. **Engine in the sandbox.** pdf.js 2.16 legacy, blob worker via `workerPort`, `isEvalSupported: false`. Same hatch as PDF Tables.
-2. **A document on first run.** Public-domain three-page “Paper Planes” so the empty drop zone is not the first impression.
+1. **Engine in the sandbox.** pdf.js 2.16 legacy, a fresh blob `PDFWorker` per open, `isEvalSupported: false`. Reusing `workerPort` after `destroy()` hung the second file.
+2. **A document on first run.** Public-domain three-page “Paper Planes”, fill reset to black after the red header bar.
 3. **Find, swipe, pinch, password.** Phone turns pages with a swipe; find lights matches; a locked file gets a box.
 4. **Follow-along.** Host’s file is `read-only` for guests. Cursor (page + pointer) is `lead`-able. Last file is private. Point is a toggle so Find / select still work.
-5. **Face.** Icon turns a page with a travelling highlight. Cover is page 2 mid-find with a pointer on the throw line. Missing bitmap glyphs (4/5/6, V) were a failed cover round — alphabet completed.
+5. **Face.** Icon turns a page with a travelling highlight. Cover is page 2 mid-find with a pointer on the throw line.
+6. **Open actually opens.** Fresh-eyes critic: `rate-table.pdf` left the spinner up, sample still on screen. Cause: reused `workerPort` after `destroy()`. Fix: a new `PDFWorker` per file, teardown capped at 1.5s, 15s timeout so a miss is an error not a hang. Sample fill reset to black.
 
 ## Remaining gap
 
-CJK / CID fonts have no CMap pack, so those pages may show missing glyphs. Find matches inside a text run, not across a line-break. Print and a thumbnail rail are not here. Files over 8 MB open but are not kept in the app.
+CJK / CID fonts have no CMap pack, so those pages may show missing glyphs. Find matches inside a text run, not across a line-break. Print and a thumbnail rail are not here. Files over 8 MB open but are not kept in the app. Cover is still a pixel drawing, not a photograph of the running reader.
