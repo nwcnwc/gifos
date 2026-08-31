@@ -1,0 +1,34 @@
+{
+  "tagline": "Write JavaScript, get a 3D solid — the script lives in the file.",
+  "description": "The script and the model live in this file, so it works on a plane, and a friend who opens your invite gets the same design.\n\nType a JSCAD script (or tap Cube / Gear), press Run, orbit the solid. Parameters in the script become sliders. STL downloads the mesh. Close it and come back — the last script is still here.\n\nOn a phone, Model and Script are two taps. One finger orbits, a pinch zooms, Run sits on both screens.\n\nAn unofficial port of OpenJSCAD by the JSCAD Organization. Same language: require('@jscad/modeling'), main() returns a shape.",
+  "author": {
+    "name": "JSCAD Organization",
+    "url": "https://github.com/jscad/OpenJSCAD.org"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "OpenJSCAD",
+    "url": "https://github.com/jscad/OpenJSCAD.org",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Utilities",
+    "Developer"
+  ],
+  "tags": [
+    "cad",
+    "3d",
+    "jscad",
+    "openscad",
+    "editor",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/openjscad",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

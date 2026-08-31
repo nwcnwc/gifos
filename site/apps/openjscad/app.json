@@ -1,0 +1,63 @@
+{
+  "catalog": "1.0",
+  "slug": "openjscad",
+  "appId": "openjscad",
+  "name": "OpenJSCAD",
+  "shortName": "JSCAD",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Write JavaScript, get a 3D solid — the script lives in the file.",
+  "description": "The script and the model live in this file, so it works on a plane, and a friend who opens your invite gets the same design.\n\nType a JSCAD script (or tap Cube / Gear), press Run, orbit the solid. Parameters in the script become sliders. STL downloads the mesh. Close it and come back — the last script is still here.\n\nOn a phone, Model and Script are two taps. One finger orbits, a pinch zooms, Run sits on both screens.\n\nAn unofficial port of OpenJSCAD by the JSCAD Organization. Same language: require('@jscad/modeling'), main() returns a shape.",
+  "author": {
+    "name": "JSCAD Organization",
+    "url": "https://github.com/jscad/OpenJSCAD.org"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Utilities",
+    "Developer"
+  ],
+  "tags": [
+    "cad",
+    "3d",
+    "jscad",
+    "openscad",
+    "editor",
+    "offline"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2017-2024 JSCAD Organization",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/openjscad",
+  "accent": [
+    242,
+    180,
+    52
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/openjscad/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/openjscad/openjscad.gif",
+  "bytes": 292877,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "178d14b9be35289955220f3cc663da693f04069ca181f22694275b34dd5837aa",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "OpenJSCAD",
+    "url": "https://github.com/jscad/OpenJSCAD.org",
+    "blessed": false
+  }
+}

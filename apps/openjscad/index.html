@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>OpenJSCAD</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="tab-model">
+<div id="app">
+  <header>
+    <h1>OpenJSCAD</h1>
+    <p class="lead">Write JavaScript, get a 3D solid. The script lives in this file.</p>
+  </header>
+
+  <div class="tabs phone-tabs" role="tablist" aria-label="View">
+    <button type="button" id="tabModel" class="tab on" aria-selected="true">Model</button>
+    <button type="button" id="tabScript" class="tab" aria-selected="false">Script</button>
+  </div>
+
+  <div class="actions">
+    <button type="button" id="runBtn" class="primary">Run</button>
+    <button type="button" data-sample="cube">Cube</button>
+    <button type="button" data-sample="gear" class="on">Gear</button>
+    <button type="button" id="stlBtn">STL</button>
+    <button type="button" id="resetView">Reset</button>
+    <label class="check"><input type="checkbox" id="wireframe"> Wire</label>
+    <label class="check"><input type="checkbox" id="grid" checked> Grid</label>
+    <label class="check"><input type="checkbox" id="autoRotate"> Spin</label>
+  </div>
+
+  <div id="params" class="params" hidden></div>
+  <p id="err" class="err" hidden></p>
+
+  <div id="stage">
+    <div class="editor-col">
+      <label class="sr" for="script">JSCAD script</label>
+      <textarea id="script" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+    </div>
+    <div class="view-col">
+      <canvas id="view"></canvas>
+    </div>
+  </div>
+
+  <p id="status" class="status">Load Cube or Gear, then Run.</p>
+  <p id="meet" class="meet">Press <b>Invite</b> in the bar above. A friend who opens the link gets this script.</p>
+</div>
+
+<script src="vendor/jscad-modeling.min.js"></script>
+<script src="engine.js"></script>
+<script src="viewer.js"></script>
+<script src="samples.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
