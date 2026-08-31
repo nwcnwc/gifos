@@ -42,11 +42,11 @@
   "cover": "/apps/milkdown/cover.jpg",
   "screenshots": [],
   "gif": "/apps/milkdown/milkdown.gif",
-  "bytes": 350141,
+  "bytes": 351201,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "c9b0f54495e9a1f8d60203425d594b5422de46eddfbc4b2dcd22937065b8363f",
+  "sha256": "e3ae8ba759f598de04a561e3de1e244f555878c97dcb630b11fb2dd3dc61e8a3",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

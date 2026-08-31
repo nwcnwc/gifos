@@ -45,6 +45,7 @@
   var markdown = '';
   var saveTimer = 0;
   var sheetOpen = false;
+  var moreOpen = false;
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -196,6 +197,14 @@
     try { ed.insert(chunk); ed.focus(); } catch (e) {}
   }
 
+  function setMore(open) {
+    moreOpen = !!open;
+    var menu = $('moreMenu');
+    var btn = $('moreBtn');
+    if (menu) menu.hidden = !moreOpen;
+    if (btn) btn.setAttribute('aria-expanded', moreOpen ? 'true' : 'false');
+  }
+
   function closeSheet() {
     sheetOpen = false;
     $('linkSheet').hidden = true;
@@ -314,12 +323,19 @@
       if (e.key === 'Enter') { e.preventDefault(); applyLink(); }
       if (e.key === 'Escape') { e.preventDefault(); closeSheet(); }
     });
-    $('sampleBtn').addEventListener('click', loadSample);
-    $('copyBtn').addEventListener('click', copyMd);
-    $('newBtn').addEventListener('click', loadNew);
+    $('moreBtn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      setMore(!moreOpen);
+    });
+    $('moreMenu').addEventListener('click', function (e) { e.stopPropagation(); });
+    document.addEventListener('click', function () { if (moreOpen) setMore(false); });
+    $('sampleBtn').addEventListener('click', function () { setMore(false); loadSample(); });
+    $('copyBtn').addEventListener('click', function () { setMore(false); copyMd(); });
+    $('newBtn').addEventListener('click', function () { setMore(false); loadNew(); });
     $('file').addEventListener('change', function () {
       var f = $('file').files && $('file').files[0];
       $('file').value = '';
+      setMore(false);
       if (f) openFile(f);
     });
     $('source').addEventListener('input', function () {
@@ -392,14 +408,15 @@
           var el = $('meet');
           if (!el) return;
           el.textContent = msg || '';
-          el.classList.toggle('live', Mp.live && !err);
-          if (err) el.classList.add('live');
+          var occupied = /is on this document|friends on this document/i.test(msg || '');
+          el.classList.toggle('live', !!(err || occupied));
         };
         Mp.watch();
       }
       if (api && api.onBack) {
         api.onBack(function () {
           if (sheetOpen) { closeSheet(); return true; }
+          if (moreOpen) { setMore(false); return true; }
           if (mode === 'source') { requestMode('write'); return true; }
           return false;
         });

@@ -9,37 +9,34 @@
 </head>
 <body>
 <div class="shell">
-  <header class="top">
-    <h1>Milkdown</h1>
-    <p class="lead">Type markdown. See the page. The document lives in this file.</p>
-  </header>
-
-  <div class="mode-tabs" role="tablist" aria-label="View">
-    <button type="button" id="tabWrite" class="tab on" aria-selected="true">Write</button>
-    <button type="button" id="tabSource" class="tab" aria-selected="false">Source</button>
+  <div class="hud">
+    <div class="mode-tabs" role="tablist" aria-label="View">
+      <button type="button" id="tabWrite" class="tab on" aria-selected="true">Write</button>
+      <button type="button" id="tabSource" class="tab" aria-selected="false">Source</button>
+    </div>
+    <div id="toolbar" class="toolbar" role="toolbar" aria-label="Format">
+      <button type="button" id="btnBold" aria-label="Bold" title="Bold"><b>B</b></button>
+      <button type="button" id="btnItalic" aria-label="Italic" title="Italic"><i>I</i></button>
+      <button type="button" id="btnStrike" aria-label="Strikethrough" title="Strikethrough"><s>S</s></button>
+      <button type="button" id="btnCode" aria-label="Inline code" title="Inline code">&lt;/&gt;</button>
+      <span class="split"></span>
+      <button type="button" id="btnH1" aria-label="Heading 1" title="Heading 1">H1</button>
+      <button type="button" id="btnH2" aria-label="Heading 2" title="Heading 2">H2</button>
+      <button type="button" id="btnQuote" aria-label="Quote" title="Quote">“</button>
+      <button type="button" id="btnBullet" aria-label="Bullet list" title="Bullet list">•</button>
+      <button type="button" id="btnOrdered" aria-label="Numbered list" title="Numbered list">1.</button>
+      <button type="button" id="btnTask" aria-label="Task" title="Task">☐</button>
+      <button type="button" id="btnCodeBlock" aria-label="Code block" title="Code block">{ }</button>
+      <button type="button" id="btnTable" aria-label="Table" title="Table">▦</button>
+      <button type="button" id="btnHr" aria-label="Divider" title="Divider">—</button>
+      <button type="button" id="btnLink" aria-label="Link" title="Link">link</button>
+    </div>
+    <button type="button" id="moreBtn" class="more" aria-label="More" aria-haspopup="true" aria-expanded="false">⋯</button>
   </div>
 
-  <div id="toolbar" class="toolbar" role="toolbar" aria-label="Format">
-    <button type="button" id="btnBold" aria-label="Bold" title="Bold"><b>B</b></button>
-    <button type="button" id="btnItalic" aria-label="Italic" title="Italic">I</button>
-    <button type="button" id="btnStrike" aria-label="Strikethrough" title="Strikethrough"><s>S</s></button>
-    <button type="button" id="btnCode" aria-label="Inline code" title="Inline code">&lt;/&gt;</button>
-    <span class="split"></span>
-    <button type="button" id="btnH1" aria-label="Heading 1" title="Heading 1">H1</button>
-    <button type="button" id="btnH2" aria-label="Heading 2" title="Heading 2">H2</button>
-    <button type="button" id="btnQuote" aria-label="Quote" title="Quote">“</button>
-    <button type="button" id="btnBullet" aria-label="Bullet list" title="Bullet list">•</button>
-    <button type="button" id="btnOrdered" aria-label="Numbered list" title="Numbered list">1.</button>
-    <button type="button" id="btnTask" aria-label="Task" title="Task">☐</button>
-    <button type="button" id="btnCodeBlock" aria-label="Code block" title="Code block">{ }</button>
-    <button type="button" id="btnTable" aria-label="Table" title="Table">▦</button>
-    <button type="button" id="btnHr" aria-label="Divider" title="Divider">—</button>
-    <button type="button" id="btnLink" aria-label="Link" title="Link">link</button>
-  </div>
-
-  <div class="actions">
+  <div id="moreMenu" class="menu" hidden>
     <button type="button" id="sampleBtn">Sample</button>
-    <button type="button" id="copyBtn">Copy</button>
+    <button type="button" id="copyBtn">Copy markdown</button>
     <button type="button" id="newBtn">New</button>
     <label class="file">Open
       <input id="file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain">
@@ -53,8 +50,10 @@
     <textarea id="source" class="source" hidden spellcheck="true" aria-label="Markdown source"></textarea>
   </div>
 
-  <p id="status" class="status">The document stays in this file.</p>
-  <p id="meet" class="meet">Press <b>Invite</b> (top bar) to write the same document with a friend. Nothing is uploaded.</p>
+  <footer class="foot">
+    <p id="status" class="status">The document stays in this file.</p>
+    <p id="meet" class="meet">Press <b>Invite</b> in the bar above to write the same document with a friend. Nothing is uploaded.</p>
+  </footer>
 </div>
 
 <div id="linkSheet" class="sheet" hidden>

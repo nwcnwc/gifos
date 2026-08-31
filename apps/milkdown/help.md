@@ -4,7 +4,7 @@ A page you write as markdown and see as the page. The last document comes back n
 
 ## Write
 
-Type in the page. The marks become the formatting as you go:
+The window is the note. Type in the page. The marks become the formatting as you go:
 
 - `# ` then a space — a heading. `## ` is smaller.
 - `**bold**` and `*italic*` and `~~strike~~`
@@ -12,11 +12,11 @@ Type in the page. The marks become the formatting as you go:
 - `- ` a bullet, `1. ` a numbered list, `- [ ] ` a task you can tick
 - `>` a quote. `| A | B |` a table. `---` a line.
 
-The **toolbar** does the same jobs without the marks: bold, italic, headings, lists, a table, a link.
+The **toolbar** does the same jobs without the marks: bold, italic, headings, lists, a table, a link. Flick it sideways on a phone — it does not wrap over the page.
 
-**Source** is the raw markdown. Copy takes that text. Open reads a `.md` file from this device. **Sample** drops in a starter note. **New** clears the page — confirm first.
+**Source** is the raw markdown. **⋯** holds Sample, Copy, New, and Open. Sample drops in a starter note. New clears the page — confirm first. Open reads a `.md` file from this device.
 
-On a phone, Write and Source are two full-width taps so the keyboard does not bury the switch. Back leaves Source, or closes the link sheet.
+On a phone the note is the glass: a thin bar, then the document, including the table. Back leaves Source, or closes ⋯ / the link sheet.
 
 ## Together
 
