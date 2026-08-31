@@ -1,0 +1,103 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #000;
+  color: #fff;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  min-height: 100dvh;
+}
+#hud {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #111;
+  border-bottom: 1px solid #333;
+  font-size: 13px;
+  color: #ccc;
+  z-index: 5;
+}
+#hud-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+#saved, #jam {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#jam {
+  color: #25f3ff;
+}
+#zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+#zoom button {
+  width: 32px;
+  height: 28px;
+  border: 1px solid #555;
+  background: #333;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+#zoom button:active { background: #555; }
+#z-label {
+  min-width: 3.2em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: #aaa;
+}
+#viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #000;
+  touch-action: pan-x pan-y;
+}
+#zoom-stage {
+  transform-origin: 0 0;
+}
+#beepboxEditorContainer {
+  min-height: 645px;
+  overflow: visible;
+  background: #000;
+  width: 100%;
+  max-width: 710px;
+  margin: 0 auto;
+  padding-left: 12px;
+  padding-right: 12px;
+  box-sizing: border-box;
+}
+@media (min-width: 711px) {
+  #beepboxEditorContainer {
+    padding-left: 30px;
+    padding-right: 30px;
+  }
+}
+@media (max-width: 710px) {
+  #beepboxEditorContainer {
+    max-width: none;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  #hud { font-size: 12px; }
+}
+a { color: #98f; }

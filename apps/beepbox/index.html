@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>BeepBox</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="hud">
+  <div id="hud-left">
+    <span id="saved">The song is in this file</span>
+    <span id="jam" hidden></span>
+  </div>
+  <div id="zoom" aria-label="Zoom the grid">
+    <button type="button" id="z-out" title="Zoom out">−</button>
+    <span id="z-label">100%</span>
+    <button type="button" id="z-in" title="Zoom in">+</button>
+  </div>
+</div>
+<div id="viewport">
+  <div id="zoom-stage">
+    <div id="beepboxEditorContainer"></div>
+  </div>
+</div>
+<script src="shim.js"></script>
+<script src="vendor/seed.js"></script>
+<script src="vendor/beepbox_editor.min.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
