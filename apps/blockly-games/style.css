@@ -1,0 +1,125 @@
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #0a0c12; color: #e8e4d8;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+
+#home {
+  height: 100%; overflow: auto;
+  padding: 1.2rem 1.2rem 2rem;
+  padding-bottom: max(2rem, env(safe-area-inset-bottom));
+}
+.hero { margin-bottom: 1.1rem; }
+.hero h1 { font-size: 1.7rem; font-weight: 750; letter-spacing: -.02em; color: #b6e388; }
+.hero p { color: #9aa3b5; margin-top: .25rem; }
+
+.grid {
+  display: grid; gap: .85rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.card {
+  text-align: left;
+  background: #141822; border: 1px solid #2a3348;
+  border-radius: 14px; padding: 1rem 1.05rem 1.1rem;
+  display: flex; flex-direction: column; gap: .28rem;
+}
+.card:hover, .card:focus { border-color: #5cb85c; outline: none; }
+.card .glyph { font-size: 1.7rem; line-height: 1; }
+.card strong { font-size: 1.15rem; }
+.card em { font-style: normal; color: #9aa3b5; font-size: .92rem; }
+.card .prog { margin-top: .45rem; font-size: .82rem; color: #7ecf7e; letter-spacing: .04em; }
+
+#roster {
+  margin: 0 0 1rem; padding: .45rem .7rem;
+  background: #141822; border: 1px solid #2a3348; border-radius: 10px;
+  font-size: .85rem; color: #9aa3b5;
+}
+#roster[hidden] { display: none; }
+
+#play { height: 100%; display: flex; flex-direction: column; }
+#play[hidden] { display: none; }
+
+#bar {
+  display: flex; align-items: center; gap: .45rem; flex-wrap: wrap;
+  padding: .4rem .55rem .4rem max(.55rem, env(safe-area-inset-left));
+  background: #10141e; border-bottom: 1px solid #2a3348;
+  z-index: 4;
+}
+#bar h1 { font-size: 1rem; font-weight: 700; min-width: 4.2rem; }
+#back, #hint, #run, #reset, #check {
+  border: 1px solid #3a4560; background: #1a2130;
+  border-radius: 8px; padding: .38rem .7rem; min-height: 2.2rem;
+}
+#run.primary, #reset.primary, #check.primary, #modal-ok.primary {
+  background: #2f7d32; border-color: #3a9a3e; font-weight: 700;
+}
+#hint { width: 2.2rem; padding: 0; font-weight: 700; }
+#back { font-weight: 600; }
+#capacity { font-size: .82rem; color: #f0c36d; }
+#capacity[hidden], #run[hidden], #reset[hidden], #check[hidden] { display: none; }
+
+#levels { display: flex; gap: .22rem; flex-wrap: wrap; }
+#levels button {
+  width: 1.85rem; height: 1.85rem; border-radius: 50%;
+  border: 1px solid #3a4560; background: #1a2130; font-size: .78rem;
+}
+#levels button.on { background: #2f7d32; border-color: #7ecf7e; }
+#levels button.done { box-shadow: inset 0 0 0 2px #7ecf7e; }
+
+.speed { display: flex; align-items: center; }
+.speed input { width: 5.5rem; accent-color: #5cb85c; }
+
+#stage { flex: 1; display: flex; min-height: 0; }
+#viz {
+  width: 400px; max-width: 42%;
+  background: #0e121a; border-right: 1px solid #2a3348;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; padding: .5rem;
+}
+#view { width: 100%; height: auto; max-height: 100%; image-rendering: auto; background: #000; border-radius: 6px; }
+#puzzle-msg {
+  position: absolute; left: .6rem; right: .6rem; bottom: .6rem;
+  background: rgba(10,12,18,.88); border: 1px solid #3a4560;
+  padding: .55rem .7rem; border-radius: 8px; font-size: .9rem;
+}
+#puzzle-msg[hidden] { display: none; }
+#blockly { flex: 1; min-width: 0; min-height: 0; }
+#play.is-puzzle #viz { display: none; }
+#play.is-puzzle #puzzle-msg { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 8; }
+
+/* Blockly chrome — fat flyout so a thumb can grab a block. */
+.blocklyToolboxDiv { background: #161b28 !important; color: #e8e4d8 !important; }
+.blocklyFlyoutBackground { fill: #121722 !important; }
+.blocklyFlyout { min-width: 156px; }
+.blocklyMainBackground { stroke: none !important; }
+.blocklyScrollbarHandle { fill: #3a4258 !important; }
+.blocklyWidgetDiv, .blocklyDropDownDiv { color: #111; }
+
+#modal {
+  position: fixed; inset: 0; z-index: 40;
+  background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+#modal[hidden] { display: none; }
+.sheet {
+  background: #161b28; border: 1px solid #3a4560; border-radius: 12px;
+  max-width: 28rem; width: 100%; padding: 1rem 1.1rem 1.05rem;
+}
+#modal-body { margin-bottom: .85rem; line-height: 1.45; }
+#modal-ok { width: 100%; }
+
+@media (max-width: 720px) {
+  #stage { flex-direction: column; }
+  #viz {
+    width: 100%; max-width: none; height: 36vh; max-height: 280px;
+    border-right: 0; border-bottom: 1px solid #2a3348; padding: .35rem;
+  }
+  #view { max-height: 100%; width: auto; height: 100%; }
+  .blocklyFlyout { min-width: 168px; }
+  #levels button { width: 2rem; height: 2rem; }
+  #bar { padding-right: max(.55rem, env(safe-area-inset-right)); }
+  .speed input { width: 4.2rem; }
+}
