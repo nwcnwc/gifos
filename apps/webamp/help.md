@@ -1,9 +1,10 @@
 # Webamp
 
-Winamp 2.9: a main window, a graphic equalizer, and a playlist. Drop MP3s on it. The playlist and the EQ stay in this file.
+Winamp 2.9: a main window, a graphic equalizer, and a playlist. It opens already playing a short original demo. Drop MP3s on it. The playlist and the EQ stay in this file.
 
 ## Play something
 
+- First open greets with **GifOS — Intro**, **Green LED**, and **On a Plane**. Those three are synthesized in this file (not a downloaded MP3, not the llama).
 - **Drop** MP3s (or WAV, OGG, FLAC, M4A) anywhere on the player, or tap **+ MP3s**.
 - Press **Play** on the main window, or **X** on a keyboard.
 - Double-click a row in the playlist to jump to it.

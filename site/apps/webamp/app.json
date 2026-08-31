@@ -7,7 +7,7 @@
   "version": "1.0.0",
   "minBuild": 2154,
   "tagline": "Winamp 2.9 that lives in a GIF — playlist, EQ, and your MP3s stay in the file, even on a plane.",
-  "description": "Drop MP3s onto the player. Close it, come back later, the same playlist and the same EQ are still there — they live in the file. No account, no server, nothing fetched. It works on a plane.\n\nSend the Invite in the bar above and a friend sees the same playlist and the same graphic EQ. Either of you can twist the bands. The songs travel when you hand someone the GIF.\n\nIt is Winamp 2.9: the main window, the equalizer, the playlist, the green vis, the hotkeys (Z X C V B), double-size, shade mode, and skins you drop as .wsz files. The base skin is inside the file, so it looks like Winamp the first time you open it.\n\nAn unofficial port of Webamp by Jordan Eldredge. Bugs go to GifOS, not upstream.",
+  "description": "It opens playing. Three original demo tracks are already in the playlist, the EQ is a smile, the vis is bouncing — the first screen is a player, not an empty Winamp. Drop your own MP3s; they join the library. Close it, come back later, the same playlist and the same EQ are still there — they live in the file. No account, no server, nothing fetched. It works on a plane.\n\nSend the Invite in the bar above and a friend sees the same playlist and the same graphic EQ. Either of you can twist the bands. The songs travel when you hand someone the GIF.\n\nIt is Winamp 2.9: the main window, the equalizer, the playlist, the green vis, the hotkeys (Z X C V B), double-size, shade mode, and skins you drop as .wsz files. The base skin is inside the file, so it looks like Winamp the first time you open it.\n\nAn unofficial port of Webamp by Jordan Eldredge. Bugs go to GifOS, not upstream. The demo setlist is original; this copy does not ship Nullsoft's llama MP3.",
   "author": {
     "name": "Jordan Eldredge",
     "url": "https://github.com/captbaritone/webamp"
@@ -44,11 +44,11 @@
   "cover": "/apps/webamp/cover.jpg",
   "screenshots": [],
   "gif": "/apps/webamp/webamp.gif",
-  "bytes": 636048,
+  "bytes": 639683,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "1b976a609c18c37fe246b19d5702743aa19a21e9b532b304dfaac71e5578e5ec",
+  "sha256": "37472152777feb7da3896fcae63a99e826033e6f372476c99509f6e8d14d2da3",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

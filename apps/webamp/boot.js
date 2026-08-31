@@ -11,18 +11,27 @@
   var BANDS = ['preamp', 60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
   var AUDIO_RE = /\.(mp3|ogg|wav|flac|m4a|aac|opus)$/i;
   var SKIN_RE = /\.(wsz|zip|wal)$/i;
+  // First-boot smile — 50 is 0 dB. Not the llama EQ; just not a flat line.
+  var FIRST_EQ = {
+    on: true, auto: false,
+    sliders: { preamp: 52, 60: 78, 170: 64, 310: 54, 600: 48, 1000: 46,
+               3000: 52, 6000: 60, 12000: 68, 14000: 72, 16000: 74 }
+  };
 
   var webamp = null;
   var saving = false;
   var applyingSkin = false;
   var applyingEq = false;
   var lastSer = '';
-  var lastList = '';
+  var lastSeen = '';
   var saveTimer = 0;
   var blobs = {}; // libId -> Blob
   var applyingRemoteList = false;
   var netReady = false;
   var lastEqStr = '';
+  var lastPeople = [];
+  var lastMix = null;
+  var seededThisBoot = false;
 
   function $(id) { return document.getElementById(id); }
 
@@ -58,7 +67,14 @@
   function eqFromState(state) {
     var eq = state && state.equalizer;
     if (!eq) return null;
-    return { on: !!eq.on, auto: !!eq.auto, sliders: eq.sliders || {} };
+    var sl = eq.sliders || {};
+    var out = {};
+    BANDS.forEach(function (b) {
+      var v = sl[b];
+      if (v == null) v = sl[String(b)];
+      out[b] = typeof v === 'number' ? v : 50;
+    });
+    return { on: eq.on !== false, auto: !!eq.auto, sliders: out };
   }
 
   function applyEq(eq) {
@@ -76,7 +92,7 @@
       webamp.store.dispatch({ type: eq.on === false ? 'SET_EQ_OFF' : 'SET_EQ_ON' });
       webamp.store.dispatch({ type: 'SET_EQ_AUTO', value: !!eq.auto });
     } finally {
-      setTimeout(function () { applyingEq = false; }, 600);
+      setTimeout(function () { applyingEq = false; persistSoon(); }, 600);
     }
   }
 
@@ -90,6 +106,28 @@
         name: t.defaultName || ''
       };
     });
+  }
+
+  function playlistPersist() {
+    var list = [];
+    if (!webamp || !webamp.store) return list;
+    try {
+      var st = webamp.store.getState();
+      var order = (st.playlist && st.playlist.trackOrder) || [];
+      var tracks = st.tracks || {};
+      order.forEach(function (id) {
+        var t = tracks[id];
+        if (!t) return;
+        list.push({
+          libId: t._libId || null,
+          title: t.title || '',
+          artist: t.artist || '',
+          duration: t.duration,
+          name: t.defaultName || ''
+        });
+      });
+    } catch (e) {}
+    return list;
   }
 
   function nowPlaying() {
@@ -120,57 +158,59 @@
     });
   }
 
+  function stableSer(ser) {
+    if (!ser) return null;
+    var d = ser.display || {};
+    return {
+      version: ser.version,
+      media: ser.media || null,
+      equalizer: ser.equalizer || null,
+      display: { visualizerStyle: d.visualizerStyle, doubled: !!d.doubled },
+      windows: ser.windows || null
+    };
+  }
+
+  function persistKey(eq, list, ser) {
+    return JSON.stringify({
+      eq: eq,
+      list: list,
+      media: ser && ser.media,
+      windows: ser && ser.windows,
+      display: ser && ser.display
+    });
+  }
+
   function persistSoon() {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(persist, 400);
+    saveTimer = setTimeout(persist, 250);
   }
 
   function persist() {
-    if (!webamp || saving) return;
+    if (!webamp) return;
+    if (saving) { persistSoon(); return; }
     var prefs = db('prefs');
     if (!prefs) return;
     var ser = null;
-    try { ser = webamp.__getSerializedState(); } catch (e) { ser = null; }
-    if (ser && ser.display) {
-      // marquee ticks every frame — do not write that
-      delete ser.display.marqueeStep;
-      delete ser.display.skinImages;
-      delete ser.display.skinCursors;
-      delete ser.display.skinRegion;
-      delete ser.display.skinGenLetterWidths;
-      delete ser.display.skinColors;
-      delete ser.display.skinPlaylistStyle;
-    }
-    var list = [];
-    try {
-      var st = webamp.store.getState();
-      var order = (st.playlist && st.playlist.trackOrder) || [];
-      var tracks = st.tracks || {};
-      order.forEach(function (id) {
-        var t = tracks[id];
-        if (!t) return;
-        list.push({
-          libId: t._libId || null,
-          title: t.title || '',
-          artist: t.artist || '',
-          duration: t.duration,
-          name: t.defaultName || ''
-        });
-      });
-    } catch (e) {}
-    var serStr = JSON.stringify(ser);
-    var listStr = JSON.stringify(list);
-    if (serStr !== lastSer || listStr !== lastList) {
-      lastSer = serStr;
-      lastList = listStr;
+    try { ser = stableSer(webamp.__getSerializedState()); } catch (e) { ser = null; }
+    var list = playlistPersist();
+    var eq = webamp.store ? eqFromState(webamp.store.getState()) : null;
+    var key = persistKey(eq, list, ser);
+    if (key !== lastSer) {
+      lastSer = key;
+      lastSeen = key;
       saving = true;
-      prefs.put({ id: 'prefs', ser: ser, list: list, at: Date.now() }).then(function () {
+      prefs.put({ id: 'prefs', ser: ser, list: list, eq: eq, seeded: true, at: Date.now() }).then(function () {
         saving = false;
-      }).catch(function () { saving = false; });
+      }).catch(function () {
+        saving = false;
+        lastSer = '';
+        lastSeen = '';
+        persistSoon();
+      });
     }
     if (!netReady) return;
     var owner = root.Net && root.Net.me && root.Net.me().owner;
-    var eqStr = JSON.stringify(eqFromState(webamp.store && webamp.store.getState()));
+    var eqStr = JSON.stringify(eq);
     if (!applyingEq && !applyingRemoteList) {
       if (owner) publishRoom();
       else if (lastEqStr && eqStr !== lastEqStr) publishRoom();
@@ -193,8 +233,7 @@
         };
         var lib = db('library');
         if (!lib) {
-          var blob = new Blob([bytes], { type: rec.mime });
-          rec.blob = blob;
+          rec.blob = new Blob([bytes], { type: rec.mime });
           resolve(rec);
           return;
         }
@@ -209,6 +248,18 @@
     });
   }
 
+  function recToTrack(r) {
+    return {
+      blob: r.blob,
+      defaultName: r.name || r.title || 'Track',
+      metaData: (r.artist || r.title)
+        ? { artist: r.artist || '', title: r.title || r.name || 'Track' }
+        : undefined,
+      duration: typeof r.duration === 'number' ? r.duration : undefined,
+      _libId: r.id
+    };
+  }
+
   function filesToTracks(fileList) {
     var files = [];
     for (var i = 0; i < fileList.length; i++) {
@@ -216,30 +267,41 @@
     }
     if (!files.length) return Promise.resolve([]);
     return Promise.all(files.map(putFile)).then(function (recs) {
-      return recs.map(function (r) {
-        return {
-          blob: r.blob,
-          defaultName: r.name,
-          metaData: (r.artist || (r.title && r.title !== r.name))
-            ? { artist: r.artist || '', title: r.title || r.name }
-            : undefined,
-          _libId: r.id
-        };
-      });
+      return recs.map(recToTrack);
     });
   }
 
-  function stampLibIds() {
-    if (!webamp || !webamp.store) return;
-    try {
-      var st = webamp.store.getState();
-      var tracks = st.tracks || {};
-      Object.keys(tracks).forEach(function (id) {
-        var t = tracks[id];
-        if (!t || t._libId) return;
-        // match by defaultName against known blobs' records later via playlist persist names
-      });
-    } catch (e) {}
+  function seedDemo() {
+    if (!root.Demo || !root.Demo.make) return Promise.resolve([]);
+    var made = root.Demo.make();
+    var lib = db('library');
+    function asTrack(t, stored) {
+      var bytes = (stored && asU8(stored.bytes)) || t.bytes;
+      var blob = new Blob([bytes], { type: t.mime });
+      var id = (stored && stored.id) || t.id;
+      if (id) blobs[id] = blob;
+      return {
+        blob: blob,
+        defaultName: t.name,
+        metaData: { artist: t.artist, title: t.title },
+        _libId: id
+      };
+    }
+    if (!lib) {
+      return Promise.resolve(made.map(function (t) { return asTrack(t, null); }));
+    }
+    return Promise.all(made.map(function (t) {
+      return lib.put({
+        id: t.id,
+        name: t.name,
+        title: t.title,
+        artist: t.artist,
+        mime: t.mime,
+        bytes: t.bytes,
+        size: t.bytes.length,
+        demo: true
+      }).then(function (stored) { return asTrack(t, stored); });
+    }));
   }
 
   function applySkinFile(file) {
@@ -307,11 +369,13 @@
     }).catch(function () { toast('Could not add those files.'); });
   }
 
-  function paintSetlist(mix, people) {
+  function paintSetlist() {
     var box = $('setlist');
     var ol = $('setlist-ol');
     var room = $('room');
-    var n = (people || []).length;
+    var people = lastPeople || [];
+    var mix = lastMix;
+    var n = people.length;
     if (room) {
       room.hidden = n < 1;
       if (n >= 1) room.textContent = (n + 1) + ' in the room';
@@ -455,17 +519,28 @@
     return player;
   }
 
+  function maybePersistFromStore() {
+    if (applyingEq || applyingRemoteList || !webamp) return;
+    var ser = null;
+    try { ser = stableSer(webamp.__getSerializedState()); } catch (e) {}
+    var eq = webamp.store ? eqFromState(webamp.store.getState()) : null;
+    var list = playlistPersist();
+    var key = persistKey(eq, list, ser);
+    if (key === lastSeen) return;
+    lastSeen = key;
+    persistSoon();
+  }
+
   function afterRender(saved, skin) {
     try { webamp.store.dispatch({ type: 'NETWORK_DISCONNECTED' }); } catch (e) {}
     if (saved && saved.ser) {
       try { webamp.__loadSerializedState(saved.ser); } catch (e) {}
     }
+    if (saved && saved.eq) applyEq(saved.eq);
+    else if (seededThisBoot) applyEq(FIRST_EQ);
     if (skin) restoreSkin(skin);
     if (webamp.__onStateChange) {
-      webamp.__onStateChange(function () {
-        if (applyingEq || applyingRemoteList) return;
-        persistSoon();
-      });
+      webamp.__onStateChange(maybePersistFromStore);
     }
     if (root.Touch) {
       root.Touch.init({
@@ -487,12 +562,13 @@
     }
     if (root.Net) {
       root.Net.onRoster(function (people) {
-        paintSetlist(root.Net._lastMix, people);
+        lastPeople = people || [];
+        paintSetlist();
       });
       root.Net.onMix(function (mix) {
-        root.Net._lastMix = mix;
+        lastMix = mix;
         if (mix && mix.eq && mix.by !== (root.Net.me() && root.Net.me().id)) applyEq(mix.eq);
-        paintSetlist(mix, null);
+        paintSetlist();
       });
       root.Net.init().then(function (room) {
         netReady = true;
@@ -502,30 +578,45 @@
         if (root.Net.me() && root.Net.me().owner) publishRoom();
       });
     }
-    stampLibIds();
+    if (seededThisBoot || (saved && saved.list && saved.list.length)) {
+      try { webamp.play(); } catch (e) {}
+    }
     persistSoon();
   }
 
   function boot() {
     loadAll().then(function (data) {
-      webamp = bindWebamp({ tracks: data.tracks });
-      if (!webamp) return;
-      var node = $('desktop') || document.body;
-      var ready = webamp.renderWhenReady(node);
-      ready.then(function () {
-        afterRender(data.prefs, data.skin);
-        if (!data.tracks.length && root.Touch) {
-          root.Touch.setHint('Drop MP3s. Playlist and EQ stay in this file.');
-        } else if (data.tracks.length && root.Touch) {
-          root.Touch.setHint(data.tracks.length + ' in the library — saved in this file.');
-        }
-      }).catch(function () {
-        var fail = $('fail');
-        if (fail) {
-          fail.hidden = false;
-          fail.textContent = 'Webamp failed to open.';
-        }
-      });
+      var go = function (tracks) {
+        webamp = bindWebamp({ tracks: tracks });
+        if (!webamp) return;
+        root.WebampShell = { getPlayer: function () { return webamp; } };
+        var node = $('desktop') || document.body;
+        var ready = webamp.renderWhenReady(node);
+        ready.then(function () {
+          afterRender(data.prefs, data.skin);
+          if (!tracks.length && root.Touch) {
+            root.Touch.setHint('Drop MP3s. Playlist and EQ stay in this file.');
+          } else if (seededThisBoot && root.Touch) {
+            root.Touch.setHint('Demo setlist is in this file. Drop MP3s to add yours.');
+          } else if (tracks.length && root.Touch) {
+            root.Touch.setHint(tracks.length + ' in the library — saved in this file.');
+          }
+        }).catch(function () {
+          var fail = $('fail');
+          if (fail) {
+            fail.hidden = false;
+            fail.textContent = 'Webamp failed to open.';
+          }
+        });
+      };
+      if (data.tracks.length || (data.prefs && data.prefs.seeded)) {
+        go(data.tracks);
+        return;
+      }
+      seedDemo().then(function (demo) {
+        seededThisBoot = demo.length > 0;
+        go(demo);
+      }).catch(function () { go([]); });
     });
   }
 

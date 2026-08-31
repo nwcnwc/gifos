@@ -31,6 +31,7 @@
     (list || []).forEach(function (p) {
       if (!p || !p.id || p.id === 'mix' || p.id === 'eq') return;
       if (p.kind !== 'peer') return;
+      if (me.id && p.id === me.id) return;
       var changed = !seenAt[p.id] || seenAt[p.id].stamp !== p.at;
       if (changed) seenAt[p.id] = { stamp: p.at, seen: t };
       if (t - seenAt[p.id].seen > STALE_MS) return;
