@@ -1,0 +1,18 @@
+# ffmpeg.wasm pins for this GifOS port.
+# Glue (@ffmpeg/core 0.12.10, GPL-2.0-or-later) is vendored here.
+# The 31 MB wasm is NOT committed: it is a required manifest asset pin.
+#
+# name                 bytes     sha256
+ffmpeg-core.js         112059    b266ab5b952555881dd6310663986994a182acb2b7ff25cf10a25f7a37ac2b21
+814.ffmpeg.js          2648      c4702e2f749671b2f9cf07e4738abaf4511fc0d89525ad6a93bc3c2a8ad0822a
+ffmpeg-core.wasm       32232419  9f57947a5bd530d8f00c5b3f2cb2a3492faa7e5d823315342d6a8656d0a6b7b7
+COPYING-ffmpegwasm.txt 1066      3e123e29517d76504ffce77b3f8e2ccffd4712493f27694b0aba3e376676459f
+COPYING.GPLv2          18092     8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643
+#
+# Sources (jsDelivr, Access-Control-Allow-Origin: *):
+#   https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js
+#   https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm
+#   https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js
+# Wrapper MIT: https://github.com/ffmpegwasm/ffmpeg.wasm/blob/v0.12.10/LICENSE
+#
+# Rebuild glue: node apps/ffmpeg-studio/vendor.mjs

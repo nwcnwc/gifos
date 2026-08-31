@@ -1,0 +1,29 @@
+{
+  "gifos": "1.0",
+  "appId": "ffmpeg-studio",
+  "name": "ffmpeg.wasm Studio",
+  "shortName": "ffmpeg",
+  "version": "1.0.0",
+  "minBuild": 1178,
+  "description": "Trim, convert to MP3 or GIF, on this device. ffmpeg one-liners that never upload; the output lives in this file.",
+  "entry": "index.html",
+  "accent": [16, 185, 160],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "wasm": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "history": { "visibility": "private" },
+    "files": { "visibility": "private" }
+  },
+  "assets": [
+    {
+      "url": "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm",
+      "sha256": "9f57947a5bd530d8f00c5b3f2cb2a3492faa7e5d823315342d6a8656d0a6b7b7",
+      "path": "ffmpeg-core.wasm",
+      "bytes": 32232419
+    }
+  ]
+}
