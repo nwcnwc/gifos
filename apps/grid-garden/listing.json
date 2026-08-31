@@ -1,0 +1,35 @@
+{
+  "tagline": "Write CSS grid, grow carrots — offline, and one invite shares the garden.",
+  "description": "Close it on a plane and you are still on the same bed: the file is the save. Press Invite in the bar above, send the link, and a friend lands on the same plot with the same CSS. You water and poison together, no account, no site to keep open.\n\nOn your own it is Grid Garden. Twenty-eight levels. Type grid-column, grid-row, grid-area, order, and grid-template until the water covers the carrots and the poison covers the weeds. Next lights up when the beds match. The harvest scene is still Froggy's 20-carrot cake.\n\nAn unofficial port of Grid Garden by Thomas Park. The levels and the garden art are his.",
+  "author": {
+    "name": "Thomas Park",
+    "url": "https://github.com/thomaspark/gridgarden"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Grid Garden",
+    "url": "https://github.com/thomaspark/gridgarden",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "css",
+    "grid",
+    "garden",
+    "carrots",
+    "puzzle",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/grid-garden",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

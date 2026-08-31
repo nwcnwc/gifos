@@ -1,0 +1,64 @@
+{
+  "catalog": "1.0",
+  "slug": "grid-garden",
+  "appId": "grid-garden",
+  "name": "Grid Garden",
+  "shortName": "Garden",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Write CSS grid, grow carrots — offline, and one invite shares the garden.",
+  "description": "Close it on a plane and you are still on the same bed: the file is the save. Press Invite in the bar above, send the link, and a friend lands on the same plot with the same CSS. You water and poison together, no account, no site to keep open.\n\nOn your own it is Grid Garden. Twenty-eight levels. Type grid-column, grid-row, grid-area, order, and grid-template until the water covers the carrots and the poison covers the weeds. Next lights up when the beds match. The harvest scene is still Froggy's 20-carrot cake.\n\nAn unofficial port of Grid Garden by Thomas Park. The levels and the garden art are his.",
+  "author": {
+    "name": "Thomas Park",
+    "url": "https://github.com/thomaspark/gridgarden"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "css",
+    "grid",
+    "garden",
+    "carrots",
+    "puzzle",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2017 Thomas Park",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/grid-garden",
+  "accent": [
+    93,
+    164,
+    73
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/grid-garden/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/grid-garden/grid-garden.gif",
+  "bytes": 422655,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "5764d4d6c82c6cecb3f9948940c1148d42f59619182ddd806e1fbb373ce27414",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Grid Garden",
+    "url": "https://github.com/thomaspark/gridgarden",
+    "blessed": false
+  }
+}

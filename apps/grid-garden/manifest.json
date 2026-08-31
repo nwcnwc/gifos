@@ -1,0 +1,26 @@
+{
+  "gifos": "1.0",
+  "appId": "grid-garden",
+  "name": "Grid Garden",
+  "shortName": "Garden",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [93, 164, 73],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "garden": { "visibility": "read-write" },
+    "players": { "visibility": "read-write" }
+  },
+  "launch": {
+    "level": {
+      "label": "Open at a garden level",
+      "detail": "A number from 1 to 28."
+    }
+  }
+}

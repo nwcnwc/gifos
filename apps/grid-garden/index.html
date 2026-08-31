@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Grid Garden</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<section id="sidebar">
+  <div class="header">
+    <h1 class="title">Grid Garden</h1>
+    <div id="level-counter">
+      <span class="arrow left" role="button" aria-label="Previous level"><span class="triangle"></span></span>
+      <span id="level-indicator">
+        <span id="labelLevel" class="translate">Level</span>
+        <span class="current">1</span>
+        <span id="labelOf" class="translate">of</span>
+        <span class="total">1</span>
+        <span class="caret">▾</span>
+      </span>
+      <span class="arrow right" role="button" aria-label="Next level"><span class="triangle"></span></span>
+      <div id="levelsWrapper" class="tooltip">
+        <div id="levels"></div>
+        <div id="labelReset" class="translate">Reset</div>
+      </div>
+    </div>
+  </div>
+  <div id="friend-bar">
+    <p id="friend-status"></p>
+    <ul id="friend-names"></ul>
+  </div>
+  <p id="instructions"></p>
+  <div id="editor">
+    <div id="css">
+      <div class="line-numbers">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13<br>14</div>
+      <pre id="before"></pre>
+      <textarea id="code" autocapitalize="none" spellcheck="false"></textarea>
+      <pre id="after"></pre>
+    </div>
+    <button id="next" class="translate" type="button">Next</button>
+  </div>
+  <div id="share">
+    <p id="win-note">You grew enough carrots for Froggy's 20-carrot cake.</p>
+  </div>
+  <p class="credits"><span id="labelFooter" class="translate">Grid Garden is created by</span> Thomas Park</p>
+</section>
+<section id="view">
+  <div id="board">
+    <div id="overlay">
+      <span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span>
+      <span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span>
+      <span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span>
+      <span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span>
+      <span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span>
+    </div>
+    <div id="plants"></div>
+    <div id="garden"></div>
+    <div id="soil">
+      <span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span>
+      <span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span>
+      <span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span>
+      <span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span>
+      <span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span><span class="plot"></span>
+    </div>
+  </div>
+</section>
+<script src="vendor/levels.js"></script>
+<script src="vendor/docs.js"></script>
+<script src="vendor/messages.js"></script>
+<script src="vendor/game.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+thomaspark/gridgarden  0e262f7272d4992340eb556bdb9b2d502cc59932
+https://github.com/thomaspark/gridgarden
+2026-01-04  "make weeds more brown"
+
+English-only extract of levels.js / docs.js / messages.js.
+Garden art copied from images/. Code MIT; images CC BY 3.0.
+game.js is a vanilla rewrite of the original jQuery game.js
+(localStorage, analytics, hash-language, and ads removed).
