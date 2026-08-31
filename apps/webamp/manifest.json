@@ -1,0 +1,21 @@
+{
+  "gifos": "1.0",
+  "appId": "webamp",
+  "name": "Webamp",
+  "shortName": "Webamp",
+  "version": "1.0.0",
+  "minBuild": 2154,
+  "entry": "index.html",
+  "accent": [0, 255, 0],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "links": true
+  },
+  "data": {
+    "library": { "visibility": "private" },
+    "prefs": { "visibility": "private" },
+    "skins": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
