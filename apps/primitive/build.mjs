@@ -162,6 +162,9 @@ if (!src.includes("id: 'out'")) throw new Error('app.js must persist the reconst
 if (!src.includes('takePhoto')) throw new Error('app.js must use gifos.takePhoto — never a live camera');
 if (!src.includes('onBack')) throw new Error('app.js must register gifos.onBack');
 if (!src.includes('pickRestoreUrl')) throw new Error('app.js must restore src (new) or out (old saves)');
+if (!src.includes('isDurableSrc')) throw new Error('app.js must refuse blob: URLs as the saved original');
+if (!src.includes('data:image/')) throw new Error('app.js must persist data:image bytes, never a blob: URL');
+if (!src.includes('readAsDataURL')) throw new Error('app.js must read chosen/camera bytes as a data URL');
 if (!src.includes('PRESETS')) throw new Error('app.js must ship Quick/Classic/Fine presets');
 if (!src.includes('optimizer.stop')) throw new Error('app.js must be able to stop a run');
 
@@ -214,8 +217,13 @@ if (!files['vendor/primitive.js'].includes('Optimizer.prototype.stop')) {
     '  if (A.PRESETS.length !== 3) throw new Error("presets");\n' +
     '  if (A.matchingPreset(A.DEFAULTS) !== "classic") throw new Error("classic");\n' +
     '  if (A.matchingPreset(A.PRESETS[0]) !== "quick") throw new Error("quick");\n' +
-    '  if (A.pickRestoreUrl({png:"SRC"}, {png:"OUT"}) !== "SRC") throw new Error("restore prefers src");\n' +
-    '  if (A.pickRestoreUrl(null, {png:"OUT"}) !== "OUT") throw new Error("restore old out");\n' +
+    '  if (A.isDurableSrc("blob:http://127.0.0.1:8194/dead") !== false) throw new Error("blob not durable");\n' +
+    '  if (A.isDurableSrc("data:image/png;base64,AAA") !== true) throw new Error("data url durable");\n' +
+    '  if (A.isDurableSrc("https://example/x.png") !== false) throw new Error("http not durable");\n' +
+    '  if (A.pickRestoreUrl({png:"data:image/png;base64,SRC"}, {png:"data:image/png;base64,OUT"}) !== "data:image/png;base64,SRC") throw new Error("restore prefers src");\n' +
+    '  if (A.pickRestoreUrl(null, {png:"data:image/png;base64,OUT"}) !== "data:image/png;base64,OUT") throw new Error("restore old out");\n' +
+    '  if (A.pickRestoreUrl({png:"blob:http://127.0.0.1/x"}, {png:"data:image/png;base64,OUT"}) !== "data:image/png;base64,OUT") throw new Error("restore skips dead blob src");\n' +
+    '  if (A.pickRestoreUrl({png:"blob:http://127.0.0.1/x"}, {png:"blob:http://127.0.0.1/y"}) !== null) throw new Error("restore refuses two dead blobs");\n' +
     '  var d = A.downscaleNeed(1600, 900, 800);\n' +
     '  if (d.w !== 800 || d.h !== 450) throw new Error("downscale " + d.w + "x" + d.h);\n' +
     '  if (A.percentSimilar(0) !== "100.00") throw new Error("similar");\n' +

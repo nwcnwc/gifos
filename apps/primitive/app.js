@@ -1,7 +1,8 @@
 /*
  * Primitive chrome around ondras/primitive.js.
  * Last ORIGINAL picture + reconstruction + settings are private
- * (the file is the save). Take photo is a clip, never a live camera.
+ * (the file is the save). Chosen / camera photos persist as data:image
+ * bytes — a blob: URL dies on close. Take photo is a clip, never a live camera.
  * Classic IIFE. No fetch, no sockets, no eval.
  */
 (function (root) {
@@ -100,9 +101,15 @@
     };
   }
 
+  function isDurableSrc(url) {
+    return typeof url === 'string' && url.indexOf('data:image/') === 0;
+  }
+
   function pickRestoreUrl(srcRow, outRow) {
-    if (srcRow && (srcRow.png || srcRow.jpg)) return srcRow.png || srcRow.jpg;
-    if (outRow && (outRow.png || outRow.jpg)) return outRow.png || outRow.jpg;
+    var src = srcRow && (srcRow.png || srcRow.jpg);
+    var out = outRow && (outRow.png || outRow.jpg);
+    if (isDurableSrc(src)) return src;
+    if (isDurableSrc(out)) return out;
     return null;
   }
 
@@ -203,7 +210,7 @@
         at: Date.now()
       }).catch(function () {});
     }
-    if (picDb && srcDataUrl && srcDataUrl.length < SRC_CAP) {
+    if (picDb && isDurableSrc(srcDataUrl) && srcDataUrl.length < SRC_CAP) {
       picDb.put({ id: 'src', png: srcDataUrl, at: Date.now() }).catch(function () {});
     }
   }
@@ -453,7 +460,7 @@
   }
 
   function restoreOut(row) {
-    if (!row || !row.png) return;
+    if (!row || !isDurableSrc(row.png)) return;
     var img = new Image();
     img.onload = function () {
       var c = $('out');
@@ -537,51 +544,90 @@
   }
 
   function encodeSrcFromImage(img) {
-    var w = img.naturalWidth || img.width;
-    var h = img.naturalHeight || img.height;
-    var need = downscaleNeed(w, h, MAX_EDGE);
-    var c = root.document.createElement('canvas');
-    c.width = need.w;
-    c.height = need.h;
-    c.getContext('2d').drawImage(img, 0, 0, need.w, need.h);
-    var data = c.toDataURL('image/png');
-    if (data.length > 800000) data = c.toDataURL('image/jpeg', 0.85);
-    return data;
+    try {
+      var w = img.naturalWidth || img.width;
+      var h = img.naturalHeight || img.height;
+      var need = downscaleNeed(w, h, MAX_EDGE);
+      var c = root.document.createElement('canvas');
+      c.width = need.w;
+      c.height = need.h;
+      c.getContext('2d').drawImage(img, 0, 0, need.w, need.h);
+      var data = c.toDataURL('image/png');
+      if (data.length > 800000) data = c.toDataURL('image/jpeg', 0.85);
+      return isDurableSrc(data) ? data : null;
+    } catch (e) {
+      return null;
+    }
   }
 
-  function loadFromUrl(url, alreadySrc) {
+  function finishLoad(img, durable) {
+    if (!isDurableSrc(durable)) {
+      say('Could not keep that picture.', true);
+      return;
+    }
+    srcDataUrl = durable;
+    srcImg = img;
+    loaded = true;
+    resultCanvas = null;
+    svgNode = null;
+    accepted = 0;
+    lastDistance = 1;
+    var vector = $('vector');
+    if (vector) vector.innerHTML = '';
+    var out = $('out');
+    if (out) { out.width = 0; out.height = 0; }
+    if (picDb) picDb.delete('out').catch(function () {});
+    paintOriginal();
+    showWork(true);
+    if (timer) { clearTimeout(timer); timer = 0; }
+    flush();
+    say('Press Start to redraw.');
+  }
+
+  function loadFromUrl(url) {
+    var revoke = (typeof url === 'string' && url.indexOf('blob:') === 0) ? url : null;
     var img = new Image();
     img.onload = function () {
-      if (!alreadySrc) {
-        srcDataUrl = encodeSrcFromImage(img);
-        if (srcDataUrl && srcDataUrl !== url) {
-          alreadySrc = true;
-          img.src = srcDataUrl;
-          return;
-        }
-      } else {
-        srcDataUrl = url;
+      if (revoke) {
+        try { URL.revokeObjectURL(revoke); } catch (e) {}
+        revoke = null;
       }
-      srcImg = img;
-      loaded = true;
-      resultCanvas = null;
-      svgNode = null;
-      accepted = 0;
-      var vector = $('vector');
-      if (vector) vector.innerHTML = '';
-      var out = $('out');
-      if (out) { out.width = 0; out.height = 0; }
-      paintOriginal();
-      showWork(true);
-      persist();
-      say('Press Start to redraw.');
+      var durable = encodeSrcFromImage(img);
+      if (!isDurableSrc(durable)) {
+        say('Could not keep that picture.', true);
+        return;
+      }
+      if (durable !== url) {
+        var next = new Image();
+        next.onload = function () { finishLoad(next, durable); };
+        next.onerror = function () { say('Could not open that picture.', true); };
+        next.src = durable;
+        return;
+      }
+      finishLoad(img, durable);
     };
-    img.onerror = function () { say('Could not open that picture.', true); };
+    img.onerror = function () {
+      if (revoke) {
+        try { URL.revokeObjectURL(revoke); } catch (e) {}
+      }
+      say('Could not open that picture.', true);
+    };
     img.src = url;
   }
 
   function loadBlob(blob) {
-    loadFromUrl(URL.createObjectURL(blob), false);
+    if (!blob) return;
+    if (typeof FileReader === 'function') {
+      var reader = new FileReader();
+      reader.onload = function () {
+        if (isDurableSrc(reader.result)) loadFromUrl(reader.result);
+        else loadFromUrl(URL.createObjectURL(blob));
+      };
+      reader.onerror = function () { say('Could not open that picture.', true); };
+      reader.readAsDataURL(blob);
+      return;
+    }
+    loadFromUrl(URL.createObjectURL(blob));
   }
 
   function loadFile(file) {
@@ -684,7 +730,7 @@
     $('emptyPhoto') && $('emptyPhoto').addEventListener('click', takePhoto);
     $('photoBtn') && $('photoBtn').addEventListener('click', takePhoto);
     $('sampleBtn') && $('sampleBtn').addEventListener('click', function () {
-      loadFromUrl(demoImage(), true);
+      loadFromUrl(demoImage());
     });
     $('startBtn') && $('startBtn').addEventListener('click', startRun);
     $('pngBtn') && $('pngBtn').addEventListener('click', downloadPng);
@@ -755,7 +801,7 @@
           loaded = true;
           paintOriginal();
           showWork(true);
-          if (pack.out && pack.out.png) restoreOut(pack.out);
+          if (pack.out && isDurableSrc(pack.out.png)) restoreOut(pack.out);
           else say('Press Start to redraw.');
         };
         img.onerror = function () { showWork(false); };
@@ -774,6 +820,7 @@
     clamp: clamp,
     clampInt: clampInt,
     downscaleNeed: downscaleNeed,
+    isDurableSrc: isDurableSrc,
     pickRestoreUrl: pickRestoreUrl,
     matchingPreset: matchingPreset,
     cfgFromSettings: cfgFromSettings,
