@@ -62,6 +62,56 @@
       "sha256": "4942aa92b36a6ded5a0393836389f51dd8fe365788f175c3c896a3198541b501"
     },
     {
+      "slug": "a-dark-room",
+      "appId": "a-dark-room",
+      "name": "A Dark Room",
+      "shortName": "Dark Room",
+      "version": "1.4.0",
+      "tagline": "The fire lives in the file. Close the tab — still stoking. Invite someone to the same fire.",
+      "author": {
+        "name": "Michael Townsend / doublespeak games",
+        "url": "https://github.com/doublespeakgames/adarkroom"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "A Dark Room",
+        "blessed": false
+      },
+      "minBuild": 1206,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-31",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "incremental",
+        "text",
+        "survival",
+        "adventure",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        232,
+        168,
+        72
+      ],
+      "cover": "/apps/a-dark-room/cover.jpg",
+      "bytes": 5307861,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "7c6c76eeae276fb3b7ca9fbebf5d5ff9fd7d7ceeb8823c80107d0739f9aafbc2"
+    },
+    {
       "slug": "aim-and-shoot",
       "appId": "aim-and-shoot",
       "name": "Aim and Shoot",
@@ -157,6 +207,109 @@
         "ts": "2026-08-24"
       },
       "sha256": "6dcee6462ebd4c2c3910f46b3e86f18432b2eb16bbd218a7b356a1483f460791"
+    },
+    {
+      "slug": "algorithm-visualizer",
+      "appId": "algorithm-visualizer",
+      "name": "Algorithm Visualizer",
+      "shortName": "Algos",
+      "version": "1.0.0",
+      "tagline": "Watch the swaps on a plane — close it, the last algorithm is still there.",
+      "author": {
+        "name": "Jinseo Jason Park",
+        "url": "https://github.com/algorithm-visualizer/algorithm-visualizer"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Algorithm Visualizer",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Learning",
+        "Developer"
+      ],
+      "tags": [
+        "algorithms",
+        "visualization",
+        "sorting",
+        "graphs",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        61,
+        139,
+        253
+      ],
+      "cover": "/apps/algorithm-visualizer/cover.jpg",
+      "bytes": 212060,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "03343050530a2558e310eb70820f05d94787d925693313e06cb4fede40622f99"
+    },
+    {
+      "slug": "alphatab",
+      "appId": "alphatab",
+      "name": "alphaTab",
+      "shortName": "alphaTab",
+      "version": "1.0.0",
+      "tagline": "The tab lives in the GIF. Invite, and a friend follows the playhead.",
+      "author": {
+        "name": "Daniel Kuschny",
+        "url": "https://github.com/CoderLine/alphaTab"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "alphaTab",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Creativity",
+        "Media"
+      ],
+      "tags": [
+        "guitar",
+        "tablature",
+        "tab",
+        "notation",
+        "player",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        196,
+        140,
+        48
+      ],
+      "cover": "/apps/alphatab/cover.jpg",
+      "bytes": 1367056,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "3ea9774accf0faa121e23be4ea13aa709713e24ba672176ff2621ddfa52cc39e"
     },
     {
       "slug": "anyroad",
@@ -357,6 +510,60 @@
       "sha256": "59f744e47e50af8addbe7e14b4361d3e3c1c1d1f5f39db86f3d793566a5b19c8"
     },
     {
+      "slug": "background-removal",
+      "appId": "background-removal",
+      "name": "Background Removal",
+      "shortName": "Cut BG",
+      "version": "1.0.0",
+      "tagline": "Cut a photo's background on your device. No upload, no account, no watermark.",
+      "author": {
+        "name": "IMG.LY GmbH",
+        "url": "https://github.com/imgly/background-removal-js"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "@imgly/background-removal",
+        "blessed": false
+      },
+      "minBuild": 1381,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Creativity",
+        "Media"
+      ],
+      "tags": [
+        "photo",
+        "background",
+        "remove",
+        "cutout",
+        "png",
+        "offline",
+        "gpu"
+      ],
+      "accent": [
+        56,
+        196,
+        168
+      ],
+      "cover": "/apps/background-removal/cover.jpg",
+      "bytes": 12453691,
+      "download": 0,
+      "optionalCount": 3,
+      "optionalDownload": 308651454,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "c0d9038eba821544295940cc50fac16c7625fbdc5bf22f3aaa98d2ccb07077ba"
+    },
+    {
       "slug": "battle-city",
       "appId": "battle-city",
       "name": "Eagle Defense",
@@ -452,6 +659,58 @@
         "ts": "2026-08-26"
       },
       "sha256": "4e47a90cf122138e8375cac307751a94877d42055274b967db922b0ab1ada3a6"
+    },
+    {
+      "slug": "beepbox",
+      "appId": "beepbox",
+      "name": "BeepBox",
+      "shortName": "BeepBox",
+      "version": "4.2.2",
+      "tagline": "The chiptune song lives in the GIF. Invite, and you jam the same track.",
+      "author": {
+        "name": "John Nesky",
+        "url": "https://github.com/johnnesky/beepbox"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "BeepBox",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Creativity",
+        "Media"
+      ],
+      "tags": [
+        "beepbox",
+        "chiptune",
+        "tracker",
+        "sequencer",
+        "music",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        37,
+        243,
+        255
+      ],
+      "cover": "/apps/beepbox/cover.jpg",
+      "bytes": 426515,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "5723e24b4ea2a557200c17349b924407e344b2d84465faf69f324c2bc7f28d8a"
     },
     {
       "slug": "besogo",
@@ -747,6 +1006,59 @@
       "sha256": "bac0ec66717f59a3417f58967c8bab051092a93b6ff111b63a2cd789bf80265f"
     },
     {
+      "slug": "blockly-games",
+      "appId": "blockly-games",
+      "name": "Blockly Games",
+      "shortName": "Blockly",
+      "version": "1.0.0",
+      "tagline": "Puzzle, Maze, Turtle — offline, your stars live in the file, an invite opens the same level.",
+      "author": {
+        "name": "Google",
+        "url": "https://github.com/google/blockly-games"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Blockly Games",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games",
+        "Learning"
+      ],
+      "tags": [
+        "blockly",
+        "puzzle",
+        "maze",
+        "turtle",
+        "coding",
+        "blocks",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        92,
+        184,
+        92
+      ],
+      "cover": "/apps/blockly-games/cover.jpg",
+      "bytes": 568514,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "dea673b4d00494976ed11a2d6f5aed163b50912b8f889e808f44fef905fd53a2"
+    },
+    {
       "slug": "bowling",
       "appId": "bowling",
       "name": "Bowling",
@@ -794,6 +1106,211 @@
         "ts": "2026-08-29"
       },
       "sha256": "bb7a55a2022c8e2bc2fc922cee99d48b065f8573fac6459480e42a0f95c5e8f4"
+    },
+    {
+      "slug": "breaklock",
+      "appId": "breaklock",
+      "name": "BreakLock",
+      "shortName": "BreakLock",
+      "version": "1.0.0",
+      "tagline": "You draw the secret. They have to crack it. Your streak lives in the file.",
+      "author": {
+        "name": "maxwellito",
+        "url": "https://github.com/maxwellito/breaklock"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "BreakLock",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "puzzle",
+        "lock",
+        "mastermind",
+        "pattern",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        17,
+        102,
+        153
+      ],
+      "cover": "/apps/breaklock/cover.jpg",
+      "bytes": 264003,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "d0053de98ae54a3dbee343a44e8269ee1e6319cfa207a211babe3da218e22ffa"
+    },
+    {
+      "slug": "breakout",
+      "appId": "breakout",
+      "name": "Breakout",
+      "shortName": "Breakout",
+      "version": "1.0.0",
+      "tagline": "High score lives in the file. Invite a friend: two paddles, one wall.",
+      "author": {
+        "name": "Jake Gordon",
+        "url": "https://github.com/jakesgordon/javascript-breakout"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "JavaScript Breakout",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "breakout",
+        "arkanoid",
+        "arcade",
+        "bricks",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        245,
+        111,
+        37
+      ],
+      "cover": "/apps/breakout/cover.jpg",
+      "bytes": 273052,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "4e63a5770c73d8460e0904358a684f19ad140b0471f54480ac97b9ad715ce085"
+    },
+    {
+      "slug": "carbon",
+      "appId": "carbon",
+      "name": "Carbon",
+      "shortName": "Carbon",
+      "version": "1.0.0",
+      "tagline": "Pretty code images, no account — the snippet lives in this file.",
+      "author": {
+        "name": "Carbon",
+        "url": "https://github.com/carbon-app/carbon"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Carbon",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Developer",
+        "Creativity"
+      ],
+      "tags": [
+        "carbon",
+        "code",
+        "screenshot",
+        "syntax",
+        "theme",
+        "png",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        171,
+        184,
+        195
+      ],
+      "cover": "/apps/carbon/cover.jpg",
+      "bytes": 287499,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "d5fd9325313154929de9837701b6669a312d1ca553d57f60539c4794534d10d0"
+    },
+    {
+      "slug": "cascade-studio",
+      "appId": "cascade-studio",
+      "name": "CascadeStudio",
+      "shortName": "Cascade",
+      "version": "1.0.0",
+      "tagline": "Sketch a profile, pull it into a solid. The model lives in the file — works offline.",
+      "author": {
+        "name": "Johnathon Selstad",
+        "url": "https://github.com/zalo/CascadeStudio"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "CascadeStudio",
+        "blessed": false
+      },
+      "minBuild": 1178,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Utilities",
+        "Creativity"
+      ],
+      "tags": [
+        "cad",
+        "3d",
+        "opencascade",
+        "sketch",
+        "solid",
+        "brep",
+        "offline"
+      ],
+      "accent": [
+        56,
+        168,
+        214
+      ],
+      "cover": "/apps/cascade-studio/cover.jpg",
+      "bytes": 9301665,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "ba247b8fdd426308d09b18bb989bb98505ec95e21a69a83c47a7e40ddb724b07"
     },
     {
       "slug": "catch-the-cat",
@@ -935,6 +1452,56 @@
         "ts": "2026-08-26"
       },
       "sha256": "9b1de2ac680d95520b7d5d073a18f8ca4dfb045fdd2740025126bf2a6057a8cf"
+    },
+    {
+      "slug": "chrome-dino",
+      "appId": "chrome-dino",
+      "name": "Chrome Dino",
+      "shortName": "Dino",
+      "version": "1.0.0",
+      "tagline": "chrome://dino, always offline — high score in the file, Invite is a side-by-side run.",
+      "author": {
+        "name": "The Chromium Authors",
+        "url": "https://chromium.googlesource.com/chromium/src"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "T-Rex Runner",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "dino",
+        "arcade",
+        "runner",
+        "offline",
+        "multiplayer",
+        "chrome"
+      ],
+      "accent": [
+        83,
+        83,
+        83
+      ],
+      "cover": "/apps/chrome-dino/cover.jpg",
+      "bytes": 180708,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "0d2ab21f617c4a66d4fe1b3c0091e34f6d33e55accdae611cd075be805b0e20b"
     },
     {
       "slug": "civiclock",
@@ -1431,6 +1998,58 @@
       "sha256": "898ebb19b362545ab519157071d48f0b2a4a74d66fdabd003c2fee89957682de"
     },
     {
+      "slug": "digitaljs",
+      "appId": "digitaljs",
+      "name": "DigitalJS",
+      "shortName": "DigitalJS",
+      "version": "0.14.2",
+      "tagline": "The circuit lives in the GIF. Invite shares the bench. It works on a plane.",
+      "author": {
+        "name": "Marek Materzok",
+        "url": "https://github.com/tilk/digitaljs"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "DigitalJS",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Learning",
+        "Developer"
+      ],
+      "tags": [
+        "circuit",
+        "logic",
+        "simulator",
+        "verilog",
+        "gates",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        46,
+        196,
+        138
+      ],
+      "cover": "/apps/digitaljs/cover.jpg",
+      "bytes": 624078,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "7082da44ff435ae10f3f05ee1c76efc3e285faee70e4febf303bc9bcd333cab1"
+    },
+    {
       "slug": "drawnix",
       "appId": "drawnix",
       "name": "Drawnix",
@@ -1631,6 +2250,107 @@
       "sha256": "4044b52eb01b566bc8e8014be0ea0be21df0b0a2978360f415b57f40202f6841"
     },
     {
+      "slug": "epub-reader",
+      "appId": "epub-reader",
+      "name": "EPUB Reader",
+      "shortName": "EPUB",
+      "version": "1.0.0",
+      "tagline": "The book lives in the app. Invite a friend onto the same page — nothing is uploaded.",
+      "author": {
+        "name": "FuturePress",
+        "url": "https://github.com/futurepress/epub.js"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "epub.js",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "epub",
+        "ebook",
+        "reader",
+        "book",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        196,
+        122,
+        48
+      ],
+      "cover": "/apps/epub-reader/cover.jpg",
+      "bytes": 354916,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "220dbc33e8929d5a6dfcb5d020b94586729b2296cfef48ca98fc6610603da025"
+    },
+    {
+      "slug": "evolution-of-trust",
+      "appId": "evolution-of-trust",
+      "name": "The Evolution of Trust",
+      "shortName": "Trust",
+      "version": "1.0.0",
+      "tagline": "Close it mid-essay and you are still on that chapter. Send the invite and a friend watches the same tournament.",
+      "author": {
+        "name": "Nicky Case",
+        "url": "https://ncase.me/trust/"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "The Evolution of Trust",
+        "blessed": false
+      },
+      "minBuild": 2154,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games",
+        "Learning"
+      ],
+      "tags": [
+        "trust",
+        "game-theory",
+        "explorable",
+        "prisoners-dilemma",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        64,
+        137,
+        221
+      ],
+      "cover": "/apps/evolution-of-trust/cover.jpg",
+      "bytes": 4785786,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "fffacce13984da9676465daf6fa5068049146284d6414cf4b926dd49a0fbb925"
+    },
+    {
       "slug": "excalidraw",
       "appId": "excalidraw",
       "name": "Excalidraw",
@@ -1781,6 +2501,59 @@
       "sha256": "00ffe3ad17a7a6c0ec07084d06e3ee8be69c3dc818c3b638260a7cb53e059bc3"
     },
     {
+      "slug": "ffmpeg-studio",
+      "appId": "ffmpeg-studio",
+      "name": "ffmpeg.wasm Studio",
+      "shortName": "ffmpeg",
+      "version": "1.0.0",
+      "tagline": "Trim, MP3, GIF — ffmpeg one-liners on this device. Nothing is uploaded.",
+      "author": {
+        "name": "Jerome Wu",
+        "url": "https://github.com/ffmpegwasm/ffmpeg.wasm"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "ffmpeg.wasm",
+        "blessed": false
+      },
+      "minBuild": 1178,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Media",
+        "Utilities"
+      ],
+      "tags": [
+        "ffmpeg",
+        "convert",
+        "trim",
+        "mp3",
+        "gif",
+        "video",
+        "audio",
+        "offline"
+      ],
+      "accent": [
+        16,
+        185,
+        160
+      ],
+      "cover": "/apps/ffmpeg-studio/cover.jpg",
+      "bytes": 253527,
+      "download": 32232419,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "a26e74a075a5f32f36cfff11986ecb41cd0b4872fa3f3ce8b84851a557feac7f"
+    },
+    {
       "slug": "fieldplay",
       "appId": "fieldplay",
       "name": "Field Play",
@@ -1926,6 +2699,58 @@
         "ts": "2026-08-29"
       },
       "sha256": "824309e323e127fed7c6829a8bd1c6a9930fe2992b251385fae58ad06380edd2"
+    },
+    {
+      "slug": "flexbox-froggy",
+      "appId": "flexbox-froggy",
+      "name": "Flexbox Froggy",
+      "shortName": "Froggy",
+      "version": "1.0.0",
+      "tagline": "Write CSS. The frogs hop. Close it, come back still on the same pad — or invite a friend into this pond.",
+      "author": {
+        "name": "Thomas Park",
+        "url": "https://github.com/thomaspark/flexboxfroggy"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Flexbox Froggy",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games",
+        "Learning"
+      ],
+      "tags": [
+        "css",
+        "flexbox",
+        "puzzle",
+        "frogs",
+        "tutorial",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        67,
+        160,
+        71
+      ],
+      "cover": "/apps/flexbox-froggy/cover.jpg",
+      "bytes": 254175,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "fb36bb869c50fef31fed31ef8d570337574a9579a4e18cd1e9dac2ebb566bcdf"
     },
     {
       "slug": "floppy-bird",
@@ -2269,6 +3094,58 @@
       "sha256": "98b313b50267250b4ef8671e6f6d62bc570912d1935a0a4d6c7d27631093c831"
     },
     {
+      "slug": "grid-garden",
+      "appId": "grid-garden",
+      "name": "Grid Garden",
+      "shortName": "Garden",
+      "version": "1.0.0",
+      "tagline": "Write CSS grid, grow carrots — offline, and one invite shares the garden.",
+      "author": {
+        "name": "Thomas Park",
+        "url": "https://github.com/thomaspark/gridgarden"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Grid Garden",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games",
+        "Learning"
+      ],
+      "tags": [
+        "css",
+        "grid",
+        "garden",
+        "carrots",
+        "puzzle",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        93,
+        164,
+        73
+      ],
+      "cover": "/apps/grid-garden/cover.jpg",
+      "bytes": 422980,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "e5bc22973f902a459cced7660fc87c3c62598a6763ce63234ae648f6da92f27d"
+    },
+    {
       "slug": "guitar-bro",
       "appId": "guitar-bro",
       "name": "Guitar Bro",
@@ -2367,6 +3244,57 @@
         "ts": "2026-08-25"
       },
       "sha256": "c02a8b748804fb0988855a614518f2f0d98cbfaed0e0ce9977b611e2855fcb39"
+    },
+    {
+      "slug": "hanzi-writer",
+      "appId": "hanzi-writer",
+      "name": "Hanzi Writer",
+      "shortName": "Hanzi",
+      "version": "1.0.0",
+      "tagline": "Trace the stroke order. Close it — your progress is still in the file. One invite, the same character.",
+      "author": {
+        "name": "David Chanin",
+        "url": "https://github.com/chanind/hanzi-writer"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Hanzi Writer",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Learning"
+      ],
+      "tags": [
+        "chinese",
+        "hanzi",
+        "stroke-order",
+        "quiz",
+        "offline",
+        "multiplayer",
+        "hsk"
+      ],
+      "accent": [
+        196,
+        74,
+        58
+      ],
+      "cover": "/apps/hanzi-writer/cover.jpg",
+      "bytes": 1014332,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "a4f513adf8e0ef0ab21201ec0d5ca26f33e271ed9d8e29e3a8cb3e2f33f7c9ca"
     },
     {
       "slug": "hat-sh",
@@ -2506,6 +3434,157 @@
         "ts": "2026-08-25"
       },
       "sha256": "0bb81efc53910ceacc51bb140c60779dfc2ad51c199e2de3c31bba41020c9b34"
+    },
+    {
+      "slug": "hexgl",
+      "appId": "hexgl",
+      "name": "HexGL",
+      "shortName": "HexGL",
+      "version": "1.0.0",
+      "tagline": "The original futuristic racer, offline — your best lap lives in the GIF, and Invite is a ghost race.",
+      "author": {
+        "name": "Thibaut Despoulain",
+        "url": "https://github.com/BKcore/HexGL"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "HexGL",
+        "blessed": false
+      },
+      "minBuild": 1314,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "racing",
+        "webgl",
+        "futuristic",
+        "offline",
+        "multiplayer",
+        "touch"
+      ],
+      "accent": [
+        65,
+        144,
+        187
+      ],
+      "cover": "/apps/hexgl/cover.jpg",
+      "bytes": 4191260,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "32ac5443f6cd59947f322b0c2260bfe2c6b081aabd86bd06a96b92546a7eecd8"
+    },
+    {
+      "slug": "hextris",
+      "appId": "hextris",
+      "name": "Hextris",
+      "shortName": "Hextris",
+      "version": "1.0.0",
+      "tagline": "Race a friend from the same falling hexes — your high score lives in the GIF.",
+      "author": {
+        "name": "Logan Engstrom, Garrett Finucane, Noah Moroze, Michael Yang",
+        "url": "https://github.com/Hextris/hextris"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Hextris",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "hextris",
+        "hexagon",
+        "puzzle",
+        "arcade",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        231,
+        76,
+        60
+      ],
+      "cover": "/apps/hextris/cover.jpg",
+      "bytes": 336292,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "579280a3438c4a8e3387c4123c4fdb8883563cc7566938e0d221b0c2eb46b03e"
+    },
+    {
+      "slug": "hydra",
+      "appId": "hydra",
+      "name": "Hydra",
+      "shortName": "Hydra",
+      "version": "1.0.0",
+      "tagline": "The patch lives in the GIF. Invite jams the same synth — no account, no server.",
+      "author": {
+        "name": "Olivia Jack",
+        "url": "https://github.com/ojack"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Hydra",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "hydra",
+        "synth",
+        "livecoding",
+        "video",
+        "visuals",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        196,
+        61,
+        122
+      ],
+      "cover": "/apps/hydra/cover.jpg",
+      "bytes": 228377,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "e0f6b9ac41dc8e40ed5508e1c6aa469d65d626f2c0980ad66a3167b44fc70ee6"
     },
     {
       "slug": "invaderz",
@@ -2805,6 +3884,56 @@
       "sha256": "96b438281967ce71cb0507ffbff63791d2b56e94a5baa24cf5f83c3bc66f0468"
     },
     {
+      "slug": "jsnes",
+      "appId": "jsnes",
+      "name": "jsnes",
+      "shortName": "jsnes",
+      "version": "1.0.0",
+      "tagline": "The ROM and the save live in this file. Invite is player two.",
+      "author": {
+        "name": "Ben Firshman",
+        "url": "https://github.com/bfirsh/jsnes"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "JSNES",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "nes",
+        "emulator",
+        "retro",
+        "offline",
+        "multiplayer",
+        "homebrew"
+      ],
+      "accent": [
+        228,
+        56,
+        56
+      ],
+      "cover": "/apps/jsnes/cover.jpg",
+      "bytes": 313751,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "121f4917c6ec7ed0f0a5e255e8f100f857b837a6b743bffd68a3caf245d46581"
+    },
+    {
       "slug": "json-crack",
       "appId": "json-crack",
       "name": "JSON Crack",
@@ -3047,6 +4176,58 @@
       "sha256": "e51f13488146bb2d924d7468566586a496e0208706666fdc1c6dc90800e4c56a"
     },
     {
+      "slug": "jupyterlite",
+      "appId": "jupyterlite",
+      "name": "JupyterLite",
+      "shortName": "Jupyter",
+      "version": "1.0.0",
+      "tagline": "A Python notebook that lives in this file. Invite shares the cells.",
+      "author": {
+        "name": "JupyterLite Contributors",
+        "url": "https://github.com/jupyterlite/jupyterlite"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "JupyterLite",
+        "blessed": false
+      },
+      "minBuild": 1381,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Developer",
+        "Learning"
+      ],
+      "tags": [
+        "jupyter",
+        "python",
+        "notebook",
+        "repl",
+        "offline"
+      ],
+      "accent": [
+        243,
+        118,
+        38
+      ],
+      "cover": "/apps/jupyterlite/cover.jpg",
+      "bytes": 2994739,
+      "download": 0,
+      "optionalCount": 1,
+      "optionalDownload": 10105545,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "aa7629f7b2bf46f4cf0ebb5560229c84e39847eeb7eb85329a88f7091728604a"
+    },
+    {
       "slug": "kana-quiz",
       "appId": "kana-quiz",
       "name": "Kana Quiz",
@@ -3196,6 +4377,56 @@
         "ts": "2026-08-25"
       },
       "sha256": "3ab5133931ce00beff62b03ed8d4f12d994610aac7cab504b74c86f65938e93e"
+    },
+    {
+      "slug": "learn-git-branching",
+      "appId": "learn-git-branching",
+      "name": "Learn Git Branching",
+      "shortName": "Git",
+      "version": "1.0.0",
+      "tagline": "The git trainer that lives in a GIF — close it, come back, still on the same commit.",
+      "author": {
+        "name": "pcottle",
+        "url": "https://github.com/pcottle/learnGitBranching"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Learn Git Branching",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Learning",
+        "Developer"
+      ],
+      "tags": [
+        "git",
+        "branching",
+        "tutorial",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        61,
+        159,
+        216
+      ],
+      "cover": "/apps/learn-git-branching/cover.jpg",
+      "bytes": 207646,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "e0b85ceb730c93b3dd4e5a7b5d59da576a9ab55be8298bc142bac7f167f566e0"
     },
     {
       "slug": "longwave",
@@ -3445,6 +4676,59 @@
       "sha256": "a0e4e4f639788d69dd481ee686fa7c942f9b451d8b6e26e42fbb5654ac02c22f"
     },
     {
+      "slug": "matter-sandbox",
+      "appId": "matter-sandbox",
+      "name": "Matter Sandbox",
+      "shortName": "Matter",
+      "version": "1.0.0",
+      "tagline": "A 2D physics toy box. The pile lives in the GIF; one invite is the same room.",
+      "author": {
+        "name": "Liam Brummitt",
+        "url": "https://github.com/liabru/matter-js"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "matter.js",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Creativity",
+        "Games"
+      ],
+      "tags": [
+        "physics",
+        "sandbox",
+        "ragdoll",
+        "slingshot",
+        "matter",
+        "toy",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        241,
+        150,
+        72
+      ],
+      "cover": "/apps/matter-sandbox/cover.jpg",
+      "bytes": 269700,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "9d9c7adcc435148a6216dca430ea6861c2d9769774ccb5a5d578c47c5274907b"
+    },
+    {
       "slug": "memory",
       "appId": "memory",
       "name": "Memory",
@@ -3592,6 +4876,58 @@
       "sha256": "7e04a30dc63d1cfdf38143d0666882ee34767458759b43cc7778a0a089187678"
     },
     {
+      "slug": "milkdown",
+      "appId": "milkdown",
+      "name": "Milkdown",
+      "shortName": "Milkdown",
+      "version": "1.0.0",
+      "tagline": "WYSIWYG markdown that lives in this file — Invite is the same document.",
+      "author": {
+        "name": "Mirone",
+        "url": "https://github.com/Milkdown/milkdown"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Milkdown",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Productivity",
+        "Utilities"
+      ],
+      "tags": [
+        "markdown",
+        "editor",
+        "wysiwyg",
+        "notes",
+        "typora",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        136,
+        192,
+        208
+      ],
+      "cover": "/apps/milkdown/cover.jpg",
+      "bytes": 350141,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "c9b0f54495e9a1f8d60203425d594b5422de46eddfbc4b2dcd22937065b8363f"
+    },
+    {
       "slug": "mini-photo-editor",
       "appId": "mini-photo-editor",
       "name": "Mini Photo Editor",
@@ -3640,6 +4976,110 @@
         "ts": "2026-08-25"
       },
       "sha256": "4ead60d891945a49f48ae55465caea3391618848a26e248dc304a95817db4ac8"
+    },
+    {
+      "slug": "monaco-code",
+      "appId": "monaco-code",
+      "name": "Monaco Code",
+      "shortName": "Monaco",
+      "version": "1.0.0",
+      "tagline": "VS Code’s editor, in a file. One invite is a pair session.",
+      "author": {
+        "name": "Microsoft",
+        "url": "https://github.com/microsoft/monaco-editor"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Monaco Editor",
+        "blessed": false
+      },
+      "minBuild": 1178,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Developer",
+        "Utilities"
+      ],
+      "tags": [
+        "monaco",
+        "vscode",
+        "editor",
+        "typescript",
+        "javascript",
+        "json",
+        "markdown",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        0,
+        122,
+        204
+      ],
+      "cover": "/apps/monaco-code/cover.jpg",
+      "bytes": 4321220,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "f36197bce20eed064994d0f8aa1c179068cb9db0831915e4efabdb6b451a1116"
+    },
+    {
+      "slug": "monkeytype",
+      "appId": "monkeytype",
+      "name": "Monkeytype",
+      "shortName": "Monkeytype",
+      "version": "1.0.0",
+      "tagline": "The typing test, offline — personal bests live in the file, one invite is a live race.",
+      "author": {
+        "name": "Miodec",
+        "url": "https://github.com/monkeytypegame/monkeytype"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Monkeytype",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Learning"
+      ],
+      "tags": [
+        "typing",
+        "wpm",
+        "keyboard",
+        "offline",
+        "multiplayer",
+        "race"
+      ],
+      "accent": [
+        226,
+        183,
+        20
+      ],
+      "cover": "/apps/monkeytype/cover.jpg",
+      "bytes": 238302,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "70bb28857ff0fb07dd5e1ec60a62d290d25b2d6f3c0e8641dbf51ae937906780"
     },
     {
       "slug": "my-mind",
@@ -3789,6 +5229,56 @@
         "ts": "2026-08-24"
       },
       "sha256": "9a5e900cf311c4262e5676d30e65c02de30f887488393a254c3f83f092fcbe21"
+    },
+    {
+      "slug": "nullboard",
+      "appId": "nullboard",
+      "name": "Nullboard",
+      "shortName": "Nullboard",
+      "version": "1.0.0",
+      "tagline": "The board is the file. One invite is the room — no Trello account.",
+      "author": {
+        "name": "Alexander Pankratov",
+        "url": "https://github.com/apankrat/nullboard"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Nullboard",
+        "blessed": false
+      },
+      "minBuild": 2154,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Productivity"
+      ],
+      "tags": [
+        "kanban",
+        "notes",
+        "lists",
+        "tasks",
+        "offline",
+        "board"
+      ],
+      "accent": [
+        20,
+        137,
+        219
+      ],
+      "cover": "/apps/nullboard/cover.jpg",
+      "bytes": 400342,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "9f19c8049c88335f0b11586cc63f3e118d6a269961a05456ce940e59138e95f9"
     },
     {
       "slug": "nxn-cube",
@@ -4221,6 +5711,57 @@
       "sha256": "230af62d8d96c961b785d35743a404ed257d35c60e13188982250d88d7e11a1e"
     },
     {
+      "slug": "openjscad",
+      "appId": "openjscad",
+      "name": "OpenJSCAD",
+      "shortName": "JSCAD",
+      "version": "1.0.0",
+      "tagline": "Write JavaScript, get a 3D solid — the script lives in the file.",
+      "author": {
+        "name": "JSCAD Organization",
+        "url": "https://github.com/jscad/OpenJSCAD.org"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "OpenJSCAD",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Utilities",
+        "Developer"
+      ],
+      "tags": [
+        "cad",
+        "3d",
+        "jscad",
+        "openscad",
+        "editor",
+        "offline"
+      ],
+      "accent": [
+        242,
+        180,
+        52
+      ],
+      "cover": "/apps/openjscad/cover.jpg",
+      "bytes": 292877,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "178d14b9be35289955220f3cc663da693f04069ca181f22694275b34dd5837aa"
+    },
+    {
       "slug": "orca",
       "appId": "orca",
       "name": "Orca",
@@ -4270,6 +5811,57 @@
         "ts": "2026-08-29"
       },
       "sha256": "e65d15e09b6e83fb36d2802db3169dcaf04da3b93fc489ab562d487c0fa238be"
+    },
+    {
+      "slug": "otpauth",
+      "appId": "otpauth",
+      "name": "OTP Auth",
+      "shortName": "OTP",
+      "version": "1.0.0",
+      "tagline": "Authenticator codes that live in this file. Works on a plane. Nothing is uploaded.",
+      "author": {
+        "name": "Héctor Molinero Fernández",
+        "url": "https://github.com/hectorm/otpauth"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "OTPAuth",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "totp",
+        "hotp",
+        "authenticator",
+        "2fa",
+        "otp",
+        "offline",
+        "privacy"
+      ],
+      "accent": [
+        64,
+        210,
+        180
+      ],
+      "cover": "/apps/otpauth/cover.jpg",
+      "bytes": 231802,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "e708ee60acc020e2b82dd1d45cdf6f1f4e0f9e1175a436a4647408937e695819"
     },
     {
       "slug": "pacman",
@@ -4371,6 +5963,56 @@
       "sha256": "26a958b5d4285e83fb9c23ff4906c1c9efef0790fe706f615356b21271abdb3a"
     },
     {
+      "slug": "parable-of-polygons",
+      "appId": "parable-of-polygons",
+      "name": "Parable of the Polygons",
+      "shortName": "Polygons",
+      "version": "1.0.0",
+      "tagline": "Nicky Case’s Schelling explorable, offline — last sliders stay, one invite shares the town.",
+      "author": {
+        "name": "Vi Hart & Nicky Case",
+        "url": "https://ncase.me/polygons/"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Parable of the Polygons",
+        "blessed": false
+      },
+      "minBuild": 2154,
+      "offline": true,
+      "releaseDate": "2026-08-31",
+      "updated": "2026-08-31",
+      "categories": [
+        "Learning"
+      ],
+      "tags": [
+        "polygons",
+        "schelling",
+        "segregation",
+        "explorable",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        245,
+        195,
+        24
+      ],
+      "cover": "/apps/parable-of-polygons/cover.jpg",
+      "bytes": 240118,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "b9be8785054c816e5d841d4532da6d18f5ac6c708a1c8a05de01136c85d467f4"
+    },
+    {
       "slug": "particle-life",
       "appId": "particle-life",
       "name": "Particle Life",
@@ -4420,6 +6062,56 @@
         "ts": "2026-08-25"
       },
       "sha256": "f78285702495fbc548b6d0db5cb619e13d2bc373090236c771e3a88cccfa133d"
+    },
+    {
+      "slug": "pdf-reader",
+      "appId": "pdf-reader",
+      "name": "PDF Reader",
+      "shortName": "PDF",
+      "version": "1.0.0",
+      "tagline": "The PDF stays in the app. Invite a friend onto the same page — nothing is uploaded.",
+      "author": {
+        "name": "Mozilla",
+        "url": "https://github.com/mozilla/pdf.js"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "PDF.js",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "pdf",
+        "reader",
+        "viewer",
+        "document",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        220,
+        50,
+        47
+      ],
+      "cover": "/apps/pdf-reader/cover.jpg",
+      "bytes": 832299,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "914082028f47e51a09a8789e398e3861a5eac21c93045ade6dd6b08eab180e8a"
     },
     {
       "slug": "pdf-tables",
@@ -5018,6 +6710,56 @@
       "sha256": "2dff3a43d0f079fb202b51a1df228f54f74da12eedb3c072eaafd248de0767df"
     },
     {
+      "slug": "primitive",
+      "appId": "primitive",
+      "name": "Primitive",
+      "shortName": "Primitive",
+      "version": "1.0.0",
+      "tagline": "Redraw a photo as triangles — on this device, saved in the file.",
+      "author": {
+        "name": "Ondřej Žára",
+        "url": "https://github.com/ondras/primitive.js"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "primitive.js",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "primitive",
+        "triangles",
+        "photo",
+        "geometric",
+        "art",
+        "offline"
+      ],
+      "accent": [
+        236,
+        92,
+        64
+      ],
+      "cover": "/apps/primitive/cover.jpg",
+      "bytes": 204326,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "3d36c19af78da363e6151764a861b7183ca19693a0662d8564449b403a0ec69f"
+    },
+    {
       "slug": "q1k3",
       "appId": "q1k3",
       "name": "Q1K3",
@@ -5363,6 +7105,57 @@
       "sha256": "c8f26ea37d894b950fab244c54997d229541634b478a1e1449c165129f11f75d"
     },
     {
+      "slug": "rawgraphs",
+      "appId": "rawgraphs",
+      "name": "RAWGraphs",
+      "shortName": "RAWGraphs",
+      "version": "1.0.0",
+      "tagline": "Paste a CSV, map columns onto a chart — the dataset lives in the GIF.",
+      "author": {
+        "name": "DensityDesign Lab, Calibro, INMAGIK",
+        "url": "https://github.com/rawgraphs/rawgraphs-app"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "RAWGraphs",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Productivity",
+        "Utilities"
+      ],
+      "tags": [
+        "charts",
+        "visualization",
+        "csv",
+        "alluvial",
+        "treemap",
+        "offline"
+      ],
+      "accent": [
+        247,
+        96,
+        0
+      ],
+      "cover": "/apps/rawgraphs/cover.jpg",
+      "bytes": 214751,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "979b80d4639485c5dc589b65ada1d051bbe3e1f46e64143f73d6e67a242a7370"
+    },
+    {
       "slug": "regexper",
       "appId": "regexper",
       "name": "Regexper",
@@ -5412,6 +7205,57 @@
         "ts": "2026-08-25"
       },
       "sha256": "482185f9f27b95353ecc95bca88924af280f35ff8f38852a533aaf57dc2cfb42"
+    },
+    {
+      "slug": "regexr",
+      "appId": "regexr",
+      "name": "RegExr",
+      "shortName": "RegExr",
+      "version": "1.0.0",
+      "tagline": "The pattern and the test text live in this file — works on a plane, one Invite shares it.",
+      "author": {
+        "name": "Grant Skinner",
+        "url": "https://github.com/gskinner/regexr"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "RegExr",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Developer",
+        "Learning"
+      ],
+      "tags": [
+        "regex",
+        "regexp",
+        "tester",
+        "cheatsheet",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        112,
+        176,
+        224
+      ],
+      "cover": "/apps/regexr/cover.jpg",
+      "bytes": 190073,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "d4289646282efe35979d2d3d77c5278d824598407b817eac1ed3d256b3785341"
     },
     {
       "slug": "restfox",
@@ -5711,6 +7555,58 @@
       "sha256": "78312e315c9215bf6142d6931e3bb75c258e3cde8fff33a26e84a29db9d4d1c4"
     },
     {
+      "slug": "shapez",
+      "appId": "shapez",
+      "name": "shapez.io",
+      "shortName": "shapez",
+      "version": "1.0.0",
+      "tagline": "The factory lives in the GIF. One invite, and a friend is on the same belts.",
+      "author": {
+        "name": "tobspr Games",
+        "url": "https://github.com/tobspr-games/shapez.io"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "shapez.io",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "shapez",
+        "factory",
+        "automation",
+        "belts",
+        "puzzle",
+        "multiplayer",
+        "offline",
+        "coop"
+      ],
+      "accent": [
+        102,
+        167,
+        255
+      ],
+      "cover": "/apps/shapez/cover.jpg",
+      "bytes": 253018,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "31b9a4f0ebcf763a7ec94a3d503eee69bb208dec978c5ce0d7e384689fa36787"
+    },
+    {
       "slug": "signature-pad",
       "appId": "signature-pad",
       "name": "Signature Pad",
@@ -5860,6 +7756,56 @@
         "ts": "2026-08-25"
       },
       "sha256": "cf7b3ff46fab5dbf2ff10d26052eeb6ac1046b9df489b9ce44545e15bd342670"
+    },
+    {
+      "slug": "smartcrop",
+      "appId": "smartcrop",
+      "name": "Smartcrop",
+      "shortName": "Smartcrop",
+      "version": "1.0.0",
+      "tagline": "Content-aware crop on this device — faces stay in the frame.",
+      "author": {
+        "name": "Jonas Wagner",
+        "url": "https://github.com/jwagner/smartcrop.js"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "smartcrop.js",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "crop",
+        "photo",
+        "faces",
+        "twitter",
+        "offline",
+        "smartcrop"
+      ],
+      "accent": [
+        232,
+        184,
+        72
+      ],
+      "cover": "/apps/smartcrop/cover.jpg",
+      "bytes": 201560,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "56263b301d4ebcde1e4bbbe13ec1b2699b11d1f8fb24f8cdaf8397efe45af291"
     },
     {
       "slug": "snake",
@@ -6203,6 +8149,56 @@
       "sha256": "19f805812973672881cf809ea261e4d883a4546a5f17e198954db357cd6719f2"
     },
     {
+      "slug": "sql-playground",
+      "appId": "sql-playground",
+      "name": "SQL Playground",
+      "shortName": "SQL",
+      "version": "1.0.0",
+      "tagline": "A SQLite database that lives in this file. Invite shares it.",
+      "author": {
+        "name": "sql.js authors",
+        "url": "https://github.com/sql-js/sql.js"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "sql.js",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Developer",
+        "Utilities"
+      ],
+      "tags": [
+        "sql",
+        "sqlite",
+        "database",
+        "query",
+        "offline"
+      ],
+      "accent": [
+        61,
+        190,
+        160
+      ],
+      "cover": "/apps/sql-playground/cover.jpg",
+      "bytes": 751808,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "96ef76c1463d2768702fe3e0c3aea945664b8296157bfe07f77e1e37ba69630f"
+    },
+    {
       "slug": "squoosh",
       "appId": "squoosh",
       "name": "Squoosh",
@@ -6407,6 +8403,56 @@
         "ts": "2026-08-25"
       },
       "sha256": "c41213dfb60ad125e3350ae409ff6243f9e097a636a7f72a66a62a121aa07420"
+    },
+    {
+      "slug": "svg-edit",
+      "appId": "svg-edit",
+      "name": "SVG-Edit",
+      "shortName": "SVG-Edit",
+      "version": "7.4.2",
+      "tagline": "Draw SVG on this device — the file is the save, and one invite is a shared canvas.",
+      "author": {
+        "name": "SVG-Edit authors",
+        "url": "https://github.com/SVG-Edit/svgedit"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "SVG-Edit",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "svg",
+        "vector",
+        "drawing",
+        "editor",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        249,
+        188,
+        1
+      ],
+      "cover": "/apps/svg-edit/cover.jpg",
+      "bytes": 1432722,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "35d93093aba6907bc6cc5df5ce082d3f9c0d7e9be1c8870a25d1e9ae06c9a6d6"
     },
     {
       "slug": "svgomg",
@@ -6800,6 +8846,110 @@
       "sha256": "e59a1b1be54ad754b27d258a05485357d3f3a8c2e86ea94ad559763d156ae6bb"
     },
     {
+      "slug": "tic80",
+      "appId": "tic80",
+      "name": "TIC-80",
+      "shortName": "TIC-80",
+      "version": "1.1.2837",
+      "tagline": "The cart lives in this GIF. Close it, the game is still in there. Invite, and they play the one you just made.",
+      "author": {
+        "name": "Vadim Grigoruk",
+        "url": "https://github.com/nesbox/TIC-80"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "TIC-80",
+        "blessed": false
+      },
+      "minBuild": 1314,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Games",
+        "Creativity"
+      ],
+      "tags": [
+        "tic-80",
+        "pico-8",
+        "fantasy-computer",
+        "lua",
+        "pixel",
+        "offline",
+        "multiplayer",
+        "cart"
+      ],
+      "accent": [
+        65,
+        166,
+        246
+      ],
+      "cover": "/apps/tic80/cover.jpg",
+      "bytes": 2938395,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "04d18bd0444055ee93630caab80239a401dfa7842664a00ea3ae4a678771969b"
+    },
+    {
+      "slug": "tiddlywiki",
+      "appId": "tiddlywiki",
+      "name": "TiddlyWiki",
+      "shortName": "Wiki",
+      "version": "5.4.1",
+      "tagline": "The wiki is the GIF — close it, hand it over, or invite someone in.",
+      "author": {
+        "name": "Jeremy Ruston & UnaMesa Association",
+        "url": "https://tiddlywiki.com"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "TiddlyWiki 5",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Productivity"
+      ],
+      "tags": [
+        "wiki",
+        "notes",
+        "notebook",
+        "tiddlywiki",
+        "markdown",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        216,
+        148,
+        72
+      ],
+      "cover": "/apps/tiddlywiki/cover.jpg",
+      "bytes": 1030620,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "1cc759d938d4f7fcd1df302c48073904dad1759a42991172f4edb69e639833f0"
+    },
+    {
       "slug": "tiny-platformer",
       "appId": "tiny-platformer",
       "name": "Tiny Platformer",
@@ -7089,6 +9239,59 @@
       "sha256": "96f237a9da571cfd55ba51db39da34308c2496c6408997dced23655377035509"
     },
     {
+      "slug": "trianglify-studio",
+      "appId": "trianglify-studio",
+      "name": "Trianglify",
+      "shortName": "Trianglify",
+      "version": "1.0.0",
+      "tagline": "Low-poly triangle wallpapers. The seed lives in the file. One invite shares it.",
+      "author": {
+        "name": "Quinn Rohlf",
+        "url": "https://github.com/qrohlf/trianglify"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Trianglify",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "triangles",
+        "wallpaper",
+        "low-poly",
+        "generator",
+        "palette",
+        "svg",
+        "png",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        41,
+        182,
+        196
+      ],
+      "cover": "/apps/trianglify-studio/cover.jpg",
+      "bytes": 251624,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "7b4da196341648720d73e4af72feb41307519f2bdb06e64137fa6aa61a888f7a"
+    },
+    {
       "slug": "tuner",
       "appId": "tuner",
       "name": "Tuner",
@@ -7289,6 +9492,57 @@
       "sha256": "1281bea9f97e8ae41f5e00be660074523057661cb4cbccb58bd85cc0961f83f2"
     },
     {
+      "slug": "v86",
+      "appId": "v86",
+      "name": "v86",
+      "shortName": "v86",
+      "version": "1.0.0",
+      "tagline": "A PC inside a GIF — FreeDOS boots offline, and the floppy is the save.",
+      "author": {
+        "name": "copy / v86 contributors",
+        "url": "https://github.com/copy/v86"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "v86",
+        "blessed": false
+      },
+      "minBuild": 1314,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "emulator",
+        "pc",
+        "dos",
+        "freedos",
+        "x86",
+        "offline",
+        "retro"
+      ],
+      "accent": [
+        72,
+        220,
+        96
+      ],
+      "cover": "/apps/v86/cover.jpg",
+      "bytes": 2231480,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "ab99f2443e0e0dec27b9af2781d35caf891ed9f6d1d995aa465ce92e5d7c00e6"
+    },
+    {
       "slug": "vintage-poker",
       "appId": "vintage-poker",
       "name": "Vintage Poker",
@@ -7443,6 +9697,59 @@
         "ts": "2026-08-25"
       },
       "sha256": "33512cf4c7020630ecba7843967399b6af6c676e17a32dab07efb5d8c5b3dcea"
+    },
+    {
+      "slug": "webamp",
+      "appId": "webamp",
+      "name": "Webamp",
+      "shortName": "Webamp",
+      "version": "1.0.0",
+      "tagline": "Winamp 2.9 that lives in a GIF — playlist, EQ, and your MP3s stay in the file, even on a plane.",
+      "author": {
+        "name": "Jordan Eldredge",
+        "url": "https://github.com/captbaritone/webamp"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Webamp",
+        "blessed": false
+      },
+      "minBuild": 2154,
+      "offline": true,
+      "releaseDate": "2026-08-30",
+      "updated": "2026-08-30",
+      "categories": [
+        "Media",
+        "Creativity"
+      ],
+      "tags": [
+        "winamp",
+        "mp3",
+        "player",
+        "equalizer",
+        "playlist",
+        "skins",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        0,
+        255,
+        0
+      ],
+      "cover": "/apps/webamp/cover.jpg",
+      "bytes": 639683,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "37472152777feb7da3896fcae63a99e826033e6f372476c99509f6e8d14d2da3"
     },
     {
       "slug": "wifi-card",
