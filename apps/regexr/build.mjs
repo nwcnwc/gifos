@@ -101,6 +101,18 @@ if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("db('re
 if (!files['net.js'].includes("db('room')") || !files['net.js'].includes('Invite')) throw new Error('net');
 if (!files['tester.js'].includes('solveText') || !files['tester.js'].includes('replaceAll')) throw new Error('tester');
 if (!files['app.js'].includes('gifos.onBack') && !files['app.js'].includes('onBack')) throw new Error('onBack');
+if (/\.match[^{]*\{[^}]*color:\s*transparent/.test(files['style.css'])) {
+  throw new Error('matches must not paint over the text');
+}
+if (!/#textHl mark\.match/.test(files['style.css']) || !/mark\.match[^}]*color:\s*var\(--ink\)/.test(files['style.css'])) {
+  throw new Error('matched letters stay ink on the gold wash');
+}
+if (!files['net.js'].includes('primed') || !files['net.js'].includes('onRemote')) {
+  throw new Error('guest must adopt the host live row before publishing');
+}
+if (files['app.js'].indexOf('net.watch()') < files['app.js'].indexOf("saveDb.get('current')")) {
+  throw new Error('watch after local load — host must publish THIS expression');
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
@@ -129,6 +141,8 @@ if (!files['COPYING.txt'].includes('GNU GENERAL PUBLIC LICENSE')) throw new Erro
       var r = RegExrTester.solveText("([A-Z])\\\\w+", "g", "Hello World test");
       if (!r.matches || r.matches.length !== 2) throw new Error("matches " + JSON.stringify(r.matches));
       if (r.matches[0].s !== "Hello" || r.matches[1].s !== "World") throw new Error("caps");
+      var p = RegExrTester.solveText("persistME_42", "g", "persistME_42 lives in the file");
+      if (!p.matches || p.matches.length !== 1 || p.matches[0].s !== "persistME_42") throw new Error("persistME");
       var rep = RegExrTester.replaceAll("([A-Z])\\\\w+", "g", "Hello World", "$1");
       if (rep.result !== "H W") throw new Error("replace " + JSON.stringify(rep));
       var t = RegExrTester.runTests("a+", "g", [
@@ -141,6 +155,88 @@ if (!files['COPYING.txt'].includes('GNU GENERAL PUBLIC LICENSE')) throw new Erro
     })()
   `, ctx);
   console.log('tester checks', ok);
+}
+
+{
+  /* Guest join must adopt the host's live row, not publish the sample. */
+  const coll = Object.create(null);
+  const subs = [];
+  const listOf = () => Object.keys(coll).map((k) => JSON.parse(JSON.stringify(coll[k])));
+  const room = {
+    put(item) {
+      coll[item.id] = JSON.parse(JSON.stringify(item));
+      const L = listOf();
+      subs.forEach((cb) => Promise.resolve().then(() => cb(L)));
+      return Promise.resolve();
+    },
+    getAll() { return Promise.resolve(listOf()); },
+    subscribe(cb) { subs.push(cb); this.getAll().then(cb); }
+  };
+  function client(id, name, owner, state) {
+    const ctx = { console, Date, Promise, JSON };
+    ctx.window = ctx;
+    ctx.gifos = {
+      db() { return room; },
+      me() { return Promise.resolve({ id, name }); },
+      info() { return Promise.resolve({ owner }); }
+    };
+    vm.createContext(ctx);
+    vm.runInContext(files['net.js'], ctx);
+    const remote = [];
+    ctx.RegExrNet.getState = () => state;
+    ctx.RegExrNet.onRemote = (row) => {
+      remote.push(row);
+      if (row.pattern != null) state.pattern = row.pattern;
+      if (row.flags != null) state.flags = row.flags;
+      if (row.text != null) state.text = row.text;
+    };
+    return { state, remote, net: ctx.RegExrNet };
+  }
+  const host = client('host', 'Hana', true, {
+    pattern: 'fromHOST_99', flags: 'g', text: 'fromHOST_99 lives here'
+  });
+  const guest = client('guest', 'Cleo', false, {
+    pattern: '([A-Z])\\w+', flags: 'g', text: 'RegExr was created by gskinner.com.'
+  });
+  const tick = async () => {
+    for (let i = 0; i < 12; i++) await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+  };
+  host.net.watch();
+  await tick();
+  guest.net.watch();
+  await tick();
+  const live = coll.live;
+  if (!live || live.pattern !== 'fromHOST_99') {
+    throw new Error('guest overwrote host live ' + JSON.stringify(live));
+  }
+  if (!guest.remote.length || guest.remote[0].pattern !== 'fromHOST_99') {
+    throw new Error('guest did not land on host expression ' + JSON.stringify(guest.remote));
+  }
+  if (guest.state.pattern !== 'fromHOST_99') throw new Error('guest state ' + guest.state.pattern);
+  console.log('invite checks guest adopted fromHOST_99');
+
+  /* Guest first (empty room): must not publish the sample over the host. */
+  Object.keys(coll).forEach((k) => { delete coll[k]; });
+  subs.length = 0;
+  const host2 = client('host2', 'Hana', true, {
+    pattern: 'fromHOST_99', flags: 'g', text: 'fromHOST_99 lives here'
+  });
+  const guest2 = client('guest2', 'Cleo', false, {
+    pattern: '([A-Z])\\w+', flags: 'g', text: 'RegExr was created by gskinner.com.'
+  });
+  guest2.net.watch();
+  await tick();
+  if (coll.live) throw new Error('guest published sample first ' + JSON.stringify(coll.live));
+  host2.net.watch();
+  await tick();
+  if (!coll.live || coll.live.pattern !== 'fromHOST_99') {
+    throw new Error('early guest overwrote host ' + JSON.stringify(coll.live));
+  }
+  if (!guest2.remote.length || guest2.remote[0].pattern !== 'fromHOST_99') {
+    throw new Error('early guest did not adopt ' + JSON.stringify(guest2.remote));
+  }
+  console.log('invite checks early guest waited then adopted fromHOST_99');
 }
 
 const shot = screenshotPng();

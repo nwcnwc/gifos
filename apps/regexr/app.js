@@ -613,22 +613,28 @@
     paintCheat();
 
     var net = root.RegExrNet;
+    var fromRoom = false;
     if (net) {
       net.getState = function () {
         return { pattern: S.pattern, flags: S.flags, text: S.text, subst: S.subst, listDelim: S.listDelim, tool: S.tool, mode: S.mode, tests: S.tests };
       };
-      net.onRemote = function (row) { applyState(row, true); };
+      net.onRemote = function (row) {
+        fromRoom = true;
+        applyState(row, true);
+      };
       net.onStatus = function (msg) { meetSay(msg); };
-      net.watch();
-      net.beat();
     }
 
     var loaded = Promise.resolve(null);
     if (saveDb) loaded = saveDb.get('current').catch(function () { return null; });
     loaded.then(function (row) {
+      if (fromRoom) return;
       if (row && (row.pattern || row.text)) applyState(row);
       else applyState({ pattern: DEFAULT_PATTERN, flags: DEFAULT_FLAGS, text: DEFAULT_TEXT });
     }).then(function () {
+      /* Watch after the local row is on screen so the host publishes THIS
+       * expression. A guest's first getAll then adopts it instead of the sample. */
+      if (net) { net.watch(); net.beat(); }
       if (!api || !api.launch) return;
       return api.launch().then(function (go) {
         if (!go) return;
@@ -642,6 +648,7 @@
         }
       }).catch(function () {});
     }).catch(function () {
+      if (fromRoom) return;
       applyState({ pattern: DEFAULT_PATTERN, flags: DEFAULT_FLAGS, text: DEFAULT_TEXT });
     });
 

@@ -8,7 +8,7 @@
   var api = null, room = null, me = { id: null, name: 'You' };
   var on = false, subscribed = false, owner = true;
   var lastAt = 0, lastBy = '';
-  var skip = false;
+  var primed = false;
 
   function statusOf(list) {
     var n = 0, names = [];
@@ -42,24 +42,43 @@
     };
   }
 
-  function publish() {
+  function beatWho() {
     if (!on || !room || !me.id) return;
+    room.put({ id: 'who_' + me.id, at: Date.now(), name: me.name }).catch(function () {});
+  }
+
+  function publish() {
+    if (!on || !room || !me.id || !primed) return;
     var row = snapshot();
     lastAt = row.at;
     lastBy = row.by;
-    skip = true;
     room.put(row).catch(function (e) {
       if (Mp.onStatus) Mp.onStatus(String((e && e.message) || e || 'Could not share.'), true);
     });
-    if (me.id) {
-      room.put({ id: 'who_' + me.id, at: Date.now(), name: me.name }).catch(function () {});
-    }
+    beatWho();
   }
 
   function applyList(list) {
     var live = null;
     (list || []).forEach(function (r) { if (r && r.id === 'live') live = r; });
-    if (live && live.at && live.at > lastAt && live.by && live.by !== me.id) {
+    var remote = !!(live && live.by !== me.id);
+    if (!primed) {
+      /* First getAll is the join. A guest who publishes the sample here
+       * last-write-wins over the host's live expression. Adopt that row.
+       * If the guest arrived a tick early, wait — do not write the sample. */
+      if (remote) {
+        primed = true;
+        lastAt = live.at || 0;
+        lastBy = live.by;
+        if (Mp.onRemote) Mp.onRemote(live);
+      } else if (!live && owner === false) {
+        if (Mp.onStatus) Mp.onStatus(statusOf(list), false);
+        return;
+      } else {
+        primed = true;
+        publish();
+      }
+    } else if (remote && live.at && live.at > lastAt) {
       lastAt = live.at;
       lastBy = live.by;
       if (Mp.onRemote) Mp.onRemote(live);
@@ -84,12 +103,9 @@
       on = true;
       if (!subscribed) {
         subscribed = true;
-        room.subscribe(function (list) {
-          if (skip) { skip = false; }
-          applyList(list);
-        });
+        room.subscribe(applyList);
       }
-      publish();
+      beatWho();
     }).catch(function () {});
   }
 

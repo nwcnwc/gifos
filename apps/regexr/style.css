@@ -200,9 +200,11 @@ button.row-del svg { display: block; pointer-events: none; }
 #meet { grid-area: meet; padding-bottom: calc(.4rem + env(safe-area-inset-bottom, 0px)); }
 .status.err { color: var(--err); }
 
-.match { background: var(--match); color: transparent; border-radius: 2px; }
-.match.alt { background: var(--match2); }
-.match.sel { outline: 1px solid var(--accent); background: var(--sel); }
+/* Overlay carries the glyphs; the textarea is color:transparent. Hits are a
+ * wash, never a redaction — matched letters stay ink on gold, as on regexr.com. */
+#textHl mark.match { background: var(--match); color: var(--ink); border-radius: 2px; }
+#textHl mark.match.alt { background: var(--match2); }
+#textHl mark.match.sel { outline: 1px solid var(--accent); background: var(--sel); color: var(--ink); }
 #textHl { pointer-events: none; }
 
 .exp-group, .exp-noncapgroup, .exp-namedgroup, .exp-groupclose { color: var(--group); }

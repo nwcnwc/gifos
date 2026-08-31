@@ -41,11 +41,11 @@
   "cover": "/apps/regexr/cover.jpg",
   "screenshots": [],
   "gif": "/apps/regexr/regexr.gif",
-  "bytes": 189551,
+  "bytes": 190073,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "33e24a47620aebf20b982ffcc5874e87d9069ddbbd773764b5720d6346648688",
+  "sha256": "d4289646282efe35979d2d3d77c5278d824598407b817eac1ed3d256b3785341",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
