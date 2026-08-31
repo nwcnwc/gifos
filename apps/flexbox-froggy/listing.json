@@ -1,0 +1,35 @@
+{
+  "tagline": "Write CSS. The frogs hop. Close it, come back still on the same pad — or invite a friend into this pond.",
+  "description": "Close it on level 12, open it tomorrow — still on 12, still with the CSS you left. No account. Works on a plane.\n\nSend the Invite in the bar above and a friend lands in this pond with you. You share the CSS: whoever types, the frogs hop on both screens.\n\nOn your own it is Flexbox Froggy. Twenty-four levels, from justify-content to align-content. Click a property name to see the values. A harder setting hides the directions; colorblind mode draws shapes on the frogs.\n\nAn unofficial port of Flexbox Froggy by Thomas Park. The frogs, the pads and the puzzles are his.",
+  "author": {
+    "name": "Thomas Park",
+    "url": "https://github.com/thomaspark/flexboxfroggy"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Flexbox Froggy",
+    "url": "https://github.com/thomaspark/flexboxfroggy",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "css",
+    "flexbox",
+    "puzzle",
+    "frogs",
+    "tutorial",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/flexbox-froggy",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

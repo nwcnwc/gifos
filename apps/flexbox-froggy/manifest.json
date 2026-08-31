@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "flexbox-froggy",
+  "name": "Flexbox Froggy",
+  "shortName": "Froggy",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Write CSS to hop frogs onto lilypads. Progress lives in the file. Invite a friend into the same pond.",
+  "entry": "index.html",
+  "accent": [67, 160, 71],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "players": { "visibility": "read-write" }
+  }
+}
