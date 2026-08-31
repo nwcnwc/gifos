@@ -1,8 +1,10 @@
 // Pack apps/webamp/ into site/apps/webamp/webamp.gif.
 // Offline and deterministic: everything it reads is committed.
+// Cover is a real first-boot photograph (shot.mjs, needs Chromium).
 //
 // Run:  node apps/webamp/build.mjs
-import { webampIcon, screenshotPng } from './icon.mjs';
+import { webampIcon } from './icon.mjs';
+import { captureCover } from './shot.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -71,7 +73,7 @@ const help = read('help.md').replace(/^\uFEFF/, '');
 if (help.trim().length < 400) throw new Error('help.md is too short');
 if (!/^#\s+Webamp/.test(help.trim())) throw new Error('help.md must start with # Webamp');
 
-const SCRIPTS = ['vendor/webamp.bundle.min.js', 'net.js', 'touch.js', 'boot.js'];
+const SCRIPTS = ['vendor/webamp.bundle.min.js', 'net.js', 'touch.js', 'demo.js', 'boot.js'];
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -79,6 +81,7 @@ const files = {
   'vendor/webamp.bundle.min.js': read('vendor/webamp.bundle.min.js'),
   'net.js': read('net.js'),
   'touch.js': read('touch.js'),
+  'demo.js': read('demo.js'),
   'boot.js': read('boot.js'),
   'COPYING-webamp.txt': read('vendor/COPYING-webamp.txt'),
   'help.md': help,
@@ -103,12 +106,23 @@ for (const [n, s] of Object.entries(files)) {
   if (!n.endsWith('.js')) continue;
   if (/<\/script/i.test(s)) throw new Error(n + ' contains </script — cannot inline safely');
 }
-for (const n of ['boot.js', 'net.js', 'touch.js']) {
+for (const n of ['boot.js', 'net.js', 'touch.js', 'demo.js']) {
   if (/jsdelivr|unpkg\.com|cdn\./i.test(files[n])) throw new Error(n + ' mentions a CDN');
 }
+if (!files['boot.js'].includes("eq: eq") || !files['boot.js'].includes("id: 'prefs'")) {
+  throw new Error('boot.js must persist eq on the prefs row');
+}
+if (!files['net.js'].includes('p.id === me.id')) {
+  throw new Error('net.js must exclude self from the live roster');
+}
+if (!files['demo.js'].includes('Intro') || !files['demo.js'].includes('Green LED') || !files['demo.js'].includes('On a Plane')) {
+  throw new Error('demo.js must name the three first-boot tracks');
+}
 
-const shot = screenshotPng();
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shot = await captureCover();
+const shotBuf = readFileSync(shot.path);
+if (shotBuf[0] !== 0x89 || shotBuf[1] !== 0x50) throw new Error('screenshot is not a PNG');
+if (shotBuf.length < 8000) throw new Error('screenshot.png looks empty');
 
 const bytes = await gif.encode(files, { preview: webampIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'webamp', 'webamp.gif');
@@ -116,4 +130,5 @@ mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, bytes);
 console.log('wrote site/apps/webamp/webamp.gif —', (bytes.length / 1024).toFixed(0), 'KB, from',
             Object.keys(files).length, 'files');
+console.log('wrote apps/webamp/screenshot.png —', (shotBuf.length / 1024).toFixed(0), 'KB', shot.clip);
 console.log('catalog is owned elsewhere — do not run build-app-catalog.mjs from this tree');

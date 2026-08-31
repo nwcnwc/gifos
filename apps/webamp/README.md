@@ -4,16 +4,19 @@ An unofficial port of **[Webamp](https://github.com/captbaritone/webamp)**
 (Jordan Eldredge, MIT) — Winamp 2.9 in the browser — as a sandboxed GifOS
 app. The engine is the pinned UMD bundle. This directory is the shell:
 dropped MP3s in the file, EQ and playlist restored on boot, and an invite
-that shares the setlist and the graphic EQ.
+that shares the setlist and the graphic EQ. First open seeds three original
+demo tracks and a smile EQ so the window is already a player.
 
 ```
 index.html      desktop, dock, file pickers
 style.css       Winamp-desk background, dock, room strip
 vendor/         webamp@2.2.0 UMD + MIT notice. Never fetched at runtime.
+demo.js         original PCM setlist (Intro, Green LED, On a Plane)
 boot.js         construct Webamp, persist library / EQ / layout
 net.js          invite: shared playlist titles + shared EQ
 touch.js        + MP3s / Skin dock, first-run hint, phone stacking
-icon.mjs        animated Winamp window + 1200×720 cover
+icon.mjs        animated Winamp window
+shot.mjs        photographs the real first-boot window into screenshot.png
 build.mjs       packs site/apps/webamp/webamp.gif
 ```
 
@@ -39,7 +42,7 @@ No `network`. Skins and CD art are not fetched.
 ## Building
 
 ```bash
-node apps/webamp/build.mjs   # -> site/apps/webamp/webamp.gif
+node apps/webamp/build.mjs   # photographs first boot, then packs site/apps/webamp/webamp.gif
 ```
 
 To move the upstream pin (needs the network):
