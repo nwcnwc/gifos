@@ -7,13 +7,13 @@
   "version": "1.4.0",
   "minBuild": 1206,
   "tagline": "The fire lives in the file. Close the tab — still stoking. Invite someone to the same fire.",
-  "description": "Close it mid-stoke and open it: the fire, the wood, the village are still there, inside this copy of the app. Send the Invite in the bar and a friend sits at the same fire — they can stoke, gather, and build while you keep the room going.\n\nYou wake in a dark room. Light the fire. Stoke it. A stranger arrives who can build. The village grows, the path opens, the world is a map of letters, and then there is a ship.\n\nThe original sent phones to an app-store splash. This copy plays on a phone: the buttons are thumb-sized, the log sits above the room, and a pad under the map walks the wanderer. Sound is packed in — nothing is fetched. Lights start off.\n\nAn unofficial port of A Dark Room by Michael Townsend and doublespeak games.",
+  "description": "Close it mid-stoke and open it: the fire, the wood, the village are still there, inside this copy of the app. Send the Invite in the bar and a friend sits at the same fire — they can stoke, gather, and build while you keep the room going.\n\nYou wake in a dark room. Light the fire. Stoke it. A stranger arrives who can build. The village grows, the path opens, the world is a map of letters, and then there is a ship.\n\nThe original sent phones to an app-store splash. This copy plays on a phone: light fire is on the screen, the buttons are thumb-sized, the log sits above the room, and a pad under the map walks the wanderer. Sound is packed in — nothing is fetched. Lights start off.\n\nAn unofficial port of A Dark Room by Michael Townsend and doublespeak games.",
   "author": {
     "name": "Michael Townsend / doublespeak games",
     "url": "https://github.com/doublespeakgames/adarkroom"
   },
   "releaseDate": "2026-08-30",
-  "updated": "2026-08-30",
+  "updated": "2026-08-31",
   "categories": [
     "Games"
   ],
@@ -40,11 +40,11 @@
   "cover": "/apps/a-dark-room/cover.jpg",
   "screenshots": [],
   "gif": "/apps/a-dark-room/a-dark-room.gif",
-  "bytes": 5307402,
+  "bytes": 5307861,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "45f5f15e993e8f7528d935d7096e59bee86f927b3a7020f9383c76642276e0ad",
+  "sha256": "7c6c76eeae276fb3b7ca9fbebf5d5ff9fd7d7ceeb8823c80107d0739f9aafbc2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

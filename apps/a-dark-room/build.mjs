@@ -1,5 +1,5 @@
 // Pack apps/a-dark-room/ into site/apps/a-dark-room/a-dark-room.gif
-import { darkRoomIcon, screenshotPng } from './icon.mjs';
+import { darkRoomIcon } from './icon.mjs';
 import { creditsJson, CREDITS_PATH } from '../../scripts/app-credits.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
@@ -183,6 +183,12 @@ if (!files['patch.js'].includes('gifos.onBack') && !files['patch.js'].includes('
   throw new Error('onBack');
 }
 if (!files['style.css'].includes('max-width: 720px')) throw new Error('phone layout');
+if (/div#outerSlider\s*,[\s\S]{0,120}div#locationSlider[\s\S]{0,80}div\.location/.test(files['style.css'])) {
+  throw new Error('phone reflow must not hide slider parents with the location panels');
+}
+if (!files['style.css'].includes('div.location.adr-active')) {
+  throw new Error('phone reflow must show the active location');
+}
 if (files['vendor/script/engine.js'].includes('location.reload()')) {
   throw new Error('engine still reloads');
 }
@@ -213,17 +219,29 @@ for (const [n, s] of Object.entries(files)) {
   if (/^\s*import\s|export\{|import\.meta/m.test(s)) throw new Error(n + ' ESM');
 }
 
-const shot = screenshotPng();
+const shotPath = join(dir, 'screenshot.png');
+if (!existsSync(shotPath)) throw new Error('screenshot.png missing — capture the running Times New Roman room');
+const shot = bin('screenshot.png');
 if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+if (shot.length < 20 * 1024) throw new Error('screenshot.png is too small to be a frame of the running game');
 
 const bytes = await gif.encode(files, { preview: darkRoomIcon(), accent: manifest.accent });
-const out = join(dir, '..', '..', 'site', 'apps', 'a-dark-room', 'a-dark-room.gif');
-mkdirSync(dirname(out), { recursive: true });
-writeFileSync(out, bytes);
+const outDir = join(dir, '..', '..', 'site', 'apps', 'a-dark-room');
+mkdirSync(outDir, { recursive: true });
+writeFileSync(join(outDir, 'a-dark-room.gif'), bytes);
+
+{
+  const sharp = (await import('sharp')).default;
+  const cover = await sharp(shot)
+    .resize({ width: 1200, withoutEnlargement: true })
+    .jpeg({ quality: 82, progressive: true, mozjpeg: true })
+    .toBuffer();
+  writeFileSync(join(outDir, 'cover.jpg'), cover);
+}
 const audioBytes = Object.values(assetFiles).reduce((s, b) => s + b.length, 0);
 console.log('wrote site/apps/a-dark-room/a-dark-room.gif —',
   (bytes.length / (1024 * 1024)).toFixed(2), 'MB, from', Object.keys(files).length, 'files');
 console.log('app document', (srcdocBytes / 1024).toFixed(0), 'KB; audio .assets/',
   audioFiles.length, 'flac,', (audioBytes / (1024 * 1024)).toFixed(2), 'MB');
+console.log('wrote site/apps/a-dark-room/cover.jpg from screenshot.png');
 console.log('catalog is owned elsewhere — do not run build-app-catalog.mjs from this tree');
