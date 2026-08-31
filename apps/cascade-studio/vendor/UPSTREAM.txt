@@ -1,0 +1,17 @@
+cascade-core 2.0.6 (CascadeStudio CAD worker + OpenCascade WASM)
+  npm: cascade-core@2.0.6
+  source: https://github.com/zalo/CascadeStudio
+  pin: packages/cascade-core dist as published on npm 2026-04-06
+  cascadestudio.wasm  21241345  cecef84e04dee37e11e2edf824746647194346dcc930022b995888d234727edb
+  cascade-worker.js     375242  b36e637132d7b94d3e216913184caf38873a44a17353a2295ef0a2f5fd6e54d5
+
+  The worker is esbuild-bundled cascade-core (StandardLibrary, ShapeToMesh,
+  FileUtils, opencascade.js cascadestudio glue, opentype.js, potpack).
+  WASM is the CascadeStudio custom OpenCascade.js build (OCCT 8.0 via Embind),
+  from github:zalo/opencascade.js#cascadestudio-v2.
+
+Licences
+  CascadeStudio / cascade-core — MIT, Johnathon Selstad
+  OpenCascade.js WASM — LGPL-2.1 (Open CASCADE Technology + exception)
+  opentype.js — MIT
+  potpack — ISC

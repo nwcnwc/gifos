@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>CascadeStudio</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="boot">
+  <div id="boot-card">
+    <div id="boot-title">CascadeStudio</div>
+    <div id="boot-msg">Loading the CAD kernel…</div>
+    <div id="boot-bar"><i id="boot-fill"></i></div>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <aside id="panel">
+    <header id="panel-head">
+      <strong>Sketch</strong>
+      <span id="hint">Tap to add points. Close the loop, then pull.</span>
+    </header>
+    <div id="sketch-wrap">
+      <canvas id="sketch"></canvas>
+    </div>
+    <div id="sliders">
+      <label>Height <b id="hVal">12</b>
+        <input id="height" type="range" min="1" max="60" step="1" value="12">
+      </label>
+      <label>Corner <b id="rVal">6</b>
+        <input id="radius" type="range" min="0" max="16" step="0.5" value="6">
+      </label>
+    </div>
+    <div id="btns">
+      <button type="button" id="undo">Undo</button>
+      <button type="button" id="close">Close</button>
+      <button type="button" id="clear">Clear</button>
+      <button type="button" id="sample" class="primary">Sample plate</button>
+    </div>
+    <p id="status"></p>
+  </aside>
+  <main id="stage">
+    <canvas id="view"></canvas>
+    <div id="hud">
+      <span id="solid">No solid yet</span>
+      <span id="orbit">Drag to orbit · pinch / scroll to zoom</span>
+    </div>
+  </main>
+</div>
+
+<script src="view.js"></script>
+<script src="sketch.js"></script>
+<script src="engine.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

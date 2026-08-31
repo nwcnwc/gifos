@@ -1,0 +1,38 @@
+{
+  "tagline": "Sketch a profile, pull it into a solid. The model lives in the file — works offline.",
+  "description": "This copy runs entirely on your device. Close it and the last sketch is still there; share the GIF and the model goes with it. No install, no account, no FreeCAD.\n\nTap the plane to draw a closed profile, round the corners, set how far to pull it, and OpenCascade builds a real solid — not a triangle soup. A bracket plate is already open so you can orbit a part before you draw your own.\n\nPress Invite in the bar above and a friend lands on the same sketch. Either of you can move a point; the solid rebuilds for both.\n\nAn unofficial port of Cascade Studio by Johnathon Selstad. Same B-rep kernel. The document is the GIF.",
+  "author": {
+    "name": "Johnathon Selstad",
+    "url": "https://github.com/zalo/CascadeStudio"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "CascadeStudio",
+    "url": "https://github.com/zalo/CascadeStudio",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Utilities",
+    "Creativity"
+  ],
+  "tags": [
+    "cad",
+    "3d",
+    "opencascade",
+    "sketch",
+    "solid",
+    "brep",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/cascade-studio",
+  "cover": "screenshot.png",
+  "coverCrop": {
+    "top": 0
+  },
+  "screenshots": []
+}

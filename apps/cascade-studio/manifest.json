@@ -1,0 +1,20 @@
+{
+  "gifos": "1.0",
+  "appId": "cascade-studio",
+  "name": "CascadeStudio",
+  "shortName": "Cascade",
+  "version": "1.0.0",
+  "minBuild": 1178,
+  "entry": "index.html",
+  "accent": [56, 168, 214],
+  "capabilities": {
+    "db": true,
+    "wasm": true,
+    "multiplayer": true
+  },
+  "data": {
+    "doc": {
+      "visibility": "read-write"
+    }
+  }
+}
