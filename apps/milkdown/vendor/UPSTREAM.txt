@@ -1,0 +1,13 @@
+vendor/milkdown.js and vendor/milkdown.css are GENERATED.
+Do not edit them; run node apps/milkdown/vendor.mjs.
+
+upstream: https://github.com/Milkdown/milkdown
+npm:      @milkdown/kit@7.22.1
+entry:    gifos-facade.js (written by vendor.mjs), IIFE, global Milkdown
+          exposing { create, KEYS, Editor }
+sha256:   7c48ec7072949689d3b9b6b0b4a715dadfc4a75744093591f91a0968f8adaf0b
+
+Crepe (Vue, CodeMirror language packs, KaTeX, AI providers) is NOT bundled.
+This is the Milkdown kit: commonmark + GFM + history/clipboard/cursor/
+indent/trailing/listener, styled by this app. Licences ride beside the
+bundle and inside the GIF: COPYING-milkdown.txt.
