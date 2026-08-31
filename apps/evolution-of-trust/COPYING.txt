@@ -1,0 +1,28 @@
+The Evolution of Trust
+by Nicky Case
+https://ncase.me/trust/
+https://github.com/ncase/trust
+
+This work is dedicated to the public domain under CC0 1.0 Universal.
+A copy of the dedication is in vendor/LICENSE.
+
+GifOS port notes (not a licence change — the essay stays CC0):
+
+- Button clicks, the bonk, and the machine-start sting in this copy are
+  original short tones, replacing five upstream samples that were not CC0
+  (Owdeo, CC BY-NC; lukaso, CC Sampling+).
+- Futura Handwritten by Billy Snyder is bundled with the author's
+  permission to "use this font for anything you want." Credit is
+  appreciated, not required.
+- Music: "Bleu" by Komiku (CC0).
+- Remaining sound effects are the CC0 recordings listed in vendor/README.md.
+
+Libraries bundled under their own licences (all permissive):
+
+- PIXI.js (MIT)
+- Howler.js (MIT)
+- TweenJS (MIT)
+- Q (MIT)
+- MinPubSub (MIT)
+- Pegasus (MIT)
+- balloon.css (MIT)

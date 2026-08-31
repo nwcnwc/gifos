@@ -1,0 +1,35 @@
+{
+  "tagline": "Close it mid-essay and you are still on that chapter. Send the invite and a friend watches the same tournament.",
+  "description": "This copy keeps your place inside the file, works with no connection, and one invite puts a friend in the same tournament you are running — they see the same winners, the same mistakes, the same mix of characters and payoffs.\n\nOn your own it is Nicky Case's explorable: the Game of Trust, one round then many, a round-robin, then evolution, noise, and a pond you stock with copycats, cheaters, grudgers and the rest. About half an hour. Tap the dots along the bottom to jump chapters.\n\nOn a phone the whole stage shrinks to fit. Back steps one chapter. Sound is the speaker in the corner. Footnotes open from the credits, in here, not a second page.\n\nAn unofficial port of The Evolution of Trust by Nicky Case, dedicated to the public domain.",
+  "author": {
+    "name": "Nicky Case",
+    "url": "https://ncase.me/trust/"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "The Evolution of Trust",
+    "url": "https://github.com/ncase/trust",
+    "donate": "https://www.patreon.com/ncase",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "trust",
+    "game-theory",
+    "explorable",
+    "prisoners-dilemma",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "CC0-1.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/evolution-of-trust",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
