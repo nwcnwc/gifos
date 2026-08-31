@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Carbon</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <div class="brand" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="3" fill="#1f1f1f" stroke="#F8E81C" stroke-width="1.6"/><circle cx="7" cy="8" r="1.2" fill="#ff5f56"/><circle cx="11" cy="8" r="1.2" fill="#ffbd2e"/><circle cx="15" cy="8" r="1.2" fill="#27c93f"/></svg>
+      Carbon
+    </div>
+    <label class="field">Theme
+      <select id="theme" aria-label="Theme"></select>
+    </label>
+    <label class="field">Language
+      <select id="language" aria-label="Language"></select>
+    </label>
+    <div class="field swatch-field">
+      <span>Background</span>
+      <div id="swatches" class="swatches"></div>
+      <input id="bgpick" type="color" aria-label="Background colour" value="#abb8c3">
+    </div>
+    <div class="spacer"></div>
+    <button type="button" id="btnSettings">Settings</button>
+    <button type="button" id="btnRecents">Recents</button>
+    <label class="file">Open
+      <input id="file" type="file" accept=".js,.ts,.tsx,.jsx,.py,.rs,.go,.html,.css,.json,.md,.sql,.rb,.php,.yml,.yaml,.sh,.c,.h,.cpp,.java,.cs,.swift,.kt,.toml,.lua,.hs,.ex,.r,.graphql,.txt">
+    </label>
+    <button type="button" id="btnSample">Sample</button>
+    <button type="button" id="btnKeep">Keep</button>
+    <button type="button" id="btnCopy">Copy code</button>
+    <button type="button" id="btnCopyImg">Copy PNG</button>
+    <label class="field scale">PNG
+      <select id="scale" aria-label="Export size">
+        <option value="1">1×</option>
+        <option value="2" selected>2×</option>
+        <option value="4">4×</option>
+      </select>
+    </label>
+    <button type="button" id="btnExport" class="primary">Export PNG</button>
+  </header>
+
+  <div id="stage">
+    <div id="frame">
+      <div id="window" role="group" aria-label="Code window">
+        <div id="chrome">
+          <svg class="dots color" width="54" height="14" viewBox="0 0 54 14" aria-hidden="true">
+            <g fill="none" transform="translate(1 1)">
+              <circle cx="6" cy="6" r="6" fill="#FF5F56" stroke="#E0443E" stroke-width=".5"/>
+              <circle cx="26" cy="6" r="6" fill="#FFBD2E" stroke="#DEA123" stroke-width=".5"/>
+              <circle cx="46" cy="6" r="6" fill="#27C93F" stroke="#1AAB29" stroke-width=".5"/>
+            </g>
+          </svg>
+          <svg class="dots bw" width="54" height="14" viewBox="0 0 54 14" aria-hidden="true">
+            <g fill="none" stroke="#878787" transform="translate(1 1)">
+              <circle cx="6" cy="6" r="6"/>
+              <circle cx="26" cy="6" r="6"/>
+              <circle cx="46" cy="6" r="6"/>
+            </g>
+          </svg>
+          <svg class="dots sharp" width="58" height="14" viewBox="0 0 58 14" fill="none" aria-hidden="true">
+            <path d="M1 7H11" stroke="#878787" stroke-linecap="round"/>
+            <path d="M35 1H25C24.45 1 24 1.45 24 2V12C24 12.55 24.45 13 25 13H35C35.55 13 36 12.55 36 12V2C36 1.45 35.55 1 35 1Z" stroke="#878787"/>
+            <path d="M47 2L57 12M47 12L57 2" stroke="#878787" stroke-linecap="round"/>
+          </svg>
+          <div id="title-live"></div>
+        </div>
+        <div id="editor">
+          <pre id="gutter" aria-hidden="true"></pre>
+          <div id="surface">
+            <pre id="hl" aria-hidden="true"></pre>
+            <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Code"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p id="status" class="status">The snippet lives in this file.</p>
+  <p id="meet">Press <b>Invite</b> in the bar above to let a friend edit this snippet with you.</p>
+</div>
+
+<div id="sheet" hidden>
+  <div id="settings" class="panel" hidden>
+    <header><h2>Settings</h2><button type="button" class="x sheet-x" aria-label="Close">✕</button></header>
+    <label>Padding <span id="padVal">56 px</span>
+      <input id="pad" type="range" min="16" max="80" step="2" value="56">
+    </label>
+    <label>Font size <span id="fsizeVal">14 px</span>
+      <input id="fsize" type="range" min="12" max="18" step="1" value="14">
+    </label>
+    <label>Width <span id="widthVal">680 px</span>
+      <input id="width" type="range" min="320" max="1024" step="8" value="680">
+    </label>
+    <label class="check"><input id="autoW" type="checkbox" checked> Fit width to the longest line</label>
+    <label class="check"><input id="nums" type="checkbox"> Line numbers</label>
+    <label class="check"><input id="chrome" type="checkbox" checked> Window controls</label>
+    <label class="check"><input id="shadow" type="checkbox" checked> Drop shadow</label>
+    <label>Window
+      <select id="wtheme">
+        <option value="none">None (colour dots)</option>
+        <option value="bw">Black &amp; white</option>
+        <option value="sharp">Sharp</option>
+      </select>
+    </label>
+    <label>Window title
+      <input id="title" type="text" maxlength="80" placeholder="untitled" autocomplete="off" spellcheck="false">
+    </label>
+  </div>
+  <div id="recents" class="panel" hidden>
+    <header><h2>Recents</h2><button type="button" class="x sheet-x" aria-label="Close">✕</button></header>
+    <p class="hint">Kept snippets live in this file. Export also keeps a copy.</p>
+    <ul id="recent-list"></ul>
+  </div>
+</div>
+
+<script src="vendor/themes.js"></script>
+<script src="vendor/syntax.js"></script>
+<script src="net.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

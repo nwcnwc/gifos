@@ -1,0 +1,18 @@
+carbon-app/carbon
+https://github.com/carbon-app/carbon
+MIT, Copyright (c) 2022 Carbon
+Authors: Mike Fix (@mfix22), Brian Dennis (@briandennis), Jake Dexheimer (@jakedex)
+
+This GifOS app is a sandbox port of carbon.now.sh, not a vendor of the
+Next.js / CodeMirror tree (that stack will not run in an opaque-origin
+srcdoc with no network). What is taken from upstream:
+
+  lib/constants.js  THEMES, DEFAULT_CODE, DEFAULT_SETTINGS, COLORS
+  components/svg/Controls.js  traffic-light / B&W / sharp window chrome
+
+Syntax colours are those THEMES, applied by a small in-tree tokenizer
+(vendor/syntax.js) that maps onto Carbon's highlight keys (keyword,
+string, comment, number, definition, property, …). Nothing is fetched
+at runtime.
+
+The MIT notice travels as COPYING-carbon.txt and is packed into the GIF.
