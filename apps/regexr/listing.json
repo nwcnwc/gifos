@@ -1,0 +1,34 @@
+{
+  "tagline": "The pattern and the test text live in this file — works on a plane, one Invite shares it.",
+  "description": "No account, no tab to lose. Type a pattern, see matches light up in the text as you type, and close the app — they are still here next time, because the pattern lives in this file. Press Invite in the bar above and a friend is on the same expression with you. regexr.com cannot do that offline.\n\nCheatsheet and the full Reference sit beside the editor; click a token to insert it. Tools: Replace, List, Details (capture groups), Explain. Tests check that the expression matches (or does not). JavaScript RegExp in this tab — nothing is uploaded.\n\nAn unofficial port of RegExr by Grant Skinner and gskinner.com. Bugs go to GifOS, not upstream. Community catalog and the PHP/PCRE engine are not in this copy.",
+  "author": {
+    "name": "Grant Skinner",
+    "url": "https://github.com/gskinner/regexr"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "RegExr",
+    "url": "https://github.com/gskinner/regexr",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Developer",
+    "Learning"
+  ],
+  "tags": [
+    "regex",
+    "regexp",
+    "tester",
+    "cheatsheet",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "GPL-3.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/regexr",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
