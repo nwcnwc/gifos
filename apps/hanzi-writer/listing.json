@@ -1,0 +1,34 @@
+{
+  "tagline": "Trace the stroke order. Close it — your progress is still in the file. One invite, the same character.",
+  "description": "The original needs the network for every character. This copy carries HSK 1–3 inside the GIF, so you can trace on a plane. What you have practised lives in the file: share the GIF and the record goes with it.\n\nA character, a square, your finger. Draw the strokes in order. Miss three times and it shows the next one. Outline on if you want a ghost; off if you want it harder. Watch plays the character first. Review is only the ones that fought back.\n\nPress Play a friend, then Invite in the bar above. You both get the same shuffled deck, the same character at the same time. First to ten clean traces wins.\n\nAn unofficial port of Hanzi Writer by David Chanin. Stroke data from Make Me a Hanzi / Arphic.",
+  "author": {
+    "name": "David Chanin",
+    "url": "https://github.com/chanind/hanzi-writer"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Hanzi Writer",
+    "url": "https://github.com/chanind/hanzi-writer",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "chinese",
+    "hanzi",
+    "stroke-order",
+    "quiz",
+    "offline",
+    "multiplayer",
+    "hsk"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hanzi-writer",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

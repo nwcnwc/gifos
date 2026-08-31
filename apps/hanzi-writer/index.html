@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Hanzi Writer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <button type="button" class="icon-btn" id="backBtn" hidden aria-label="Back">←</button>
+    <h1>Hanzi Writer</h1>
+    <span class="score" id="scoreChip" aria-live="polite"></span>
+  </header>
+
+  <section id="home" class="home">
+    <p class="lead" id="lead">A character. Trace the strokes in order.</p>
+    <div class="seg" id="levelSeg" role="group" aria-label="Level">
+      <button type="button" data-level="1" class="on">HSK 1</button>
+      <button type="button" data-level="2">HSK 2</button>
+      <button type="button" data-level="3">HSK 3</button>
+      <button type="button" data-level="0">Review</button>
+    </div>
+    <p class="count" id="pickLine"><span id="pickCount"></span> <button type="button" class="text" id="freshBtn" hidden>New drill</button></p>
+    <div class="toggles">
+      <button type="button" id="outlineBtn" class="on" aria-pressed="true">Outline</button>
+      <button type="button" id="revealBtn" aria-pressed="false">Pinyin first</button>
+    </div>
+    <label class="jump"><span>Jump to</span>
+      <input id="jumpIn" type="text" maxlength="8" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="好">
+    </label>
+    <p class="err" id="homeErr" hidden></p>
+    <div class="actions">
+      <button type="button" class="primary" id="continueBtn" hidden>Continue</button>
+      <button type="button" class="primary" id="startBtn">Start tracing</button>
+      <button type="button" class="ghost" id="reviewBtn" hidden>Review misses</button>
+      <button type="button" class="ghost" id="friendBtn">Play a friend</button>
+    </div>
+  </section>
+
+  <section id="lobby" class="lobby" hidden>
+    <p class="lead">Same shuffled deck. Press <b>Invite</b> in the bar above the app — that link is the room.</p>
+    <div id="lobbyPeople" class="versus"></div>
+    <p id="lobbyWait" class="wait">Waiting for a friend…</p>
+    <div class="prompt wait-hanzi" id="lobbyHanzi" lang="zh-Hans" aria-hidden="true">永</div>
+    <p class="hint">You both trace the same character. First to ten clean traces wins. You only write your own score.</p>
+    <button type="button" class="ghost" id="lobbyBack">Back</button>
+  </section>
+
+  <section id="quiz" class="quiz" hidden>
+    <div id="versus" class="versus" hidden></div>
+    <p id="waitNote" class="wait" hidden>Waiting for a friend — press <b>Invite</b> in the bar above.</p>
+    <p id="meta" class="meta" aria-live="polite"></p>
+    <div id="stage" class="stage">
+      <svg class="grid" viewBox="0 0 100 100" aria-hidden="true">
+        <rect x="1" y="1" width="98" height="98" fill="none"/>
+        <line x1="50" y1="1" x2="50" y2="99"/>
+        <line x1="1" y1="50" x2="99" y2="50"/>
+        <line x1="1" y1="1" x2="99" y2="99"/>
+        <line x1="99" y1="1" x2="1" y2="99"/>
+      </svg>
+      <div id="writer"></div>
+    </div>
+    <p id="feedback" class="feedback" aria-live="polite">Trace the first stroke</p>
+    <div class="bar" aria-hidden="true"><i id="barFill"></i></div>
+    <p id="progress" class="progress"></p>
+    <div class="quiz-actions">
+      <button type="button" class="ghost" id="watchBtn">Watch</button>
+      <button type="button" class="ghost" id="retryBtn">Retry</button>
+      <button type="button" class="ghost" id="skipBtn">Skip</button>
+      <button type="button" class="primary" id="nextBtn" hidden>Next</button>
+    </div>
+  </section>
+
+  <section id="done" class="done" hidden>
+    <p id="doneTitle" class="done-title">Deck done</p>
+    <p id="doneScore" class="done-score"></p>
+    <p id="doneNote" class="done-note"></p>
+    <div id="missedStrip" class="missed" hidden></div>
+    <button type="button" class="primary" id="againBtn">Again</button>
+    <button type="button" class="ghost" id="reviewDoneBtn" hidden>Review misses</button>
+    <button type="button" class="ghost" id="homeBtn">Change level</button>
+  </section>
+</div>
+
+<script src="vendor/hanzi-writer.min.js"></script>
+<script src="vendor/chars.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
