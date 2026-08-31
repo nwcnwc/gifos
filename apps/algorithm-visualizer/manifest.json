@@ -1,0 +1,25 @@
+{
+  "gifos": "1.0",
+  "appId": "algorithm-visualizer",
+  "name": "Algorithm Visualizer",
+  "shortName": "Algos",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [61, 139, 253],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "session": { "visibility": "read-only" },
+    "players": { "visibility": "read-write" }
+  },
+  "launch": {
+    "algo": {
+      "label": "Open an algorithm",
+      "detail": "An algorithm id such as bubble-sort, binary-search, or dijkstra."
+    }
+  }
+}

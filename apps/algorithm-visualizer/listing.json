@@ -1,0 +1,34 @@
+{
+  "tagline": "Watch the swaps on a plane — close it, the last algorithm is still there.",
+  "description": "Pick Bubble Sort, Dijkstra, N-Queens. Play walks every comparison, visit and backtrack. Shuffle the input. Step when a pass is too fast. It all runs on this device; nothing is compiled on a server.\n\nClose the app and open it again: the last algorithm and its input are still loaded, because they live in the file. Send the Invite in the bar above and a friend follows the same walk-through — they see your cursor, they cannot steal the clicker.\n\nNineteen algorithms: six sorts, two searches, five graph walks, four dynamic-programming tables, N-Queens and flood fill. The tracers are the original ones — chart, array, graph, log — without the account or the compile server the website needed.\n\nAn unofficial port of Algorithm Visualizer by Jinseo Jason Park. The tracer API is theirs. This copy adds the save inside the GIF and the follow-along invite.",
+  "author": {
+    "name": "Jinseo Jason Park",
+    "url": "https://github.com/algorithm-visualizer/algorithm-visualizer"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Algorithm Visualizer",
+    "url": "https://github.com/algorithm-visualizer/algorithm-visualizer",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Learning",
+    "Developer"
+  ],
+  "tags": [
+    "algorithms",
+    "visualization",
+    "sorting",
+    "graphs",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/algorithm-visualizer",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

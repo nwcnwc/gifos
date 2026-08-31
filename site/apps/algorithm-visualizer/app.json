@@ -1,0 +1,63 @@
+{
+  "catalog": "1.0",
+  "slug": "algorithm-visualizer",
+  "appId": "algorithm-visualizer",
+  "name": "Algorithm Visualizer",
+  "shortName": "Algos",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Watch the swaps on a plane — close it, the last algorithm is still there.",
+  "description": "Pick Bubble Sort, Dijkstra, N-Queens. Play walks every comparison, visit and backtrack. Shuffle the input. Step when a pass is too fast. It all runs on this device; nothing is compiled on a server.\n\nClose the app and open it again: the last algorithm and its input are still loaded, because they live in the file. Send the Invite in the bar above and a friend follows the same walk-through — they see your cursor, they cannot steal the clicker.\n\nNineteen algorithms: six sorts, two searches, five graph walks, four dynamic-programming tables, N-Queens and flood fill. The tracers are the original ones — chart, array, graph, log — without the account or the compile server the website needed.\n\nAn unofficial port of Algorithm Visualizer by Jinseo Jason Park. The tracer API is theirs. This copy adds the save inside the GIF and the follow-along invite.",
+  "author": {
+    "name": "Jinseo Jason Park",
+    "url": "https://github.com/algorithm-visualizer/algorithm-visualizer"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Learning",
+    "Developer"
+  ],
+  "tags": [
+    "algorithms",
+    "visualization",
+    "sorting",
+    "graphs",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2019 Jinseo Jason Park",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/algorithm-visualizer",
+  "accent": [
+    61,
+    139,
+    253
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/algorithm-visualizer/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/algorithm-visualizer/algorithm-visualizer.gif",
+  "bytes": 212060,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "03343050530a2558e310eb70820f05d94787d925693313e06cb4fede40622f99",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Algorithm Visualizer",
+    "url": "https://github.com/algorithm-visualizer/algorithm-visualizer",
+    "blessed": false
+  }
+}
