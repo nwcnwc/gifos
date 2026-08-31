@@ -1,0 +1,21 @@
+BeepBox 4.2.2
+https://github.com/johnnesky/beepbox
+commit 3a88cd674149c8c15b7f59064db07c082f9eb152
+tag v4.2.2
+
+vendor/beepbox_editor.min.js is the official editor IIFE
+(scripts/compile_editor.sh — rollup format iife, name beepbox, then terser).
+Never fetched at runtime. Rebuild with:
+
+  node apps/beepbox/vendor.mjs
+
+MIT, John Nesky and contributing authors. The notice rides inside
+the GIF as COPYING-beepbox.txt.
+
+The editor's MP3 path loads lamejs from jsdelivr — shim.js blocks that
+script. WAV, MIDI and JSON export stay local. URL shorteners (is.gd /
+tinyurl) and "View in Song Player" (a navigation off this page) are
+removed from the File menu.
+
+A first-run song is vendor/seed.json, generated from the same Song
+class during vendor.mjs so it round-trips.

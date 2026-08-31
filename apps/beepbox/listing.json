@@ -1,0 +1,36 @@
+{
+  "tagline": "The chiptune song lives in the GIF. Invite, and you jam the same track.",
+  "description": "Close it, come back — the same notes are still on the grid. The song is saved inside this file, so handing someone the GIF hands them the song.\n\nBeepBox itself: click the grey rows to drop notes, drag to change length, stack them for chords. Patterns along the bottom are the bars of the song; the purple loop is what repeats. Chip, FM, noise, supersaw — the original tracker, offline, with no URL to copy and no account.\n\nOn a phone, pinch or tap + / − to zoom the grid, then pan. Press Invite in the bar above and a friend lands on this same song; either of you can change it, you both hear it.\n\nAn unofficial port of BeepBox by John Nesky. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "John Nesky",
+    "url": "https://github.com/johnnesky/beepbox"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "BeepBox",
+    "url": "https://github.com/johnnesky/beepbox",
+    "donate": "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=QZJTX9GRYEV9N&currency_code=USD",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Creativity",
+    "Media"
+  ],
+  "tags": [
+    "beepbox",
+    "chiptune",
+    "tracker",
+    "sequencer",
+    "music",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/beepbox",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

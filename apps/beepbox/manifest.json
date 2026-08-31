@@ -1,0 +1,20 @@
+{
+  "gifos": "1.0",
+  "appId": "beepbox",
+  "name": "BeepBox",
+  "shortName": "BeepBox",
+  "version": "4.2.2",
+  "minBuild": 947,
+  "description": "A chiptune song tracker. The song lives in the GIF.",
+  "entry": "index.html",
+  "accent": [37, 243, 255],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "songs": { "visibility": "private" },
+    "prefs": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
