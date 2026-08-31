@@ -1,0 +1,11 @@
+vendor/iife-Editor.js is GENERATED. Do not edit it; run node apps/svg-edit/vendor.mjs.
+
+upstream: https://github.com/SVG-Edit/svgedit
+npm:      svgedit@7.4.2
+entry:    dist/editor/iife-Editor.js (classic IIFE, window.Editor)
+images:   dist/editor/images + jgraduate, inlined as vendor/images.js
+store:    gifos.db via boot.js / app.js (noDefaultExtensions, noStorageOnLoad)
+
+SVG-Edit is MIT (COPYING.txt). jGraduate / context menu are Apache-2.0
+(COPYING-Apache-2.0.txt). The IIFE also bundles i18next, elix, html2canvas,
+jsPDF and svg2pdf (MIT). Notices travel inside the GIF.

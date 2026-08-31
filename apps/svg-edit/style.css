@@ -1,0 +1,94 @@
+:root {
+  --main-bg-color: #16161e;
+  --text-color: #e8eaf2;
+  --border-color: #3a3a48;
+  --canvas-bg-color: #2a2a36;
+  --link-color: #f9bc01;
+  --ruler-color: #3a3a48;
+  --icon-bg-color: #1e1e28;
+  --icon-bg-color-hover: #f9bc01;
+  --input-color: #c8cad4;
+  --orange-color: #f9bc01;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #0a0a0f;
+  color: #e8eaf2;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+#container {
+  position: absolute;
+  inset: 36px 0 0 0;
+}
+
+#container:empty::before {
+  content: "Opening editor…";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #9aa0b4;
+}
+
+.svg_editor {
+  width: 100%;
+  height: 100%;
+}
+
+#workarea {
+  background-color: #1c1c24;
+}
+
+#g-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: #12121a;
+  border-bottom: 1px solid #2a2a38;
+  z-index: 20;
+  box-sizing: border-box;
+}
+#g-bar button {
+  background: #1e1e2a;
+  color: #e8eaf2;
+  border: 1px solid #3a3a4c;
+  border-radius: 6px;
+  padding: .22rem .65rem;
+  font: 600 12px/1.3 system-ui, sans-serif;
+  cursor: pointer;
+}
+#g-bar button:hover {
+  border-color: #f9bc01;
+  color: #f9bc01;
+}
+#g-status {
+  margin-left: auto;
+  font: 600 11px/1.3 system-ui, sans-serif;
+  color: #9aa0b4;
+  max-width: 46vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#tool_editor_homepage { display: none !important; }
+
+@media (max-width: 720px) {
+  #g-bar { gap: 6px; padding: 0 8px; }
+  #g-bar button { padding: .28rem .5rem; }
+  .svg_editor {
+    font-size: 9pt;
+    grid-template-columns: 44px 8px 36px 1fr 8px;
+  }
+}

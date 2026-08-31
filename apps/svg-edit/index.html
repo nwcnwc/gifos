@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>SVG-Edit</title>
+<link rel="stylesheet" href="vendor/svgedit.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="g-bar">
+  <button type="button" id="g-open" title="Open an SVG from this device">Open</button>
+  <button type="button" id="g-save" title="Download this drawing as SVG">Save SVG</button>
+  <button type="button" id="g-png" title="Download a PNG snapshot">PNG</button>
+  <span id="g-status">Opening…</span>
+</div>
+<input id="g-file" type="file" accept="image/svg+xml,.svg" hidden>
+<div id="container"></div>
+<script src="boot.js"></script>
+<script src="vendor/images.js"></script>
+<script src="vendor/iife-Editor.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
