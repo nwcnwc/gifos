@@ -1,0 +1,16 @@
+hanzi-writer 3.7.2
+https://github.com/chanind/hanzi-writer
+MIT — David Chanin. COPYING-hanzi-writer.txt is the upstream LICENSE.
+
+hanzi-writer-data 2.0.1
+https://github.com/chanind/hanzi-writer-data
+Stroke outlines and medians derived from Make Me a Hanzi (skishore),
+itself extracted from Arphic fonts. Redistributed under the Arphic
+Public License; ARPHICPL.TXT is packed unaltered.
+
+On 2026-08-30 the per-character JSON was concatenated into vendor/chars.js
+for offline packing. Glyphs were not redrawn, reordered, or renamed.
+
+HSK 2.0 unique characters (levels 1–3, 618 hanzi) plus 永. Pinyin is
+taken from the public exam word readings. Short English glosses were
+written for this port and are not copied from CC-CEDICT.

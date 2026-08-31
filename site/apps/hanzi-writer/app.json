@@ -1,0 +1,63 @@
+{
+  "catalog": "1.0",
+  "slug": "hanzi-writer",
+  "appId": "hanzi-writer",
+  "name": "Hanzi Writer",
+  "shortName": "Hanzi",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Trace the stroke order. Close it — your progress is still in the file. One invite, the same character.",
+  "description": "The original needs the network for every character. This copy carries HSK 1–3 inside the GIF, so you can trace on a plane. What you have practised lives in the file: share the GIF and the record goes with it.\n\nA character, a square, your finger. Draw the strokes in order. Miss three times and it shows the next one. Outline on if you want a ghost; off if you want it harder. Watch plays the character first. Review is only the ones that fought back.\n\nPress Play a friend, then Invite in the bar above. You both get the same shuffled deck, the same character at the same time. First to ten clean traces wins.\n\nAn unofficial port of Hanzi Writer by David Chanin. Stroke data from Make Me a Hanzi / Arphic.",
+  "author": {
+    "name": "David Chanin",
+    "url": "https://github.com/chanind/hanzi-writer"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "chinese",
+    "hanzi",
+    "stroke-order",
+    "quiz",
+    "offline",
+    "multiplayer",
+    "hsk"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2014 David Chanin",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hanzi-writer",
+  "accent": [
+    196,
+    74,
+    58
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/hanzi-writer/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/hanzi-writer/hanzi-writer.gif",
+  "bytes": 1014332,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "a4f513adf8e0ef0ab21201ec0d5ca26f33e271ed9d8e29e3a8cb3e2f33f7c9ca",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Hanzi Writer",
+    "url": "https://github.com/chanind/hanzi-writer",
+    "blessed": false
+  }
+}
