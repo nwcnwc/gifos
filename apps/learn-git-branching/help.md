@@ -29,7 +29,7 @@ The lesson cards at the start of a level are the original teaching slides. Skip 
 
 ## Play a friend
 
-**Play a friend**, then **Invite** in the bar above the app. You both work the same lesson on your own graphs. First to match the goal wins; you do not see each other's commands. **Next lesson** starts a new round.
+**Play a friend**, then **Invite** in the bar above the app. A friend who opens the link lands on the same lesson without pressing anything. You both work it on your own graphs. First to match the goal wins; you do not see each other's commands. **Next lesson** starts a new round. Invite remounts the GIF — the race comes back with the file.
 
 ## What is saved
 

@@ -13,6 +13,7 @@
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
 html, body {
   margin: 0; height: 100%;
   background: var(--bg); color: var(--ink);
@@ -75,6 +76,28 @@ button.ghost { background: transparent; color: var(--dim); }
   display: block;
   touch-action: none;
 }
+#files, #goal-files {
+  display: flex; gap: 8px; flex-shrink: 0;
+  padding: 8px;
+  min-width: 168px;
+}
+#goal-files { padding: 4px 0 6px; min-height: 0; }
+.files-col {
+  flex: 1; min-width: 0;
+  background: #10181e; border: 1px dashed var(--line); border-radius: 10px;
+  padding: 8px;
+}
+.files-col b {
+  display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--dim); margin-bottom: 6px;
+}
+.files-col ul { margin: 0; padding: 0; list-style: none; }
+.files-col li {
+  font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: #243441; border-radius: 6px; padding: 4px 6px; margin-bottom: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.files-col li.empty { background: transparent; color: var(--dim); font-style: italic; }
 #graph.dim { opacity: .28; }
 #origin-wrap {
   flex: 1; min-width: 0; border-left: 1px dashed var(--line);
@@ -187,6 +210,8 @@ body.has-origin #graphs { }
   #goal-block { height: 110px; min-height: 90px; }
   #log { min-height: 48px; }
   #level-list .grid { grid-template-columns: 1fr; }
+  #graphs { flex-direction: column; }
+  #files { min-height: 88px; max-height: 30%; }
 }
 @media (max-width: 420px) {
   #friendBtn { padding: 8px 10px; font-size: 13px; }
