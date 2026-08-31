@@ -1,0 +1,33 @@
+{
+  "tagline": "The board is the file. One invite is the room — no Trello account.",
+  "description": "Close it, come back, or hand someone the GIF — the same lists are there. Press Invite in the bar above so a friend lands on this board with you. No account, no cloud, no Trello.\n\nA column of notes is a list. A set of lists is a board. Click a note to type; click outside (or Shift-Enter) when you are done. Drag notes between lists. Hover ≡ — or tap it on a phone — for delete, raw look, and collapse. Ctrl-Z / Ctrl-Y walk the last fifty revisions.\n\nOn a phone the lists swipe sideways and + Note / + List / Undo / Boards sit under your thumbs.\n\nAn unofficial port of Nullboard by Alexander Pankratov. Same compact board, now a file you can keep and a room you can share.",
+  "author": {
+    "name": "Alexander Pankratov",
+    "url": "https://github.com/apankrat/nullboard"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Nullboard",
+    "url": "https://github.com/apankrat/nullboard",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Productivity"
+  ],
+  "tags": [
+    "kanban",
+    "notes",
+    "lists",
+    "tasks",
+    "offline",
+    "board"
+  ],
+  "license": "BSD-2-Clause with Commons Clause",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/nullboard",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

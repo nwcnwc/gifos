@@ -1,0 +1,63 @@
+{
+  "catalog": "1.0",
+  "slug": "nullboard",
+  "appId": "nullboard",
+  "name": "Nullboard",
+  "shortName": "Nullboard",
+  "version": "1.0.0",
+  "minBuild": 2154,
+  "tagline": "The board is the file. One invite is the room — no Trello account.",
+  "description": "Close it, come back, or hand someone the GIF — the same lists are there. Press Invite in the bar above so a friend lands on this board with you. No account, no cloud, no Trello.\n\nA column of notes is a list. A set of lists is a board. Click a note to type; click outside (or Shift-Enter) when you are done. Drag notes between lists. Hover ≡ — or tap it on a phone — for delete, raw look, and collapse. Ctrl-Z / Ctrl-Y walk the last fifty revisions.\n\nOn a phone the lists swipe sideways and + Note / + List / Undo / Boards sit under your thumbs.\n\nAn unofficial port of Nullboard by Alexander Pankratov. Same compact board, now a file you can keep and a room you can share.",
+  "author": {
+    "name": "Alexander Pankratov",
+    "url": "https://github.com/apankrat/nullboard"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Productivity"
+  ],
+  "tags": [
+    "kanban",
+    "notes",
+    "lists",
+    "tasks",
+    "offline",
+    "board"
+  ],
+  "license": "BSD-2-Clause with Commons Clause",
+  "copyright": "Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/nullboard",
+  "accent": [
+    20,
+    137,
+    219
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "links": true
+  },
+  "cover": "/apps/nullboard/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/nullboard/nullboard.gif",
+  "bytes": 400237,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "ec9e75f8216ad85eec883934b31efe2ebfd2e06c5a8ef8ecddf4102546a0926c",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Nullboard",
+    "url": "https://github.com/apankrat/nullboard",
+    "blessed": false
+  }
+}
