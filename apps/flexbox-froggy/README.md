@@ -18,7 +18,8 @@ icon.mjs            hopping-frog sticker + 1200×720 cover
 build.mjs           packs site/apps/flexbox-froggy/flexbox-froggy.gif
 ```
 
-jQuery, animate.css, Google Fonts, ads, and analytics are not shipped.
+jQuery, animate.css, ads, and analytics are not shipped. The title face
+is **Fredoka One** (OFL, vendored as woff2) — no Google Fonts CDN.
 Fifty locale strings were dropped (they were 640 KB); the puzzles are
 the English originals.
 
@@ -39,5 +40,6 @@ node apps/flexbox-froggy/build.mjs
 
 ## Licence
 
-Code MIT, Thomas Park. Images CC BY 3.0, Thomas Park. Both notices ride
-inside the GIF as `COPYING-flexboxfroggy.txt` and `COPYING-images.txt`.
+Code MIT, Thomas Park. Images CC BY 3.0, Thomas Park. Fredoka One OFL.
+Notices ride inside the GIF as `COPYING-flexboxfroggy.txt`,
+`COPYING-images.txt`, and `COPYING-fredokaone.txt`.

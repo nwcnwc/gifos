@@ -229,7 +229,12 @@
     game.loadDocs();
 
     var lines = Object.keys(level.style || {}).length || 1;
-    $('code').style.height = (20 * lines) + 'px';
+    // 20px line-height matches the original's height(20 * lines); +4 for the
+    // 2px padding so a 4-property answer (column-reverse on the finale) is
+    // fully on the white field and does not sit on the #pond { prelude.
+    var linePx = 20;
+    $('code').style.lineHeight = linePx + 'px';
+    $('code').style.height = (linePx * lines + 4) + 'px';
     $('code').setAttribute('data-lines', String(lines));
 
     var cb = game.colorblind ? ' cb-friendly' : '';
