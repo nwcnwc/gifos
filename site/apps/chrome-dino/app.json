@@ -1,0 +1,62 @@
+{
+  "catalog": "1.0",
+  "slug": "chrome-dino",
+  "appId": "chrome-dino",
+  "name": "Chrome Dino",
+  "shortName": "Dino",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "chrome://dino, always offline — high score in the file, Invite is a side-by-side run.",
+  "description": "This copy is always offline, on purpose. Close it, come back: the high score is still in the file. Send the invite and a friend runs the same desert beside you — their dino is a ghost, a little ahead or a little behind.\n\nOn your own it is the Chrome dinosaur. Space or tap to jump, down to duck under the pterodactyls. Cacti first, then birds. Night falls every 700. There is no network because there never was one.\n\nAn unofficial port of Chromium's T-Rex Runner (extracted by wayou). This copy keeps the score in the GIF and adds the race. Bugs go to GifOS, not Chromium.",
+  "author": {
+    "name": "The Chromium Authors",
+    "url": "https://chromium.googlesource.com/chromium/src"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "dino",
+    "arcade",
+    "runner",
+    "offline",
+    "multiplayer",
+    "chrome"
+  ],
+  "license": "BSD-3-Clause",
+  "copyright": "Copyright 2014 The Chromium Authors; Copyright (c) 2022, 牛さん",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/chrome-dino",
+  "accent": [
+    83,
+    83,
+    83
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/chrome-dino/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/chrome-dino/chrome-dino.gif",
+  "bytes": 180708,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "0d2ab21f617c4a66d4fe1b3c0091e34f6d33e55accdae611cd075be805b0e20b",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "T-Rex Runner",
+    "url": "https://github.com/wayou/t-rex-runner",
+    "blessed": false
+  }
+}
