@@ -1,0 +1,15 @@
+TIC-80 tiny computer 1.1.2837
+https://github.com/nesbox/TIC-80
+MIT License (Copyright (c) 2017 Vadim Grigoruk)
+
+Pinned from the official HTML export of the v1.1.2837 tag
+(https://github.com/nesbox/TIC-80/releases/tag/v1.1.2837),
+file tic80-v1.1-html.zip. Never fetched at runtime.
+
+tic80.js     240206  78a794efa21e41f64ac0095474396c6f74eeafbfe38bb8e867d90744494a87fe
+tic80.wasm   5716041 464b1373f5e44836f7e580d25bbbc5955a9bfb880399dc7efcb66a6bdb4e4b56
+
+Sample carts (from the same tag, demos/, MIT — not commercial PICO-8 carts):
+
+  vendor/carts/hello.lua   demos/luademo.lua   the default HELLO WORLD cart
+  vendor/carts/fire.lua    demos/fire.lua      Filippo's fire demo
