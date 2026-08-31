@@ -61,17 +61,82 @@
     return out;
   }
 
+  function definedBin(s) {
+    return typeof s === 'string' && s.length > 0 && s.indexOf('x') === -1 && s.indexOf('X') === -1;
+  }
+
+  function sampleIo(id) {
+    var i, cat = root.DjsCircuits && root.DjsCircuits.catalog;
+    if (!id || !cat) return null;
+    for (i = 0; i < cat.length; i++) if (cat[i].id === id) return cat[i].io || null;
+    return null;
+  }
+
+  function mergeIo(io, id) {
+    var def = sampleIo(id), out = {}, k;
+    if (def) {
+      for (k in def) if (Object.prototype.hasOwnProperty.call(def, k)) out[k] = def[k];
+    }
+    if (io) {
+      for (k in io) {
+        if (!Object.prototype.hasOwnProperty.call(io, k)) continue;
+        if (definedBin(io[k])) out[k] = io[k];
+      }
+    }
+    return out;
+  }
+
   function applyIo(io) {
     var id, sig;
     if (!io || !circuit || !root.Vector3vl) return;
     for (id in io) {
       if (!Object.prototype.hasOwnProperty.call(io, id)) continue;
+      if (!definedBin(io[id])) continue;
       try {
         var bits = String(io[id]);
         sig = root.Vector3vl.fromBin(bits, bits.length);
         circuit.setInput(id, sig);
       } catch (e) {}
     }
+  }
+
+  function isClockCell(cell) {
+    return !!(cell && typeof cell.get === 'function' && cell.get('type') === 'Clock');
+  }
+
+  function queueIsClockOnly(engine, tick) {
+    var q = engine._queue && engine._queue.get(tick);
+    var only = true, any = false;
+    if (!q || typeof q.forEach !== 'function') return false;
+    q.forEach(function (_sigs, gate) {
+      any = true;
+      if (!isClockCell(gate)) only = false;
+    });
+    return any && only;
+  }
+
+  // Combinational gates sit in the event queue until something calls
+  // updateGatesNext. Play does that on a timer (and also walks Clocks).
+  // Drain combo here so add/sub and the full adder light without Play,
+  // and so a pin change while Stopped is not stuck at X.
+  function settleCombo() {
+    if (!circuit || circuit.running) return;
+    var engine = circuit._engine;
+    var n = 0, next, q;
+    if (engine && engine._pq && engine._queue) {
+      while (engine.hasPendingEvents && n < 64) {
+        next = engine._pq.peek();
+        if (next == null) break;
+        q = engine._queue.get(next);
+        if (!q || !q.size) break;
+        if (queueIsClockOnly(engine, next)) break;
+        if (!circuit.updateGatesNext) break;
+        circuit.updateGatesNext();
+        n++;
+      }
+      return;
+    }
+    if (circuit.updateGates) circuit.updateGates();
   }
 
   function currentJson() {
@@ -120,13 +185,17 @@
     }
     circuit.on('changeRunning', paintTransport);
     circuit.on('userChange', function () {
+      if (circuit && !circuit.running) settleCombo();
       if (root.DjsNet) root.DjsNet.noteChange();
     });
     circuit.on('new:paper', function () {});
-    applyIo(io);
+    applyIo(mergeIo(io, sampleId));
     wantRunning = !!running;
     if (wantRunning) circuit.start();
-    else circuit.stop();
+    else {
+      circuit.stop();
+      settleCombo();
+    }
     paintTransport();
     setErr('');
     setTimeout(function () {
@@ -158,6 +227,7 @@
     if (!circuit) return;
     circuit.stop();
     wantRunning = false;
+    settleCombo();
     paintTransport();
     if (root.DjsNet) root.DjsNet.noteChange();
   }
@@ -167,6 +237,7 @@
     wantRunning = false;
     if (circuit.updateGatesNext) circuit.updateGatesNext();
     else if (circuit.updateGates) circuit.updateGates();
+    settleCombo();
     paintTransport();
     if (root.DjsNet) root.DjsNet.noteChange();
   }
@@ -214,9 +285,10 @@
       var same = lastJson && JSON.stringify(ad.json) === JSON.stringify(lastJson);
       if (!same) loadCircuit(ad.json, ad.sample || sampleId, ad.io, ad.running);
       else {
-        applyIo(ad.io);
+        applyIo(mergeIo(ad.io, ad.sample || sampleId));
         if (ad.running && circuit && !circuit.running) circuit.start();
         if (!ad.running && circuit && circuit.running) circuit.stop();
+        if (circuit && !circuit.running) settleCombo();
         paintTransport();
       }
     }
