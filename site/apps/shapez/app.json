@@ -1,0 +1,65 @@
+{
+  "catalog": "1.0",
+  "slug": "shapez",
+  "appId": "shapez",
+  "name": "shapez.io",
+  "shortName": "shapez",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "The factory lives in the GIF. One invite, and a friend is on the same belts.",
+  "description": "shapez.io on the web is a tab that forgets you. This copy keeps the factory inside the file — close it, come back, every belt and machine is where you left it. Send Invite and a friend builds on that same floor with you. No account, no install, it works on a plane.\n\nExtract circles and rectangles, belt them in, cut them in half, rotate the pieces, paint them red or blue. The hub asks for a new shape each level and unlocks the next machine. This is the opening of shapez — extractor, belt, cutter, rotator, painter — not the 26-level wires-and-stackers campaign.\n\nAn unofficial port of shapez by tobspr Games, GPL-3.0. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "tobspr Games",
+    "url": "https://github.com/tobspr-games/shapez.io"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "shapez",
+    "factory",
+    "automation",
+    "belts",
+    "puzzle",
+    "multiplayer",
+    "offline",
+    "coop"
+  ],
+  "license": "GPL-3.0",
+  "copyright": "",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/shapez",
+  "accent": [
+    102,
+    167,
+    255
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/shapez/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/shapez/shapez.gif",
+  "bytes": 253018,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "31b9a4f0ebcf763a7ec94a3d503eee69bb208dec978c5ce0d7e384689fa36787",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "shapez.io",
+    "url": "https://github.com/tobspr-games/shapez.io",
+    "blessed": false,
+    "donate": "https://tobspr.io"
+  }
+}

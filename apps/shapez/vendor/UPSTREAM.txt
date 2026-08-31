@@ -1,0 +1,15 @@
+shapez.io — https://github.com/tobspr-games/shapez.io
+Licence: GNU GPL v3 (see ../../COPYING.txt)
+Pinned intent: the published game design (shape codes, colours, the
+opening extractor / belt / cutter / rotator / painter loop).
+
+The upstream tree is a TypeScript + PIXI.js webpack application of
+several megabytes. It is not vendored here: it cannot run in the GifOS
+sandbox (it wants localStorage, workers, and a real origin for assets).
+This app is a playable reimplementation of the first-belt / cutter /
+painter slice, released under the same GPL-3.0 so a copy of the GIF is
+a copy of a GPL work.
+
+Colours match src/js/game/colors.js of upstream (uncolored #aaaaaa,
+red #ff666a, green #78ff66, blue #66a7ff, …). Shape shortcodes match
+the public wiki (CuCuCuCu, ----CuCu, RuRuRuRu, CrCrCrCr, …).

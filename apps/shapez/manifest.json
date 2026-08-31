@@ -1,0 +1,21 @@
+{
+  "gifos": "1.0",
+  "appId": "shapez",
+  "name": "shapez.io",
+  "shortName": "shapez",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [102, 167, 255],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "cells": { "visibility": "read-write" },
+    "world": { "visibility": "read-only" },
+    "flow": { "visibility": "read-only" },
+    "cursors": { "visibility": "read-write" }
+  }
+}
