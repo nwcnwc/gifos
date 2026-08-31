@@ -8888,11 +8888,15 @@
         246
       ],
       "cover": "/apps/tic80/cover.jpg",
-      "bytes": 2939626,
+      "bytes": 2940330,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "4ec8b48c126b8e01e0b2e59f6b5f73eb02b5db5abcd9558d9269f6699e9e1491"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-31"
+      },
+      "sha256": "68f818683fd17e48acfd7f36cf29001e2109f121f14904eafb784bb024cad2d4"
     },
     {
       "slug": "tiddlywiki",

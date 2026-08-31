@@ -45,11 +45,11 @@
   "cover": "/apps/tic80/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tic80/tic80.gif",
-  "bytes": 2938395,
+  "bytes": 2940330,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "04d18bd0444055ee93630caab80239a401dfa7842664a00ea3ae4a678771969b",
+  "sha256": "68f818683fd17e48acfd7f36cf29001e2109f121f14904eafb784bb024cad2d4",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
