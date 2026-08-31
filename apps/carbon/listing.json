@@ -1,0 +1,36 @@
+{
+  "tagline": "Pretty code images, no account — the snippet lives in this file.",
+  "description": "No account, no tab to lose. The snippet and the theme live in this file, so close it and come back still on the same image. Export a PNG from here. Press Invite in the bar above and a friend types on the same snippet with you — carbon.now.sh cannot do that.\n\nPick a theme (Seti, Dracula, Night Owl, Nord…), a language, a background, padding, window dots, line numbers. Type or drop a file. The window is the picture.\n\nAn unofficial port of Carbon by Mike Fix, Brian Dennis, and Jake Dexheimer. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Carbon",
+    "url": "https://github.com/carbon-app/carbon"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Carbon",
+    "url": "https://github.com/carbon-app/carbon",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Developer",
+    "Creativity"
+  ],
+  "tags": [
+    "carbon",
+    "code",
+    "screenshot",
+    "syntax",
+    "theme",
+    "png",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/carbon",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

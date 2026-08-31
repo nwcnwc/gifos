@@ -1,0 +1,65 @@
+{
+  "catalog": "1.0",
+  "slug": "carbon",
+  "appId": "carbon",
+  "name": "Carbon",
+  "shortName": "Carbon",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Pretty code images, no account — the snippet lives in this file.",
+  "description": "No account, no tab to lose. The snippet and the theme live in this file, so close it and come back still on the same image. Export a PNG from here. Press Invite in the bar above and a friend types on the same snippet with you — carbon.now.sh cannot do that.\n\nPick a theme (Seti, Dracula, Night Owl, Nord…), a language, a background, padding, window dots, line numbers. Type or drop a file. The window is the picture.\n\nAn unofficial port of Carbon by Mike Fix, Brian Dennis, and Jake Dexheimer. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Carbon",
+    "url": "https://github.com/carbon-app/carbon"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Developer",
+    "Creativity"
+  ],
+  "tags": [
+    "carbon",
+    "code",
+    "screenshot",
+    "syntax",
+    "theme",
+    "png",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2022 Carbon",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/carbon",
+  "accent": [
+    171,
+    184,
+    195
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/carbon/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/carbon/carbon.gif",
+  "bytes": 156147,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "5ca1b10f02ead9b214c5064d93fcfab5ee30c35b6d6e68c679ac094f8777adf3",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Carbon",
+    "url": "https://github.com/carbon-app/carbon",
+    "blessed": false
+  }
+}
