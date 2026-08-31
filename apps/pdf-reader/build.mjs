@@ -100,7 +100,7 @@ if (sample.subarray(0, 5).toString() !== '%PDF-') throw new Error('sample PDF is
 if (sample.length < 800) throw new Error('sample PDF is too small');
 {
   const latin = sample.toString('latin1');
-  for (const needle of ['Paper Planes', 'Folding a dart', 'Why it glides', '%%EOF']) {
+  for (const needle of ['Paper Planes', 'Folding a dart', 'Why it glides', '%%EOF', '0 0 0 rg']) {
     if (!latin.includes(needle)) throw new Error('sample PDF missing “' + needle + '”');
   }
 }
@@ -158,8 +158,11 @@ if (!files['net.js'].includes("db('save')") || !files['net.js'].includes("id: 'l
 if (!files['viewer.js'].includes('isEvalSupported: false')) {
   throw new Error('viewer.js must disable pdf.js eval');
 }
-if (!files['viewer.js'].includes('workerPort')) {
-  throw new Error('viewer.js must mint a blob worker and set workerPort');
+if (files['viewer.js'].includes('GlobalWorkerOptions.workerPort')) {
+  throw new Error('do not reuse GlobalWorkerOptions.workerPort — a second open hangs');
+}
+if (!files['viewer.js'].includes('PDFWorker') || !files['viewer.js'].includes('mintWorker')) {
+  throw new Error('viewer.js must mint a fresh PDFWorker per open');
 }
 
 for (const [n, s] of Object.entries(files)) {

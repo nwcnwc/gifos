@@ -67,6 +67,7 @@
 
   function openBytes(name, buf, fromRemote) {
     spinner(true);
+    status('Opening ' + (name || 'PDF') + '…');
     return viewer.open(name, buf).then(function () {
       spinner(false);
       document.body.classList.add('loaded');
@@ -82,7 +83,7 @@
     }).catch(function (e) {
       spinner(false);
       var msg = (e && e.message) || String(e);
-      if (/password/i.test(msg)) return;
+      if (!$('pw-sheet').hidden) return;
       status(msg);
     });
   }
