@@ -4,7 +4,7 @@ Turn a snippet of code into a **pretty image**. Pick a theme, a background, and 
 
 ## The window
 
-The grey (or coloured) field is the picture. The dark card is a fake window:
+The grey (or coloured) field is the picture. The dark card is a fake window. The typeface is **Hack** at 14px — the same one carbon.now.sh uses — so the PNG looks like the window, not a terminal dump.
 
 - **Theme** paints the syntax colours (Seti is the default, the one Carbon is known for). Dracula, Night Owl, Nord, One Dark, and the rest are in the same menu.
 - **Language** picks the highlighter. **Auto** guesses from what you typed.
@@ -23,7 +23,7 @@ The grey (or coloured) field is the picture. The dark card is a fake window:
 
 ## With a friend
 
-Press **Invite** in the bar above and send the link. Whoever opens it is on the **same snippet and theme** — when they type, you see it, and the other way around.
+Press **Invite** in the bar above and send the link. Whoever opens it **lands on this snippet and theme**, not a blank sample — when they type, you see it, and the other way around.
 
 ## Sample
 

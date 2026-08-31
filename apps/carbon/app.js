@@ -136,7 +136,7 @@
     if ($('widthVal')) $('widthVal').textContent = S.width + ' px';
     $('autoW').checked = !!S.autoWidth;
     $('nums').checked = !!S.lineNumbers;
-    $('chrome').checked = !!S.windowControls;
+    $('winChrome').checked = !!S.windowControls;
     $('shadow').checked = !!S.dropShadow;
     if ($('wtheme').value !== S.windowTheme) $('wtheme').value = S.windowTheme;
     if ($('title').value !== (S.title || '')) $('title').value = S.title || '';
@@ -350,7 +350,17 @@
   }
 
   /* ---- PNG export (drawn, not a screenshot of the DOM) ---- */
-  var MONO = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+  /* Vendored Hack — carbon.now.sh's default, packed in the GIF. */
+  var FONT = 'Hack';
+
+  function whenFonts(cb) {
+    if (!document.fonts || !document.fonts.load) { cb(); return; }
+    var px = (S.fontSize || 14) + 'px ' + FONT;
+    Promise.all([
+      document.fonts.load(px),
+      document.fonts.load('italic ' + px)
+    ]).then(function () { cb(); }, function () { cb(); });
+  }
 
   function cssColor(c) { return c || '#000'; }
 
@@ -383,7 +393,7 @@
     var inPadB = 18;
     var charW;
     var measure = document.createElement('canvas').getContext('2d');
-    measure.font = fs + 'px ' + MONO;
+    measure.font = fs + 'px ' + FONT;
     charW = measure.measureText('M').width || fs * 0.6;
     var maxChars = 0, li;
     for (li = 0; li < lines.length; li++) if (lines[li].length > maxChars) maxChars = lines[li].length;
@@ -470,13 +480,14 @@
       }
     }
 
-    ctx.font = fs + 'px ' + MONO;
+    ctx.font = fs + 'px ' + FONT;
     ctx.textBaseline = 'top';
     var x0 = wx + (S.lineNumbers ? 12 : inPadX);
     var y0 = wy + inPadY;
     if (S.lineNumbers) {
       ctx.fillStyle = cssColor(h.comment);
       ctx.textAlign = 'right';
+      ctx.font = fs + 'px ' + FONT;
       for (li = 0; li < lines.length; li++) {
         ctx.fillText(String(li + 1), wx + gutter - 8, y0 + li * lh);
       }
@@ -492,6 +503,7 @@
     var x = x0, y = y0, ti;
     for (ti = 0; ti < toks.length; ti++) {
       var t = toks[ti];
+      ctx.font = (t.type === 'comment' ? 'italic ' : '') + fs + 'px ' + FONT;
       var parts = t.text.split('\n');
       var p;
       for (p = 0; p < parts.length; p++) {
@@ -529,6 +541,9 @@
   }
 
   function exportPng() {
+    whenFonts(function () { exportPng.go(); });
+  }
+  exportPng.go = function () {
     var canvas = drawExport(S.scale || 2);
     canvasToBlob(canvas).then(function (blob) {
       var a = document.createElement('a');
@@ -542,7 +557,7 @@
       keepRecentQuiet();
       libraryPng(blob);
     }).catch(function (e) { say(String((e && e.message) || e), true); });
-  }
+  };
 
   function keepRecentQuiet() {
     if (!recentsDb) return;
@@ -561,6 +576,9 @@
   }
 
   function copyPng() {
+    whenFonts(function () { copyPng.go(); });
+  }
+  copyPng.go = function () {
     var canvas = drawExport(S.scale || 2);
     canvasToBlob(canvas).then(function (blob) {
       if (root.navigator && navigator.clipboard && navigator.clipboard.write && root.ClipboardItem) {
@@ -573,7 +591,7 @@
       exportPng();
       say('Clipboard blocked — downloaded the PNG instead.');
     });
-  }
+  };
 
   function copyCode() {
     var text = S.code;
@@ -687,7 +705,7 @@
     $('width').addEventListener('change', function () { S.width = +$('width').value; S.autoWidth = false; onSetting(); });
     $('autoW').addEventListener('change', function () { S.autoWidth = $('autoW').checked; onSetting(); });
     $('nums').addEventListener('change', function () { S.lineNumbers = $('nums').checked; onSetting(); });
-    $('chrome').addEventListener('change', function () { S.windowControls = $('chrome').checked; onSetting(); });
+    $('winChrome').addEventListener('change', function () { S.windowControls = $('winChrome').checked; onSetting(); });
     $('shadow').addEventListener('change', function () { S.dropShadow = $('shadow').checked; onSetting(); });
     $('wtheme').addEventListener('change', function () { S.windowTheme = $('wtheme').value; onSetting(); });
     $('title').addEventListener('input', function () { S.title = $('title').value.slice(0, 80); paintControls(); });
@@ -760,8 +778,10 @@
     }
 
     function go() {
-      paint();
-      if (Mp) { Mp.watch(); Mp.beat(); }
+      whenFonts(function () {
+        paint();
+        if (Mp) { Mp.watch(); Mp.beat(); }
+      });
     }
 
     if (!api || !api.db) {
@@ -778,6 +798,9 @@
       say('The snippet lives in this file.');
     }).catch(function () { go(); });
   }
+
+  root.CarbonExport = drawExport;
+  root.CarbonFont = FONT;
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();

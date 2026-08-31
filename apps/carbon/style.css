@@ -1,3 +1,18 @@
+@font-face {
+  font-family: Hack;
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("vendor/fonts/hack-regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: Hack;
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url("vendor/fonts/hack-italic.woff2") format("woff2");
+}
+
 :root {
   --page: #121212;
   --ink: #fff;
@@ -130,7 +145,7 @@ body.win-sharp #title-live { left: 16px; right: 80px; text-align: left; }
 #editor {
   display: flex;
   padding: 0 18px 18px 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-family: Hack, monospace;
   font-size: var(--font-size);
   line-height: 1.33;
   font-variant-ligatures: contextual;

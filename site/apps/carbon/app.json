@@ -29,7 +29,7 @@
     "multiplayer"
   ],
   "license": "MIT",
-  "copyright": "Copyright (c) 2022 Carbon",
+  "copyright": "Copyright (c) 2022 Carbon; Copyright (c) 2018 Source Foundry Authors; Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved. Bitstream Vera is a trademark of Bitstream, Inc.",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/carbon",
   "accent": [
     171,
@@ -43,11 +43,11 @@
   "cover": "/apps/carbon/cover.jpg",
   "screenshots": [],
   "gif": "/apps/carbon/carbon.gif",
-  "bytes": 156147,
+  "bytes": 287499,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "5ca1b10f02ead9b214c5064d93fcfab5ee30c35b6d6e68c679ac094f8777adf3",
+  "sha256": "d5fd9325313154929de9837701b6669a312d1ca553d57f60539c4794534d10d0",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
