@@ -1,0 +1,28 @@
+{
+  "gifos": "1.0",
+  "appId": "tiddlywiki",
+  "name": "TiddlyWiki",
+  "shortName": "Wiki",
+  "version": "5.4.1",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [216, 148, 72],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "tiddlers": {
+      "visibility": "read-write"
+    },
+    "prefs": {
+      "visibility": "private"
+    }
+  },
+  "launch": {
+    "tiddler": {
+      "label": "Open a tiddler the link named",
+      "detail": "A tiddler title already in this wiki."
+    }
+  }
+}

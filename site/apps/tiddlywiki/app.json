@@ -1,0 +1,64 @@
+{
+  "catalog": "1.0",
+  "slug": "tiddlywiki",
+  "appId": "tiddlywiki",
+  "name": "TiddlyWiki",
+  "shortName": "Wiki",
+  "version": "5.4.1",
+  "minBuild": 947,
+  "tagline": "The wiki is the GIF — close it, hand it over, or invite someone in.",
+  "description": "TiddlyWiki always was a notebook that lived in one file. This copy keeps that promise: every tiddler is saved inside the app, so the GIF you close is the wiki you open again. Press Invite in the bar above and the same notebook is live with whoever opens the link — no account, no server, nothing to host.\n\nWrite in wiki-text or Markdown. Tag, search, link tiddlers together. The original asks you to download a new HTML file every time you save; here that dance is gone. On a phone the sidebar tucks away and Back closes the tiddler you are reading.\n\nAn unofficial port of TiddlyWiki 5 by Jeremy Ruston and the UnaMesa Association (BSD-3-Clause). Core plugins to actually write notes are bundled, including Markdown.",
+  "author": {
+    "name": "Jeremy Ruston & UnaMesa Association",
+    "url": "https://tiddlywiki.com"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Productivity"
+  ],
+  "tags": [
+    "wiki",
+    "notes",
+    "notebook",
+    "tiddlywiki",
+    "markdown",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "BSD-3-Clause",
+  "copyright": "Copyright (c) 2004-2007, Jeremy Ruston; Copyright (c) 2007-2025, UnaMesa Association",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tiddlywiki",
+  "accent": [
+    216,
+    148,
+    72
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/tiddlywiki/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/tiddlywiki/tiddlywiki.gif",
+  "bytes": 1030538,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "b6892bef2f78dfb13b0f43a0f99c9f3aef3bf0e8ccf8b1fc116a00d7aeddc871",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "TiddlyWiki 5",
+    "url": "https://github.com/TiddlyWiki/TiddlyWiki5",
+    "blessed": false,
+    "donate": "https://opencollective.com/tiddlywiki"
+  }
+}

@@ -1,0 +1,52 @@
+/* Phone + GifOS chrome around an otherwise-vanilla TiddlyWiki. */
+html, body {
+  margin: 0;
+  min-height: 100%;
+  min-height: 100dvh;
+}
+#gifos-boot {
+  font: 16px/1.45 system-ui, -apple-system, Segoe UI, sans-serif;
+  color: #d8dee9;
+  background: #2e3440;
+  padding: 2rem 1.25rem;
+  min-height: 100dvh;
+  box-sizing: border-box;
+}
+@media (max-width: 720px) {
+  .tc-page-controls svg,
+  .tc-tiddler-controls svg {
+    width: 22px;
+    height: 22px;
+  }
+  .tc-btn-invisible,
+  .tc-page-controls button,
+  .tc-tiddler-controls button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .tc-tiddler-frame {
+    margin-left: 6px !important;
+    margin-right: 6px !important;
+    border-radius: 10px;
+  }
+  /* iOS zooms an input under 16px. The editor is the whole point. */
+  textarea,
+  input[type="text"],
+  input:not([type]),
+  .tc-edit-texteditor,
+  .tc-edit-texteditor textarea {
+    font-size: 16px !important;
+  }
+  textarea.tc-edit-texteditor,
+  .tc-edit-texteditor textarea {
+    min-height: 38vh;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tc-tiddler-frame,
+  .tc-drop-down,
+  .tc-sidebar-scrollable {
+    animation: none !important;
+    transition: none !important;
+  }
+}
