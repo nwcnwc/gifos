@@ -16,3 +16,10 @@ string, comment, number, definition, property, …). Nothing is fetched
 at runtime.
 
 The MIT notice travels as COPYING-carbon.txt and is packed into the GIF.
+
+The window and the PNG use Hack (v3.003, latin subset), carbon.now.sh's
+default typeface — Regular + Italic, packed as vendor/fonts/hack-*.woff2
+and inlined as data:font/woff2 in style.css (CSP font-src is data: only;
+no CDN). Family name remains Hack. Notice: COPYING-hack.txt
+(Source Foundry MIT + Bitstream Vera). Source:
+https://github.com/source-foundry/Hack

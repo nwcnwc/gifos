@@ -30,15 +30,26 @@ await import('../../site/js/gifos-gif.js');
 const dir = dirname(fileURLToPath(import.meta.url));
 const gif = globalThis.GifOS.gif;
 const read = (p) => readFileSync(join(dir, p), 'utf8');
+const bin = (p) => readFileSync(join(dir, p));
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
 
 for (const need of [
   'vendor/themes.js', 'vendor/syntax.js',
   'vendor/COPYING-carbon.txt', 'vendor/UPSTREAM.txt',
+  'vendor/fonts/hack-regular.woff2', 'vendor/fonts/hack-italic.woff2',
+  'vendor/fonts/COPYING-hack.txt',
   'COPYING-carbon.txt', 'help.md', 'app.js', 'net.js', 'style.css', 'index.html'
 ]) {
   if (!existsSync(join(dir, need))) throw new Error(need + ' is missing');
+}
+
+function fontDataUrl(rel) {
+  const buf = bin(rel);
+  if (buf[0] !== 0x77 || buf[1] !== 0x4f || buf[2] !== 0x46 || buf[3] !== 0x32) {
+    throw new Error(rel + ' is not woff2');
+  }
+  return 'url("data:font/woff2;base64,' + buf.toString('base64') + '")';
 }
 
 if (manifest.minBuild !== 947 || manifest.appId !== 'carbon') throw new Error('manifest');
@@ -66,21 +77,44 @@ const syntax = read('vendor/syntax.js');
 if (!syntax.includes('tokenize') || !syntax.includes('javascript')) throw new Error('syntax');
 const app = read('app.js');
 if (!app.includes("db('save')") || !app.includes('drawExport')) throw new Error('save/export');
+if (/ui-monospace|Liberation Mono|Menlo/.test(app)) throw new Error('PNG must draw Hack, not system mono');
+if (!app.includes("var FONT = 'Hack'")) throw new Error('canvas font is Hack');
+if (!app.includes("px ' + FONT") && !app.includes('px Hack')) throw new Error('drawExport must use FONT');
 const net = read('net.js');
 if (!net.includes("db('room')") || !net.includes('Invite')) throw new Error('net');
+if (!net.includes('if (owner) publish()')) throw new Error('guest join must not overwrite the host snippet');
 if (/<button\b[^>]*>\s*Invite\s*</i.test(read('index.html'))) throw new Error('Invite is OS chrome');
+const htmlSrc = read('index.html');
+if ((htmlSrc.match(/id="chrome"/g) || []).length !== 1) throw new Error('id=chrome must be the window bar only');
+if (!htmlSrc.includes('id="winChrome"')) throw new Error('window-controls checkbox is winChrome');
+
+let css = read('style.css');
+if (!css.includes('font-family: Hack')) throw new Error('window must use Hack');
+if (/ui-monospace|Liberation Mono|Menlo/.test(css)) throw new Error('CSS still names a system mono');
+if (!css.includes('url("vendor/fonts/hack-regular.woff2")')) throw new Error('regular Hack face');
+if (!css.includes('url("vendor/fonts/hack-italic.woff2")')) throw new Error('italic Hack face');
+css = css.replace(/url\("vendor\/fonts\/([^"]+)"\)/g, (_, n) => fontDataUrl('vendor/fonts/' + n));
+if (css.includes('vendor/fonts/')) throw new Error('CSS still has a relative font url');
+if (!css.includes('data:font/woff2;base64,')) throw new Error('Hack must be a data URL (CSP font-src data:)');
+
+const hackNotice = read('vendor/fonts/COPYING-hack.txt');
+if (!hackNotice.includes('Source Foundry Authors')) throw new Error('COPYING-hack missing Source Foundry');
+if (!hackNotice.includes('BITSTREAM VERA LICENSE')) throw new Error('COPYING-hack missing Bitstream Vera');
 
 const SCRIPTS = ['vendor/themes.js', 'vendor/syntax.js', 'net.js', 'app.js'];
 const files = {
   'manifest.json': JSON.stringify(manifest),
-  'index.html': read('index.html'),
-  'style.css': read('style.css'),
+  'index.html': htmlSrc,
+  'style.css': css,
   'vendor/themes.js': themes,
   'vendor/syntax.js': syntax,
   'net.js': net,
   'app.js': app,
   'COPYING-carbon.txt': read('COPYING-carbon.txt'),
+  'COPYING-hack.txt': hackNotice,
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
+  'vendor/fonts/hack-regular.woff2': bin('vendor/fonts/hack-regular.woff2'),
+  'vendor/fonts/hack-italic.woff2': bin('vendor/fonts/hack-italic.woff2'),
 };
 {
   const helpMd = read('help.md').trim();
@@ -103,6 +137,12 @@ for (const [n, s] of Object.entries(files)) {
   for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(']) {
     if (s.includes(bad)) throw new Error(n + ' uses ' + bad);
   }
+  for (const bad of ['googleapis', 'gstatic', 'cdnjs', 'jsdelivr', 'font-hack']) {
+    if (s.includes(bad)) throw new Error(n + ' CDN ' + bad);
+  }
+}
+if (/googleapis|gstatic|cdnjs|jsdelivr|font-hack/.test(css + html)) {
+  throw new Error('webfont CDN');
 }
 if (!files['COPYING-carbon.txt'].includes('Copyright (c) 2022 Carbon')) throw new Error('COPYING');
 

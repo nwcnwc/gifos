@@ -13,11 +13,12 @@ srcdoc with no network. `vendor/themes.js` is their colour tables;
 
 ```
 index.html           toolbar, the window, settings / recents sheets
-style.css            Carbon chrome (#121212, yellow export, traffic lights)
+style.css            Carbon chrome (#121212, yellow export, traffic lights, Hack)
 vendor/themes.js     THEMES, DEFAULT_CODE, DEFAULT_BG from lib/constants.js
 vendor/syntax.js     highlighter → Carbon highlight keys
-app.js               editor, PNG canvas export, recents, file drop
-net.js               invite shares the live snippet + theme
+vendor/fonts/        Hack Regular + Italic (latin subset) + COPYING-hack.txt
+app.js               editor, PNG canvas export in Hack, recents, file drop
+net.js               invite shares the live snippet + theme (guest joins it)
 icon.mjs             sticker icon + 1200×720 cover
 build.mjs            packs site/apps/carbon/carbon.gif
 ```
@@ -46,4 +47,4 @@ node apps/carbon/build.mjs   # -> site/apps/carbon/carbon.gif
 ## Licence
 
 MIT, Carbon. The notice is packed **inside the GIF** as
-`COPYING-carbon.txt`.
+`COPYING-carbon.txt`. Hack’s notice is `COPYING-hack.txt`.

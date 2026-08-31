@@ -95,7 +95,12 @@
           applyList(list);
         });
       }
-      publish();
+      /* Guest must not publish the default snippet over the host's live row.
+         Subscribe already getAll's — they land on the host's image, then type. */
+      if (owner) publish();
+      else if (me.id) {
+        room.put({ id: 'who_' + me.id, at: Date.now(), name: me.name }).catch(function () {});
+      }
     }).catch(function () {});
   }
 
