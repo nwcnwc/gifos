@@ -1,0 +1,11 @@
+matter-js 0.20.0 (MIT) by Liam Brummitt — https://github.com/liabru/matter-js
+
+Pinned to the npm/build file:
+
+  https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js
+  sha256: 72d30be0f579eb02ce1e0b6f9d359a4f392e6837e5a26ba8be5dbee7f88e24ae
+
+Never fetched at runtime. The playground (boxes, balls, ragdolls, slingshot,
+gravity, the scene that lives in the GIF) is original GifOS chrome around
+that engine. Ragdoll proportions and the slingshot elastic follow the
+upstream examples (examples/ragdoll.js, examples/slingshot.js), same licence.
