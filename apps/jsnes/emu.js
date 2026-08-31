@@ -2,7 +2,9 @@
  * jsnes — canvas, APU, pads, SRAM, quick states.
  *
  * JSNES is the engine (window.jsnes). This file owns the frame loop and
- * the battery RAM that rides in gifos.db so the file is the save.
+ * the battery RAM and last-play snapshot that ride in gifos.db so the
+ * file is the save. Packed sample carts have no battery bit; a snapshot
+ * still lands you where you were.
  */
 (function (root) {
   'use strict';
@@ -33,8 +35,11 @@
   var aqR = 0, aqW = 0, aqN = 0;
   var sramDirty = false;
   var sramTimer = 0;
+  var resumeTimer = 0;
   var onStatus = null;
   var saveSram = null;
+  var saveResume = null;
+  var cartHasBattery = false;
 
   var BTN = (root.jsnes && root.jsnes.Controller) || {
     BUTTON_A: 0, BUTTON_B: 1, BUTTON_SELECT: 2, BUTTON_START: 3,
@@ -59,15 +64,33 @@
     ctx.putImageData(img, 0, 0);
   }
 
+  function romHasBattery(u8) {
+    return !!(u8 && u8.length >= 16 && (u8[6] & 0x02));
+  }
+
+  function padBottom() {
+    if (!document.body.classList.contains('touch')) return 8;
+    var sys = document.getElementById('sys');
+    if (sys) {
+      var r = sys.getBoundingClientRect();
+      if (r.height) return Math.max(120, Math.round((root.innerHeight || 0) - r.top + 8));
+    }
+    return 210;
+  }
+
+  /* Integer 1× on a 390-wide phone is a 256×240 stamp. Quarter steps
+     fill the width (390/256 → 1.5× = 384) without smearing pixels. */
   function fit() {
     var bar = document.getElementById('bar');
     var top = bar ? bar.getBoundingClientRect().height : 36;
-    var bot = document.body.classList.contains('touch') ? 148 : 8;
+    var bot = padBottom();
     var aw = root.innerWidth || 320;
     var ah = Math.max(80, (root.innerHeight || 240) - top - bot);
-    var s = Math.max(1, Math.floor(Math.min(aw / W, ah / H)));
-    canvas.style.width = (W * s) + 'px';
-    canvas.style.height = (H * s) + 'px';
+    var s = Math.min(aw / W, ah / H);
+    if (s >= 1) s = Math.floor(s * 4) / 4;
+    else s = Math.max(0.5, Math.floor(s * 4) / 4);
+    canvas.style.width = Math.round(W * s) + 'px';
+    canvas.style.height = Math.round(H * s) + 'px';
   }
 
   function pushSample(l, r) {
@@ -167,6 +190,10 @@
       sramTimer = now;
       saveSram(readSram());
     }
+    if (running && !paused && saveResume && now - resumeTimer > 8000) {
+      resumeTimer = now;
+      saveResume(toState(), cartHasBattery ? readSram() : null);
+    }
   }
 
   function makeNes() {
@@ -176,7 +203,7 @@
       onFrame: paint,
       onAudioSample: pushSample,
       onBatteryRamWrite: function () {
-        sramDirty = true;
+        if (cartHasBattery) sramDirty = true;
       }
     });
   }
@@ -191,25 +218,40 @@
   function writeSram(bytes) {
     if (!nes || !bytes) return;
     var n = Math.min(SRAM, bytes.length);
-    for (var i = 0; i < n; i++) nes.cpu.mem[SRAM_AT + i] = bytes[i] & 0xff;
-    nes.rom.batteryRam = bytes;
+    var ram = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    for (var i = 0; i < n; i++) nes.cpu.mem[SRAM_AT + i] = ram[i] & 0xff;
+    nes.rom.batteryRam = ram;
+  }
+
+  function flushNow() {
+    if (sramDirty && saveSram && cartHasBattery) {
+      sramDirty = false;
+      saveSram(readSram());
+    }
+    if (saveResume && nes && running) {
+      resumeTimer = (root.performance && performance.now()) || Date.now();
+      saveResume(toState(), cartHasBattery ? readSram() : null);
+    }
   }
 
   function loadROM(bytes, meta, sram) {
     if (!root.jsnes || !root.jsnes.NES) throw new Error('jsnes failed to load');
     unlockAudio();
     stop();
+    cartHasBattery = romHasBattery(bytes);
     nes = makeNes();
     nes.loadROM(bytes);
     p1 = 0; p2 = 0;
     if (sram) writeSram(sram);
     cart = {
       id: meta.id, name: meta.name, hash: meta.hash,
-      bytes: bytes, sample: !!meta.sample, by: meta.by || ''
+      bytes: bytes, sample: !!meta.sample, by: meta.by || '',
+      battery: cartHasBattery
     };
     running = true;
     paused = false;
     lastT = 0; acc = 0;
+    resumeTimer = 0;
     document.body.classList.add('running');
     if (!raf) raf = root.requestAnimationFrame(loop);
     fit();
@@ -218,21 +260,26 @@
   }
 
   function stop() {
+    if (running) flushNow();
     running = false;
-    if (sramDirty && saveSram) { sramDirty = false; saveSram(readSram()); }
   }
 
   function reset() {
     if (!nes) return;
+    var ram = cartHasBattery ? readSram() : null;
     nes.reloadROM();
     p1 = 0; p2 = 0;
     paused = false;
+    if (ram) writeSram(ram);
+    resumeTimer = 0;
+    if (saveResume) saveResume(toState(), ram);
     if (onStatus) onStatus('reset');
   }
 
   function setPaused(on) {
     paused = !!on;
     lastT = 0;
+    if (paused) flushNow();
     if (onStatus) onStatus(paused ? 'pause' : 'run');
   }
 
@@ -252,6 +299,7 @@
     try {
       nes.fromJSON(typeof s === 'string' ? JSON.parse(s) : s);
       p1 = 0; p2 = 0;
+      try { nes.frame(); } catch (e2) {}
       return true;
     } catch (e) { return false; }
   }
@@ -291,7 +339,12 @@
   root.addEventListener('keydown', function (e) { onKey(e, true); });
   root.addEventListener('keyup', function (e) { onKey(e, false); });
   root.addEventListener('resize', fit);
+  if (root.visualViewport) root.visualViewport.addEventListener('resize', fit);
   root.addEventListener('pointerdown', unlockAudio, { once: false });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) flushNow();
+  });
+  root.addEventListener('pagehide', flushNow);
 
   root.Emu = {
     BTN: BTN,
@@ -310,12 +363,16 @@
     localMask: function () { return localMask; },
     cart: function () { return cart; },
     running: function () { return running; },
+    romHasBattery: romHasBattery,
+    hasBattery: function () { return cartHasBattery; },
     readSram: readSram,
     writeSram: writeSram,
     toState: toState,
     fromState: fromState,
+    flushNow: flushNow,
     kick: function () { if (!raf) raf = root.requestAnimationFrame(loop); },
     onSaveSram: function (fn) { saveSram = fn; },
+    onSaveResume: function (fn) { saveResume = fn; },
     onStatus: function (fn) { onStatus = fn; },
     hashBytes: function (u8) {
       var h = 2166136261;

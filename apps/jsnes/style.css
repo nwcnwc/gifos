@@ -23,8 +23,13 @@ button:active, button.on { background: #4a3028; }
   background: rgba(20, 17, 14, .92);
   border-bottom: 1px solid rgba(239, 230, 216, .12);
   font-size: 13px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
 }
-#bar .grow { flex: 1; }
+#bar::-webkit-scrollbar { display: none; }
+#bar button { flex: 0 0 auto; }
+#bar .grow { flex: 1; min-width: .4rem; }
 #cart-name { font-weight: 650; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 28vw; }
 #who { font-size: 12px; color: rgba(239, 230, 216, .7); white-space: nowrap; }
 #btn-slot { min-width: 2rem; text-align: center; }
@@ -89,14 +94,16 @@ body.running #hint { display: none; }
 }
 #touch[hidden] { display: none; }
 body:not(.touch) #touch { display: none !important; }
-body.touch #stage { bottom: 9.2rem; }
+/* Select/Start sit ABOVE the d-pad and A/B. Parking them in the gutter
+   put Start under B at 390px — Lawn Mower's title is PRESS START. */
+body.touch #stage { bottom: calc(12.6rem + env(safe-area-inset-bottom)); }
 
 #dpad {
   pointer-events: auto;
   position: absolute;
-  left: max(.7rem, env(safe-area-inset-left));
-  bottom: max(.7rem, env(safe-area-inset-bottom));
-  width: 9.2rem; height: 9.2rem;
+  left: max(.5rem, env(safe-area-inset-left));
+  bottom: max(.5rem, env(safe-area-inset-bottom));
+  width: 8.6rem; height: 8.6rem;
 }
 .d-plus {
   position: absolute; inset: 1.5rem;
@@ -116,15 +123,18 @@ body.touch #stage { bottom: 9.2rem; }
 #sys {
   pointer-events: none;
   position: absolute;
-  left: 50%; bottom: max(1.4rem, env(safe-area-inset-bottom));
+  left: 50%;
+  bottom: calc(max(.5rem, env(safe-area-inset-bottom)) + 9.1rem);
   transform: translateX(-50%);
-  display: flex; gap: .55rem;
+  display: flex; gap: .5rem;
+  z-index: 3;
 }
 .sys {
   pointer-events: auto;
-  width: 4.4rem; height: 1.7rem;
+  width: 5.2rem; height: 2.75rem;
+  min-height: 44px;
   border-radius: 999px;
-  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
   background: #2e2924; color: #c8bfb2;
 }
 .sys.on { background: #6a5040; color: #fff; }
@@ -132,24 +142,30 @@ body.touch #stage { bottom: 9.2rem; }
 #face {
   pointer-events: none;
   position: absolute;
-  right: max(.8rem, env(safe-area-inset-right));
-  bottom: max(1.4rem, env(safe-area-inset-bottom));
-  width: 9.2rem; height: 5.6rem;
+  right: max(.5rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  width: 7.8rem; height: 5.4rem;
 }
 .face {
   pointer-events: auto;
   position: absolute;
-  width: 4.1rem; height: 4.1rem;
+  width: 3.6rem; height: 3.6rem;
   border-radius: 50%;
   font-weight: 800; font-size: 1rem; letter-spacing: .04em;
   border: 2px solid #6a1c1a;
   background: #c42c28; color: #2a0a08;
   box-shadow: 0 3px 0 #6a1c1a;
 }
-.face.b { left: 0; top: 1.2rem; }
+.face.b { left: 0; top: 1.4rem; }
 .face.a { right: 0; top: 0; }
 .face.on { background: #ff6a5c; transform: translateY(2px); box-shadow: 0 1px 0 #6a1c1a; }
 
+@media (max-width: 560px) {
+  #bar { font-size: 12px; gap: .22rem; padding: .28rem .4rem; padding-top: max(.28rem, env(safe-area-inset-top)); }
+  #bar button { padding: .22rem .42rem; }
+  #cart-name { max-width: 0; margin: 0; padding: 0; opacity: 0; pointer-events: none; }
+}
+
 @media (min-width: 720px) {
-  body.touch #stage { bottom: 10.5rem; }
+  body.touch #stage { bottom: calc(13.2rem + env(safe-area-inset-bottom)); }
 }
