@@ -1,0 +1,67 @@
+{
+  "catalog": "1.0",
+  "slug": "monaco-code",
+  "appId": "monaco-code",
+  "name": "Monaco Code",
+  "shortName": "Monaco",
+  "version": "1.0.0",
+  "minBuild": 1178,
+  "tagline": "VS Code’s editor, in a file. One invite is a pair session.",
+  "description": "The buffers live in this file — close it, come back, your TypeScript is still there, and it works on a plane. Press Invite in the bar above and a friend types in the same editor. No account, no server, no pastebin.\n\nThis is the real Monaco editor from VS Code, not a JSON form: IntelliSense for JavaScript and TypeScript, JSON validation as you type, Markdown, a file tree, Find, format, a minimap. On a phone the files sit behind one tap and the keyboard still leaves room to edit.\n\nAn unofficial port of the Monaco Editor by Microsoft. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Microsoft",
+    "url": "https://github.com/microsoft/monaco-editor"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Developer",
+    "Utilities"
+  ],
+  "tags": [
+    "monaco",
+    "vscode",
+    "editor",
+    "typescript",
+    "javascript",
+    "json",
+    "markdown",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2016 - present Microsoft Corporation",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/monaco-code",
+  "accent": [
+    0,
+    122,
+    204
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "wasm": true
+  },
+  "cover": "/apps/monaco-code/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/monaco-code/monaco-code.gif",
+  "bytes": 4321220,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "f36197bce20eed064994d0f8aa1c179068cb9db0831915e4efabdb6b451a1116",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Monaco Editor",
+    "url": "https://github.com/microsoft/monaco-editor",
+    "blessed": false
+  }
+}

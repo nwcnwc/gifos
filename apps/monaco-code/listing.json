@@ -1,0 +1,40 @@
+{
+  "tagline": "VS Code’s editor, in a file. One invite is a pair session.",
+  "description": "The buffers live in this file — close it, come back, your TypeScript is still there, and it works on a plane. Press Invite in the bar above and a friend types in the same editor. No account, no server, no pastebin.\n\nThis is the real Monaco editor from VS Code, not a JSON form: IntelliSense for JavaScript and TypeScript, JSON validation as you type, Markdown, a file tree, Find, format, a minimap. On a phone the files sit behind one tap and the keyboard still leaves room to edit.\n\nAn unofficial port of the Monaco Editor by Microsoft. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Microsoft",
+    "url": "https://github.com/microsoft/monaco-editor"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Monaco Editor",
+    "url": "https://github.com/microsoft/monaco-editor",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Developer",
+    "Utilities"
+  ],
+  "tags": [
+    "monaco",
+    "vscode",
+    "editor",
+    "typescript",
+    "javascript",
+    "json",
+    "markdown",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/monaco-code",
+  "cover": "screenshot.png",
+  "coverCrop": {
+    "top": 0
+  },
+  "screenshots": []
+}

@@ -1,0 +1,28 @@
+{
+  "gifos": "1.0",
+  "appId": "monaco-code",
+  "name": "Monaco Code",
+  "shortName": "Monaco",
+  "version": "1.0.0",
+  "minBuild": 1178,
+  "description": "VS Code’s editor. The buffers live in this file. Invite is a pair session.",
+  "entry": "index.html",
+  "accent": [0, 122, 204],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "wasm": true
+  },
+  "data": {
+    "files": { "visibility": "read-write" },
+    "cursors": { "visibility": "read-write" },
+    "prefs": { "visibility": "private" }
+  },
+  "launch": {
+    "file": {
+      "label": "Open a file the link named",
+      "detail": "A file name already in this editor."
+    }
+  }
+}
