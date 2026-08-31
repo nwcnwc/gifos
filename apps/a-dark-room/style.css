@@ -78,9 +78,20 @@ div.button {
   align-items: center;
   justify-content: center;
   font-size: 16px;
+  z-index: 1;
 }
-div.button div.cooldown { z-index: 0; }
-div.button { z-index: 1; }
+/* Original cooldown is #DDD at z-index -1. Lights-off (the first run) made
+   that a white slab over #EEE text — stoke looked empty. Keep it under the
+   label; a dim fill reads on both themes. */
+div.button div.cooldown {
+  z-index: -1;
+  background-color: rgba(160, 140, 90, 0.35);
+}
+#lightButton, #stokeButton {
+  min-height: 44px;
+  min-width: 132px;
+  font-size: 18px;
+}
 
 .menu {
   max-width: calc(100% - 24px);
@@ -97,7 +108,13 @@ div.button { z-index: 1; }
 }
 
 @media (max-width: 720px) {
+  html, body {
+    height: auto;
+    min-height: 100%;
+  }
   div#wrapper {
+    display: flex;
+    flex-direction: column;
     width: 100%;
     max-width: 100%;
     margin: 0;
@@ -106,12 +123,24 @@ div.button { z-index: 1; }
   }
   div#content {
     height: auto;
-    min-height: 70vh;
+    min-height: 0;
     overflow: visible;
   }
+  /* Slider parents must stay in flow. Hiding them (the old 720px rule) made
+     #roomPanel 0×0 on a phone — only the log painted. Inactive locations
+     hide; the active one is .adr-active. World/Space live as siblings of
+     #main on #outerSlider, so hide #main when it has no active child. */
   div#outerSlider,
   div#outerSlider > div,
-  div#locationSlider,
+  div#locationSlider {
+    position: relative !important;
+    float: none;
+    width: 100% !important;
+    height: auto !important;
+    left: 0 !important;
+    top: 0 !important;
+    overflow: visible !important;
+  }
   div.location {
     position: relative;
     float: none;
@@ -122,6 +151,9 @@ div.button { z-index: 1; }
   }
   div.location.adr-active {
     display: block !important;
+  }
+  #main:not(:has(.location.adr-active)) {
+    display: none !important;
   }
   div#header {
     height: auto;
@@ -137,6 +169,7 @@ div.button { z-index: 1; }
     padding: 8px 0 8px 10px;
   }
   div#notifications {
+    order: -1;
     position: relative;
     top: 0;
     left: 0;
@@ -187,7 +220,9 @@ div.button { z-index: 1; }
     width: auto !important;
     max-width: calc(100% - 16px);
   }
-  #buttons > .button {
+  #buttons > .button,
+  #roomPanel > .button,
+  #outsidePanel > .button {
     min-height: 44px;
   }
   body.adr-pad-on div#wrapper { padding-bottom: 220px; }
