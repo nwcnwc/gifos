@@ -25,6 +25,16 @@
 
   <div id="stage">
     <div id="graphs">
+      <div id="files" hidden>
+        <div class="files-col">
+          <b>Working Directory</b>
+          <ul id="workdir"></ul>
+        </div>
+        <div class="files-col">
+          <b>Staging Area</b>
+          <ul id="staged"></ul>
+        </div>
+      </div>
       <svg id="graph" aria-label="Commit graph"></svg>
       <div id="origin-wrap" hidden>
         <svg id="origin" aria-label="Origin graph"></svg>
@@ -33,6 +43,16 @@
     <aside id="side">
       <div id="goal-block">
         <b>Goal</b>
+        <div id="goal-files" hidden>
+          <div class="files-col">
+            <b>Working Directory</b>
+            <ul id="goal-workdir"></ul>
+          </div>
+          <div class="files-col">
+            <b>Staging Area</b>
+            <ul id="goal-staged"></ul>
+          </div>
+        </div>
         <svg id="goal" aria-label="Goal graph"></svg>
       </div>
       <div id="status"></div>

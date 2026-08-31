@@ -20,7 +20,9 @@
     solvedSet: {},
     golf: {},
     seenLesson: {},
-    goLevel: goLevel
+    racing: false,
+    goLevel: goLevel,
+    touchSave: function () { saveSoon(); }
   };
   root.LGBApp = G;
 
@@ -81,15 +83,18 @@
       originWrap.hidden = true;
     }
     var lv = currentLevel();
+    var goal = null;
     if (G.mode === 'level' && lv && goalSvg) {
       $('goal-block').hidden = false;
       try {
-        var goal = LGB.unescapeTree(lv.goalTreeString);
+        goal = LGB.unescapeTree(lv.goalTreeString);
         root.LGBVis.render(goalSvg, goal, { title: 'Goal' });
       } catch (e) {}
     } else {
       $('goal-block').hidden = true;
     }
+    paintFiles(tree, 'files', 'workdir', 'staged');
+    paintFiles(goal || {}, 'goal-files', 'goal-workdir', 'goal-staged');
 
     var status = $('status');
     if (G.mode === 'sandbox') {
@@ -113,7 +118,32 @@
 
     $('solved-banner').hidden = !(G.mode === 'level' && G.solved);
     document.body.classList.toggle('has-origin', !!tree.originTree);
+    document.body.classList.toggle('has-files', !$('files').hidden);
     fillSelect();
+  }
+
+  function paintFiles(tree, wrapId, wdId, stId) {
+    var wrap = $(wrapId);
+    var wdEl = $(wdId);
+    var stEl = $(stId);
+    if (!wrap || !wdEl || !stEl) return;
+    var w = (tree && tree.workingChanges) || {};
+    var engaged = !!(tree && (tree.changesModelEngaged || Object.keys(w).length));
+    wrap.hidden = !engaged;
+    if (!engaged) return;
+    var wd = [];
+    var st = [];
+    Object.keys(w).sort().forEach(function (p) {
+      if (w[p] === 'staged') st.push(p);
+      else wd.push(p);
+    });
+    function fill(el, names) {
+      el.innerHTML = names.length
+        ? names.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('')
+        : '<li class="empty">empty</li>';
+    }
+    fill(wdEl, wd);
+    fill(stEl, st);
   }
 
   function logLine(kind, text) {
@@ -227,13 +257,13 @@
     engine.disabledMap = lv.disabledMap || {};
     engine.loadTree(lv.startTree);
     $('level-sheet').hidden = true;
+    $('lesson').hidden = true;
     $('select').value = id;
     if (!opts.silent) logLine('ok', 'Lesson: ' + lv.name);
     paint();
     if (!opts.freshSkipLesson && !G.seenLesson[id] && lv.slides && lv.slides.length && !opts.race) {
       openLesson(0);
     }
-    if (opts.race && root.LGBNet) { /* already joining */ }
     saveSoon();
     if (!opts.race && root.LGBNet && root.LGBNet.live()) root.LGBNet.onLevel(id);
   }
@@ -413,7 +443,8 @@
       solved: G.solved,
       solvedSet: G.solvedSet,
       golf: G.golf,
-      seenLesson: G.seenLesson
+      seenLesson: G.seenLesson,
+      racing: !!G.racing
     }).catch(function () {});
   }
 
@@ -426,6 +457,7 @@
     G.mode = row.mode === 'sandbox' ? 'sandbox' : 'level';
     G.commandCount = row.commandCount || 0;
     G.solved = !!row.solved;
+    G.racing = !!row.racing;
     if (row.tree) engine.loadTree(row.tree);
     else if (G.mode === 'sandbox') engine.loadTree(null);
     else {
@@ -544,16 +576,14 @@
         }
       }
       paint();
-      if (G.mode === 'level' && currentLevel() && currentLevel().slides && !G.seenLesson[G.levelId]) {
+      return root.LGBNet ? root.LGBNet.init() : { owner: true, others: 0 };
+    }).then(function () {
+      if (root.LGBNet) root.LGBNet.bootJoin();
+      var inRace = root.LGBNet && root.LGBNet.live();
+      if (!inRace && G.mode === 'level' && currentLevel() && currentLevel().slides && !G.seenLesson[G.levelId]) {
         openLesson(0);
       }
     });
-
-    if (root.LGBNet) {
-      root.LGBNet.init().then(function (room) {
-        if (room && room.others > 0) root.LGBNet.join(G.levelId);
-      });
-    }
 
     if (root.gifos && root.gifos.launch) {
       root.gifos.launch().then(function (a) {

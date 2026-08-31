@@ -102,7 +102,12 @@
     Object.keys(tags).forEach(function (name) {
       addLabel(name, tags[name].target, 'tag', 48);
     });
-    if (tree.HEAD) addLabel('HEAD', tree.HEAD.target, 'head', 0);
+    if (tree.HEAD) {
+      var headAt = tree.HEAD.target;
+      if (branches[headAt]) headAt = branches[headAt].target;
+      else if (tags[headAt]) headAt = tags[headAt].target;
+      addLabel('HEAD', headAt, 'head', 0);
+    }
 
     var width = PADX * 2 + (colCount - 1) * XGAP + 120;
     var height = PADY * 2 + maxD * YGAP;
@@ -192,7 +197,7 @@
       c.appendChild(t);
       g.appendChild(c);
 
-      var labs = labelStack(L.labels, id);
+      var labs = labelStack(L.labels, id).filter(function (l) { return l.kind !== 'file'; });
       var x = n.x + n.r + 10;
       var y = n.y - (labs.length - 1) * 11;
       labs.forEach(function (lab, i) {
@@ -217,6 +222,18 @@
         });
         tx.textContent = lab.text;
         g.appendChild(tx);
+      });
+      var files = (tree.commits && tree.commits[id] && tree.commits[id].changedFiles) || [];
+      files.forEach(function (f, i) {
+        var ft = svgEl('text', {
+          x: n.x, y: n.y + n.r + 12 + i * 11,
+          'text-anchor': 'middle',
+          fill: 'rgba(232,240,248,.72)',
+          'font-size': 9,
+          'font-family': 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+        });
+        ft.textContent = f;
+        g.appendChild(ft);
       });
     });
 
