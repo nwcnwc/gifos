@@ -1,0 +1,19 @@
+monkeytype — https://github.com/monkeytypegame/monkeytype
+Pin: 91bd24bb8513785c7364cbea29296ff7adafac41 (master, 2026-08-15)
+Licence: GNU GPL-3.0
+
+Vendored into this GifOS port:
+
+- frontend/static/languages/english.json        (200 most-frequent English words)
+- frontend/static/languages/english_1k.json     (1000 most-frequent English words)
+- frontend/static/quotes/english.json           (82 of 6488 quotes, ASCII, spread
+                                                across short/medium/long/thicc)
+- theme palettes transcribed from
+  frontend/static/themes/*.css                  (colours only; no webfonts)
+
+The huge React/TypeScript frontend is not shipped. This directory is a
+classic-script recreation of the typing TEST (words, quotes, WPM/acc, caret,
+themes, live race) so it can run inside a sandboxed App GIF with no network.
+
+A copy of this app is a distribution of that GPL-3 work — COPYING.txt rides
+inside the GIF.

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Monkeytype</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="logo" id="logoBtn" aria-label="Monkeytype">monkey<span>type</span></div>
+  <div class="live" id="live" hidden>
+    <b id="liveTime">30</b>
+    <span id="liveWpm">-</span>
+    <span id="liveAcc">-</span>
+  </div>
+  <div class="pb" id="pbHint"></div>
+</header>
+
+<nav class="config" id="config">
+  <div class="seg">
+    <button type="button" id="pPunct" title="punctuation">@</button>
+    <button type="button" id="pNums" title="numbers">#</button>
+  </div>
+  <i class="sep"></i>
+  <div class="seg">
+    <button type="button" id="mTime">time</button>
+    <button type="button" id="mWords">words</button>
+    <button type="button" id="mQuote">quote</button>
+  </div>
+  <i class="sep"></i>
+  <div class="seg" id="mode2"></div>
+  <i class="sep"></i>
+  <button type="button" id="langBtn" class="lang">english</button>
+</nav>
+
+<main>
+  <div id="cd" class="cd" hidden>3</div>
+  <div id="raceBars" class="race-bars" hidden></div>
+
+  <section id="testView">
+    <div class="words-wrap" id="wordsWrap">
+      <input id="wordsInput" class="hidden-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Type here">
+      <div id="caret" class="caret" hidden></div>
+      <div id="words" class="words"></div>
+      <div class="veil" id="veil">click to focus</div>
+    </div>
+    <p class="quote-src" id="quoteSrc" hidden></p>
+    <p class="hint">
+      <kbd>tab</kbd> restart
+      <kbd>esc</kbd> commands
+      <button type="button" class="texty" id="restartBtn">restart</button>
+      <button type="button" class="texty" id="raceBtn">race a friend</button>
+    </p>
+  </section>
+
+  <section id="resultView" hidden>
+    <p class="pb-flag" id="rPb" hidden>new pb</p>
+    <div class="stats">
+      <div class="big">
+        <span class="lbl">wpm</span>
+        <b id="rWpm">0</b>
+      </div>
+      <div class="big">
+        <span class="lbl">acc</span>
+        <b id="rAcc">0%</b>
+      </div>
+      <div class="grid">
+        <div><span class="lbl">raw</span><b id="rRaw">0</b></div>
+        <div><span class="lbl">consistency</span><b id="rCons">0%</b></div>
+        <div><span class="lbl">time</span><b id="rTime">0s</b></div>
+        <div><span class="lbl">characters</span><b id="rChars">0</b></div>
+      </div>
+    </div>
+    <p class="mode-line" id="rMode"></p>
+    <ul class="hist" id="rHist" hidden></ul>
+    <div class="row">
+      <button type="button" class="primary" id="nextBtn">next test</button>
+      <button type="button" class="ghost" id="rRace">race a friend</button>
+    </div>
+    <p class="hint"><kbd>tab</kbd> or <kbd>enter</kbd> next test · bests stay in this file</p>
+  </section>
+
+  <section id="raceView" hidden>
+    <h2>Race a friend</h2>
+    <p class="lede" id="raceStatus">Press Invite in the bar above the app and send the link. Whoever opens it races you on the same words.</p>
+    <ol class="people" id="racePeople"></ol>
+    <button type="button" class="primary" id="raceStart">Start race</button>
+    <p class="wait" id="raceWait" hidden>Waiting for the host to start.</p>
+    <button type="button" class="ghost" id="raceLeave">← practice instead</button>
+  </section>
+</main>
+
+<div id="cmd" class="cmd" hidden>
+  <div class="cmd-box">
+    <label>&gt; <input id="cmdIn" type="text" autocomplete="off" spellcheck="false" placeholder="theme serika dark, time 60, race a friend…"></label>
+    <div id="cmdList" class="cmd-list"></div>
+  </div>
+</div>
+
+<script src="vendor/data.js"></script>
+<script src="engine.js"></script>
+<script src="net.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
