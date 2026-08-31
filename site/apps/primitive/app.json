@@ -1,0 +1,62 @@
+{
+  "catalog": "1.0",
+  "slug": "primitive",
+  "appId": "primitive",
+  "name": "Primitive",
+  "shortName": "Primitive",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Redraw a photo as triangles — on this device, saved in the file.",
+  "description": "The photo and the reconstruction live in this file. Close it, open it later, the triangles are still there — not redrawn from scratch. Take a still or open a picture; nothing is sent anywhere.\n\nThis is the same algorithm as primitive.lol: add one triangle (or rectangle, ellipse, smiley) at a time until a picture appears. Hold the result to see the original. Quick / Classic / Fine pick how many shapes. Stop whenever the likeness is enough. Download a PNG or the SVG.\n\nAn unofficial port of primitive.js by Ondřej Žára.",
+  "author": {
+    "name": "Ondřej Žára",
+    "url": "https://github.com/ondras/primitive.js"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "primitive",
+    "triangles",
+    "photo",
+    "geometric",
+    "art",
+    "offline"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (C) 2016 Ondřej Žára, Michael Fogleman",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/primitive",
+  "accent": [
+    236,
+    92,
+    64
+  ],
+  "capabilities": {
+    "db": true,
+    "camera": true
+  },
+  "cover": "/apps/primitive/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/primitive/primitive.gif",
+  "bytes": 203641,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "7cffdc0263ed5f7bb157f4b3db409b10862cc8618f32852572f0df8c17f069ec",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "primitive.js",
+    "url": "https://github.com/ondras/primitive.js",
+    "blessed": false
+  }
+}
