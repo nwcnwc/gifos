@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ffmpeg.wasm Studio</title>
+<!--
+  DELIBERATELY no src/href pointing at the packed wasm. The runtime would
+  inline it as a data: URL. The converter wasm is a hash-pinned install
+  asset; glue rides inside worker-src.js. app.js pulls wasm with gifos.assets().
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <h1>ffmpeg.wasm Studio</h1>
+    </div>
+    <p class="tag">Trim, MP3, GIF — on this device. Nothing is uploaded.</p>
+  </header>
+
+  <section class="card" id="dropcard">
+    <div id="drop" role="button" tabindex="0">
+      <div class="drop-ico" aria-hidden="true">✂</div>
+      <p><b>Drop a video or audio file</b> or tap to choose</p>
+      <p class="hint">MP4, MOV, WebM, MKV, MP3, WAV, M4A. On a phone: pick and wait.</p>
+    </div>
+    <input id="file" type="file" accept="video/*,audio/*,.mp4,.mov,.mkv,.webm,.avi,.mp3,.wav,.m4a,.aac,.ogg,.gif,.m4v">
+    <div id="filemeta" class="filemeta" hidden></div>
+  </section>
+
+  <section class="card" id="jobcard">
+    <div class="jobs" id="jobs" role="tablist" aria-label="Job"></div>
+
+    <div id="fields" class="fields"></div>
+
+    <div class="row">
+      <button id="run" class="primary" disabled>Run</button>
+      <button id="clear" class="ghost" type="button">Another file</button>
+    </div>
+    <div class="bar" id="bar"><i id="barfill"></i></div>
+    <p id="status" class="status"></p>
+    <p id="engine" class="engine"></p>
+  </section>
+
+  <section class="card" id="outcard" hidden>
+    <div class="cap">Result <span id="outmeta"></span></div>
+    <div id="preview" class="preview" hidden></div>
+    <div class="row">
+      <button id="download" class="primary" type="button">Download</button>
+      <button id="keep" class="ghost" type="button">Keep in this file</button>
+    </div>
+  </section>
+
+  <details class="card logcard" id="logcard">
+    <summary>Log</summary>
+    <pre id="log" class="log"></pre>
+  </details>
+
+  <section class="card" id="history" hidden>
+    <div class="cap">Kept on this device</div>
+    <ul id="histlist"></ul>
+  </section>
+
+  <p class="foot">Unofficial port of <b>ffmpeg.wasm</b> by Jerome Wu. The clip never leaves this browser. GPL-2.0-or-later (FFmpeg core).</p>
+</div>
+<script src="worker-src.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

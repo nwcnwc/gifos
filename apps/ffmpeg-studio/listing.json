@@ -1,0 +1,36 @@
+{
+  "tagline": "Trim, MP3, GIF — ffmpeg one-liners on this device. Nothing is uploaded.",
+  "description": "Drop a clip, pick a job, wait. Trim, convert to MP3, or make a GIF — the file never leaves this device, and the result can live in this app so you close it and come back still holding the output. HandBrake and the ffmpeg CLI need an install; this is one file in a browser tab.\n\nInstalling also downloads the converter (about 31 MB). After that it stays on this device, and later clips start without another download. A phone is pick-and-wait: short clips are the sweet spot, a two-hour film is not.\n\nJobs: trim (fast copy, or re-encode if you need it), to MP3, to GIF (first eight seconds, 320 px, unless you change it), to MP4, extract audio, or a custom ffmpeg command. Play the result here, download it, or keep it in this file.\n\nAn unofficial port of ffmpeg.wasm by Jerome Wu. The converter is the published @ffmpeg/core build. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Jerome Wu",
+    "url": "https://github.com/ffmpegwasm/ffmpeg.wasm"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "ffmpeg.wasm",
+    "url": "https://github.com/ffmpegwasm/ffmpeg.wasm",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Media",
+    "Utilities"
+  ],
+  "tags": [
+    "ffmpeg",
+    "convert",
+    "trim",
+    "mp3",
+    "gif",
+    "video",
+    "audio",
+    "offline"
+  ],
+  "license": "GPL-2.0-or-later",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/ffmpeg-studio",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
