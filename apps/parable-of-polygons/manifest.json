@@ -1,0 +1,25 @@
+{
+  "gifos": "1.0",
+  "appId": "parable-of-polygons",
+  "name": "Parable of the Polygons",
+  "shortName": "Polygons",
+  "version": "1.0.0",
+  "minBuild": 2154,
+  "entry": "index.html",
+  "accent": [245, 195, 24],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "links": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "town": { "visibility": "read-write" }
+  },
+  "launch": {
+    "at": {
+      "label": "Open at a chapter",
+      "detail": "intro, bias, past, diversity, sandbox, or wrap."
+    }
+  }
+}

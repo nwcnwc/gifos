@@ -1,0 +1,64 @@
+{
+  "catalog": "1.0",
+  "slug": "parable-of-polygons",
+  "appId": "parable-of-polygons",
+  "name": "Parable of the Polygons",
+  "shortName": "Polygons",
+  "version": "1.0.0",
+  "minBuild": 2154,
+  "tagline": "Nicky Case’s Schelling explorable, offline — last sliders stay, one invite shares the town.",
+  "description": "Close it and the sliders are where you left them. Send the invite and a friend lands in the same triangle/square town. No account, no tab left open on the original site, and it runs on a plane.\n\nThis is still the playable post: the words, the unhappy wiggle, the graph that climbs as a tiny bias splits a mixed crowd. Drag the shaking ones. Start the sim. Lower the bias on a world that already segregated — nothing mixes back until someone demands a little diversity.\n\nAn unofficial port of Parable of the Polygons by Vi Hart and Nicky Case, public domain. The essay is the point; this copy just keeps the town.",
+  "author": {
+    "name": "Vi Hart & Nicky Case",
+    "url": "https://ncase.me/polygons/"
+  },
+  "releaseDate": "2026-08-31",
+  "updated": "2026-08-31",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "polygons",
+    "schelling",
+    "segregation",
+    "explorable",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "CC0-1.0",
+  "copyright": "",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/parable-of-polygons",
+  "accent": [
+    245,
+    195,
+    24
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "links": true
+  },
+  "cover": "/apps/parable-of-polygons/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/parable-of-polygons/parable-of-polygons.gif",
+  "bytes": 240118,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "b9be8785054c816e5d841d4532da6d18f5ac6c708a1c8a05de01136c85d467f4",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Parable of the Polygons",
+    "url": "https://github.com/ncase/polygons",
+    "blessed": false,
+    "donate": "https://www.patreon.com/ncase"
+  }
+}

@@ -1,0 +1,17 @@
+Parable of the Polygons
+https://github.com/ncase/polygons
+commit 3ec3fd74a52ce24f74790a47f117d1a3abefbbb7 (gh-pages, 2022-11-07)
+https://ncase.me/polygons/
+
+Public domain (CC0-1.0). Vi Hart + Nicky Case.
+
+The cute triangle/square PNGs in vendor/img/ are the original sprites.
+segregated.txt is the 20×20 "world starts segregated" snapshot from
+play/automatic/automatic_start_segregated.js, stored as a digit grid
+(0 empty, 1 square, 2 triangle) instead of the pixel-position JSON.
+
+The sandbox cannot run the original's per-sim iframes (the app is one
+srcdoc document), so town.js is a multi-instance rewrite of the same
+Schelling rules in play/automatic/automatic.js, play/mini/mini.js and
+play/manual/manual.js. Bias, nonconform, neighbour radius, the 0-neighbour
+exception, and the random-empty-spot step are kept.
