@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "otpauth",
+  "name": "OTP Auth",
+  "shortName": "OTP",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Authenticator codes that live in this file. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [64, 210, 180],
+  "help": "help.md",
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "accounts": { "visibility": "private" },
+    "prefs": { "visibility": "private" }
+  }
+}

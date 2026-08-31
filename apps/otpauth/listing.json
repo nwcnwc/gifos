@@ -1,0 +1,35 @@
+{
+  "tagline": "Authenticator codes that live in this file. Works on a plane. Nothing is uploaded.",
+  "description": "Accounts stay inside this file, on this device. Close it and come back — the same codes are still ticking. There is no account, no cloud, and an invite does not share a secret. Works on a plane.\n\nPaste an otpauth:// link or a base32 secret. Codes refresh every 30 seconds. Tap a code to copy it. Import an Aegis JSON backup, export the same, or show a backup QR for one account. Handing someone a copy of this file hands them the codes — treat it like the authenticator itself.\n\nUnofficial wrap of OTPAuth by Héctor Molinero Fernández. The library writes the codes; this is the authenticator around it.",
+  "author": {
+    "name": "Héctor Molinero Fernández",
+    "url": "https://github.com/hectorm/otpauth"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "OTPAuth",
+    "url": "https://github.com/hectorm/otpauth",
+    "donate": "https://github.com/sponsors/hectorm",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "totp",
+    "hotp",
+    "authenticator",
+    "2fa",
+    "otp",
+    "offline",
+    "privacy"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/otpauth",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

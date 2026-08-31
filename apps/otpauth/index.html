@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>OTP Auth</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="title-row">
+      <h1>OTP Auth</h1>
+      <div class="top-actions">
+        <button type="button" id="hideBtn" class="icon-btn" aria-pressed="false" aria-label="Hide codes" title="Hide codes">
+          <svg class="eye-on" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg class="eye-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        </button>
+        <div class="more-wrap">
+          <button type="button" id="moreBtn" class="icon-btn" aria-label="Import and export" aria-expanded="false" aria-haspopup="true">···</button>
+          <div id="moreMenu" class="menu" hidden>
+            <button type="button" id="importBtn">Import backup</button>
+            <button type="button" id="exportBtn">Export backup</button>
+          </div>
+        </div>
+        <button type="button" id="addBtn" class="add">Add</button>
+      </div>
+    </div>
+    <p class="lead">Codes stay in this file. Nothing is uploaded.</p>
+    <label class="search-wrap">
+      <span class="sr">Search</span>
+      <input type="search" id="search" placeholder="Search accounts" autocomplete="off" spellcheck="false">
+    </label>
+  </header>
+
+  <div id="empty" class="empty-state">
+    <span class="empty-ring" aria-hidden="true"></span>
+    <strong>No accounts yet</strong>
+    <p>Paste an <code>otpauth://</code> link or a secret. Codes live in this file, on this device.</p>
+    <button type="button" id="emptyAdd" class="add">Add account</button>
+    <button type="button" id="emptyImport" class="ghost">Import backup</button>
+  </div>
+
+  <ul id="list" class="list" hidden></ul>
+  <p id="status" class="status" hidden></p>
+</div>
+
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="sheet-head">
+      <h2 id="sheet-title">Add account</h2>
+      <button type="button" class="icon-btn" id="sheetClose" aria-label="Close">✕</button>
+    </div>
+    <label>Paste a link or a secret
+      <textarea id="f-paste" rows="3" placeholder="otpauth://totp/…  or  JBSW Y3DP EHPK 3PXP" autocomplete="off" spellcheck="false"></textarea>
+    </label>
+    <p id="f-paste-hint" class="hint" hidden></p>
+    <label>Issuer
+      <input type="text" id="f-issuer" placeholder="GitHub" autocomplete="off" spellcheck="false">
+    </label>
+    <label>Account
+      <input type="text" id="f-label" placeholder="you@example.com" autocomplete="off" spellcheck="false">
+    </label>
+    <label>Secret
+      <div class="pwrow">
+        <input type="password" id="f-secret" placeholder="Base32 secret" autocomplete="off" spellcheck="false">
+        <button type="button" class="ghost" id="f-secret-toggle">Show</button>
+      </div>
+    </label>
+    <details id="f-advanced">
+      <summary>Advanced</summary>
+      <div class="adv-grid">
+        <label>Type
+          <select id="f-type">
+            <option value="totp">TOTP (time)</option>
+            <option value="hotp">HOTP (counter)</option>
+          </select>
+        </label>
+        <label>Algorithm
+          <select id="f-algo">
+            <option value="SHA1">SHA-1</option>
+            <option value="SHA256">SHA-256</option>
+            <option value="SHA512">SHA-512</option>
+          </select>
+        </label>
+        <label>Digits
+          <select id="f-digits">
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+          </select>
+        </label>
+        <label id="f-period-lab">Period
+          <select id="f-period">
+            <option value="15">15 s</option>
+            <option value="30" selected>30 s</option>
+            <option value="60">60 s</option>
+          </select>
+        </label>
+        <label id="f-counter-lab" hidden>Counter
+          <input type="number" id="f-counter" min="0" step="1" value="0">
+        </label>
+      </div>
+    </details>
+    <p id="f-preview" class="preview" hidden></p>
+    <p id="f-err" class="err" hidden></p>
+    <div class="sheet-actions">
+      <button type="button" id="f-save">Save</button>
+      <button type="button" id="f-cancel" class="ghost">Cancel</button>
+    </div>
+    <button type="button" id="f-goto-import" class="ghost wide">Import a backup instead</button>
+  </div>
+</div>
+
+<div id="detail" class="sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="d-title">
+    <div class="sheet-head">
+      <h2 id="d-title">Account</h2>
+      <button type="button" class="icon-btn" id="d-close" aria-label="Close">✕</button>
+    </div>
+    <div id="d-hero" class="hero">
+      <div class="hero-issuer" id="d-issuer"></div>
+      <div class="hero-label" id="d-label"></div>
+      <div class="hero-code" id="d-code"></div>
+      <div class="hero-next" id="d-next"></div>
+      <div class="hero-bar"><i id="d-bar"></i></div>
+    </div>
+    <div class="sheet-actions wrap">
+      <button type="button" id="d-copy">Copy code</button>
+      <button type="button" id="d-nextbtn" class="ghost" hidden>Next code</button>
+      <button type="button" id="d-star" class="ghost">Pin</button>
+      <button type="button" id="d-edit" class="ghost">Edit</button>
+      <button type="button" id="d-uri" class="ghost">Copy link</button>
+    </div>
+    <div id="d-qr" class="qr-box" hidden>
+      <p class="hint">Backup QR — another authenticator can scan this. It is the secret.</p>
+      <div id="d-qr-target"></div>
+    </div>
+    <button type="button" id="d-showqr" class="ghost wide">Show backup QR</button>
+    <p id="d-secret-wrap" class="secret-wrap" hidden>
+      <span class="hint">Secret</span>
+      <code id="d-secret"></code>
+    </p>
+    <button type="button" id="d-showsecret" class="ghost wide">Show secret</button>
+    <button type="button" id="d-del" class="row-del wide" aria-label="Delete account">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      Delete account
+    </button>
+  </div>
+</div>
+
+<div id="xfer" class="sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="x-title">
+    <div class="sheet-head">
+      <h2 id="x-title">Import / export</h2>
+      <button type="button" class="icon-btn" id="x-close" aria-label="Close">✕</button>
+    </div>
+    <div id="x-import-pane">
+      <p class="hint">Paste <code>otpauth://</code> links (one per line) or an unencrypted Aegis JSON backup. The secrets stay in this file.</p>
+      <label>Backup
+        <textarea id="x-text" rows="8" placeholder="otpauth://totp/…&#10;{ &quot;db&quot;: { &quot;entries&quot;: [ … ] } }" autocomplete="off" spellcheck="false"></textarea>
+      </label>
+      <label class="file-lab">Or pick a file
+        <input type="file" id="x-file" accept=".json,.txt,text/plain,application/json">
+      </label>
+      <p id="x-err" class="err" hidden></p>
+      <div class="sheet-actions">
+        <button type="button" id="x-do-import">Import</button>
+        <button type="button" id="x-cancel" class="ghost">Cancel</button>
+      </div>
+    </div>
+    <div id="x-export-pane" hidden>
+      <p class="hint">This is every secret in the clear. Keep it like the authenticator itself.</p>
+      <div class="sheet-actions wrap">
+        <button type="button" id="x-json">Copy JSON</button>
+        <button type="button" id="x-uris">Copy links</button>
+        <button type="button" id="x-dl-json" class="ghost">Download JSON</button>
+        <button type="button" id="x-dl-uris" class="ghost">Download links</button>
+      </div>
+      <textarea id="x-out" rows="8" readonly></textarea>
+    </div>
+  </div>
+</div>
+
+<div id="ask" class="sheet" hidden>
+  <div class="sheet-card ask-card" role="dialog" aria-modal="true">
+    <p id="ask-text"></p>
+    <input id="ask-input" hidden autocomplete="off" spellcheck="false">
+    <div class="sheet-actions">
+      <button type="button" id="ask-ok">OK</button>
+      <button type="button" id="ask-cancel" class="ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" hidden></div>
+
+<script src="vendor/otpauth.umd.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
