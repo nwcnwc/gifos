@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hydra</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="hud">
+      <div id="brand">Hydra</div>
+      <div id="which">Kaleid</div>
+    </header>
+
+    <div class="actions">
+      <button type="button" id="shareBtn">Jam together</button>
+      <button type="button" id="patchBtn" aria-expanded="true" aria-controls="sheet">Patch</button>
+      <button type="button" id="runBtn">Run</button>
+    </div>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> in the bar above the app, then send the link. You both run the same patch. Change it and press Run — they see it.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+
+    <div id="stage">
+      <canvas id="view">This synth needs a canvas.</canvas>
+      <p id="hint">Edit the patch, press Run. Ctrl+Enter also runs.</p>
+    </div>
+    <p id="err" hidden></p>
+
+    <div id="chips" role="list"></div>
+
+    <div id="sheet">
+      <label class="sr" for="recipe">Hydra patch</label>
+      <textarea id="recipe" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      <p class="sheet-note">A chain of sources and effects, then <code>.out()</code>. Time moves; <code>mouse</code> follows a finger.</p>
+    </div>
+
+    <p id="how">Tap a named patch. Edit a number. Press <b>Run</b>. Playing alone is the original toy.</p>
+    <p class="foot">Unofficial port of Hydra by Olivia Jack (AGPL). Playing alone is that synth. A jam is the same patch — nobody writes on anybody else’s row.</p>
+  </div>
+
+  <!-- Order matters: the runtime inlines each <script src> where it stands. -->
+  <script src="vendor/glsl-functions.js"></script>
+  <script src="vendor/utility-functions.js"></script>
+  <script src="vendor/hydra-engine.js"></script>
+  <script src="sketch.js"></script>
+  <script src="snippets.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>

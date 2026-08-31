@@ -1,0 +1,34 @@
+{
+  "tagline": "The patch lives in the GIF. Invite jams the same synth — no account, no server.",
+  "description": "A live-coded video synth: oscillators, kaleidoscopes, noise, feedback. Type a chain, press Run, the picture moves. Close it and come back — the last patch is still there, inside the file.\n\nWant a friend on the same synth? Press Jam together, then Invite in the bar above the app, and send the link. You both run this patch. When anyone presses Run, everyone sees it. Playing alone is the original toy.\n\nThere is no camera and no microphone in this copy: generated sources only (osc, noise, voronoi, shape), plus the last frame (src(o0)). Offline, no account.\n\nAn unofficial port of Hydra by Olivia Jack. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Olivia Jack",
+    "url": "https://github.com/ojack"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Hydra",
+    "url": "https://github.com/hydra-synth/hydra",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "hydra",
+    "synth",
+    "livecoding",
+    "video",
+    "visuals",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "AGPL-3.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hydra",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

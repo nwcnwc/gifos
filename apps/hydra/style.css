@@ -1,0 +1,185 @@
+/* Dark synth, magenta chips, friend-mode chrome around it. */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #07060c;
+  color: #f4eef6;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 10px calc(8px + env(safe-area-inset-bottom, 0px));
+}
+#shell {
+  flex: 1;
+  min-height: 0;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+}
+#brand { font-size: 18px; font-weight: 700; letter-spacing: 0.04em; }
+#which {
+  margin-left: auto;
+  font-size: 13px;
+  color: #c9a0c4;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.actions button, #leaveBtn, #runBtn {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 8px 14px;
+  min-height: 40px;
+  border: 1px solid #4a2458;
+  background: #160c1c;
+  color: #f4eef6;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#shareBtn { background: #c43d7a; color: #fff; border-color: #e05a96; }
+#runBtn { background: #39d0c5; color: #082018; border-color: #2bb8ae; }
+#patchBtn { background: #160c1c; }
+body.friend #shareBtn { display: none; }
+body.show-patch #patchBtn { background: #c43d7a; color: #fff; border-color: #e05a96; }
+
+#friend-bar {
+  background: #160c1c;
+  border: 1px solid #4a2458;
+  border-radius: 8px;
+  padding: 10px 12px 8px;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
+#friend-hint b { color: #ffd36a; }
+#friend-status { font-weight: 700; min-height: 1.2em; }
+#friend-scores { list-style: none; margin: 0 0 8px; padding: 0; }
+#friend-scores li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid #2a1634;
+}
+#friend-scores li:first-child { border-top: none; }
+#friend-scores .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#friend-scores .me .name { color: #ffd36a; }
+#friend-scores .meta { color: #c9a0c4; font-size: 13px; white-space: nowrap; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+#stage {
+  flex: 1;
+  min-height: 220px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+  position: relative;
+}
+#view { display: block; width: 100%; height: 100%; touch-action: none; }
+#hint {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(8, 4, 12, 0.78);
+  color: #f4eef6;
+  font-size: 13px;
+  pointer-events: none;
+}
+#hint[hidden] { display: none; }
+#err {
+  margin: 0;
+  color: #ff8a8a;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+#err[hidden] { display: none; }
+
+#chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+#chips button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  min-height: 36px;
+  border: 1px solid #4a2458;
+  background: #160c1c;
+  color: #f4eef6;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+#chips button.on {
+  background: #c43d7a;
+  border-color: #e05a96;
+  color: #fff;
+}
+
+#sheet { display: none; flex-direction: column; gap: 6px; min-height: 0; }
+body.show-patch #sheet { display: flex; }
+#recipe {
+  width: 100%;
+  min-height: 7.5em;
+  max-height: 28vh;
+  resize: vertical;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 8px 10px;
+  border: 1px solid #4a2458;
+  border-radius: 6px;
+  background: #0b0710;
+  color: #d6ffe8;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.sheet-note {
+  margin: 0;
+  font-size: 12px;
+  color: #c9a0c4;
+}
+.sheet-note code { color: #ffd36a; }
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+#how, .foot {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #c9a0c4;
+}
+.foot { color: #7a5a78; }
+@media (max-width: 720px) {
+  #how, .foot { display: none; }
+  body.show-patch #recipe { max-height: 34vh; }
+}
