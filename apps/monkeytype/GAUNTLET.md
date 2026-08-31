@@ -12,8 +12,8 @@ A stranger who knows monkeytype.com would use this copy because it is the same t
 1. **Test feel** — 3-line words, smooth caret, time/words/quote, punctuation + numbers, english / english 1k. Result: wpm, acc, raw, consistency, chars. Tab restarts. Escape is the command line.
 2. **Themes** — twelve palettes transcribed from upstream, system/ui-monospace only. No webfonts.
 3. **History** — personal bests per setting and last 40 results in a private collection. The file is the save.
-4. **Race** — host writes the seed; everyone types the same words; live bars; no server.
-5. **Icon / cover / listing** — caret types "the lazy" then 87 wpm; mid-test cover; tagline leads with offline + the file + the race.
+4. **Race** — host writes the seed; everyone types the same words; live bars; no server. The practice test is hidden in the lobby (`#testView` is off until GO); the countdown does not keep a "click to focus" veil over the words.
+5. **Icon / cover / listing** — caret types "the lazy" then 87 wpm. Cover is a real mid-test frame from the running window (serika-dark, lowercase common words, yellow caret after `on`, live timer + WPM) — not the pixel-font pangram, and not `apps/typing`'s ALL-CAPS passage. Tagline leads with offline + the file + the race.
 
 ## Remaining gap
 
@@ -22,3 +22,5 @@ The original's hundreds of languages, funboxes, and the full quote bank are not 
 ## Win
 
 Same test as monkeytype.com, but it works on a plane, the record lives in the file, and one invite is a race.
+
+READY-TO-SIGN

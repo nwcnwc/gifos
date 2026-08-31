@@ -16,7 +16,8 @@ app.js          UI, history, themes, command line
 vendor/data.js  english + english 1k + 82 quotes, pinned from upstream
 vendor/COPYING.txt  GNU GPL-3.0 (rides inside the GIF)
 icon.mjs        caret typing "the lazy", then 87 wpm
-build.mjs       packs site/apps/monkeytype/monkeytype.gif
+tools/shoot.js  Playwright mid-test screenshot.png (real window)
+build.mjs       packs site/apps/monkeytype/monkeytype.gif + cover.jpg
 ```
 
 ## Why this can run as a GifOS app
@@ -38,7 +39,9 @@ Needs nothing newer than the App Store itself, so `minBuild` is **947**.
 ## Building
 
 ```bash
-node apps/monkeytype/build.mjs   # -> site/apps/monkeytype/monkeytype.gif
+python3 -m http.server 18765 -d apps/monkeytype
+node apps/monkeytype/tools/shoot.js   # screenshot.png from the live window
+node apps/monkeytype/build.mjs        # -> site/apps/monkeytype/{monkeytype.gif,cover.jpg}
 ```
 
 ## Licence
