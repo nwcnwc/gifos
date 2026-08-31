@@ -13,9 +13,10 @@ opensave, storage) stay out; they `import()` files the sandbox cannot fetch.
 ```
 index.html              shell: Open / Save SVG / PNG strip, #container
 style.css               dark theme, phone toolbar
-boot.js                 localStorage stub, image URL resolver, window.open
+boot.js                 localStorage stub, image URL resolver, window.open, URL(about:srcdoc)
 app.js                  Editor init, gifos.db, invite, file I/O
-icon.mjs                procedural pen-draws-a-star icon + 1200×720 cover
+icon.mjs                procedural pen-draws-a-star icon
+tools/prove.js          boots the packed GIF, draws #tool_rect, db round-trip, live cover
 vendor/iife-Editor.js   GENERATED. Pinned svgedit IIFE. Never edit.
 vendor/images.js        GENERATED. Toolbar / jgraduate images as data URLs.
 vendor.mjs              rebuilds vendor/* from npm. The only net step.
@@ -27,8 +28,10 @@ build.mjs               packs site/apps/svg-edit/svg-edit.gif
 SVG-Edit 7 ships an IIFE. GifOS inlines `<script src>` and drops
 `type="module"`, so that IIFE is the only shape that survives the trip into
 a GIF. Toolbar icons have no directory on `about:srcdoc`; `boot.js` resolves
-them from `vendor/images.js`. Upstream's localStorage / File System Access
-do not exist in the sandbox — the drawing lives in `gifos.db('doc')`.
+them from `vendor/images.js`. `new URL('./extensions/', document.baseURI)`
+throws on `about:srcdoc`; boot.js guards the constructor and vendor.mjs
+pins `extPath` to `./extensions`. Upstream's localStorage / File System
+Access do not exist in the sandbox — the drawing lives in `gifos.db('doc')`.
 
 ## capabilities
 

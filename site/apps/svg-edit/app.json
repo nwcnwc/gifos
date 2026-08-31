@@ -40,11 +40,11 @@
   "cover": "/apps/svg-edit/cover.jpg",
   "screenshots": [],
   "gif": "/apps/svg-edit/svg-edit.gif",
-  "bytes": 1432204,
+  "bytes": 1432722,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "0b0d985b57a1c106f1a9fd10c372c54f2bcd1afc79952e207a5f81f56793b069",
+  "sha256": "35d93093aba6907bc6cc5df5ce082d3f9c0d7e9be1c8870a25d1e9ae06c9a6d6",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

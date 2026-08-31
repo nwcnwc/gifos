@@ -127,6 +127,19 @@ if (js.includes(rotateNeedle)) {
 // jPicker default path is a root-absolute URL that cannot exist in srcdoc.
 js = js.replace('clientPath:`/jPicker/images/`', 'clientPath:`./images/`');
 
+// Editor constructor: `new URL('./extensions/', document.baseURI)` throws on
+// about:srcdoc (the sandbox base). Keep the relative path; boot.js also wraps URL.
+{
+  const extCtor = 'new URL(`./extensions/`,document.baseURI)';
+  if (!js.includes(extCtor)) {
+    throw new Error('extPath URL construction moved — about:srcdoc still throws on new URL(relative, document.baseURI)');
+  }
+  js = js.replace(
+    'if(typeof document>`u`||!document.baseURI)return`./extensions`;let e=new URL(`./extensions/`,document.baseURI).toString();return e.endsWith(`/`)?e.slice(0,-1):e',
+    'return`./extensions`'
+  );
+}
+
 let css = readFileSync(cssSrc, 'utf8');
 css = css.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (m, q, url) => {
   const u = url.trim();
