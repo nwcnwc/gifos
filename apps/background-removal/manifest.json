@@ -1,0 +1,44 @@
+{
+  "gifos": "1.0",
+  "appId": "background-removal",
+  "name": "Background Removal",
+  "shortName": "Cut BG",
+  "version": "1.0.0",
+  "minBuild": 1381,
+  "description": "Cut a photo's background on this device with IMG.LY's IS-Net. Nothing is uploaded. The model downloads once, hash-pinned, and then lives here.",
+  "entry": "index.html",
+  "accent": [56, 196, 168],
+  "capabilities": {
+    "db": true,
+    "camera": true,
+    "wasm": true,
+    "gpu": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "pic": { "visibility": "private" }
+  },
+  "assets": [
+    {
+      "url": "https://media.githubusercontent.com/media/imgly/background-removal-js/12f56cc4f2a90d624e165a715748d22efc7a1d93/bundle/models/isnet_quint8",
+      "sha256": "d1ca3535c21b53d08fa3b640e5949389f82e764f6376a0502d44982c35cae482",
+      "path": "isnet-small.onnx",
+      "bytes": 44348940,
+      "optional": true
+    },
+    {
+      "url": "https://media.githubusercontent.com/media/imgly/background-removal-js/12f56cc4f2a90d624e165a715748d22efc7a1d93/bundle/models/isnet_fp16",
+      "sha256": "2eb4b5dda7ec41c617e59706e5aafa1f978c9a5f983d2518d9f0ae4d6eb04f20",
+      "path": "isnet-medium.onnx",
+      "bytes": 88152708,
+      "optional": true
+    },
+    {
+      "url": "https://media.githubusercontent.com/media/imgly/background-removal-js/12f56cc4f2a90d624e165a715748d22efc7a1d93/bundle/models/isnet",
+      "sha256": "cc2c9f5c1751b9737cb81e708ff0c5e9542c2205daed22418a4fd2ab5d4c481a",
+      "path": "isnet-large.onnx",
+      "bytes": 176149806,
+      "optional": true
+    }
+  ]
+}

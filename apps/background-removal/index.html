@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Background Removal</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Background Removal</h1>
+    <p class="lead">Cut the background on this device. The picture never leaves this browser.</p>
+  </header>
+
+  <p id="engineline" class="engine">Starting up…</p>
+
+  <div id="stage" class="stage">
+    <div id="empty" class="empty">
+      <div class="empty-ico" aria-hidden="true">◌</div>
+      <p class="empty-title">No photo yet</p>
+      <p class="empty-copy">Take a still or open a picture. The cut runs here — nothing is uploaded, and there is no watermark.</p>
+      <div class="empty-actions">
+        <button type="button" id="emptyPhoto">Take photo</button>
+        <button type="button" id="emptyChoose" class="ghost">Choose a picture</button>
+        <button type="button" id="sampleBtn" class="ghost">Try a sample</button>
+      </div>
+    </div>
+    <canvas id="view" hidden></canvas>
+    <p id="holdhint" class="holdhint" hidden>Hold to see the original</p>
+    <div id="progwrap" class="progwrap" hidden>
+      <div class="bar"><div id="bar"></div></div>
+      <p id="progtext"></p>
+    </div>
+  </div>
+
+  <div id="work" class="work" hidden>
+    <div class="row">
+      <button type="button" id="photoBtn">Take photo</button>
+      <button type="button" id="chooseBtn" class="ghost">Choose</button>
+      <button type="button" id="savePng" class="ghost">Download PNG</button>
+      <button type="button" id="saveJpg" class="ghost">Download JPEG</button>
+    </div>
+
+    <section class="chips" aria-label="Background">
+      <div class="row-head">Background</div>
+      <div id="bgchips" class="chiplist"></div>
+      <label class="colorpick">Custom colour
+        <input type="color" id="bgcolor" value="#00c27a">
+      </label>
+      <button type="button" id="bgImageBtn" class="ghost slim">Use another picture as the background</button>
+    </section>
+
+    <section class="controls">
+      <label>Edge softness <span id="feathervalue">0</span>
+        <input type="range" id="feather" min="0" max="12" value="0">
+      </label>
+      <label class="chk"><input type="checkbox" id="shadow" checked> Soft shadow (on a colour or a picture)</label>
+      <label class="chk"><input type="checkbox" id="invert"> Keep the background, drop the subject</label>
+    </section>
+
+    <section class="models">
+      <div class="row-head">Model</div>
+      <div id="modellist" class="jobs"></div>
+    </section>
+  </div>
+
+  <input type="file" id="file" accept="image/*">
+  <input type="file" id="bgfile" accept="image/*">
+  <p id="status" role="status"></p>
+  <p class="foot">Unofficial port of <b>@imgly/background-removal</b> by IMG.LY (AGPL-3). The IS-Net models download once, checked byte-for-byte, and then live on this device. ONNX Runtime Web (MIT) runs them. Your picture is never uploaded.</p>
+</div>
+<script src="ort.js"></script>
+<script src="ort-wasm.js"></script>
+<script src="models.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

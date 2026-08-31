@@ -1,0 +1,32 @@
+{
+  "_": "The exact IS-Net ONNX bytes this app pins. They are IMG.LY's bundle/models files from background-removal-js @ 12f56cc (package 1.7.0). sha256 matches the Git LFS oid and the GitHub media etag. build.mjs holds manifest.json and models.js to this file.",
+  "repo": "https://github.com/imgly/background-removal-js",
+  "commit": "12f56cc4f2a90d624e165a715748d22efc7a1d93",
+  "host": "https://media.githubusercontent.com/media/imgly/background-removal-js/12f56cc4f2a90d624e165a715748d22efc7a1d93/bundle/models/",
+  "pins": [
+    {
+      "id": "small",
+      "file": "isnet_quint8",
+      "asset": "isnet-small.onnx",
+      "bytes": 44348940,
+      "sha256": "d1ca3535c21b53d08fa3b640e5949389f82e764f6376a0502d44982c35cae482",
+      "upstreamAlias": "small"
+    },
+    {
+      "id": "medium",
+      "file": "isnet_fp16",
+      "asset": "isnet-medium.onnx",
+      "bytes": 88152708,
+      "sha256": "2eb4b5dda7ec41c617e59706e5aafa1f978c9a5f983d2518d9f0ae4d6eb04f20",
+      "upstreamAlias": "medium"
+    },
+    {
+      "id": "large",
+      "file": "isnet",
+      "asset": "isnet-large.onnx",
+      "bytes": 176149806,
+      "sha256": "cc2c9f5c1751b9737cb81e708ff0c5e9542c2205daed22418a4fd2ab5d4c481a",
+      "upstreamAlias": "large"
+    }
+  ]
+}
