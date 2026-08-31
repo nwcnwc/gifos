@@ -40,11 +40,11 @@
   "cover": "/apps/monkeytype/cover.jpg",
   "screenshots": [],
   "gif": "/apps/monkeytype/monkeytype.gif",
-  "bytes": 237551,
+  "bytes": 238302,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "2167bf2412cd8cb5497ad7aa689ba87b4900f63490cbf2a1c103fd68df908585",
+  "sha256": "70bb28857ff0fb07dd5e1ec60a62d290d25b2d6f3c0e8641dbf51ae937906780",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

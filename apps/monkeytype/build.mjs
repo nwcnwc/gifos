@@ -2,7 +2,7 @@
 // Uses the SAME codec the GifOS desktop uses (site/js/gifos-gif.js).
 //
 // Run:  node apps/monkeytype/build.mjs
-import { monkeytypeIcon, screenshotPng } from './icon.mjs';
+import { monkeytypeIcon } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -105,6 +105,12 @@ if (/type\s*=\s*["']module["']/.test(html)) throw new Error('index.html uses typ
 if (/(?:src|href)\s*=\s*["']https?:/i.test(html)) throw new Error('index.html loads a remote URL');
 if (html.includes('id="invite"')) throw new Error('Invite is OS chrome');
 if (!html.includes('Invite')) throw new Error('tell the player to press Invite');
+if (files['app.js'].includes("id !== 'test' && id !== 'race'")) {
+  throw new Error('do not leave #testView up in the race lobby');
+}
+if (!files['app.js'].includes('coverShot')) {
+  throw new Error('app.js must expose Monkeytype.coverShot for the store cover');
+}
 
 for (const n of ['engine.js', 'net.js', 'app.js', 'vendor/data.js']) {
   const s = files[n];
@@ -180,14 +186,25 @@ if (/@import|fonts\.google|woff2?/i.test(files['style.css'])) {
 
 const shotPath = join(dir, 'screenshot.png');
 if (!existsSync(shotPath)) {
-  const shot = screenshotPng();
-  if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
-  writeFileSync(shotPath, shot);
-  console.log('wrote apps/monkeytype/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB');
-} else {
+  throw new Error('screenshot.png missing — run: node apps/monkeytype/tools/shoot.js');
+}
+{
   const keep = readFileSync(shotPath);
   if (keep[0] !== 0x89 || keep[1] !== 0x50) throw new Error('screenshot.png is not a PNG');
-  console.log('keeping existing screenshot.png —', (keep.length / 1024).toFixed(0), 'KB');
+  if (keep.length < 8000) throw new Error('screenshot.png looks empty');
+  console.log('keeping existing screenshot.png —', (keep.length / 1024).toFixed(0), 'KB (Playwright master)');
+}
+
+{
+  const sharp = (await import('sharp')).default;
+  const cover = await sharp(shotPath)
+    .resize({ width: 1200, withoutEnlargement: true })
+    .jpeg({ quality: 82, progressive: true, mozjpeg: true })
+    .toBuffer();
+  const coverOut = join(dir, '..', '..', 'site', 'apps', 'monkeytype', 'cover.jpg');
+  mkdirSync(dirname(coverOut), { recursive: true });
+  writeFileSync(coverOut, cover);
+  console.log('wrote site/apps/monkeytype/cover.jpg —', (cover.length / 1024).toFixed(0), 'KB');
 }
 
 const bytes = await gif.encode(files, { preview: monkeytypeIcon(), accent: manifest.accent });

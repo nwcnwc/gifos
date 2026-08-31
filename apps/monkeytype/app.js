@@ -53,7 +53,8 @@
     raceReady: false,
     lastPaint: 0,
     tick: 0,
-    savedResult: false
+    savedResult: false,
+    coverLocked: false
   };
   var netState = { owner: true, others: 0, match: null, roster: [] };
 
@@ -178,12 +179,18 @@
 
   function show(id) {
     G.view = id;
-    $('testView').hidden = id !== 'test' && id !== 'race';
+    $('testView').hidden = id !== 'test';
     $('resultView').hidden = id !== 'result';
     $('raceView').hidden = id !== 'race';
     $('cmd').hidden = !G.cmd;
     document.body.classList.toggle('result', id === 'result');
     if (id !== 'test') document.body.classList.remove('typing');
+    if (id === 'race') {
+      $('veil').hidden = true;
+      $('caret').hidden = true;
+      $('live').hidden = true;
+      $('cd').hidden = true;
+    }
   }
 
   function focusInput() {
@@ -199,7 +206,9 @@
 
   function blurInput() {
     G.focused = false;
-    if (G.view === 'test' && !G.test.finishedAt) $('veil').hidden = false;
+    if (G.view === 'test' && G.test && !G.test.finishedAt && !(G.racing && !G.raceReady)) {
+      $('veil').hidden = false;
+    }
   }
 
   function paintWords(force) {
@@ -301,7 +310,8 @@
     if (snap) caret.classList.add('snap');
     caret.style.left = x + 'px';
     caret.style.top = y + 'px';
-    caret.hidden = !G.focused || G.view === 'result' || !!t.finishedAt;
+    caret.hidden = !G.focused || G.view === 'result' || G.view === 'race' ||
+      !!t.finishedAt || (G.racing && !G.raceReady);
     if (snap) requestAnimationFrame(function () { caret.classList.remove('snap'); });
   }
 
@@ -387,7 +397,7 @@
 
   function typeKey(ch) {
     if (G.view === 'result') return;
-    if (G.view === 'race' && !G.raceReady) return;
+    if (G.view === 'race' || (G.racing && !G.raceReady)) return;
     if (!G.test || G.test.finishedAt) return;
     if (!G.focused) focusInput();
     E.typeChar(G.test, ch, nowMs());
@@ -519,6 +529,7 @@
     $('cd').hidden = false;
     $('cd').textContent = '3';
     $('live').hidden = true;
+    $('veil').hidden = true;
     paintWords(true);
     placeCaret(true);
     paintRaceBars({ progress: 0, wpm: 0 });
@@ -586,7 +597,7 @@
   function closeCmd() {
     G.cmd = false;
     $('cmd').hidden = true;
-    focusInput();
+    if (G.view === 'test' && !(G.racing && !G.raceReady)) focusInput();
   }
   function toggleCmd() { if (G.cmd) closeCmd(); else openCmd(); }
 
@@ -720,6 +731,67 @@
     }
   }
 
+  /* Mid-test still for screenshot.png: serika-dark, lowercase words, yellow
+     caret after "on", live timer + WPM. Real paint path — not icon.mjs. */
+  function coverShot() {
+    G.coverLocked = true;
+    applyTheme('serika_dark');
+    prefs.theme = 'serika_dark';
+    prefs.mode = 'time';
+    prefs.mode2 = 30;
+    prefs.punct = false;
+    prefs.numbers = false;
+    prefs.lang = 'english';
+    paintConfig();
+    G.racing = false;
+    G.raceReady = false;
+    G.cmd = false;
+    $('cmd').hidden = true;
+    $('cd').hidden = true;
+    $('raceBars').hidden = true;
+    show('test');
+    newTest(24);
+    var t = G.test;
+    var now = nowMs();
+    var t0 = now - 3000;
+    var seq = '', i, w;
+    for (i = 0; i < 4; i++) {
+      w = t.words[i];
+      if (i) seq += ' ';
+      seq += w;
+    }
+    for (i = 0; i < seq.length; i++) {
+      E.typeChar(t, seq.charAt(i), t0 + Math.floor(i * (2800 / Math.max(1, seq.length))));
+    }
+    G.typing = true;
+    G.focused = true;
+    document.body.classList.add('typing');
+    $('veil').hidden = true;
+    paintWords(false);
+    function freeze() {
+      placeCaret(true);
+      paintLive();
+      var caret = $('caret');
+      caret.hidden = false;
+      caret.style.animation = 'none';
+      caret.style.opacity = '1';
+    }
+    freeze();
+    return new Promise(function (resolve) {
+      requestAnimationFrame(function () {
+        freeze();
+        resolve({
+          words: t.words.slice(0, 8).join(' '),
+          typed: seq,
+          wpm: $('liveWpm').textContent,
+          time: $('liveTime').textContent
+        });
+      });
+    });
+  }
+
+  window.Monkeytype = { coverShot: coverShot };
+
   function boot() {
     try { if (window.gifos) saveDb = gifos.db('prefs'); } catch (e) {}
     applyTheme(prefs.theme);
@@ -727,6 +799,7 @@
     bind();
     G.tick = setInterval(tick, 200);
     var p = loadPrefs().then(function () {
+      if (G.coverLocked) return;
       applyTheme(prefs.theme);
       paintConfig();
       newTest();
@@ -741,7 +814,7 @@
       }
     }).catch(function () {});
     Promise.resolve(p).then(function () { return n; }).then(function () {
-      if (!G.test) newTest();
+      if (!G.test && !G.coverLocked) newTest();
     });
   }
 
