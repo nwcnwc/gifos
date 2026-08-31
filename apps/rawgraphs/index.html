@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RAWGraphs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="shell">
+  <header id="hud">
+    <div id="brand">RAWGraphs</div>
+    <div id="which">table → chart</div>
+  </header>
+
+  <div class="actions">
+    <button type="button" id="shareBtn">Play together</button>
+    <label class="file">Choose a CSV
+      <input id="file" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain">
+    </label>
+    <button type="button" id="sample">Sample</button>
+    <button type="button" id="copyBtn">Copy SVG</button>
+    <span id="status" class="status"></span>
+  </div>
+  <p id="copyMsg" class="hint" hidden></p>
+
+  <div id="friend-bar" hidden>
+    <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both edit the same table and the same mapping.</p>
+    <p id="friend-status"></p>
+    <ul id="friend-scores"></ul>
+    <div class="friend-actions"><button type="button" id="leaveBtn">← Solo</button></div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tabData">Data</button>
+    <button type="button" role="tab" id="tabType">Type</button>
+    <button type="button" role="tab" id="tabMap">Map</button>
+    <button type="button" role="tab" id="tabChart" class="on" aria-selected="true">Chart</button>
+  </div>
+
+  <div id="workspace">
+    <section id="data-col" class="col">
+      <details class="paste-wrap" id="pasteWrap">
+        <summary>Paste or type comma-separated text</summary>
+        <textarea id="csv" rows="6" spellcheck="false" placeholder="studio,genre,box&#10;Warner,Drama,1074"></textarea>
+      </details>
+      <div id="preview" class="preview"></div>
+    </section>
+
+    <section id="type-col" class="col">
+      <p class="sec-label">Chart type</p>
+      <div id="gallery" class="gallery"></div>
+    </section>
+
+    <section id="map-col" class="col">
+      <p class="sec-label">Map columns</p>
+      <div id="mapping" class="mapping"></div>
+    </section>
+
+    <section id="chart-col" class="col chart-col">
+      <p id="error" class="err" hidden></p>
+      <div id="view" class="view"></div>
+    </section>
+  </div>
+
+  <p id="how">Paste a table. Pick a visual model. Map columns onto Steps, Size, Hierarchy. The last dataset stays in this file.</p>
+  <p class="foot">Unofficial port of RAWGraphs (DensityDesign Lab, Calibro, INMAGIK). The dataset is not uploaded.</p>
+</div>
+
+<script src="sample.js"></script>
+<script src="csv.js"></script>
+<script src="charts.js"></script>
+<script src="app.js"></script>
+<script src="mp.js"></script>
+</body>
+</html>

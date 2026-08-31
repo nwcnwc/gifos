@@ -1,0 +1,20 @@
+{
+  "gifos": "1.0",
+  "appId": "rawgraphs",
+  "name": "RAWGraphs",
+  "shortName": "RAWGraphs",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Paste a table, map columns onto a chart. The dataset lives in this file.",
+  "entry": "index.html",
+  "accent": [247, 96, 0],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
