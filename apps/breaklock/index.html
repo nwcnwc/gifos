@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>BreakLock</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="menu" class="view">
+  <div class="view-bloc">
+    <div id="stats" class="stats" hidden></div>
+    <h1 id="title" class="highlight">BreakLock</h1>
+    <p class="menu-intro">A hybrid of Mastermind and the Android pattern lock. A game you gonna love to hate.</p>
+    <svg class="demo" viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="15" cy="15" r="2.4" fill="#fff"/>
+      <circle cx="50" cy="15" r="2.4" fill="#fff"/>
+      <circle cx="85" cy="15" r="2.4" fill="#fff"/>
+      <circle cx="15" cy="50" r="2.4" fill="#fff"/>
+      <circle cx="50" cy="50" r="2.4" fill="#fff"/>
+      <circle cx="85" cy="50" r="2.4" fill="#fff"/>
+      <circle cx="15" cy="85" r="2.4" fill="#fff"/>
+      <circle cx="50" cy="85" r="2.4" fill="#fff"/>
+      <circle cx="85" cy="85" r="2.4" fill="#fff"/>
+      <polyline class="trail" points="15,15 50,15 85,15 85,50"/>
+    </svg>
+    <p>Link the dots to find the lock pattern. After every attempt the game will tell you how many dots you got right.</p>
+    <table class="legend">
+      <tr><td>●</td><td>a dot occurs in the pattern and is in the correct order</td></tr>
+      <tr><td>○</td><td>a dot occurs in the pattern but in the wrong order</td></tr>
+    </table>
+    <p class="diff-note">The difficulty setting changes the amount of dots to connect. Easy is 4 dots, medium is 5 dots and hard is 6 dots.</p>
+    <p class="diff-note">Good luck!_</p>
+  </div>
+  <div class="view-bloc">
+    <div id="diffBox" class="selectbox selectbox-3">
+      <span class="selectbox-item active" data-diff="4">Easy</span>
+      <span class="selectbox-item" data-diff="5">Medium</span>
+      <span class="selectbox-item" data-diff="6">Hard</span>
+    </div>
+    <div id="typeBox" class="selectbox selector">
+      <span id="typePrev" class="selectbox-item active selector-left">&lt;</span>
+      <span id="typeNext" class="selectbox-item active selector-right">&gt;</span>
+      <span id="typeLabel" class="selectbox-item selector-label">Practice</span>
+    </div>
+    <p id="typeHelp" class="type-help">No pressure, just discover and practice your game</p>
+    <button id="startBtn" class="action-btn" type="button">START_</button>
+    <p id="roomNote" class="room-note" hidden></p>
+  </div>
+</div>
+
+<div id="game" class="view" hidden>
+  <div class="view-bloc">
+    <div class="status-bar">
+      <button id="abortBtn" class="status-bar-cancel" type="button">ABORT</button>
+      <span id="counter" class="status-bar-info">000</span>
+      <div id="countdown" class="countdown" hidden>
+        <span id="cdNum">060</span>
+        <span class="countdown-bar"><span id="cdFill" class="countdown-fill"></span></span>
+      </div>
+    </div>
+    <div class="history-wrap">
+      <div id="history" class="history">
+        <div id="historyBox" class="history-container" data-helper="Connect 4 dots"></div>
+      </div>
+    </div>
+  </div>
+  <div class="view-bloc game-lock">
+    <div class="lock-wrap">
+      <div id="lockCaption" class="lock-caption"></div>
+      <div id="lockMount"></div>
+    </div>
+    <div id="versus" class="versus" hidden>
+      <div id="pills" class="pills"></div>
+      <div id="vsNote" class="vs-note"></div>
+    </div>
+  </div>
+</div>
+
+<div id="summary" class="summary view" hidden>
+  <div class="view-bloc">
+    <h1 id="sumTitle" class="summary-title highlight">Success!</h1>
+    <p id="sumDetails" class="summary-details"></p>
+    <p id="sumReveal" class="diff-note">Please select an option.</p>
+  </div>
+  <div class="view-bloc">
+    <div class="summary-actions">
+      <button id="btnNew" class="summary-action" type="button">
+        <svg viewBox="0 0 128 128" aria-hidden="true"><path d="M111.5,120.5h-96c-4.418,0-8-3.582-8-8V16c0-3.236,1.949-6.153,4.938-7.391c2.991-1.237,6.432-0.554,8.718,1.734l48.5,48.5 c2.288,2.288,2.972,5.729,1.733,8.719S67.235,72.5,64,72.5H23.5v32h80v-80h-40c-4.418,0-8-3.582-8-8s3.582-8,8-8h48 c4.418,0,8,3.582,8,8v96C119.5,116.918,115.918,120.5,111.5,120.5z M23.5,56.5h21.187L23.5,35.313V56.5z"/></svg>
+        <span>NEW_GAME</span>
+      </button>
+      <button id="btnSolution" class="summary-action" type="button">
+        <svg viewBox="0 0 128 128" aria-hidden="true"><path d="M15.5,120c-1.463,0-2.921-0.4-4.207-1.194C8.936,117.348,7.5,114.772,7.5,112V16c0-2.772,1.436-5.348,3.794-6.805 c2.359-1.458,5.304-1.591,7.784-0.35l96,48C117.788,58.2,119.5,60.97,119.5,64s-1.712,5.8-4.422,7.155l-96,48 C17.949,119.72,16.723,120,15.5,120z M23.5,28.944v70.111L93.611,64L23.5,28.944z"/></svg>
+        <span>SOLUTION</span>
+      </button>
+      <button id="btnHome" class="summary-action" type="button">
+        <svg viewBox="0 0 128 128" aria-hidden="true"><path d="M111.5,120.5h-96c-4.418,0-8-3.582-8-8V64c0-2.129,0.849-4.17,2.358-5.672l48.25-48C59.613,8.831,61.681,8.015,63.776,8 c2.123,0.007,4.157,0.858,5.652,2.365l47.875,48.25c1.907,1.922,2.639,4.569,2.196,7.047V112.5 C119.5,116.918,115.918,120.5,111.5,120.5z M23.5,104.5h80v-32h-40c-4.418,0-8-3.582-8-8s3.582-8,8-8h29.165L63.713,27.321 L23.5,67.326V104.5z"/></svg>
+        <span>BACK_HOME</span>
+      </button>
+    </div>
+    <div id="passRow" class="pass-row" hidden>
+      <button id="btnPass" class="action-btn" type="button">YOUR TURN_</button>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/dom.js"></script>
+<script src="vendor/color.js"></script>
+<script src="vendor/pattern.js"></script>
+<script src="vendor/pattern-svg.js"></script>
+<script src="vendor/lock.js"></script>
+<script src="vendor/quotes.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
