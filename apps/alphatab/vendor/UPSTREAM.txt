@@ -1,0 +1,16 @@
+alphaTab 1.8.4 UMD (MPL-2.0) from npm @coderline/alphatab
+Source: https://github.com/CoderLine/alphaTab
+npm:    https://registry.npmjs.org/@coderline/alphatab/-/alphatab-1.8.4.tgz
+
+alphaTab.min.js   1120736  2d0335501b875453d52359de23cd9cebfcf71aed3d5739f1cf95117acfd52bec
+Bravura.woff2     313348   181e0e7c4889f9ad57dde0a11988fa61b941617aa499ecdb9dfd4713896c2b19
+sonivox.sf3       977208   d39beb7cd349278455b44e7689e35e3c1f5ed9ef80118485846537929df8f7c0
+
+Bravura is SIL Open Font License 1.1 (Steinberg Media Technologies).
+sonivox.sf3 is the SONiVOX GM soundfont shipped with alphaTab (Apache-2.0).
+TinySoundFont (MIT) and SFZero (MIT) are compiled into the UMD — see the
+header of alphaTab.min.js and COPYING-alphatab.txt.
+
+The UMD is a classic script. Workers are minted from a blob of the same
+bytes (capabilities.wasm). Playback uses WebAudioScriptProcessor so the
+AudioWorklet module path is never taken.

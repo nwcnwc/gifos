@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>alphaTab</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <label class="chip" for="file-input">Open</label>
+    <input type="file" id="file-input" accept=".gp,.gp3,.gp4,.gp5,.gpx,.gptex,.xml,.musicxml,.mxl,.cap,.tex,application/xml">
+    <span id="title" class="title">alphaTab</span>
+    <span class="gap"></span>
+    <button type="button" class="chip" id="stave" title="Notation and tab">Both</button>
+    <button type="button" class="chip" id="layout" title="Page or scroll">Page</button>
+    <button type="button" class="chip" id="zoom-out" aria-label="Zoom out">−</button>
+    <button type="button" class="chip" id="zoom-label">100%</button>
+    <button type="button" class="chip" id="zoom-in" aria-label="Zoom in">+</button>
+  </header>
+
+  <div id="tracks" hidden></div>
+
+  <div id="stage">
+    <div id="overlay">Opening the song…</div>
+    <div id="viewport">
+      <div id="main"></div>
+    </div>
+  </div>
+
+  <div id="player">
+    <button type="button" class="play" id="play" disabled aria-label="Play">Play</button>
+    <button type="button" class="chip" id="stop" disabled aria-label="Stop">Stop</button>
+    <span id="time" class="time">00:00 / 00:00</span>
+    <span class="gap"></span>
+    <label class="meta">Speed
+      <select id="speed" aria-label="Playback speed">
+        <option value="0.5">50%</option>
+        <option value="0.75">75%</option>
+        <option value="1" selected>100%</option>
+        <option value="1.25">125%</option>
+        <option value="1.5">150%</option>
+      </select>
+    </label>
+    <button type="button" class="chip" id="click" aria-pressed="false">Click</button>
+  </div>
+
+  <p id="status" class="status"></p>
+  <p id="meet" class="meet">Press <b>Invite</b> in the bar above to play together. They land on this tab and follow the playhead.</p>
+</div>
+
+<a id="at-src" href="vendor/alphaTab.min.js" hidden></a>
+<a id="sf-link" href="vendor/sonivox.sf3" hidden></a>
+<a id="font-link" href="vendor/Bravura.woff2" hidden></a>
+<a id="sample-link" href="sample.tex" hidden></a>
+
+<script src="vendor/alphaTab.min.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

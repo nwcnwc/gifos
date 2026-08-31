@@ -1,0 +1,25 @@
+{
+  "gifos": "1.0",
+  "appId": "alphatab",
+  "name": "alphaTab",
+  "shortName": "alphaTab",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Open a guitar tab. It stays in the file. Invite follows the playhead.",
+  "entry": "index.html",
+  "accent": [196, 140, 48],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "wasm": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "song": { "visibility": "read-only" },
+    "follow": { "visibility": "read-write" }
+  },
+  "lead": [
+    { "collection": "follow", "id": "cursor" }
+  ]
+}
