@@ -88,6 +88,9 @@ if (listing.homepage !== 'https://github.com/nwcnwc/gifos/tree/main/apps/breaklo
   throw new Error('listing.homepage must be the gifos tree');
 }
 if (listing.tagline.length > 120) throw new Error('tagline is over 120 chars');
+if (/Send the Invite in the bar above(?! the app)/.test(listing.description)) {
+  throw new Error('listing must say Invite is in the bar above the app, not the store chrome');
+}
 
 const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage']) {
@@ -192,6 +195,40 @@ if (!files['COPYING-breaklock.txt'].includes('maxwellito')) {
   if (!/Lock found in 1 attempt/.test(q)) throw new Error('success quote');
   const f = ctx.BreakLockQuotes.getQuote(false, 10);
   if (!/didn.t make it/.test(f)) throw new Error('fail quote');
+}
+
+{
+  const ctx = { window: {} };
+  vm.createContext(ctx);
+  vm.runInContext(files['net.js'], ctx);
+  const vsNext = ctx.window.BreakLockNet && ctx.window.BreakLockNet.vsNext;
+  if (typeof vsNext !== 'function') throw new Error('net.js must export vsNext');
+  const HANA = 'hana', CLEO = 'cleo';
+  const over = { state: 'over', setterId: HANA, round: 1, secret: [0, 1, 2, 5], winnerId: CLEO };
+  const cleoSuccess = { screen: 'summary', role: 'crack', ended: true, secret: [0, 1, 2, 5], round: 1 };
+  const hanaSuccess = { screen: 'summary', role: 'watch', ended: true, secret: [0, 1, 2, 5], round: 1 };
+  if (vsNext(over, CLEO, cleoSuccess) !== null) throw new Error('cracker on Success stays until YOUR TURN_');
+  if (vsNext(over, HANA, hanaSuccess) !== null) throw new Error('setter on Success stays until YOUR TURN_');
+  const passed = { state: 'setting', setterId: CLEO, round: 2, secret: [], difficulty: 4 };
+  if (vsNext(passed, CLEO, cleoSuccess) !== 'set') {
+    throw new Error('YOUR TURN_ must take the cracker off Success to draw, got ' + vsNext(passed, CLEO, cleoSuccess));
+  }
+  if (vsNext(passed, HANA, hanaSuccess) !== 'wait') {
+    throw new Error('setter after YOUR TURN_ waits, got ' + vsNext(passed, HANA, hanaSuccess));
+  }
+  const hanaWaiting = { screen: 'game', role: 'crack', ended: false, secret: null, round: 2 };
+  if (vsNext(passed, HANA, hanaWaiting) !== null) throw new Error('already waiting is a no-op');
+  const cleoDrawing = { screen: 'game', role: 'set', ended: false, secret: null, round: 2 };
+  if (vsNext(passed, CLEO, cleoDrawing) !== null) throw new Error('already drawing is a no-op');
+  const playing = { state: 'playing', setterId: CLEO, round: 2, secret: [0, 3, 6, 7] };
+  if (vsNext(playing, HANA, hanaWaiting) !== 'crack') throw new Error('waiter must crack once the secret is set');
+  if (vsNext(playing, CLEO, cleoDrawing) !== 'watch') throw new Error('setter watches once the secret is set');
+  if (files['boot.js'].includes("G.screen !== 'summary'")) {
+    throw new Error('summary must not block vsNext — that was the stuck-Success bug');
+  }
+  if (!files['boot.js'].includes('enterWait') || !files['boot.js'].includes('vsNext')) {
+    throw new Error('boot.js must drive screens from vsNext / enterWait');
+  }
 }
 
 const help = files['help.md'];

@@ -262,6 +262,25 @@
     publishMe();
   }
 
+  function enterWait(m) {
+    G.role = 'crack';
+    G.round = (m && m.round) || G.round;
+    G.difficulty = (m && m.difficulty) || G.difficulty;
+    G.secret = null;
+    G.ended = false;
+    G.won = false;
+    G.attempts = [];
+    G.count = 0;
+    G.setterId = (m && m.setterId) || G.setterId;
+    lock.setEnabled(false);
+    lock.setCallback(null);
+    lockCaption('Waiting — they are setting the lock.');
+    historyClear('Waiting');
+    setCounter(0);
+    show('game');
+    publishMe();
+  }
+
   function startWatch(suite, difficulty, round) {
     G.role = 'watch';
     G.difficulty = difficulty;
@@ -396,8 +415,8 @@
     $('sumDetails').textContent = details;
     $('sumReveal').hidden = !!won;
     $('btnSolution').hidden = !!won && G.role !== 'watch';
-    var canPass = versusOn() && (G.role === 'set' || G.role === 'watch' || G.setterId === meId());
-    $('passRow').hidden = !canPass;
+    $('passRow').hidden = !versusOn();
+    $('btnPass').textContent = 'YOUR TURN_';
     show('summary');
   }
 
@@ -433,12 +452,13 @@
   function passLock() {
     var others = Net.others();
     if (!others.length) return;
+    // Cracker (or anyone who is not the current setter) claims the next secret.
+    if (G.role === 'crack') {
+      startSet(G.difficulty);
+      return;
+    }
     var next = others[0];
     G.round++;
-    G.role = 'crack';
-    G.setterId = next.id;
-    G.secret = null;
-    G.ended = false;
     publishMatch({
       state: 'setting',
       difficulty: G.difficulty,
@@ -449,12 +469,11 @@
       winnerId: '',
       winnerName: ''
     });
-    lockCaption('Waiting — they are setting the lock.');
-    lock.setEnabled(false);
-    historyClear('Waiting');
-    setCounter(0);
-    show('game');
-    publishMe();
+    enterWait({
+      round: G.round,
+      difficulty: G.difficulty,
+      setterId: next.id
+    });
   }
 
   function restackWatch() {
@@ -522,41 +541,25 @@
     }
     var m = Net.match();
     if (!m) return;
-
-    if (m.state === 'setting' && m.setterId === meId() && G.role !== 'set' && G.screen !== 'summary') {
-      startSet(m.difficulty || G.difficulty, m.round);
-      return;
-    }
-    if (G.screen === 'menu' && m.state === 'playing' && m.secret && m.secret.length && m.setterId !== meId()) {
-      startCrack(m.secret, m.difficulty || m.secret.length, m.round);
-      return;
-    }
-    if (G.screen === 'menu' && m.state === 'setting' && m.setterId !== meId()) {
-      G.role = 'crack';
-      G.round = m.round || G.round;
-      G.difficulty = m.difficulty || G.difficulty;
-      lock.setEnabled(false);
-      lockCaption('Waiting — they are setting the lock.');
-      historyClear('Waiting');
-      setCounter(0);
-      show('game');
-      publishMe();
-      return;
-    }
-    if (G.role === 'crack' && G.screen === 'game' && !G.secret && m.state === 'playing' && m.secret && m.secret.length) {
-      startCrack(m.secret, m.difficulty || m.secret.length, m.round);
-      return;
-    }
-    if (G.role === 'watch' && !G.ended) restackWatch();
-    if (G.role === 'crack' && !G.ended && m.state === 'over' && m.winnerId && m.winnerId !== meId()) {
-      G.count = G.count || 0;
-      openSummary(false, G.count);
+    if (G.role === 'watch' && m.state === 'playing') restackWatch();
+    var act = Net.vsNext(m, meId(), {
+      screen: G.screen,
+      role: G.role,
+      ended: G.ended,
+      secret: G.secret,
+      round: G.round
+    });
+    if (act === 'set') startSet(m.difficulty || G.difficulty, m.round);
+    else if (act === 'wait') enterWait(m);
+    else if (act === 'crack') startCrack(m.secret, m.difficulty || m.secret.length, m.round);
+    else if (act === 'watch') startWatch(m.secret, m.difficulty || m.secret.length, m.round);
+    else if (act === 'summary') {
+      if (G.role === 'watch') restackWatch();
       G.ended = true;
       lock.setEnabled(false);
+      openSummary(!!(m.winnerId && m.winnerId === meId()), G.count || 0);
     }
-    if (G.role === 'set' && m.state === 'playing' && m.secret && m.secret.length && G.screen === 'game' && !G.secret) {
-      startWatch(m.secret, m.difficulty || m.secret.length, m.round);
-    }
+    renderVersus();
   }
 
   function renderVersus() {
@@ -584,7 +587,8 @@
     var note = $('vsNote');
     if (G.role === 'set') note.textContent = 'Draw a pattern. They have to crack it.';
     else if (G.role === 'watch') note.textContent = 'Your lock is live. Filled peg = right place, empty = right dot, wrong order.';
-    else if (G.role === 'crack') note.textContent = 'Same lock. First to find it wins.';
+    else if (G.role === 'crack' && !G.secret) note.textContent = 'Waiting — they are drawing the secret.';
+    else if (G.role === 'crack') note.textContent = 'Crack the lock they set.';
     else note.textContent = '';
   }
 
@@ -618,14 +622,16 @@
       var m = Net.match();
       var others = Net.others();
       var names = others.map(function (p) { return p.name || 'Friend'; }).join(', ');
-      if (m && m.state === 'playing' && m.setterId && m.setterId !== meId()) {
-        note.textContent = names + ' set a lock. START_ to crack it.';
-        btn.textContent = 'CRACK_';
-        btn.disabled = false;
-      } else if (m && m.state === 'setting' && m.setterId !== meId()) {
-        note.textContent = 'Waiting — ' + (m.setterName || names) + ' is drawing the secret.';
-        btn.textContent = 'WAIT_';
-        btn.disabled = true;
+      if (m && (m.state === 'setting' || m.state === 'playing') && m.setterId && m.setterId !== meId()) {
+        if (m.state === 'playing' && m.secret && m.secret.length) {
+          note.textContent = (m.setterName || names) + ' set a lock. CRACK_ to find it.';
+          btn.textContent = 'CRACK_';
+          btn.disabled = false;
+        } else {
+          note.textContent = 'Waiting — ' + (m.setterName || names) + ' is drawing the secret.';
+          btn.textContent = 'WAIT_';
+          btn.disabled = true;
+        }
       } else {
         note.textContent = names + ' is here. You draw a secret pattern; they have to crack it.';
         btn.textContent = 'SET A LOCK_';

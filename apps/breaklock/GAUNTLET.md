@@ -13,11 +13,12 @@ A stranger who knows maxwellito.github.io/breaklock would use this copy because 
 4. **STORE ART** — 1200×720 mid-game: four tries in the history with pegs, the live lock mid-swipe.
 5. **LISTING** — leads with the invite (you set, they crack) and the file-as-save. Author is maxwellito.
 6. **Stats** — wins/losses, streak, best streak, fewest tries per difficulty, plus a practice/challenge in progress. Countdown is not kept.
-7. **Invite** — setter draws a secret the UI never shows; cracker publishes attempts; setter watches the history. YOUR TURN_ passes the next secret.
+7. **Invite** — setter draws a secret the UI never shows; cracker publishes attempts; setter watches the history.
+8. **YOUR TURN_** — match `setting` with the cracker as setterId leaves their Success screen and puts them on "Draw the secret." The previous setter waits. `vsNext` is the tested state machine; summary is not a wall.
 
 ## Remaining gap
 
-The original's airport-display title and the OLED "deep black" easter egg are lighter here (airport is on, deep-black is not — there is no localStorage). Multiplayer is 1 setter + N crackers, not a simultaneous race on a *random* secret; that is the point of bar TWO.
+Phone menu still buries START_ under the instructions (the original collapses them). Cover is a reconstruction, thin at card size. Catalog regeneration is the orchestrator's.
 
 ## Win
 
