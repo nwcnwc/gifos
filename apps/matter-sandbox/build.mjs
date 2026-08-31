@@ -128,6 +128,22 @@ for (const [n, s] of Object.entries(files)) {
   }
 }
 
+if (!files['boot.js'].includes('function persistNow')) {
+  throw new Error('boot.js must persistNow so close can flush the pile');
+}
+if (!files['boot.js'].includes("addEventListener('pagehide'")) {
+  throw new Error('boot.js must flush on pagehide');
+}
+if (!/if \(saveTimer\) return/.test(files['boot.js'])) {
+  throw new Error('persist must not retrigger an armed debounce');
+}
+if (/if \(saveTimer\) clearTimeout\(saveTimer\);\s*saveTimer = setTimeout/.test(files['boot.js'])) {
+  throw new Error('persist retriggers while dirty — the pile never writes');
+}
+if (!files['boot.js'].includes('MSPhysics.isDirty()) persist()')) {
+  throw new Error('onTick must still persist while dirty');
+}
+
 function loadPhysics() {
   const sandbox = {
     console,
@@ -178,6 +194,191 @@ function loadPhysics() {
   for (let i = 0; i < 30; i++) P.step(1000 / 60);
   if (Math.abs(floater.position.y - fy) > 25) throw new Error('gravity 0 should not drop a ball');
   P.setGravity(1);
+}
+
+function makeMemDb() {
+  const cols = new Map();
+  return function (name) {
+    if (!cols.has(name)) cols.set(name, new Map());
+    const store = cols.get(name);
+    return {
+      get(id) { return Promise.resolve(store.has(id) ? store.get(id) : null); },
+      put(row) {
+        store.set(row.id, JSON.parse(JSON.stringify(row)));
+        return Promise.resolve();
+      },
+      getAll() { return Promise.resolve([...store.values()].map((r) => JSON.parse(JSON.stringify(r)))); },
+      delete(id) { store.delete(id); return Promise.resolve(); },
+      subscribe(fn) { fn([...store.values()]); }
+    };
+  };
+}
+
+function makeEl(id) {
+  const s = new Set();
+  return {
+    id, hidden: false, textContent: '', innerHTML: '', value: '10',
+    style: {}, width: 800, height: 600, clientWidth: 800, clientHeight: 600,
+    classList: {
+      add: (c) => s.add(c),
+      remove: (c) => s.delete(c),
+      toggle(c, on) {
+        if (on === true) s.add(c);
+        else if (on === false) s.delete(c);
+        else if (s.has(c)) s.delete(c);
+        else s.add(c);
+      },
+      contains: (c) => s.has(c)
+    },
+    addEventListener() {},
+    removeEventListener() {},
+    getAttribute() { return null; },
+    setAttribute() {},
+    getBoundingClientRect() { return { left: 0, top: 0, width: 800, height: 600 }; },
+    getContext() {
+      const noop = function () {};
+      return {
+        fillStyle: '', strokeStyle: '', lineWidth: 1, lineJoin: '', lineCap: '',
+        font: '', textAlign: '',
+        setTransform: noop, fillRect: noop, fill: noop, stroke: noop,
+        beginPath: noop, closePath: noop, moveTo: noop, lineTo: noop,
+        arc: noop, fillText: noop
+      };
+    },
+    setPointerCapture() {},
+    releasePointerCapture() {}
+  };
+}
+
+function loadApp(dbFn) {
+  const ids = ['world', 'stage', 'hint', 'pauseBtn', 'stackBtn', 'resetBtn', 'grav', 'gravN',
+    'friend-bar', 'friend-scores', 'friend-status', 'shareBtn', 'leaveBtn'];
+  const els = {};
+  for (const id of ids) els[id] = makeEl(id);
+  const docListeners = {};
+  const winListeners = {};
+  let now = 0;
+  let tid = 0;
+  const timeouts = [];
+  const raf = [];
+  const document = {
+    readyState: 'complete',
+    hidden: false,
+    body: { classList: makeEl('body').classList },
+    getElementById: (id) => els[id] || null,
+    querySelectorAll: () => [],
+    querySelector: () => null,
+    addEventListener(ev, fn) { (docListeners[ev] = docListeners[ev] || []).push(fn); },
+    removeEventListener() {},
+    activeElement: null
+  };
+  const sandbox = {
+    console, Math, Date, parseInt, parseFloat, NaN, Infinity, undefined,
+    isFinite, isNaN, Error, TypeError,
+    performance: { now: () => now },
+    devicePixelRatio: 1,
+    document,
+    navigator: { userAgent: 'node' }
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  sandbox.self = sandbox;
+  sandbox.gifos = {
+    db: dbFn,
+    info: () => Promise.resolve({ owner: true }),
+    me: () => Promise.resolve({ id: 'host', name: 'Hana' }),
+    onBack() {}
+  };
+  sandbox.setTimeout = function (fn, ms) {
+    const id = ++tid;
+    timeouts.push({ id, fn, at: now + (ms || 0) });
+    return id;
+  };
+  sandbox.clearTimeout = function (id) {
+    for (let i = timeouts.length - 1; i >= 0; i--) {
+      if (timeouts[i].id === id) timeouts.splice(i, 1);
+    }
+  };
+  sandbox.requestAnimationFrame = function (fn) {
+    raf.push(fn);
+    return ++tid;
+  };
+  sandbox.cancelAnimationFrame = function () {};
+  sandbox.addEventListener = function (ev, fn) {
+    (winListeners[ev] = winListeners[ev] || []).push(fn);
+  };
+  sandbox.removeEventListener = function () {};
+  function fireDue() {
+    timeouts.sort((a, b) => a.at - b.at);
+    while (timeouts.length && timeouts[0].at <= now) timeouts.shift().fn();
+  }
+  sandbox._pump = function (ms, dt) {
+    dt = dt || 16;
+    const end = now + ms;
+    while (now < end) {
+      now += dt;
+      fireDue();
+      const fns = raf.splice(0);
+      for (const fn of fns) fn(now);
+    }
+  };
+  sandbox._winListeners = winListeners;
+  sandbox._docListeners = docListeners;
+  vm.createContext(sandbox);
+  vm.runInContext(files['vendor/matter.min.js'], sandbox);
+  vm.runInContext(files['physics.js'], sandbox);
+  vm.runInContext(files['app.js'], sandbox);
+  vm.runInContext(files['net.js'], sandbox);
+  vm.runInContext(files['boot.js'], sandbox);
+  return sandbox;
+}
+
+async function settle() {
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+}
+
+{
+  const db = makeMemDb();
+  const a = loadApp(db);
+  await settle();
+  if (!a.MSPhysics || !a.MSPhysics.engine()) throw new Error('boot did not mount the world');
+  const n0 = a.MSPhysics.bodyCount();
+  if (n0 < 20) throw new Error('first-boot arena too small: ' + n0);
+  a.MSPhysics.addBox(80, 40);
+  a.MSPhysics.addBox(140, 40);
+  const n1 = a.MSPhysics.bodyCount();
+  if (n1 !== n0 + 2) throw new Error('dropped boxes missing: ' + n0 + ' -> ' + n1);
+  if (!a.MSPhysics.isDirty()) throw new Error('drops should leave the world dirty');
+  a._pump(1600);
+  await settle();
+  const row = await db('save').get('scene');
+  if (!row || !row.scene || !row.scene.b) throw new Error('persist never wrote a scene while the world stayed dirty');
+  if (row.scene.b.length !== n1) {
+    throw new Error('persist wrote ' + row.scene.b.length + ' bodies, want ' + n1);
+  }
+  const b = loadApp(db);
+  await settle();
+  const n2 = b.MSPhysics.bodyCount();
+  if (n2 !== n1) {
+    throw new Error('reopen restored ' + n2 + ' bodies, want ' + n1 + ' (dropped boxes did not survive close)');
+  }
+
+  const dbHide = makeMemDb();
+  const c = loadApp(dbHide);
+  await settle();
+  const c0 = c.MSPhysics.bodyCount();
+  c.MSPhysics.addBox(90, 50);
+  c.MSPhysics.addBox(150, 50);
+  const c1 = c.MSPhysics.bodyCount();
+  (c._winListeners.pagehide || []).forEach((fn) => fn({ type: 'pagehide' }));
+  await settle();
+  const d = loadApp(dbHide);
+  await settle();
+  const dN = d.MSPhysics.bodyCount();
+  if (dN !== c1 || dN !== c0 + 2) {
+    throw new Error('pagehide reopen restored ' + dN + ', want ' + c1);
+  }
+  console.log('persist/reopen ok —', n0, '->', n1, 'bodies survived close');
 }
 
 {

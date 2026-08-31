@@ -43,11 +43,11 @@
   "cover": "/apps/matter-sandbox/cover.jpg",
   "screenshots": [],
   "gif": "/apps/matter-sandbox/matter-sandbox.gif",
-  "bytes": 269440,
+  "bytes": 269700,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "44b262612bcde35ce7918a1fd7992e0420b3e90728f10f2ee09ad6dc2d0828c2",
+  "sha256": "9d9c7adcc435148a6216dca430ea6861c2d9769774ccb5a5d578c47c5274907b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

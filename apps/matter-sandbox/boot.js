@@ -18,16 +18,29 @@
     });
   }
 
+  function persistNow() {
+    if (!saveDb || !root.MSPhysics) return;
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = 0;
+    }
+    var scene = root.MSPhysics.exportScene();
+    saveDb.put({ id: 'scene', scene: scene, grav: root.MSPhysics.gravity() }).catch(function () {});
+    root.MSPhysics.markClean();
+  }
+
+  // onTick calls persist() on every dirty frame, and dirty stays true until
+  // the write. Retriggering the 800 ms timer means it never fires.
   function persist() {
     if (!saveDb) return;
-    if (saveTimer) clearTimeout(saveTimer);
+    if (saveTimer) return;
     saveTimer = setTimeout(function () {
       saveTimer = 0;
-      var scene = root.MSPhysics.exportScene();
-      saveDb.put({ id: 'scene', scene: scene, grav: root.MSPhysics.gravity() }).catch(function () {});
-      root.MSPhysics.markClean();
+      persistNow();
     }, 800);
   }
+
+  function flushSave() { persistNow(); }
 
   function paintRoster(list) {
     var bar = $('friend-bar');
@@ -79,6 +92,13 @@
       }
     });
     root.MSUI = ui;
+
+    // A timer armed on hide never runs — write now so close keeps the pile.
+    root.addEventListener('pagehide', flushSave);
+    root.addEventListener('beforeunload', flushSave);
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) persistNow();
+    });
 
     var share = $('shareBtn');
     if (share) {
