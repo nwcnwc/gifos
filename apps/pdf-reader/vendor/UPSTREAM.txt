@@ -1,0 +1,15 @@
+pdf.js 2.16.105 legacy UMD (Apache-2.0)
+Source: https://github.com/mozilla/pdf.js
+Build: pdfjs-dist 2.16.105 legacy (classic scripts, not the 4.x ESM build).
+Why 2.x: 4.x uses dynamic import(); the GifOS app CSP has no blob: in script-src,
+so that build cannot load. 2.16 is classic scripts + a blob: worker, which
+capabilities.wasm allows. The app runs it with isEvalSupported:false so its
+new Function/eval paths are never taken, and mints the worker itself via
+workerPort (worker-src blob:) so pdf.js never tries to load the worker as a
+<script> (blocked by script-src).
+
+pdf.min.js        366111  6c339beabbb74a9705608284b97155113bbefe1ce0011dc0bf3d25b8dc6b32ee
+pdf.worker.min.js 1111587 19bf7ed5cdfdbe980a68e5096bb20ab9862be8e65d9ae4f82ac18d2bcfacbb40
+
+Same pin as apps/pdf-tables/vendor (the sandbox-proven recipe).
+COPYING-pdfjs.txt is the Apache-2.0 notice from that tree.

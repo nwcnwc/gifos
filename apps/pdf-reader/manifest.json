@@ -1,0 +1,25 @@
+{
+  "gifos": "1.0",
+  "appId": "pdf-reader",
+  "name": "PDF Reader",
+  "shortName": "PDF",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Open a PDF on this device. The file stays here. Invite is follow-along.",
+  "entry": "index.html",
+  "accent": [220, 50, 47],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "wasm": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "doc": { "visibility": "read-only" },
+    "follow": { "visibility": "read-write" }
+  },
+  "lead": [
+    { "collection": "follow", "id": "cursor" }
+  ]
+}
