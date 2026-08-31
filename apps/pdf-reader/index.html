@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PDF Reader</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <label class="chip" for="file-input">Open</label>
+    <input type="file" id="file-input" accept="application/pdf,.pdf">
+    <button type="button" class="chip" id="prev" aria-label="Previous page">‹</button>
+    <span id="pager" class="pager">
+      <input type="number" id="page" min="1" value="1" aria-label="Page">
+      <span id="of">/ 1</span>
+    </span>
+    <button type="button" class="chip" id="next" aria-label="Next page">›</button>
+    <span class="gap"></span>
+    <button type="button" class="chip" id="zoom-out" aria-label="Zoom out">−</button>
+    <button type="button" class="chip" id="zoom-label" title="Fit width">100%</button>
+    <button type="button" class="chip" id="zoom-in" aria-label="Zoom in">+</button>
+    <button type="button" class="chip" id="point-toggle" aria-pressed="false">Point</button>
+    <button type="button" class="chip" id="find-toggle">Find</button>
+  </header>
+
+  <div id="findbar" hidden>
+    <input type="search" id="find" placeholder="Find in document" autocomplete="off" enterkeyhint="search">
+    <span id="find-count"></span>
+    <button type="button" class="chip" id="find-prev" aria-label="Previous match">Prev</button>
+    <button type="button" class="chip" id="find-next" aria-label="Next match">Next</button>
+    <button type="button" class="chip" id="find-close" aria-label="Close find">Done</button>
+  </div>
+
+  <div id="stage">
+    <div id="page-wrap">
+      <canvas id="page-canvas"></canvas>
+      <div id="text-layer" class="text-layer"></div>
+      <div id="hl-layer" class="hl-layer"></div>
+      <div id="pointer" class="pointer" hidden></div>
+    </div>
+    <div id="empty" class="empty">
+      <p>Open a PDF</p>
+      <p class="hint">It stays on this device. Press Invite in the bar above and a friend follows the page.</p>
+      <label class="btn" for="file-input">Choose file</label>
+    </div>
+    <div id="spinner" class="spinner" hidden></div>
+  </div>
+
+  <p id="status" class="status"></p>
+  <p id="meet" class="meet">Press <b>Invite</b> in the bar above to read together. They land on your page. Press <b>Point</b>, then hold a line.</p>
+</div>
+
+<div id="pw-sheet" class="sheet" hidden>
+  <form id="pw-form">
+    <p id="pw-msg">This PDF is locked. Enter the password.</p>
+    <input type="password" id="pw" autocomplete="current-password" placeholder="Password">
+    <div class="row">
+      <button type="submit" class="btn">Unlock</button>
+      <button type="button" class="chip" id="pw-cancel">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<!-- Order matters: the runtime inlines each <script src> where it stands. -->
+<script src="vendor/pdf.min.js"></script>
+<script src="pdf-worker.js"></script>
+<script src="sample.js"></script>
+<script src="viewer.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
