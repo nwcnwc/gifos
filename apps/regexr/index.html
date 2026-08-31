@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RegExr</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="brand">RegExr</div>
+    <h1>Expression</h1>
+    <div id="flagList" class="flags" aria-label="Flags"></div>
+    <div class="spacer"></div>
+    <div id="result" class="result">No match</div>
+    <button type="button" id="btnKeep">Keep</button>
+    <button type="button" id="btnSample">Sample</button>
+    <button type="button" id="btnCopy">Copy result</button>
+    <button type="button" id="btnSide" class="phone-only">Menu</button>
+  </header>
+
+  <div class="exp-row">
+    <span class="slash" aria-hidden="true">/</span>
+    <div class="hl-box exp-box">
+      <pre id="expHl" aria-hidden="true"></pre>
+      <input id="exp" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Regular expression">
+    </div>
+    <span class="slash" aria-hidden="true">/</span>
+    <span id="flagEcho" class="flag-echo" aria-hidden="true"></span>
+  </div>
+
+  <div id="mid">
+    <section id="textPane">
+      <header>
+        <div id="modeTabs" class="tabs">
+          <button type="button" data-mode="text" class="on">Text</button>
+          <button type="button" data-mode="tests">Tests</button>
+        </div>
+        <button type="button" id="btnAddTest">Add test</button>
+      </header>
+      <div class="hl-box text-box" id="textBox">
+        <pre id="textHl" aria-hidden="true"></pre>
+        <textarea id="text" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Test text"></textarea>
+      </div>
+      <div id="testList" hidden></div>
+    </section>
+
+    <section id="tools">
+      <header>
+        <h2>Tools</h2>
+        <div id="toolTabs" class="tabs">
+          <button type="button" data-tool="replace" class="on">Replace</button>
+          <button type="button" data-tool="list">List</button>
+          <button type="button" data-tool="details">Details</button>
+          <button type="button" data-tool="explain">Explain</button>
+        </div>
+      </header>
+      <div id="substRow">
+        <label id="substLab" for="subst">Replace with</label>
+        <input id="subst" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Replace or list delimiter">
+      </div>
+      <div id="toolBody"></div>
+    </section>
+  </div>
+
+  <aside id="side">
+    <div id="sideTabs" class="tabs">
+      <button type="button" data-side="cheat" class="on">Cheatsheet</button>
+      <button type="button" data-side="ref">Reference</button>
+      <button type="button" data-side="recents">Recents</button>
+      <button type="button" class="x sheet-x phone-only" aria-label="Close">✕</button>
+    </div>
+    <input id="sideSearch" type="search" placeholder="Search" aria-label="Search cheatsheet and reference">
+    <div id="sideBody"></div>
+  </aside>
+
+  <p id="status" class="status">The pattern lives in this file.</p>
+  <p id="meet">Press <b>Invite</b> in the bar above to share this pattern with a friend.</p>
+</div>
+
+<div id="sheet" hidden>
+  <div id="sidePanel" class="panel" hidden>
+    <header><h2>Menu</h2><button type="button" class="x sheet-x" aria-label="Close">✕</button></header>
+    <p class="hint">Cheatsheet, Reference, and Recents are in the side column on a larger screen.</p>
+  </div>
+</div>
+<div id="tip" hidden></div>
+
+<script src="vendor/profiles.js"></script>
+<script src="vendor/lexer.js"></script>
+<script src="vendor/reference.js"></script>
+<script src="vendor/cheatsheet.js"></script>
+<script src="tester.js"></script>
+<script src="net.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

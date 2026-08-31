@@ -1,0 +1,19 @@
+gskinner/regexr
+https://github.com/gskinner/regexr
+GPL-3.0, Copyright (C) 2017 gskinner.com, inc.
+Pinned commit d18630d02372b38614f220576bd1888326cf8e78
+
+Vendored as classic IIFE (no ESM) for the GifOS sandbox:
+  lexer.js       ExpressionLexer.js
+  profiles.js    profiles/core.js + javascript.js + merge
+  reference.js   docs/reference_content.js (external <a href> stripped)
+  cheatsheet.js  the Cheatsheet table from index.html
+
+Not vendored: CodeMirror, PHP/PCRE server solver, community catalog,
+accounts, ads, webfonts. Matching uses the browser RegExp in-thread
+(BrowserSolver.js algorithm, no Worker).
+
+sha256 lexer.js     c55554734d353e388646868ff510fd61656fa3a9ef1c65c8ab642d35327ff867
+sha256 profiles.js  70d7f6662ecd772109f6070ca0c20b9ffa2ad0dfa873c38ddbe5b5ef47fc6448
+sha256 reference.js c70fbaf965c7ff59cbb352e9d08ce7fcc7d5b9de0491065d933549c149dc2bee
+sha256 cheatsheet.js c14c4790d83532c66d996c10b95f4cf64ab5b1b8e7a57406bd891d397cd2f365

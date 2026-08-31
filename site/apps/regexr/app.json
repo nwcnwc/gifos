@@ -1,0 +1,63 @@
+{
+  "catalog": "1.0",
+  "slug": "regexr",
+  "appId": "regexr",
+  "name": "RegExr",
+  "shortName": "RegExr",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "The pattern and the test text live in this file — works on a plane, one Invite shares it.",
+  "description": "No account, no tab to lose. Type a pattern, see matches light up in the text as you type, and close the app — they are still here next time, because the pattern lives in this file. Press Invite in the bar above and a friend is on the same expression with you. regexr.com cannot do that offline.\n\nCheatsheet and the full Reference sit beside the editor; click a token to insert it. Tools: Replace, List, Details (capture groups), Explain. Tests check that the expression matches (or does not). JavaScript RegExp in this tab — nothing is uploaded.\n\nAn unofficial port of RegExr by Grant Skinner and gskinner.com. Bugs go to GifOS, not upstream. Community catalog and the PHP/PCRE engine are not in this copy.",
+  "author": {
+    "name": "Grant Skinner",
+    "url": "https://github.com/gskinner/regexr"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Developer",
+    "Learning"
+  ],
+  "tags": [
+    "regex",
+    "regexp",
+    "tester",
+    "cheatsheet",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "GPL-3.0",
+  "copyright": "",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/regexr",
+  "accent": [
+    112,
+    176,
+    224
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/regexr/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/regexr/regexr.gif",
+  "bytes": 189551,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "33e24a47620aebf20b982ffcc5874e87d9069ddbbd773764b5720d6346648688",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "RegExr",
+    "url": "https://github.com/gskinner/regexr",
+    "blessed": false
+  }
+}
