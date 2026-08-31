@@ -1,0 +1,25 @@
+{
+  "gifos": "1.0",
+  "appId": "digitaljs",
+  "name": "DigitalJS",
+  "shortName": "DigitalJS",
+  "version": "0.14.2",
+  "minBuild": 947,
+  "description": "A live logic bench. The circuit lives in the file.",
+  "entry": "index.html",
+  "accent": [46, 196, 138],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  },
+  "launch": {
+    "circuit": {
+      "label": "Open a sample circuit",
+      "detail": "counter, alu, fulladder, lfsr, or latch."
+    }
+  }
+}

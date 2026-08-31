@@ -1,0 +1,17 @@
+vendor/digitaljs.js is digitaljs@0.14.2 bundled with webpack (UMD).
+Layout uses JointJS dagre; elkjs and the worker engine are stubbed.
+
+package: digitaljs@0.14.2
+npm:     https://registry.npmjs.org/digitaljs/-/digitaljs-0.14.2.tgz
+sha256:  67f502498466e206c982eecaf7b58a1c3ae84b524cb26e3fe3decfaefbff31c8
+bytes:   799829
+css:     vendor/digitaljs.css (59 bytes)
+
+COPYING-digitaljs.txt  BSD-2-Clause, Copyright 2018 Marek Materzok
+jQuery / jQuery UI     MIT
+@joint/core            MPL-2.0
+3vl / wavecanvas       BSD-2-Clause (tilk)
+fastpriorityqueue      Apache-2.0
+
+basedOn: DigitalJS
+url:     https://github.com/tilk/digitaljs

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>DigitalJS</title>
+<link rel="stylesheet" href="vendor/digitaljs.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="bar">
+  <div id="transport">
+    <button type="button" id="btn-play" aria-label="Play">Play</button>
+    <button type="button" id="btn-pause" aria-label="Pause" hidden>Pause</button>
+    <button type="button" id="btn-step" aria-label="Step">Step</button>
+  </div>
+  <label class="pick">
+    <span class="sr">Circuit</span>
+    <select id="sample" aria-label="Sample circuit"></select>
+  </label>
+  <button type="button" id="btn-json">JSON</button>
+  <span id="status" class="meta">Stopped</span>
+</header>
+
+<div id="stage">
+  <div id="bench">
+    <div id="paper"></div>
+  </div>
+  <div id="zoom-hud">
+    <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+    <button type="button" id="zoom-fit" aria-label="Fit">Fit</button>
+    <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+  </div>
+</div>
+
+<section id="pins" aria-label="Pins">
+  <h2>Pins</h2>
+  <div id="iopanel"></div>
+</section>
+
+<p id="meet" class="meet">Press <b>Invite</b> in the bar above to share this bench. A friend who opens the link sees the same circuit.</p>
+<p id="err" class="err" hidden></p>
+
+<div id="json-sheet" hidden>
+  <header>
+    <h2>Circuit JSON</h2>
+    <button type="button" id="json-close">Close</button>
+  </header>
+  <textarea id="json-src" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+  <div class="json-row">
+    <button type="button" id="json-apply">Load this JSON</button>
+    <button type="button" id="json-dump">Copy current</button>
+  </div>
+</div>
+
+<script src="vendor/digitaljs.js"></script>
+<script src="circuits.js"></script>
+<script src="touch.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
