@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Webamp</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="desktop"></div>
+
+<div id="dock">
+  <button type="button" id="add-mp3">+ MP3s</button>
+  <button type="button" id="add-skin">Skin</button>
+  <button type="button" id="show-player" hidden>Show player</button>
+  <span id="hint">Drop MP3s. Playlist and EQ stay in this file.</span>
+  <span id="room" hidden></span>
+</div>
+
+<div id="setlist" hidden>
+  <div id="setlist-h">Room playlist</div>
+  <ol id="setlist-ol"></ol>
+</div>
+
+<input id="pick-mp3" type="file" accept="audio/*,.mp3,.ogg,.wav,.flac,.m4a,.aac,.opus" multiple hidden>
+<input id="pick-skin" type="file" accept=".wsz,.zip,application/zip" hidden>
+
+<div id="toast" hidden></div>
+<div id="fail" hidden>
+  <p>This browser cannot run Webamp (it needs Web Audio and an &lt;audio&gt; element).</p>
+</div>
+
+<script src="vendor/webamp.bundle.min.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

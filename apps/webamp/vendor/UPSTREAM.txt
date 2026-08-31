@@ -1,0 +1,17 @@
+webamp 2.2.0
+https://github.com/captbaritone/webamp
+https://www.npmjs.com/package/webamp
+
+Pinned file: built/webamp.bundle.min.js (UMD, window.Webamp)
+Source: https://unpkg.com/webamp@2.2.0/built/webamp.bundle.min.js
+SHA-256 (after stripping the sourceMappingURL comment):
+  e416f79b94d549f7d531b365e9751c5932c6b2dc5990d062aa52bd41f22d190c
+
+The default Winamp 2.91-look skin is compiled into that bundle as CSS
+(Webamp's own MIT distribution). This tree does not ship Nullsoft's
+llama MP3 or a separate .wsz of their bitmaps. User-dropped .wsz skins
+and MP3s live in the app's saved data, not at a URL.
+
+Rebuild (needs the network, not part of build.mjs):
+
+  node apps/webamp/vendor.mjs

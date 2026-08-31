@@ -1,0 +1,67 @@
+{
+  "catalog": "1.0",
+  "slug": "webamp",
+  "appId": "webamp",
+  "name": "Webamp",
+  "shortName": "Webamp",
+  "version": "1.0.0",
+  "minBuild": 2154,
+  "tagline": "Winamp 2.9 that lives in a GIF — playlist, EQ, and your MP3s stay in the file, even on a plane.",
+  "description": "Drop MP3s onto the player. Close it, come back later, the same playlist and the same EQ are still there — they live in the file. No account, no server, nothing fetched. It works on a plane.\n\nSend the Invite in the bar above and a friend sees the same playlist and the same graphic EQ. Either of you can twist the bands. The songs travel when you hand someone the GIF.\n\nIt is Winamp 2.9: the main window, the equalizer, the playlist, the green vis, the hotkeys (Z X C V B), double-size, shade mode, and skins you drop as .wsz files. The base skin is inside the file, so it looks like Winamp the first time you open it.\n\nAn unofficial port of Webamp by Jordan Eldredge. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Jordan Eldredge",
+    "url": "https://github.com/captbaritone/webamp"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Media",
+    "Creativity"
+  ],
+  "tags": [
+    "winamp",
+    "mp3",
+    "player",
+    "equalizer",
+    "playlist",
+    "skins",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) [2015] [Jordan Eldredge]",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/webamp",
+  "accent": [
+    0,
+    255,
+    0
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "links": true
+  },
+  "cover": "/apps/webamp/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/webamp/webamp.gif",
+  "bytes": 636048,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "1b976a609c18c37fe246b19d5702743aa19a21e9b532b304dfaac71e5578e5ec",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Webamp",
+    "url": "https://github.com/captbaritone/webamp",
+    "blessed": false,
+    "donate": "https://github.com/sponsors/captbaritone"
+  }
+}
