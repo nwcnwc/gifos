@@ -1,0 +1,20 @@
+{
+  "gifos": "1.0",
+  "appId": "nullboard",
+  "name": "Nullboard",
+  "shortName": "Nullboard",
+  "version": "1.0.0",
+  "minBuild": 2154,
+  "description": "A compact kanban. The board is the file.",
+  "entry": "index.html",
+  "accent": [20, 137, 219],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "links": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

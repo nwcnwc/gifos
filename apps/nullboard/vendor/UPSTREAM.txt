@@ -1,0 +1,17 @@
+Upstream: https://github.com/apankrat/nullboard
+Pin:      db653635307d02bb7c17144ba7dc2c1d1ab5408a  (master, 2023-11-05)
+Files:    nullboard.html, extras/jquery-3.6.0.min.js, extras/Barlow-*.woff
+License:  2-clause BSD with the Commons Clause (Alexander Pankratov / swapped.ch)
+
+sha256 nullboard.html:           7e6f1ae38018481dea52118efbb79cde958550e7708ec165f43efae1bca75f2b
+sha256 extras/jquery-3.6.0.min.js: ff1523fb7389539c84c65aba19260648793bb4f5e29329d2ee8804bc37a3fe6e
+sha256 extras/Barlow-Regular.woff: ad42bf8926ea20a4810b2d7660ed0e554b41eb6ea6d2bc8f75afb0bab447bf7f
+sha256 extras/Barlow-Medium.woff:  d59a08c7dc07553cd3e54bc8cba62e91d93de6e0a5e7353f6b1cb08d448973e8
+
+Barlow (Jeremy Tribby / The Barlow Project Authors) is SIL OFL 1.1.
+jQuery 3.6.0 is MIT (OpenJS Foundation).
+
+This GifOS port vendors those files, persists boards through gifos.db
+instead of the page's localStorage, and adds phone menus plus an invite
+room. Auto-backup to a local Nullboard Agent is not in this copy: the
+file itself is the save.
