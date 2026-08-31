@@ -210,6 +210,7 @@
     lastPublished = t;
     var paddle = App.localPaddle();
     if (!paddle) return;
+    if (!owner && g.paddle && paddle === g.paddle) return;
     db('players').put({
       id: me.id,
       name: me.name,

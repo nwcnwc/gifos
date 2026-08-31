@@ -17,6 +17,7 @@
   var paddle2 = null;
   var mpLive = false;
   var roomy = false;
+  var guestHadX = false;
   var actx = null;
   var lastDx = 0;
   var lastHits = 0;
@@ -31,9 +32,33 @@
   function db(n) { return root.gifos && root.gifos.db ? root.gifos.db(n) : null; }
 
   function localPaddle() {
-    if (roomy && root.Net && !root.Net.owner() && !mpLive) return null;
-    if (mpLive && root.Net && !root.Net.owner() && paddle2) return paddle2;
-    return game ? game.paddle : null;
+    if (!game) return null;
+    if (roomy && root.Net && !root.Net.owner()) {
+      if (!mpLive) return null;
+      return paddle2 || null;
+    }
+    return game.paddle;
+  }
+
+  function laneX(which) {
+    var p = game && game.paddle;
+    if (!p) return 0;
+    var span = p.maxX - p.minX;
+    if (span < 1) span = 1;
+    var x = which === 'guest' ? p.minX + span * 0.82 : p.minX + span * 0.18;
+    if (x < p.minX) x = p.minX;
+    if (x > p.maxX) x = p.maxX;
+    return x;
+  }
+
+  function seatPaddles() {
+    if (!game || !game.paddle) return;
+    ensurePaddle2();
+    game.paddle.place(laneX('host'));
+    game.paddle.setdir(0);
+    paddle2.place(laneX('guest'));
+    paddle2.setdir(0);
+    if (root.Net && root.Net.publish) root.Net.publish(true);
   }
 
   function resumeAudio() {
@@ -178,11 +203,12 @@
   function ensurePaddle2() {
     if (paddle2) return paddle2;
     paddle2 = paintPaddle2();
+    var orig = paddle2.reset;
+    paddle2.reset = function () {
+      orig.call(this);
+      this.place(laneX('guest'));
+    };
     paddle2.reset();
-    var host = game.paddle;
-    var x = host.x + host.w + 10;
-    if (x > paddle2.maxX) x = Math.max(paddle2.minX, host.x - host.w - 10);
-    paddle2.place(x);
     return paddle2;
   }
 
@@ -214,7 +240,16 @@
       else hostP = opp;
     }
     if (root.Net.owner()) {
-      if (paddle2 && guestP && guestP.x != null) { paddle2.setdir(0); paddle2.place(guestP.x); }
+      if (paddle2 && guestP && guestP.x != null) {
+        var nx = guestP.x;
+        if (!guestHadX) {
+          guestHadX = true;
+          var hw = game.paddle.w;
+          if (nx < game.paddle.x + hw && nx + hw > game.paddle.x) nx = laneX('guest');
+        }
+        paddle2.setdir(0);
+        paddle2.place(nx);
+      }
     } else if (mpLive) {
       if (hostP && hostP.x != null) { game.paddle.setdir(0); game.paddle.place(hostP.x); }
     } else {
@@ -255,13 +290,16 @@
   }
 
   function onRoster() {
+    var was = roomy;
     roomy = !!(root.Net && root.Net.live());
-    var seated = !!(roomy && (root.Net.owner() || (root.Net.seated && root.Net.seated())));
+    var seatedNow = !!(roomy && (root.Net.owner() || (root.Net.seated && root.Net.seated())));
+    if (!roomy) guestHadX = false;
     if (roomy) ensurePaddle2();
-    if (seated && !mpLive) {
+    if (roomy && !was) seatPaddles();
+    if (seatedNow && !mpLive) {
       mpLive = true;
       syncHitTargets();
-    } else if (!seated && mpLive) {
+    } else if (!seatedNow && mpLive) {
       mpLive = false;
       syncHitTargets();
     }
@@ -392,13 +430,18 @@
       }
     };
 
+    var origPadReset = game.paddle.reset;
+    game.paddle.reset = function () {
+      origPadReset.call(this);
+      if (roomy) this.place(laneX('host'));
+    };
+
     var origOnresize = game.onresize;
     game.onresize = function (width, height) {
       origOnresize.call(this, width, height);
-      if (paddle2) {
-        paddle2.reset();
-        syncHitTargets();
-      }
+      if (roomy) seatPaddles();
+      else if (paddle2) paddle2.reset();
+      syncHitTargets();
     };
 
     soundBtn.addEventListener('click', function (ev) {

@@ -20,7 +20,7 @@ There are many walls. Pick one from the menu before you start, or just play: cle
 
 ## A second paddle
 
-Press **Invite** in the bar above the app and send the link. A second paddle appears on the **same brick wall** — cyan, next to yours. You both keep the ball up. You both score on the same bricks. Lives are shared.
+Press **Invite** in the bar above the app and send the link. A second paddle appears on the **same brick wall** — you are orange on the left, they are cyan on the right. You both keep the ball up. You both score on the same bricks. Lives are shared. After that you can both move anywhere.
 
 The person who opened the app runs the ball. A third person who opens the link can watch; they do not get a paddle.
 

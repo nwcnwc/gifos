@@ -1,6 +1,6 @@
 # Breakout gauntlet
 
-**Win:** A stranger who knows Atari Breakout / Jake Gordon’s demo uses this one because the high score lives in the file and one invite link puts a second paddle on the same wall — no install, no account, no server.
+**Critic picked OURS.** Win: a stranger who knows Atari Breakout / Jake Gordon’s demo uses this one because the high score lives in the file and one invite link puts a second paddle on the same wall — no install, no account, no server.
 
 ## Bars
 
@@ -13,6 +13,7 @@
 2. **Solo game.** Unmodified `game.js` / `breakout.js` / `levels.js`. Drag paddle, keys, level picker, high score in the file.
 3. **Extra paddle.** Host simulates ball + bricks on `world`; guest writes only their paddle `x`. Cyan paddle, shared lives/score. A third opener watches.
 4. **Face.** Icon: ball pops a brick. Cover: mid-wall, two paddles, a brick just broken. Listing leads with the file-is-the-save and the extra paddle.
+5. **Spawn lanes.** Critic: extra paddle spawned on top of the first (`BobAlice`, 18px apart on a 126px bat). Host now seats orange at 18% of travel, cyan at 82%; a guest never publishes the orange bat. Resize and paddle-reset keep the lanes. They can still drag anywhere after.
 
 ## Remaining gap
 
