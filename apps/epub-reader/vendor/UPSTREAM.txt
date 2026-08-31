@@ -1,0 +1,16 @@
+epub.js 0.3.93 (BSD-2-Clause / FreeBSD)
+Source: https://github.com/futurepress/epub.js
+Build: epubjs 0.3.93 dist/epub.min.js (classic UMD, JSZip as a global).
+Why this build: 0.3 is the supported line; the UMD file is a classic script
+the packer can inline. Rendition's iframe view cannot run here (the app
+frame-src is none, and the sandbox is opaque), so the app uses Book /
+Archive / Navigation / CFI from this file and paginates in a div.
+
+epub.min.js  223875  06eae15745107b4aa508c95538275251f69bfb9f1175621fc458d9f42ed082d4
+
+JSZip 3.10.1 (MIT — dual MIT/GPLv3, this copy is MIT)
+Source: https://github.com/Stuk/jszip
+Build: dist/jszip.min.js (classic UMD, global JSZip). Required by epub.js
+to open archived .epub files. Never fetched at runtime.
+
+jszip.min.js  97630  acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e
