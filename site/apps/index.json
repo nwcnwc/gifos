@@ -2039,7 +2039,7 @@
         138
       ],
       "cover": "/apps/digitaljs/cover.jpg",
-      "bytes": 624078,
+      "bytes": 625344,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2047,7 +2047,7 @@
         "id": "gifos.app",
         "ts": "2026-08-31"
       },
-      "sha256": "7082da44ff435ae10f3f05ee1c76efc3e285faee70e4febf303bc9bcd333cab1"
+      "sha256": "4755370debc5ad49acfb341e0aea1a29bcff289336b41274f8da72a7e0b0144c"
     },
     {
       "slug": "drawnix",
@@ -3923,7 +3923,7 @@
         56
       ],
       "cover": "/apps/jsnes/cover.jpg",
-      "bytes": 313751,
+      "bytes": 315475,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3931,7 +3931,7 @@
         "id": "gifos.app",
         "ts": "2026-08-31"
       },
-      "sha256": "121f4917c6ec7ed0f0a5e255e8f100f857b837a6b743bffd68a3caf245d46581"
+      "sha256": "bf85c331f08cb958b8a754f6d3e4665d0f9e18f3484c7ad9b70a5f3a757f15de"
     },
     {
       "slug": "json-crack",
@@ -4917,7 +4917,7 @@
         208
       ],
       "cover": "/apps/milkdown/cover.jpg",
-      "bytes": 350141,
+      "bytes": 351201,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4925,7 +4925,7 @@
         "id": "gifos.app",
         "ts": "2026-08-31"
       },
-      "sha256": "c9b0f54495e9a1f8d60203425d594b5422de46eddfbc4b2dcd22937065b8363f"
+      "sha256": "e3ae8ba759f598de04a561e3de1e244f555878c97dcb630b11fb2dd3dc61e8a3"
     },
     {
       "slug": "mini-photo-editor",
@@ -8888,15 +8888,11 @@
         246
       ],
       "cover": "/apps/tic80/cover.jpg",
-      "bytes": 2938395,
+      "bytes": 2939626,
       "download": 0,
       "provides": null,
-      "signature": {
-        "type": "domain",
-        "id": "gifos.app",
-        "ts": "2026-08-31"
-      },
-      "sha256": "04d18bd0444055ee93630caab80239a401dfa7842664a00ea3ae4a678771969b"
+      "signature": null,
+      "sha256": "4ec8b48c126b8e01e0b2e59f6b5f73eb02b5db5abcd9558d9269f6699e9e1491"
     },
     {
       "slug": "tiddlywiki",
