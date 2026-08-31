@@ -1,0 +1,65 @@
+{
+  "catalog": "1.0",
+  "slug": "alphatab",
+  "appId": "alphatab",
+  "name": "alphaTab",
+  "shortName": "alphaTab",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "The tab lives in the GIF. Invite, and a friend follows the playhead.",
+  "description": "Open a Guitar Pro or MusicXML file — or the public-domain Greensleeves already here — and it stays inside the app. Close it, come back, you are still on the same song. Nothing is uploaded. It works on a plane.\n\nPress Play and a cursor walks the notation and the tab while the built-in player sounds the notes. On a phone the play button sits under your thumb and the page scrolls with the beat.\n\nPress Invite in the bar above and a friend lands on this same tab, on the same beat. When you play, their playhead moves with yours. The person who opened the app is the one whose song is shared.\n\nUnofficial port of alphaTab by Daniel Kuschny. CoderLine did not bless this copy.",
+  "author": {
+    "name": "Daniel Kuschny",
+    "url": "https://github.com/CoderLine/alphaTab"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Creativity",
+    "Media"
+  ],
+  "tags": [
+    "guitar",
+    "tablature",
+    "tab",
+    "notation",
+    "player",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MPL-2.0",
+  "copyright": "Copyright © 2025, Daniel Kuschny and Contributors, All rights reserved.; Copyright © 2015, Steinberg Media Technologies GmbH (http://www.steinberg.net/),; Copyright (c) 2004-2006 Sonic Network Inc.",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/alphatab",
+  "accent": [
+    196,
+    140,
+    48
+  ],
+  "capabilities": {
+    "db": true,
+    "wasm": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/alphatab/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/alphatab/alphatab.gif",
+  "bytes": 1367056,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "3ea9774accf0faa121e23be4ea13aa709713e24ba672176ff2621ddfa52cc39e",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "alphaTab",
+    "url": "https://github.com/CoderLine/alphaTab",
+    "blessed": false
+  }
+}
