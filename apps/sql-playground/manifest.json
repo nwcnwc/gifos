@@ -1,0 +1,26 @@
+{
+  "gifos": "1.0",
+  "appId": "sql-playground",
+  "name": "SQL Playground",
+  "shortName": "SQL",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "SQLite in this file. Invite shares the database.",
+  "entry": "index.html",
+  "accent": [61, 190, 160],
+  "capabilities": {
+    "db": true,
+    "wasm": true,
+    "multiplayer": true
+  },
+  "data": {
+    "file": { "visibility": "read-write" },
+    "prefs": { "visibility": "private" }
+  },
+  "launch": {
+    "sql": {
+      "label": "Run a query the link chose",
+      "detail": "A SQL statement."
+    }
+  }
+}

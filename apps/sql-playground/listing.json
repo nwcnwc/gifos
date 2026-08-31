@@ -1,0 +1,36 @@
+{
+  "tagline": "A SQLite database that lives in this file. Invite shares it.",
+  "description": "The database is the file. Close it, come back, your tables are still there. Press Invite and someone else lands on the same database — they can query and change it, with no server and no account. It works on a plane.\n\nA tiny music shop (artists, albums, tracks, invoices) is already loaded, so the first query can join tables. Type SQL and press Run. The schema is on the left; tap a table to select it. Open a .sqlite from this device, or save one out.\n\nUnofficial port of sql.js (SQLite compiled to run in the browser). Their demo forgets the database when you close the tab. This one does not.",
+  "author": {
+    "name": "sql.js authors",
+    "url": "https://github.com/sql-js/sql.js"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "sql.js",
+    "url": "https://github.com/sql-js/sql.js",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Developer",
+    "Utilities"
+  ],
+  "tags": [
+    "sql",
+    "sqlite",
+    "database",
+    "query",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/sql-playground",
+  "cover": "screenshot.png",
+  "coverCrop": {
+    "top": 0
+  },
+  "screenshots": []
+}
