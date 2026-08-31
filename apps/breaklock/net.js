@@ -148,6 +148,46 @@
     return [{ id: me.id, name: me.name, me: true }].concat(othersList());
   }
 
+  /**
+   * What a client should do next from the live match row.
+   * Summary is not a wall — YOUR TURN_ writes state=setting with the
+   * cracker as setterId, and they must leave Success to draw.
+   * Returns null if the current screen already matches.
+   */
+  function vsNext(m, myId, cur) {
+    if (!m || !myId) return null;
+    cur = cur || {};
+    var screen = cur.screen || 'menu';
+    var role = cur.role || 'solo';
+    var ended = !!cur.ended;
+    var hasSecret = !!cur.secret;
+    var sameRound = (cur.round | 0) === (m.round | 0);
+
+    if (m.state === 'setting') {
+      if (m.setterId === myId) {
+        if (role === 'set' && screen === 'game' && !ended && sameRound) return null;
+        return 'set';
+      }
+      if (role === 'crack' && screen === 'game' && !hasSecret && !ended && sameRound) return null;
+      return 'wait';
+    }
+    if (m.state === 'playing' && m.secret && m.secret.length) {
+      // Stay on Success until match goes over or YOUR TURN_ starts the next round.
+      if (screen === 'summary' && sameRound) return null;
+      if (m.setterId === myId) {
+        if (role === 'watch' && screen === 'game' && !ended && sameRound) return null;
+        return 'watch';
+      }
+      if (role === 'crack' && hasSecret && screen === 'game' && !ended && sameRound) return null;
+      return 'crack';
+    }
+    if (m.state === 'over') {
+      if (screen === 'summary' && sameRound) return null;
+      return 'summary';
+    }
+    return null;
+  }
+
   root.BreakLockNet = {
     init: init,
     live: live,
@@ -160,6 +200,7 @@
     roster: roster,
     putPlayer: putPlayer,
     putMatch: putMatch,
+    vsNext: vsNext,
     onChange: function (fn) { onChange = fn; }
   };
-})(window);
+})(typeof window !== 'undefined' ? window : globalThis);
