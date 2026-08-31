@@ -1,0 +1,36 @@
+{
+  "tagline": "The book lives in the app. Invite a friend onto the same page — nothing is uploaded.",
+  "description": "Open an EPUB and it lives inside the app. Close it, come back, you are still on the same page. It never leaves this device — not to a server, not when you send an invite.\n\nPress Invite in the bar above and a friend lands on the page you are reading. Turn a page, they turn. Press Point, then hold a line, and a pointer appears on theirs. The file itself is not sent to a website; they are looking at the same copy, on their own device, even on a plane.\n\nSwipe to turn pages on a phone. Contents lists every chapter. A− / A+ change the type. Find jumps to every match in the chapter.\n\nA short public-domain book is already open the first time, so you can try it before you pick a file of your own.\n\nThe engine is FuturePress's epub.js, packed in. Unofficial — FuturePress did not bless this copy.",
+  "author": {
+    "name": "FuturePress",
+    "url": "https://github.com/futurepress/epub.js"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "epub.js",
+    "url": "https://github.com/futurepress/epub.js",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "epub",
+    "ebook",
+    "reader",
+    "book",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "BSD-2-Clause",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/epub-reader",
+  "cover": "screenshot.png",
+  "coverCrop": {
+    "top": 0
+  },
+  "screenshots": []
+}
