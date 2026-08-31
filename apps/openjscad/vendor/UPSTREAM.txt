@@ -1,0 +1,19 @@
+jscad/OpenJSCAD.org
+https://github.com/jscad/OpenJSCAD.org
+package: @jscad/modeling@2.13.0
+file: vendor/jscad-modeling.min.js
+sha256: 3c4e2acfeadafe519b2e05f557d765390e5cb0e3d223dc148c631b6ebb12e482
+bytes: 250793
+MIT, Copyright (c) 2017-2024 JSCAD Organization
+
+Upstream also credits (MIT):
+  CSG library — Joost Nieuwenhuijse, Evan Wallace
+  glMatrix — Brandon Jones, Colin MacKenzie IV
+  Quickhull — Mauricio Poppe
+
+The GifOS port vendors the published UMD bundle (standalone name
+jscadModeling) and wraps it in a script editor + WebGL orbit view.
+openjscad.xyz's Ace editor, file-drop of .scad, and the OpenSCAD
+translator are not shipped. Rebuild with:
+
+  node apps/openjscad/vendor.mjs

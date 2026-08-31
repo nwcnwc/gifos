@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "openjscad",
+  "name": "OpenJSCAD",
+  "shortName": "JSCAD",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Write JavaScript, get a 3D solid. The script lives in this file.",
+  "entry": "index.html",
+  "accent": [242, 180, 52],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-only" }
+  }
+}
