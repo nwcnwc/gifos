@@ -48,7 +48,12 @@
       add: { type: 'Addition', label: '+', bits: { in1: 4, in2: 4, out: 4 } },
       sub: { type: 'Subtraction', label: '−', bits: { in1: 4, in2: 4, out: 4 } },
       mux: { type: 'Mux', label: 'op', bits: { in: 4, sel: 1 } },
-      y: { type: 'NumDisplay', label: 'Y', net: 'Y', bits: 4, numbase: 'hex' }
+      y: { type: 'NumDisplay', label: 'Y', net: 'Y', bits: 4, numbase: 'hex' },
+      split: { type: 'BusUngroup', groups: [1, 1, 1, 1] },
+      y0: { type: 'Lamp', label: 'y0', bits: 1 },
+      y1: { type: 'Lamp', label: 'y1', bits: 1 },
+      y2: { type: 'Lamp', label: 'y2', bits: 1 },
+      y3: { type: 'Lamp', label: 'y3', bits: 1 }
     },
     connectors: [
       { from: { id: 'a', port: 'out' }, to: { id: 'add', port: 'in1' } },
@@ -58,7 +63,12 @@
       { from: { id: 'add', port: 'out' }, to: { id: 'mux', port: 'in0' } },
       { from: { id: 'sub', port: 'out' }, to: { id: 'mux', port: 'in1' } },
       { from: { id: 'op', port: 'out' }, to: { id: 'mux', port: 'sel' } },
-      { from: { id: 'mux', port: 'out' }, to: { id: 'y', port: 'in' } }
+      { from: { id: 'mux', port: 'out' }, to: { id: 'y', port: 'in' } },
+      { from: { id: 'mux', port: 'out' }, to: { id: 'split', port: 'in' } },
+      { from: { id: 'split', port: 'out0' }, to: { id: 'y0', port: 'in' } },
+      { from: { id: 'split', port: 'out1' }, to: { id: 'y1', port: 'in' } },
+      { from: { id: 'split', port: 'out2' }, to: { id: 'y2', port: 'in' } },
+      { from: { id: 'split', port: 'out3' }, to: { id: 'y3', port: 'in' } }
     ],
     subcircuits: {}
   };
@@ -156,7 +166,7 @@
 
   var CATALOG = [
     { id: 'counter', name: '4-bit counter', blurb: 'Clock + reset. Watch the nibble climb.', json: COUNTER },
-    { id: 'alu', name: '4-bit add/sub', blurb: 'Type A and B. Press sub to subtract.', json: ALU },
+    { id: 'alu', name: '4-bit add/sub', blurb: 'A=5, B=3, Y=8. Type hex. Press sub to subtract.', json: ALU, io: { a: '0101', b: '0011' } },
     { id: 'fulladder', name: 'Full adder', blurb: 'Two half-adders. Tap a, b, cin.', json: FULLADDER },
     { id: 'lfsr', name: '8-bit LFSR', blurb: 'A shifting random-looking byte.', json: LFSR },
     { id: 'latch', name: 'D-latch', blurb: 'Hold D while enable is on.', json: LATCH }

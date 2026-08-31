@@ -102,6 +102,10 @@ if (!files['boot.js'].includes("layoutEngine: 'dagre'")) throw new Error('must u
 if (!files['net.js'].includes("db('save')")) throw new Error('save missing');
 if (!files['COPYING-digitaljs.txt'].includes('Marek Materzok')) throw new Error('COPYING');
 if (!files['circuits.js'].includes('4-bit counter')) throw new Error('counter sample missing');
+if (!files['circuits.js'].includes("a: '0101'") || !files['circuits.js'].includes("b: '0011'")) {
+  throw new Error('ALU sample must seed A=5 B=3');
+}
+if (!files['boot.js'].includes('settleCombo')) throw new Error('combinational settle missing');
 if (!files['touch.js'].includes('pointerdown')) throw new Error('pan/zoom missing');
 
 for (const [n, s] of Object.entries(files)) {
