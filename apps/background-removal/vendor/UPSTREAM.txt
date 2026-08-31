@@ -1,0 +1,23 @@
+@imgly/background-removal 1.7.0
+https://github.com/imgly/background-removal-js
+commit 12f56cc4f2a90d624e165a715748d22efc7a1d93
+AGPL-3.0, IMG.LY GmbH
+
+This app reimplements the in-browser inference path as classic scripts
+(engine.js) so the GifOS packer can inline them:
+
+  packages/web/src/inference.ts   runInference
+  packages/web/src/utils.ts       tensorResizeBilinear, tensorHWCtoBCHW,
+                                  convertFloat32ToUint8
+  packages/web/src/api/v1.ts      removeBackground (apply the mask as alpha)
+  packages/web/src/schema.ts      model aliases small/medium/large
+
+Resolution 1024, keepAspect false, mean 128, std 256 — the shipped defaults.
+
+ONNX weights are IMG.LY's bundle/models files, hash-pinned (MODEL-PINS.json)
+and fetched once via gifos.assets, not at runtime from a CDN.
+
+ONNX Runtime Web is the same JSEP pairing apps/offline-tts-kokoro/vendor
+already carries. The rewrite in build.mjs is vocal-remover's: ESM → window.ort,
+wasmBinary inlined, mappedAtCreation upload swapped for queue.writeBuffer
+(the input tensor is 1×3×1024×1024 float32 = 12,582,912 bytes).

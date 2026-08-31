@@ -1,0 +1,69 @@
+{
+  "catalog": "1.0",
+  "slug": "background-removal",
+  "appId": "background-removal",
+  "name": "Background Removal",
+  "shortName": "Cut BG",
+  "version": "1.0.0",
+  "minBuild": 1381,
+  "tagline": "Cut a photo's background on your device. No upload, no account, no watermark.",
+  "description": "Drop a picture or take a still. The subject stays, the background goes — on this device. There is no account, no credit, no watermark and no queue. The picture never leaves this browser.\n\nAn unofficial port of IMG.LY's in-browser background-removal library (IS-Net). The same models do the work: a small one (~44 MB) when you want it faster, a medium one (~88 MB, the usual choice), and a large one (~176 MB). The first cut downloads only the model you picked, checks it against a fingerprint baked into this app, and then the model lives on this device. After that it works on a plane.\n\nPaint a new background — checkerboard, a colour, another picture — without cutting again. Hold the result to see the original. Download a transparent PNG, or a JPEG with the colour you picked. Close it and come back: the last picture and the last cut are still here, inside the file.\n\nBe ready for it to think for a few seconds. A device with a graphics chip is faster; the line at the top says which this one is using.",
+  "author": {
+    "name": "IMG.LY GmbH",
+    "url": "https://github.com/imgly/background-removal-js"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Creativity",
+    "Media"
+  ],
+  "tags": [
+    "photo",
+    "background",
+    "remove",
+    "cutout",
+    "png",
+    "offline",
+    "gpu"
+  ],
+  "license": "AGPL-3.0",
+  "copyright": "Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (c) Microsoft Corporation",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/background-removal",
+  "accent": [
+    56,
+    196,
+    168
+  ],
+  "capabilities": {
+    "db": true,
+    "camera": true,
+    "wasm": true,
+    "gpu": true,
+    "assets": true
+  },
+  "cover": "/apps/background-removal/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/background-removal/background-removal.gif",
+  "bytes": 12453691,
+  "download": 0,
+  "optionalCount": 3,
+  "optionalDownload": 308651454,
+  "provides": null,
+  "pay": null,
+  "sha256": "c0d9038eba821544295940cc50fac16c7625fbdc5bf22f3aaa98d2ccb07077ba",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "@imgly/background-removal",
+    "url": "https://github.com/imgly/background-removal-js",
+    "blessed": false
+  }
+}
