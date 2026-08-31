@@ -1,0 +1,11 @@
+Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+
+The garden art in vendor/images/ (carrots, weeds, dirt, water, poison, froggy,
+and the harvest scene) is from Grid Garden by Thomas Park, released under
+Creative Commons Attribution 3.0:
+https://creativecommons.org/licenses/by/3.0/legalcode
+
+You are free to share and adapt the images, provided you give appropriate
+credit, provide a link to the license, and indicate if changes were made.
+
+Full legal code: https://creativecommons.org/licenses/by/3.0/legalcode
