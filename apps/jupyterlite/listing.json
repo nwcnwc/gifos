@@ -1,0 +1,36 @@
+{
+  "tagline": "A Python notebook that lives in this file. Invite shares the cells.",
+  "description": "The notebook is the file. Close it, come back, every cell and its output is still there. Press Invite and someone else lands in the same notebook — no JupyterHub, no Google account, no server. After Python downloads once (about 10 MB), it works on a plane.\n\nThis is a notebook and a CPython kernel, not the full JupyterLab file browser. Cells are code or text. Shift+Enter runs a cell (on a phone, the play button on the cell). The kernel is Python 3.12 with the standard library: math, json, collections, datetime, statistics, pathlib. numpy and matplotlib are not in this file.\n\nA Welcome notebook is already open the first time, so the first Run can print π. Download a .ipynb out, or open one in.\n\nUnofficial port of JupyterLite. Their demo forgets the notebook when you clear the site data. This one does not — the GIF is the save.",
+  "author": {
+    "name": "JupyterLite Contributors",
+    "url": "https://github.com/jupyterlite/jupyterlite"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "JupyterLite",
+    "url": "https://github.com/jupyterlite/jupyterlite",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Developer",
+    "Learning"
+  ],
+  "tags": [
+    "jupyter",
+    "python",
+    "notebook",
+    "repl",
+    "offline"
+  ],
+  "license": "BSD-3-Clause",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/jupyterlite",
+  "cover": "screenshot.png",
+  "coverCrop": {
+    "top": 0
+  },
+  "screenshots": []
+}
