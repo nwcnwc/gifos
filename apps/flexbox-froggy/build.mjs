@@ -1,5 +1,5 @@
 // Pack apps/flexbox-froggy/ into site/apps/flexbox-froggy/flexbox-froggy.gif
-import { froggyIcon, screenshotPng } from './icon.mjs';
+import { froggyIcon } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -48,13 +48,28 @@ if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
 const images = readdirSync(join(dir, 'vendor', 'images')).filter((n) => n.endsWith('.svg'));
 if (images.length < 12) throw new Error('expected 12 frog/lilypad SVGs');
 
-function dataUrl(rel) {
+if (!existsSync(join(dir, 'vendor', 'fonts', 'FredokaOne-Regular.woff2'))) {
+  throw new Error('vendor/fonts/FredokaOne-Regular.woff2 missing');
+}
+function svgDataUrl(rel) {
   const svg = readFileSync(join(dir, rel));
   return 'url("data:image/svg+xml,' + encodeURIComponent(svg.toString('utf8')) + '")';
 }
+function fontDataUrl(rel) {
+  const buf = readFileSync(join(dir, rel));
+  return 'url("data:font/woff2;base64,' + buf.toString('base64') + '")';
+}
 let css = read('style.css');
-css = css.replace(/url\("vendor\/images\/([^"]+)"\)/g, (_, n) => dataUrl('vendor/images/' + n));
-if (css.includes('vendor/images/')) throw new Error('CSS still has a relative image url');
+if (/Trebuchet/i.test(css)) throw new Error('do not name Trebuchet — it is not shipped');
+if (!css.includes('Fredoka One')) throw new Error('title must use vendored Fredoka One');
+if (!/#code[\s\S]*background:\s*#fff/.test(css)) {
+  throw new Error('#code must be a white field so a 4-line answer does not sit on the prelude');
+}
+css = css.replace(/url\("vendor\/images\/([^"]+)"\)/g, (_, n) => svgDataUrl('vendor/images/' + n));
+css = css.replace(/url\("vendor\/fonts\/([^"]+)"\)/g, (_, n) => fontDataUrl('vendor/fonts/' + n));
+if (css.includes('vendor/images/') || css.includes('vendor/fonts/')) {
+  throw new Error('CSS still has a relative vendor url');
+}
 
 const helpMd = read('help.md');
 if (helpMd.trim().length < 400) throw new Error('help.md is too short');
@@ -82,6 +97,8 @@ const files = {
   'help.md': helpMd,
   'COPYING-flexboxfroggy.txt': read('vendor/COPYING-flexboxfroggy.txt'),
   'COPYING-images.txt': read('vendor/COPYING-images.txt'),
+  'COPYING-fredokaone.txt': read('vendor/fonts/OFL-FredokaOne.txt'),
+  'vendor/fonts/FredokaOne-Regular.woff2': readFileSync(join(dir, 'vendor', 'fonts', 'FredokaOne-Regular.woff2')),
 };
 for (const n of images) {
   files['vendor/images/' + n] = readFileSync(join(dir, 'vendor', 'images', n));
@@ -112,6 +129,9 @@ if (!manifest.data || manifest.data.save.visibility !== 'private') {
 if (!manifest.data.players || manifest.data.players.visibility !== 'read-write') {
   throw new Error('players must be read-write');
 }
+if (!read('game.js').includes('linePx * lines + 4')) {
+  throw new Error('textarea height must fit every answer line on the white field');
+}
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
   if (/<\/script/i.test(s)) throw new Error(n + ' contains </script');
@@ -120,8 +140,11 @@ for (const [n, s] of Object.entries(files)) {
   }
 }
 
-const shot = screenshotPng();
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+if (!existsSync(shotPath)) throw new Error('screenshot.png missing — capture the running lesson');
+const shot = readFileSync(shotPath);
+if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot.png is not a PNG');
+if (shot.length < 40000) throw new Error('screenshot.png looks like a pixel poster, not the running window');
 
 const bytes = await gif.encode(files, { preview: froggyIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'flexbox-froggy', 'flexbox-froggy.gif');
