@@ -1,0 +1,64 @@
+{
+  "catalog": "1.0",
+  "slug": "digitaljs",
+  "appId": "digitaljs",
+  "name": "DigitalJS",
+  "shortName": "DigitalJS",
+  "version": "0.14.2",
+  "minBuild": 947,
+  "tagline": "The circuit lives in the GIF. Invite shares the bench. It works on a plane.",
+  "description": "Press Play and a 4-bit counter climbs in front of you — lamps, hex, the incrementer ticking. Close it, open it later, the same netlist is still loaded, because the file is the save. Press Invite and a friend lands on that bench; they can flip the buttons too.\n\nSamples: a counter, a 4-bit add/subtract, a full adder made of two half-adders, an LFSR, a D-latch. Paste DigitalJS JSON of your own. Drag to pan, pinch or +/− to zoom. On a phone the pins sit under the schematic so you do not have to hunt for a tiny button.\n\nAn unofficial port of DigitalJS by Marek Materzok. The original wants a page on the web; this copy is one GIF that runs offline.",
+  "author": {
+    "name": "Marek Materzok",
+    "url": "https://github.com/tilk/digitaljs"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Learning",
+    "Developer"
+  ],
+  "tags": [
+    "circuit",
+    "logic",
+    "simulator",
+    "verilog",
+    "gates",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "BSD-2-Clause",
+  "copyright": "Copyright 2018 Marek Materzok; Copyright 2013 client IO",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/digitaljs",
+  "accent": [
+    46,
+    196,
+    138
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/digitaljs/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/digitaljs/digitaljs.gif",
+  "bytes": 624078,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "7082da44ff435ae10f3f05ee1c76efc3e285faee70e4febf303bc9bcd333cab1",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "DigitalJS",
+    "url": "https://github.com/tilk/digitaljs",
+    "blessed": false
+  }
+}
