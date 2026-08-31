@@ -80,7 +80,6 @@ body {
   overflow: visible;
   background: #000;
   width: 100%;
-  max-width: 710px;
   margin: 0 auto;
   padding-left: 12px;
   padding-right: 12px;
@@ -88,16 +87,16 @@ body {
 }
 @media (min-width: 711px) {
   #beepboxEditorContainer {
-    padding-left: 30px;
-    padding-right: 30px;
+    padding-left: 16px;
+    padding-right: 16px;
   }
 }
 @media (max-width: 710px) {
   #beepboxEditorContainer {
-    max-width: none;
+    min-height: 0;
     padding-left: 8px;
     padding-right: 8px;
   }
-  #hud { font-size: 12px; }
+  #hud { font-size: 12px; padding: 4px 8px; }
 }
 a { color: #98f; }

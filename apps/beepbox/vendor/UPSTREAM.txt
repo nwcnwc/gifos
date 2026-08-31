@@ -17,5 +17,10 @@ script. WAV, MIDI and JSON export stay local. URL shorteners (is.gd /
 tinyurl) and "View in Song Player" (a navigation off this page) are
 removed from the File menu.
 
+The synth compiles three function-constructor sites (FM, picked string,
+effects). The App GIF CSP has no unsafe-eval, so build.mjs rewrites those
+to GifOSBeepboxShim.compile, which inserts a classic script. The bytes on
+disk stay the official IIFE (sha256 below).
+
 A first-run song is vendor/seed.json, generated from the same Song
 class during vendor.mjs so it round-trips.

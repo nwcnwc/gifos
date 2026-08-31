@@ -8,6 +8,14 @@ the GIF shares the song. Press Invite and a friend jams the same track.
 Upstream is TypeScript compiled to one IIFE. That bundle is vendored; it is
 never fetched at runtime. Persistence, jam, and phone zoom are this shell.
 
+The sandbox CSP has no `'unsafe-eval'`. The editor compiles FM / picked-string
+/ effects synths with the Function constructor, which Chrome reports as eval
+and refuses — boot then stopped after `SongEditor` painted, so the song never
+landed in `gifos.db`, zoom never attached, and a catch-retry painted the
+chrome twice. `shim.js` compiles those functions by inserting a classic
+`<script>` (legal under `'unsafe-inline'`), and `build.mjs` rewrites the three
+call sites onto `GifOSBeepboxShim.compile`.
+
 ```
 index.html                    editor container, zoom HUD
 style.css                     dark shell around the tracker
