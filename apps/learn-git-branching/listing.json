@@ -1,0 +1,33 @@
+{
+  "tagline": "The git trainer that lives in a GIF — close it, come back, still on the same commit.",
+  "description": "Works offline. Your solved lessons sit inside the file, so sharing the GIF shares the progress. Press Play a friend, then Invite in the bar above: you both land on the same lesson, first to match the goal tree wins.\n\nOn your own it is Learn Git Branching. Type real git — commit, branch, checkout, merge, rebase, cherry-pick, fetch, pull, push — and the commit graph next to the prompt updates. Thirty-six lessons from the first commit through remotes, plus a sandbox. Hint, undo, reset. On a phone the graph sits above a command box and shortcut chips.\n\nAn unofficial port of Learn Git Branching by Peter Cottle. The lessons, the trees and the git semantics are his. This copy keeps them without an account or a network.",
+  "author": {
+    "name": "pcottle",
+    "url": "https://github.com/pcottle/learnGitBranching"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Learn Git Branching",
+    "url": "https://github.com/pcottle/learnGitBranching",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Learning",
+    "Developer"
+  ],
+  "tags": [
+    "git",
+    "branching",
+    "tutorial",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/learn-git-branching",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
