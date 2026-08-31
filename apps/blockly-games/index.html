@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Blockly Games</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="home">
+  <header class="hero">
+    <h1>Blockly Games</h1>
+    <p>Games for tomorrow's programmers.</p>
+  </header>
+  <div id="roster" hidden></div>
+  <div class="grid">
+    <button type="button" class="card" data-game="puzzle" id="card-puzzle">
+      <span class="glyph" aria-hidden="true">🦆</span>
+      <strong>Puzzle</strong>
+      <em>Snap the pieces. Pictures, legs, traits.</em>
+      <span class="prog" id="prog-puzzle"></span>
+    </button>
+    <button type="button" class="card" data-game="maze" id="card-maze">
+      <span class="glyph" aria-hidden="true">🚶</span>
+      <strong>Maze</strong>
+      <em>Loops and ifs. Ten paths to the flag.</em>
+      <span class="prog" id="prog-maze"></span>
+    </button>
+    <button type="button" class="card" data-game="turtle" id="card-turtle">
+      <span class="glyph" aria-hidden="true">🐢</span>
+      <strong>Turtle</strong>
+      <em>Nested loops that paint a picture.</em>
+      <span class="prog" id="prog-turtle"></span>
+    </button>
+  </div>
+</div>
+
+<div id="play" hidden>
+  <header id="bar">
+    <button type="button" id="back" title="All games">Games</button>
+    <h1 id="title">Maze</h1>
+    <nav id="levels" aria-label="Levels"></nav>
+    <label class="speed" title="Speed">
+      <input id="speed" type="range" min="0" max="100" value="80">
+    </label>
+    <span id="capacity" hidden></span>
+    <button type="button" id="run" class="primary">Run</button>
+    <button type="button" id="reset" class="primary" hidden>Reset</button>
+    <button type="button" id="check" class="primary" hidden>Check</button>
+    <button type="button" id="hint" title="Hint">?</button>
+  </header>
+  <div id="stage">
+    <div id="viz">
+      <canvas id="view" width="400" height="400"></canvas>
+      <div id="puzzle-msg" hidden></div>
+    </div>
+    <div id="blockly"></div>
+  </div>
+</div>
+
+<div id="modal" hidden>
+  <div class="sheet">
+    <div id="modal-body"></div>
+    <button type="button" id="modal-ok" class="primary">OK</button>
+  </div>
+</div>
+
+<script src="vendor/blockly_compressed.js"></script>
+<script src="vendor/msg-en.js"></script>
+<script src="vendor/assets.js"></script>
+<script src="blocks.js"></script>
+<script src="maze.js"></script>
+<script src="turtle.js"></script>
+<script src="puzzle.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+{
+  "tagline": "Puzzle, Maze, Turtle — offline, your stars live in the file, an invite opens the same level.",
+  "description": "Works on a plane. Close it on Maze 7, open it tomorrow — still on 7, still with the blocks you stacked. No account. Send the Invite in the bar above and a friend lands on the same game and level, looking at the same blocks.\n\nOn your own it is Blockly Games. Puzzle snaps pictures and traits onto animals. Maze is loops and ifs — ten paths, a little walker, a block limit that forces you to think. Turtle is nested loops that paint: square, star, moon. The toolbox is fat enough for a thumb.\n\nAn unofficial port of Blockly Games by Google. The puzzles, the mazes and the turtle drawings are theirs.",
+  "author": {
+    "name": "Google",
+    "url": "https://github.com/google/blockly-games"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Blockly Games",
+    "url": "https://github.com/google/blockly-games",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "blockly",
+    "puzzle",
+    "maze",
+    "turtle",
+    "coding",
+    "blocks",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/blockly-games",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

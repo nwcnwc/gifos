@@ -1,0 +1,29 @@
+{
+  "gifos": "1.0",
+  "appId": "blockly-games",
+  "name": "Blockly Games",
+  "shortName": "Blockly",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [92, 184, 92],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "players": { "visibility": "read-write" }
+  },
+  "launch": {
+    "game": {
+      "label": "Open this game",
+      "detail": "puzzle, maze, or turtle."
+    },
+    "level": {
+      "label": "Open this level",
+      "detail": "A level number from 1 to 10."
+    }
+  }
+}

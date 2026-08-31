@@ -1,0 +1,65 @@
+{
+  "catalog": "1.0",
+  "slug": "blockly-games",
+  "appId": "blockly-games",
+  "name": "Blockly Games",
+  "shortName": "Blockly",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Puzzle, Maze, Turtle — offline, your stars live in the file, an invite opens the same level.",
+  "description": "Works on a plane. Close it on Maze 7, open it tomorrow — still on 7, still with the blocks you stacked. No account. Send the Invite in the bar above and a friend lands on the same game and level, looking at the same blocks.\n\nOn your own it is Blockly Games. Puzzle snaps pictures and traits onto animals. Maze is loops and ifs — ten paths, a little walker, a block limit that forces you to think. Turtle is nested loops that paint: square, star, moon. The toolbox is fat enough for a thumb.\n\nAn unofficial port of Blockly Games by Google. The puzzles, the mazes and the turtle drawings are theirs.",
+  "author": {
+    "name": "Google",
+    "url": "https://github.com/google/blockly-games"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "blockly",
+    "puzzle",
+    "maze",
+    "turtle",
+    "coding",
+    "blocks",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "Apache-2.0",
+  "copyright": "",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/blockly-games",
+  "accent": [
+    92,
+    184,
+    92
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/blockly-games/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/blockly-games/blockly-games.gif",
+  "bytes": 568514,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "dea673b4d00494976ed11a2d6f5aed163b50912b8f889e808f44fef905fd53a2",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Blockly Games",
+    "url": "https://github.com/google/blockly-games",
+    "blessed": false
+  }
+}
