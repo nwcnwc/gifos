@@ -1,0 +1,16 @@
+jsnes 2.1.0
+https://github.com/bfirsh/jsnes
+Apache License 2.0
+Pinned file: vendor/jsnes.min.js (UMD bundle from the v2.1.0 tag).
+
+Sample ROMs (homebrew / public-domain only — no commercial Nintendo dumps):
+
+  Concentration Room (croom.nes)
+  Damian Yerrick, 2010
+  GNU GPL v3 or later, with an iNES-binary exception
+  https://github.com/bfirsh/jsnes-roms  (same ROM jsnes.org ships)
+
+  Lawn Mower (lawn_mower.nes)
+  Shiru, 2011
+  Public domain / CC0
+  https://shiru.untergrund.net / https://archive.org/details/lawn_mower

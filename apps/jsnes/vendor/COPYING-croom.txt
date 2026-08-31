@@ -1,0 +1,13 @@
+Concentration Room
+Copyright (c) 2010 Damian Yerrick <croom@pineight.com>
+
+The accompanying program is free software: you can redistribute it
+and/or modify it under the terms of the GNU General Public License,
+version 3 or later. As a special exception, you may copy and
+distribute exact copies of the program, as published by Damian
+Yerrick, in iNES or UNIF executable form without source code.
+
+This product is not sponsored or endorsed by Nintendo.
+
+The full GNU GPL version 3 is packed beside this notice as
+COPYING-gpl-3.0.txt.

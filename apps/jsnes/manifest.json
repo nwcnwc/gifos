@@ -1,0 +1,24 @@
+{
+  "gifos": "1.0",
+  "appId": "jsnes",
+  "name": "jsnes",
+  "shortName": "jsnes",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [228, 56, 56],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "saves": { "visibility": "private" },
+    "library": { "visibility": "private" },
+    "slots": { "visibility": "private" },
+    "pads": { "visibility": "read-write" },
+    "session": { "visibility": "read-only" },
+    "cart": { "visibility": "read-only" }
+  }
+}

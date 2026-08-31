@@ -1,0 +1,62 @@
+{
+  "catalog": "1.0",
+  "slug": "jsnes",
+  "appId": "jsnes",
+  "name": "jsnes",
+  "shortName": "jsnes",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "The ROM and the save live in this file. Invite is player two.",
+  "description": "jsnes.org is a tab that forgets the game when you close it. This copy keeps the cartridge and the battery save inside the GIF, so you can close it, come back, or hand the file to someone, and the same game is still in there.\n\nTwo homebrew carts ride along — Concentration Room (two of you at the table) and Lawn Mower (cut the grass before the tank runs dry). Drop your own .nes dump if you have one. Nothing Nintendo ships in this file.\n\nSend the invite. You stay player one; they are player two, on their phone or their computer, no account. On a phone the pad is under your thumbs — d-pad, A, B, Start, Select.\n\nAn unofficial port of JSNES by Ben Firshman, Apache-2.0. The engine is theirs. The save in the icon, the second controller on a second device, and the thumb pad are this copy.",
+  "author": {
+    "name": "Ben Firshman",
+    "url": "https://github.com/bfirsh/jsnes"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "nes",
+    "emulator",
+    "retro",
+    "offline",
+    "multiplayer",
+    "homebrew"
+  ],
+  "license": "Apache-2.0",
+  "copyright": "Copyright (c) 2010 Damian Yerrick <croom@pineight.com>; Copyright (c) 2011 Shiru (http://shiru.untergrund.net)",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/jsnes",
+  "accent": [
+    228,
+    56,
+    56
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/jsnes/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/jsnes/jsnes.gif",
+  "bytes": 313751,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "121f4917c6ec7ed0f0a5e255e8f100f857b837a6b743bffd68a3caf245d46581",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "JSNES",
+    "url": "https://github.com/bfirsh/jsnes",
+    "blessed": false
+  }
+}

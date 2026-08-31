@@ -1,0 +1,9 @@
+Lawn Mower
+Copyright (c) 2011 Shiru (http://shiru.untergrund.net)
+
+Released into the public domain / CC0 1.0 Universal.
+The author stated the game and its source are public domain.
+A copy of the CC0 legal code is packed beside this notice as
+COPYING-cc0.txt.
+
+This product is not sponsored or endorsed by Nintendo.
