@@ -1,0 +1,64 @@
+{
+  "catalog": "1.0",
+  "slug": "flexbox-froggy",
+  "appId": "flexbox-froggy",
+  "name": "Flexbox Froggy",
+  "shortName": "Froggy",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Write CSS. The frogs hop. Close it, come back still on the same pad — or invite a friend into this pond.",
+  "description": "Close it on level 12, open it tomorrow — still on 12, still with the CSS you left. No account. Works on a plane.\n\nSend the Invite in the bar above and a friend lands in this pond with you. You share the CSS: whoever types, the frogs hop on both screens.\n\nOn your own it is Flexbox Froggy. Twenty-four levels, from justify-content to align-content. Click a property name to see the values. A harder setting hides the directions; colorblind mode draws shapes on the frogs.\n\nAn unofficial port of Flexbox Froggy by Thomas Park. The frogs, the pads and the puzzles are his.",
+  "author": {
+    "name": "Thomas Park",
+    "url": "https://github.com/thomaspark/flexboxfroggy"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "css",
+    "flexbox",
+    "puzzle",
+    "frogs",
+    "tutorial",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2015 Thomas Park",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/flexbox-froggy",
+  "accent": [
+    67,
+    160,
+    71
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/flexbox-froggy/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/flexbox-froggy/flexbox-froggy.gif",
+  "bytes": 214479,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "cb1dae47d0dc105d0925aa20cd99d5fd21c3234abe2672309a9b580a9a7cde85",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Flexbox Froggy",
+    "url": "https://github.com/thomaspark/flexboxfroggy",
+    "blessed": false
+  }
+}

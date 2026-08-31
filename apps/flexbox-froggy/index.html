@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Flexbox Froggy</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<section id="sidebar">
+  <div class="header">
+    <h1 class="title">Flexbox Froggy</h1>
+    <div id="level-counter">
+      <span class="arrow left" id="prev-btn" role="button" aria-label="Previous level">
+        <span class="triangle"></span>
+      </span>
+      <span id="level-indicator" role="button" aria-label="Pick a level">
+        <span>Level</span>
+        <span id="level-current">1</span>
+        <span>of</span>
+        <span id="level-total">24</span>
+        <span class="caret">▾</span>
+      </span>
+      <span class="arrow right" id="next-arrow" role="button" aria-label="Next level">
+        <span class="triangle"></span>
+      </span>
+      <div id="levelsWrapper" class="tooltip" hidden>
+        <div id="levels"></div>
+        <div id="labelReset">Reset</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mates" hidden></div>
+
+  <div id="instructions"></div>
+
+  <div id="editor">
+    <div id="css">
+      <div class="line-numbers">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10</div>
+      <pre id="before"></pre>
+      <textarea id="code" autocapitalize="none" spellcheck="false" autocomplete="off"></textarea>
+      <pre id="after"></pre>
+    </div>
+    <button id="next" class="disabled" type="button">Next</button>
+  </div>
+
+  <div id="win-banner" hidden>
+    <p>You win! The frogs are hoppy. Reset in Settings to hop through again.</p>
+  </div>
+
+  <div class="credits">
+    Flexbox Froggy is created by Thomas Park
+    <span id="settings">
+      · <span id="labelSettings" class="toggle">Settings</span>
+      <span class="tooltip" id="settings-tip" hidden>
+        <section>
+          <h4>Difficulty</h4>
+          <form id="difficulty">
+            <label><input type="radio" name="difficulty" value="easy" checked> Beginner</label>
+            <label><input type="radio" name="difficulty" value="medium"> Intermediate — no directions</label>
+            <label><input type="radio" name="difficulty" value="hard"> Expert — no directions, random levels</label>
+          </form>
+        </section>
+        <section>
+          <h4>Colorblind mode</h4>
+          <form id="colorblind">
+            <label><input type="radio" name="colorblind" value="false" checked> Off</label>
+            <label><input type="radio" name="colorblind" value="true"> On</label>
+          </form>
+        </section>
+      </span>
+    </span>
+  </div>
+</section>
+
+<section id="view">
+  <div id="board">
+    <div id="pond"></div>
+    <div id="background"></div>
+    <div id="pond-frogs" hidden></div>
+  </div>
+</section>
+
+<script src="vendor/levels.js"></script>
+<script src="game.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
