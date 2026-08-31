@@ -40,11 +40,11 @@
   "cover": "/apps/primitive/cover.jpg",
   "screenshots": [],
   "gif": "/apps/primitive/primitive.gif",
-  "bytes": 203641,
+  "bytes": 204326,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "7cffdc0263ed5f7bb157f4b3db409b10862cc8618f32852572f0df8c17f069ec",
+  "sha256": "3d36c19af78da363e6151764a861b7183ca19693a0662d8564449b403a0ec69f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
