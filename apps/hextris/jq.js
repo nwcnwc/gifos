@@ -40,6 +40,7 @@
   Q.prototype.on = function (ev, fn) {
     var names = String(ev || '').split(/\s+/);
     this.each(function () {
+      if (!this || typeof this.addEventListener !== 'function') return;
       for (var i = 0; i < names.length; i++) {
         if (names[i]) this.addEventListener(names[i], fn, false);
       }
@@ -50,19 +51,52 @@
   Q.prototype.off = function (ev, fn) {
     var names = String(ev || '').split(/\s+/);
     this.each(function () {
+      if (!this || typeof this.removeEventListener !== 'function') return;
       for (var i = 0; i < names.length; i++) {
         if (names[i]) this.removeEventListener(names[i], fn, false);
       }
     });
     return this;
   };
+  // jQuery event shorthands. Vendored initialization.js calls
+  // $(window).resize(scaleCanvas) — a missing .resize threw on every boot.
+  ['resize', 'click', 'mousedown', 'mouseup', 'keydown', 'keyup',
+   'unload', 'scroll', 'load', 'blur', 'focus'].forEach(function (ev) {
+    Q.prototype[ev] = function (fn) {
+      if (typeof fn === 'function') return this.on(ev, fn);
+      return this;
+    };
+  });
+
+  function btnKey(val) {
+    var m = String(val || '').match(/btn_(pause|resume|restart|help|back)\.svg/i);
+    return m ? m[1].toLowerCase() : '';
+  }
+  function resolveSrc(val) {
+    var key = btnKey(val);
+    if (key && root.HT && HT.img && HT.img[key]) return HT.img[key];
+    return val;
+  }
 
   Q.prototype.attr = function (name, val) {
     if (val === undefined) {
       var el = this[0];
       if (!el) return undefined;
       if (el === root) return undefined;
+      if (name === 'src' && el.getAttribute) {
+        var got = el.getAttribute('data-btn');
+        if (got) return './images/btn_' + got + '.svg';
+      }
       return el.getAttribute ? el.getAttribute(name) : undefined;
+    }
+    if (name === 'src') {
+      var key = btnKey(val);
+      var resolved = resolveSrc(val);
+      eachEl(this, function (el) {
+        if (key) el.setAttribute('data-btn', key);
+        el.setAttribute(name, resolved);
+      });
+      return this;
     }
     eachEl(this, function (el) { el.setAttribute(name, val); });
     return this;
@@ -209,7 +243,8 @@
   };
   Q.prototype.replace = function (re, rep) {
     var el = this[0];
-    var s = (el && el.getAttribute && el.getAttribute('src')) || '';
+    var key = el && el.getAttribute && el.getAttribute('data-btn');
+    var s = key ? ('btn_' + key + '.svg') : ((el && el.getAttribute && el.getAttribute('src')) || '');
     return s.replace(re, rep);
   };
 

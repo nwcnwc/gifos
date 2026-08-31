@@ -40,11 +40,11 @@
   "cover": "/apps/hextris/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hextris/hextris.gif",
-  "bytes": 335308,
+  "bytes": 336292,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "44a9dca975f059f579542ea9b1c3f4a5a669e616c9b014afacdbcaca01b50fd2",
+  "sha256": "579280a3438c4a8e3387c4123c4fdb8883563cc7566938e0d221b0c2eb46b03e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
