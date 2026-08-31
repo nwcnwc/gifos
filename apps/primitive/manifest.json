@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "primitive",
+  "name": "Primitive",
+  "shortName": "Primitive",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Redraw a photo with triangles on this device. The picture and the reconstruction stay in the file.",
+  "entry": "index.html",
+  "accent": [236, 92, 64],
+  "capabilities": {
+    "db": true,
+    "camera": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "pic": { "visibility": "private" }
+  }
+}

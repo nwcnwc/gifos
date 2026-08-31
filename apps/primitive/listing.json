@@ -1,0 +1,33 @@
+{
+  "tagline": "Redraw a photo as triangles — on this device, saved in the file.",
+  "description": "The photo and the reconstruction live in this file. Close it, open it later, the triangles are still there — not redrawn from scratch. Take a still or open a picture; nothing is sent anywhere.\n\nThis is the same algorithm as primitive.lol: add one triangle (or rectangle, ellipse, smiley) at a time until a picture appears. Hold the result to see the original. Quick / Classic / Fine pick how many shapes. Stop whenever the likeness is enough. Download a PNG or the SVG.\n\nAn unofficial port of primitive.js by Ondřej Žára.",
+  "author": {
+    "name": "Ondřej Žára",
+    "url": "https://github.com/ondras/primitive.js"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "primitive.js",
+    "url": "https://github.com/ondras/primitive.js",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "primitive",
+    "triangles",
+    "photo",
+    "geometric",
+    "art",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/primitive",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

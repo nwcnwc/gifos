@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Primitive</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Primitive</h1>
+    <p class="lead">Redraw a photo with triangles, on this device.</p>
+  </header>
+
+  <div id="stage" class="stage">
+    <div id="empty" class="empty">
+      <div class="empty-ico" aria-hidden="true">△</div>
+      <p class="empty-title">No photo yet</p>
+      <p class="empty-copy">Take a still or open a picture. The reconstruction runs here — the file never leaves this device.</p>
+      <div class="empty-actions">
+        <button type="button" id="emptyPhoto">Take photo</button>
+        <button type="button" id="emptyChoose" class="ghost">Choose a picture</button>
+        <button type="button" id="sampleBtn" class="ghost">Try a sample</button>
+      </div>
+    </div>
+    <canvas id="out" hidden></canvas>
+    <div id="vector" hidden></div>
+    <canvas id="orig" hidden></canvas>
+    <p id="progress" class="progress" hidden></p>
+    <p id="holdhint" class="holdhint" hidden>Hold to see the original</p>
+  </div>
+
+  <div id="work" class="work" hidden>
+    <div class="row">
+      <button type="button" id="startBtn">Start</button>
+      <button type="button" id="photoBtn" class="ghost">Take photo</button>
+      <button type="button" id="chooseBtn" class="ghost">Choose</button>
+      <button type="button" id="pngBtn" class="ghost">Download PNG</button>
+      <button type="button" id="svgBtn" class="ghost">Download SVG</button>
+    </div>
+
+    <section class="presets" id="presets"></section>
+    <section class="shapes" id="shaperow"></section>
+
+    <section class="controls">
+      <label>Shapes <span id="stepsVal">50</span>
+        <input type="range" id="steps" min="1" max="500" value="50">
+      </label>
+    </section>
+
+    <div class="mode">
+      <label class="chk"><input type="radio" name="type" value="raster" checked> Raster</label>
+      <label class="chk"><input type="radio" name="type" value="vector"> Vector</label>
+    </div>
+
+    <details id="more">
+      <summary>More options</summary>
+      <section class="controls">
+        <label>Starting opacity <span id="alphaVal">0.5</span>
+          <input type="range" id="alpha" min="0" max="1" step="0.1" value="0.5">
+        </label>
+        <label class="chk"><input type="checkbox" id="mutateAlpha" checked> Adjust opacity automatically</label>
+        <p class="hint">Fill background</p>
+        <label class="chk"><input type="radio" name="fill" value="auto" checked> Auto-detected colour</label>
+        <label class="chk"><input type="radio" name="fill" value="fixed"> Fixed
+          <input type="color" id="fillColor" value="#ffffff">
+        </label>
+        <label>Computation size <span id="computeVal">256</span>
+          <input type="range" id="computeSize" min="128" max="512" step="16" value="256">
+        </label>
+        <label>Viewing size <span id="viewVal">512</span>
+          <input type="range" id="viewSize" min="256" max="2048" step="64" value="512">
+        </label>
+        <label>Random shapes per step <span id="shapesVal">200</span>
+          <input type="range" id="shapes" min="1" max="1000" value="200">
+        </label>
+        <label>Stop after <span id="mutVal">30</span> failed tweaks
+          <input type="range" id="mutations" min="0" max="100" value="30">
+        </label>
+      </section>
+    </details>
+  </div>
+
+  <input type="file" id="file" accept="image/*">
+  <p id="status" role="status"></p>
+  <p class="foot">Unofficial port of primitive.js by Ondřej Žára. The picture never leaves this device.</p>
+</div>
+<script src="vendor/primitive.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

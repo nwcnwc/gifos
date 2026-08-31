@@ -1,0 +1,21 @@
+ondras/primitive.js
+https://github.com/ondras/primitive.js
+pin: 20bad107bc7ccf002b14fbec77959d2cbea9c630
+MIT, Copyright (C) 2016 Ondřej Žára, Michael Fogleman
+
+JS port of primitive.lol: redraw a photo with triangles, rectangles,
+ellipses or smileys. Algorithm files vendored from js/src (util, canvas,
+state, shape, step, optimizer). The original demo UI (js/src/app.js,
+js/src/ui.js) and unused Web Worker files are not packed — GifOS chrome
+replaces the form, and workers need a real page URL.
+
+src/util.js        sha256 90573fe9a7aa5861a952e3c073ffd71c59b29c2b8c044474245f8e6601a88b3d
+src/canvas.js      sha256 893627056b632fa2be309ebe8e01fefa0feb90049eb2a0c187b59fcd46990897
+src/state.js       sha256 2044b30118baa6b7acb552be5d187707faff426d3d7f9ae554987aa79f73400c
+src/shape.js       sha256 da88c2f8313e5bf13105974e324a13de8e8a8ad0f9b3a6b29d333ccc7d204927
+src/step.js        sha256 158d3e251fa575aa272a3d717e378923a9a66d72cf085eb0a9dde03fa9931c88
+src/optimizer.js   sha256 b0b3f3863ea97922a6a63871aa87c6ad86cb4bc6c9f1675f704da9f41a96fc5b
+
+vendor/primitive.js is a classic IIFE of those six files. GifOS adds
+Canvas.fromImage (no URL/CORS), Optimizer.stop/onDone, and drops a
+debugger. Rebuild with: node apps/primitive/vendor/bundle.mjs
