@@ -1,0 +1,16 @@
+vendor/trianglify.js is GENERATED. Do not edit it;
+run node apps/trianglify-studio/vendor.mjs.
+
+package: trianglify@4.1.1
+npm:     https://registry.npmjs.org/trianglify/-/trianglify-4.1.1.tgz
+commit:  0d469f288fa72b7dce91ea36a58a1261487953ff (GitHub tag v4.1.1)
+sha256:  f3a15f4bd721966e161f0c7321a667fb5aa3a23594aafacdd6521e5f08dc70f1
+entry:   dist/trianglify.bundle.js — classic UMD IIFE, sets window.trianglify
+         (chroma-js and delaunator inlined; node-canvas is not)
+
+The GPLv3 notice travels beside it as COPYING-trianglify.txt and as
+COPYING.txt at the app root; both are packed into the GIF, so a copy of
+this app that someone was handed still carries the licence it is required
+to carry. Corresponding source of this studio lives in the GifOS tree
+(apps/trianglify-studio/); corresponding source of the library is the
+pinned tarball above.

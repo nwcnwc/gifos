@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Trianglify</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="wall" width="960" height="540" aria-label="Triangle wallpaper"></canvas>
+  </div>
+
+  <header id="hud">
+    <div id="brand">Trianglify</div>
+    <div id="which">YlGnBu · sunset-42</div>
+  </header>
+
+  <div class="actions" id="top-actions">
+    <button type="button" id="shareBtn">Share the wallpaper</button>
+    <button type="button" id="rollBtn">New seed</button>
+    <button type="button" id="shuffleBtn">Shuffle palette</button>
+  </div>
+
+  <div id="friend-bar" hidden>
+    <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both get the same wallpaper. Roll a seed or pick a palette — they see it.</p>
+    <p id="friend-status"></p>
+    <ul id="friend-scores"></ul>
+    <div class="friend-actions">
+      <button type="button" id="leaveBtn">← Solo</button>
+    </div>
+  </div>
+
+  <div id="dock">
+    <label class="seed-row" for="seed">Seed
+      <input id="seed" type="text" maxlength="80" spellcheck="false" autocomplete="off" autocapitalize="off">
+    </label>
+
+    <div id="chips" role="list" aria-label="Palettes"></div>
+
+    <div class="sliders">
+      <label>Mesh <input id="cell" type="range" min="24" max="180" step="1" value="75"><span id="cellVal">75</span></label>
+      <label>Scatter <input id="variance" type="range" min="0" max="100" step="1" value="75"><span id="varVal">0.75</span></label>
+    </div>
+
+    <div class="looks" role="group" aria-label="Colouring">
+      <button type="button" class="look on" data-look="linear">Linear</button>
+      <button type="button" class="look" data-look="sparkle">Sparkle</button>
+      <button type="button" class="look" data-look="shadows">Shadows</button>
+      <button type="button" id="wireBtn" aria-pressed="false">Wire</button>
+    </div>
+
+    <div class="export-row">
+      <label class="grow">Size
+        <select id="size"></select>
+      </label>
+      <button type="button" id="pngBtn">PNG</button>
+      <button type="button" id="svgBtn">SVG</button>
+    </div>
+    <p id="status" role="status"></p>
+  </div>
+
+  <p id="how">Pick a palette. Type a seed, or roll one. Mesh is how chunky the triangles are. PNG and SVG download at the size you picked.</p>
+  <p class="foot">Unofficial port of Trianglify by Quinn Rohlf (GPL-3.0). Playing alone is the original generator. A shared wallpaper is the same seed — nobody writes on anybody else’s row.</p>
+
+  <!-- Order matters: the runtime inlines each <script src> where it stands. -->
+  <script src="vendor/trianglify.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>
