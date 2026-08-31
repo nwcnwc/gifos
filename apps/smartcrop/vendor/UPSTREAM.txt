@@ -1,0 +1,13 @@
+jwagner/smartcrop.js
+https://github.com/jwagner/smartcrop.js
+pin: 0e207ed910625f91b07d35865c71a9621a63ebdb
+file: smartcrop.js
+version: 2.0.5 (package.json on main)
+sha256: fbc74cd1edd245b335af2404b5b55e29dca3f0c22053a4b6027df1ae05c340c7
+MIT, Copyright (c) 2016–2018 Jonas Wagner
+
+Content-aware crop: edges, skin colour, saturation, optional boosts
+(for faces). The library is classic JS already (UMD). GifOS adds
+Twitter-style aspect presets, a still from Take photo, skin-region
+boxes used as face boosts (no extra model), and keeps the last picture
+inside the file.

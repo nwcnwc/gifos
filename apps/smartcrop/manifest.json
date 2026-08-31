@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "smartcrop",
+  "name": "Smartcrop",
+  "shortName": "Smartcrop",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Content-aware crop on this device. Faces stay in the frame. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [232, 184, 72],
+  "capabilities": {
+    "db": true,
+    "camera": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "pic": { "visibility": "private" }
+  }
+}

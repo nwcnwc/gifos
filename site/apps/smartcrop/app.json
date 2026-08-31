@@ -1,0 +1,62 @@
+{
+  "catalog": "1.0",
+  "slug": "smartcrop",
+  "appId": "smartcrop",
+  "name": "Smartcrop",
+  "shortName": "Smartcrop",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Content-aware crop on this device — faces stay in the frame.",
+  "description": "The crop runs on this device. Open a picture or take a still — nothing is uploaded. Pick a frame the size of a profile square, a wide banner, a story — the box jumps to the faces and the interesting bits, not the empty sky. Download the JPEG.\n\nThis is not a manual crop tool. You do not drag the handles: the picture tells it where to cut, and you can tap a runner-up if you prefer that frame.\n\nThe last picture and the last frame come back the next time you open the app, inside this file.\n\nAn unofficial port of smartcrop.js by Jonas Wagner.",
+  "author": {
+    "name": "Jonas Wagner",
+    "url": "https://github.com/jwagner/smartcrop.js"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "crop",
+    "photo",
+    "faces",
+    "twitter",
+    "offline",
+    "smartcrop"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2016–2018 Jonas Wagner; Copyright (c) 2016 Jonas Wagner",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/smartcrop",
+  "accent": [
+    232,
+    184,
+    72
+  ],
+  "capabilities": {
+    "db": true,
+    "camera": true
+  },
+  "cover": "/apps/smartcrop/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/smartcrop/smartcrop.gif",
+  "bytes": 201560,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "56263b301d4ebcde1e4bbbe13ec1b2699b11d1f8fb24f8cdaf8397efe45af291",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "smartcrop.js",
+    "url": "https://github.com/jwagner/smartcrop.js",
+    "blessed": false
+  }
+}
