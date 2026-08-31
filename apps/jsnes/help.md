@@ -21,7 +21,7 @@ Open **Games** to pick one, or to drop a dump of your own. The last game you pla
 
 **On a phone**
 
-A pad sits under your thumbs: the plus on the left, **B** and **A** on the right (B is the left-hand circle, the way a NES pad is), **Select** and **Start** in the middle. Slide on the plus — diagonals work.
+A pad sits under your thumbs: the plus on the left, **B** and **A** on the right (B is the left-hand circle, the way a NES pad is), **Select** and **Start** above them so Start is never under B. Slide on the plus — diagonals work.
 
 A USB or Bluetooth gamepad is player 1.
 
@@ -33,6 +33,6 @@ When they join, pick **Concentration Room → 2 Players** and sit at the table. 
 
 ## What is saved
 
-The **battery save** (the kind a Zelda cart would keep) stays in this file, per game. Quick states (F5) stay too. Close it, open it: still there. Sharing the GIF shares the cart and those saves.
+**Where you were** stays in this file, per game. Close it, open it: still there. The two homebrew carts packed here have no battery chip; the save is a snapshot, not SRAM. Drop a cart that does have a battery (iNES flags6 bit 1) and that RAM is kept too. Quick states (F5 / F7, three slots) are extra.
 
-A live session is not a movie — reset starts the game over, the battery save does not.
+Reset starts the game over. Sharing the GIF shares the carts; the saves live in this icon.

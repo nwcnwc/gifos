@@ -6,8 +6,9 @@ two homebrew carts. Send the invite and the friend is **player 2**.
 
 The engine is vendored at **2.1.0** (`vendor/jsnes.min.js`). Upstream has
 no persistence and no netplay; jsnes.org fetches ROMs from the network.
-This copy keeps the ROM and the battery SRAM in `gifos.db`, so the file
-is the save, and the invite is the second controller.
+This copy keeps the ROM in the GIF and the save in `gifos.db` (a last-play
+snapshot, plus SRAM when the cart's battery bit is set), so the file is
+the save, and the invite is the second controller.
 
 ```
 index.html      screen, library, NES pad markup
@@ -15,7 +16,7 @@ style.css       CRT chrome + thumb pad
 vendor/jsnes.min.js   JSNES 2.1.0 UMD. Never fetch it at runtime.
 roms.js         generated: Concentration Room + Lawn Mower as bytes
 emu.js          canvas, APU, keyboard, SRAM, quick states
-touch.js        plus-shaped d-pad, A/B, Start/Select
+touch.js        plus-shaped d-pad, A/B, Start/Select above them
 net.js          player-2 over a meeting — each peer writes only their pad
 boot.js         library, drop a dump, wiring
 icon.mjs        NES pad sticker + a real in-game cover
@@ -30,7 +31,7 @@ A user may drop their own dump; nothing Nintendo ships in this tree.
 
 | capability | why |
 |---|---|
-| `db` | Battery SRAM and quick states in a `private` collection; the live pad in a `read-write` one; the host's cart in a `read-only` one the guest reads once. |
+| `db` | Last-play snapshot and battery SRAM in a `private` collection; quick states; the live pad in a `read-write` one; the host's cart in a `read-only` one the guest reads once. |
 | `multiplayer` | The room. Invite is OS chrome — this app never draws that button. |
 
 Needs nothing newer than the App Store itself, so `minBuild` is **947**.

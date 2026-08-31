@@ -57,6 +57,10 @@ function assertNes(p) {
 }
 assertNes('vendor/roms/croom.nes');
 assertNes('vendor/roms/lawn_mower.nes');
+for (const p of ['vendor/roms/croom.nes', 'vendor/roms/lawn_mower.nes']) {
+  const b = readBin(p);
+  if (b[6] & 0x02) throw new Error(p + ' unexpectedly has a battery bit — listing/help must match');
+}
 
 const engine = read('vendor/jsnes.min.js');
 if (/<\/script/i.test(engine)) throw new Error('jsnes.min.js contains </script');
@@ -79,12 +83,15 @@ function romsJs() {
     'function dec(s){var b=atob(s),u=new Uint8Array(b.length),i=0;for(;i<b.length;i++)u[i]=b.charCodeAt(i);return u;}',
     'root.SAMPLE_ROMS=['];
   for (const s of SAMPLES) {
-    const b64 = readBin(join('vendor', 'roms', s.file)).toString('base64');
+    const raw = readBin(join('vendor', 'roms', s.file));
+    const b64 = raw.toString('base64');
+    const battery = !!(raw[6] & 0x02);
     parts.push('{id:' + JSON.stringify(s.id) +
       ',name:' + JSON.stringify(s.name) +
       ',by:' + JSON.stringify(s.by) +
       ',year:' + JSON.stringify(s.year) +
       ',players:' + s.players +
+      ',battery:' + (battery ? 'true' : 'false') +
       ',blurb:' + JSON.stringify(s.blurb) +
       ',bytes:dec("' + b64 + '")},');
   }
@@ -100,6 +107,15 @@ const listing = JSON.parse(read('listing.json'));
 const helpMd = read('help.md').replace(/^\uFEFF/, '');
 if (helpMd.trim().length < 400) throw new Error('help.md is too short');
 if (listing.license !== 'Apache-2.0') throw new Error('listing.license must be Apache-2.0');
+if (!/neither has a battery chip/i.test(listing.description)) {
+  throw new Error('listing must say the packed carts have no battery chip');
+}
+if (!/Select\/Start above/i.test(listing.description)) {
+  throw new Error('listing phone sentence must put Select/Start above A/B');
+}
+if (!/no battery chip/i.test(helpMd)) {
+  throw new Error('help.md must say the packed carts have no battery chip');
+}
 if (!listing.basedOn || listing.basedOn.blessed !== false) throw new Error('basedOn.blessed must be false');
 if (listing.author && /gifos/i.test(listing.author.name)) throw new Error('author is them, not GifOS');
 if (manifest.minBuild !== 947) throw new Error('minBuild must be 947');
@@ -115,6 +131,12 @@ for (const s of SCRIPTS) {
 if (!html.includes('href="style.css"')) throw new Error('index.html does not load style.css');
 if (!html.includes('id="dpad"')) throw new Error('touch d-pad missing');
 if (!html.includes('id="file"')) throw new Error('dump input missing');
+if (!html.includes('data-bit="3"')) throw new Error('Start button missing');
+const css = read('style.css');
+if (!css.includes('#sys') || !css.includes('9.1rem')) {
+  throw new Error('Select/Start must sit above the d-pad (sys bottom = d-pad height + gap)');
+}
+if (!css.includes('min-height: 44px')) throw new Error('Start/Select must be a 44px thumb target');
 
 const files = {
   'manifest.json': JSON.stringify(manifest),

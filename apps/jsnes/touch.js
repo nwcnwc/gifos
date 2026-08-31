@@ -2,9 +2,9 @@
  * jsnes — thumb pad.
  *
  * A plus-shaped d-pad (slide for diagonals), B then A on the right the
- * way a NES pad is, Select/Start in the gutter. Revealed on a phone, or
- * after a finger lands. Writes a mask into Emu — the engine never learns
- * it is being driven by a thumb.
+ * way a NES pad is, Select/Start above them (never in the gutter under B).
+ * Revealed on a phone, or after a finger lands. Writes a mask into Emu —
+ * the engine never learns it is being driven by a thumb.
  */
 (function (root) {
   'use strict';

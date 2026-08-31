@@ -1,8 +1,9 @@
 /*
  * jsnes — GifOS shell.
  *
- * Library, drop a dump, battery SRAM in gifos.db, quick states, and the
- * two-controller net. Invite is OS chrome — this file never draws it.
+ * Library, drop a dump, last-play snapshot + battery SRAM in gifos.db,
+ * quick states, and the two-controller net. Invite is OS chrome — this
+ * file never draws it.
  */
 (function (root) {
   'use strict';
@@ -13,6 +14,7 @@
   var prefs = { mute: false, last: '', slot: 1 };
   var slot = 1;
   var libOpen = false;
+  var slotCache = {};
 
   var $ = function (id) { return document.getElementById(id); };
   var gamesBtn = $('btn-games'), closeBtn = $('lib-close'), dropBtn = $('btn-drop');
@@ -134,7 +136,8 @@
       cls = cur && cur.hash === r.hash ? ' current' : '';
       html += '<button type="button" class="rom' + cls + '" data-sample="' + escape(r.id) + '">' +
         '<span class="n">' + escape(r.name) + '</span>' +
-        '<span class="m">' + escape(r.by) + (r.players === 2 ? ' · two players' : '') + ' — ' + escape(r.blurb) + '</span></button>';
+        '<span class="m">' + escape(r.by) + (r.players === 2 ? ' · two players' : '') +
+        (r.battery ? ' · battery' : '') + ' — ' + escape(r.blurb) + '</span></button>';
     }
     samplesEl.innerHTML = html || '<div class="empty">No sample carts.</div>';
     html = '';
@@ -154,23 +157,32 @@
     if (libOpen) paintLibrary();
   }
 
-  function loadSram(hash) {
+  function loadSave(hash) {
     var col = db('saves');
     if (!col) return Promise.resolve(null);
     return col.get(hash).then(function (row) {
-      return row ? bytesOf(row.ram) : null;
+      return row || null;
     }).catch(function () { return null; });
   }
 
-  function storeSram(bytes) {
+  /* Battery SRAM (when the iNES battery bit is set) AND a last-play
+     snapshot (the two packed carts have no battery chip). Same row. */
+  function storeSave(json, ram) {
     var c = root.Emu.cart();
-    if (!c || !bytes) return;
+    if (!c) return;
     var col = db('saves');
     if (!col) return;
-    col.put({ id: c.hash, ram: bytes, t: Date.now() }).catch(function () {});
+    var rec = { id: c.hash, t: Date.now(), battery: !!c.battery };
+    if (json) rec.json = json;
+    if (ram) rec.ram = ram instanceof Uint8Array ? Array.from(ram) : ram;
+    col.put(rec).catch(function () {});
   }
 
-  function play(meta) {
+  function storeSram(bytes) {
+    storeSave(root.Emu.toState(), bytes);
+  }
+
+  function play(meta, resume) {
     if (!meta || !meta.bytes) return Promise.resolve();
     if (!root.Emu.isNes(meta.bytes)) {
       hintEl.textContent = 'That file is not an iNES dump.';
@@ -178,13 +190,15 @@
     }
     var hash = meta.hash || root.Emu.hashBytes(meta.bytes);
     meta.hash = hash;
-    return loadSram(hash).then(function (ram) {
+    return loadSave(hash).then(function (row) {
+      var ram = row ? bytesOf(row.ram) : null;
       try {
         root.Emu.loadROM(meta.bytes, meta, ram);
       } catch (err) {
         hintEl.textContent = 'Could not load that cart (' + (err && err.message ? err.message : 'unsupported mapper') + ').';
         return;
       }
+      if (resume !== false && row && row.json) root.Emu.fromState(row.json);
       prefs.last = meta.sample ? meta.id : hash;
       savePrefs();
       setLib(false);
@@ -236,17 +250,23 @@
   function saveSlot() {
     var id = slotId(), json = root.Emu.toState();
     if (!id || !json) return;
+    slotCache[id] = json;
     var col = db('slots');
-    if (!col) return;
-    col.put({ id: id, json: json, t: Date.now() }).catch(function () {});
+    if (col) col.put({ id: id, json: json, t: Date.now() }).catch(function () {});
+    if (root.Emu.flushNow) root.Emu.flushNow();
   }
 
   function loadSlot() {
     var id = slotId();
+    if (!id) return;
+    if (slotCache[id]) { root.Emu.fromState(slotCache[id]); return; }
     var col = db('slots');
-    if (!id || !col) return;
+    if (!col) return;
     col.get(id).then(function (row) {
-      if (row && row.json) root.Emu.fromState(row.json);
+      if (row && row.json) {
+        slotCache[id] = row.json;
+        root.Emu.fromState(row.json);
+      }
     }).catch(function () {});
   }
 
@@ -296,13 +316,13 @@
   function followHost(rec) {
     if (!rec || !rec.hash) return;
     var local = findByHash(rec.hash) || findSample(rec.sampleId);
-    if (local) { play(local); return; }
+    if (local) { play(local, false); return; }
     if (root.Net) {
       root.Net.fetchCart().then(function (row) {
         if (!row || !row.bytes) return;
         var b = bytesOf(row.bytes);
         if (!b) return;
-        play({ id: row.hash || rec.hash, name: row.name || rec.name || 'Cart', bytes: b, hash: row.hash || rec.hash, sample: false });
+        play({ id: row.hash || rec.hash, name: row.name || rec.name || 'Cart', bytes: b, hash: row.hash || rec.hash, sample: false }, false);
       });
     }
   }
@@ -352,6 +372,7 @@
     decorateSamples();
     root.Emu.fit();
     root.Emu.onSaveSram(storeSram);
+    root.Emu.onSaveResume(storeSave);
     root.Emu.onStatus(paintChrome);
     root.Emu.setMuted(prefs.mute);
     root.Touch.init();
