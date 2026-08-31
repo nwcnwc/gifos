@@ -84,10 +84,18 @@
     return true;
   }
 
+  function isDraft(title) {
+    if (!title) return false;
+    if (title.indexOf("Draft of '") === 0) return true;
+    var t = $tw.wiki && $tw.wiki.getTiddler(title);
+    return !!(t && t.fields && t.fields['draft.of']);
+  }
+
   function isPrivate(title) {
     if (title === '$:/StoryList' || title === '$:/HistoryList') return true;
     if (title.indexOf('$:/HistoryList') === 0) return true;
     if (title.indexOf('$:/state/') === 0) return true;
+    if (isDraft(title)) return true;
     return false;
   }
 

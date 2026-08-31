@@ -16,7 +16,8 @@
 5. **Phone.** Sidebar breakpoint 56em, 40px tap targets, 16px editor so iOS does not zoom. Back cancels an edit, then closes the top tiddler, then hides the sidebar.
 6. **Markdown.** `tiddlywiki/markdown` is in the empty wiki so a note can be typed as Markdown without installing a plugin.
 7. **CSP.** Boot kernel `Function()` compile is rewritten to an inline `<script>` insert so modules load under `'unsafe-inline'` with no `'unsafe-eval'`.
+8. **Plus.** Framed editor iframe is a unique opaque origin under the GifOS sandbox; `edit-text` now uses SimpleEngine (same document). Drafts stay in private `prefs` so an unfinished note does not ride Invite.
 
 ## Remaining gap
 
-Upstream's plugin ecosystem (CodeMirror, KaTeX, maps, …) is not bundled — only what you need to actually write notes. A user who lives in a 40-plugin wiki still has to import those plugins themselves.
+Cover is still a pixel mock (left sidebar, grey body bars) rather than the running vanilla/snowwhite wiki. In-wiki red Save chrome and the phone sidebar-tuck claim are still ahead of the build. CodeMirror/KaTeX and the rest of the plugin ecosystem stay unbundled.

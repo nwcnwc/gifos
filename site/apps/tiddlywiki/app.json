@@ -41,11 +41,11 @@
   "cover": "/apps/tiddlywiki/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tiddlywiki/tiddlywiki.gif",
-  "bytes": 1030538,
+  "bytes": 1030620,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "b6892bef2f78dfb13b0f43a0f99c9f3aef3bf0e8ccf8b1fc116a00d7aeddc871",
+  "sha256": "1cc759d938d4f7fcd1df302c48073904dad1759a42991172f4edb69e639833f0",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

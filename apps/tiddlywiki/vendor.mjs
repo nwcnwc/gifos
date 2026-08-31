@@ -155,6 +155,23 @@ if (html.includes(EVAL_NEEDLE) || html.split(EVAL_PATCH).length < 2) {
   throw new Error('CSP patch did not apply');
 }
 
+// The framed editor puts the textarea in a child iframe so toolbar clicks
+// do not steal the selection. GifOS mounts the app in a sandbox without
+// allow-same-origin, so that child gets a unique opaque origin and
+// `iframe.contentWindow.document` throws SecurityError — Plus then opens
+// a red "Internal JavaScript Error" sheet. SimpleEngine is the same
+// textarea in this document; the toolbar still paints, operations talk
+// to the engine over messages, and a nested Window is never touched.
+const FRAMED_NEEDLE = 'editTextWidgetFactory(FramedEngine,SimpleEngine)';
+const FRAMED_PATCH = 'editTextWidgetFactory(SimpleEngine,SimpleEngine)';
+if (!html.includes(FRAMED_NEEDLE)) {
+  throw new Error('edit-text widget no longer wires FramedEngine — update the same-document editor patch');
+}
+html = html.split(FRAMED_NEEDLE).join(FRAMED_PATCH);
+if (html.includes(FRAMED_NEEDLE) || !html.includes(FRAMED_PATCH)) {
+  throw new Error('same-document editor patch did not apply');
+}
+
 const HEAD_INJECT = [
   '<script>',
   'window.$tw=window.$tw||{};window.$tw.boot=window.$tw.boot||{};window.$tw.boot.suppressBoot=true;',
