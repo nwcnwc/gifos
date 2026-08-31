@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "svg-edit",
+  "name": "SVG-Edit",
+  "shortName": "SVG-Edit",
+  "version": "7.4.2",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [249, 188, 1],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "doc": { "visibility": "read-write" }
+  }
+}

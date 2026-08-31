@@ -1,0 +1,62 @@
+{
+  "catalog": "1.0",
+  "slug": "svg-edit",
+  "appId": "svg-edit",
+  "name": "SVG-Edit",
+  "shortName": "SVG-Edit",
+  "version": "7.4.2",
+  "minBuild": 947,
+  "tagline": "Draw SVG on this device — the file is the save, and one invite is a shared canvas.",
+  "description": "A real SVG editor, not a whiteboard and not an optimiser. Paths, rectangles, ellipses, text, layers, source, undo — the drawing is the SVG, and it lives inside this app's GIF. Close it, open it later: the picture is where you left it. Send Invite and everyone who opens the link draws on the same SVG, with no account and no server.\n\nOpen an .svg from this device, export SVG or PNG when you want a copy in your hands. Works on a plane.\n\nAn unofficial port of SVG-Edit (MIT). This copy drops the extra extension suite (shape libraries, connectors, a file-picker that needs the open web) and keeps the drawing tools. Boxy SVG is the paid desktop bar; this is the one that travels as a file.",
+  "author": {
+    "name": "SVG-Edit authors",
+    "url": "https://github.com/SVG-Edit/svgedit"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "svg",
+    "vector",
+    "drawing",
+    "editor",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2009-2022 by SVG-edit authors (see AUTHORS file)",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/svg-edit",
+  "accent": [
+    249,
+    188,
+    1
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/svg-edit/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/svg-edit/svg-edit.gif",
+  "bytes": 1432204,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "0b0d985b57a1c106f1a9fd10c372c54f2bcd1afc79952e207a5f81f56793b069",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "SVG-Edit",
+    "url": "https://github.com/SVG-Edit/svgedit",
+    "blessed": false
+  }
+}
