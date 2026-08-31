@@ -1,0 +1,62 @@
+{
+  "catalog": "1.0",
+  "slug": "a-dark-room",
+  "appId": "a-dark-room",
+  "name": "A Dark Room",
+  "shortName": "Dark Room",
+  "version": "1.4.0",
+  "minBuild": 1206,
+  "tagline": "The fire lives in the file. Close the tab — still stoking. Invite someone to the same fire.",
+  "description": "Close it mid-stoke and open it: the fire, the wood, the village are still there, inside this copy of the app. Send the Invite in the bar and a friend sits at the same fire — they can stoke, gather, and build while you keep the room going.\n\nYou wake in a dark room. Light the fire. Stoke it. A stranger arrives who can build. The village grows, the path opens, the world is a map of letters, and then there is a ship.\n\nThe original sent phones to an app-store splash. This copy plays on a phone: the buttons are thumb-sized, the log sits above the room, and a pad under the map walks the wanderer. Sound is packed in — nothing is fetched. Lights start off.\n\nAn unofficial port of A Dark Room by Michael Townsend and doublespeak games.",
+  "author": {
+    "name": "Michael Townsend / doublespeak games",
+    "url": "https://github.com/doublespeakgames/adarkroom"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "incremental",
+    "text",
+    "survival",
+    "adventure",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MPL-2.0",
+  "copyright": "Copyright (c) Michael Townsend and doublespeak games",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/a-dark-room",
+  "accent": [
+    232,
+    168,
+    72
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/a-dark-room/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/a-dark-room/a-dark-room.gif",
+  "bytes": 5307402,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "45f5f15e993e8f7528d935d7096e59bee86f927b3a7020f9383c76642276e0ad",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "A Dark Room",
+    "url": "https://github.com/doublespeakgames/adarkroom",
+    "blessed": false
+  }
+}

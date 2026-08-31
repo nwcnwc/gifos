@@ -1,0 +1,6 @@
+https://github.com/doublespeakgames/adarkroom
+commit 1fada4620b6c66bd07bf15a3f1eb8223df8bc1d7
+date 2025-05-23
+tag (main at clone)
+license MPL-2.0
+audio: FLAC files from the same tree, played via Web Audio (no network fetch)

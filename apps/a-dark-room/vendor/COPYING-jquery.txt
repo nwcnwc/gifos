@@ -1,0 +1,5 @@
+jQuery v1.10.1 — MIT License
+Copyright 2005, 2013 jQuery Foundation, Inc. and other contributors
+https://jquery.org/license
+
+jquery.color 2.1.2, jquery.event.move, jquery.event.swipe — MIT
