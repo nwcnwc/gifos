@@ -1,0 +1,63 @@
+{
+  "catalog": "1.0",
+  "slug": "hydra",
+  "appId": "hydra",
+  "name": "Hydra",
+  "shortName": "Hydra",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "The patch lives in the GIF. Invite jams the same synth — no account, no server.",
+  "description": "A live-coded video synth: oscillators, kaleidoscopes, noise, feedback. Type a chain, press Run, the picture moves. Close it and come back — the last patch is still there, inside the file.\n\nWant a friend on the same synth? Press Jam together, then Invite in the bar above the app, and send the link. You both run this patch. When anyone presses Run, everyone sees it. Playing alone is the original toy.\n\nThere is no camera and no microphone in this copy: generated sources only (osc, noise, voronoi, shape), plus the last frame (src(o0)). Offline, no account.\n\nAn unofficial port of Hydra by Olivia Jack. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Olivia Jack",
+    "url": "https://github.com/ojack"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "hydra",
+    "synth",
+    "livecoding",
+    "video",
+    "visuals",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "AGPL-3.0",
+  "copyright": "Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hydra",
+  "accent": [
+    196,
+    61,
+    122
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/hydra/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/hydra/hydra.gif",
+  "bytes": 228377,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "e0f6b9ac41dc8e40ed5508e1c6aa469d65d626f2c0980ad66a3167b44fc70ee6",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Hydra",
+    "url": "https://github.com/hydra-synth/hydra",
+    "blessed": false
+  }
+}

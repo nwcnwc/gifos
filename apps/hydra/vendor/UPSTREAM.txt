@@ -1,0 +1,27 @@
+vendor/hydra-engine.js is a GifOS adaptation of hydra-synth 1.4.0
+(Olivia Jack / hydra-synth, AGPL-3.0). Do not edit the GLSL tables by
+hand to "improve" them — they are the upstream functions. The WebGL
+path, ping-pong outputs, and the lack of eval/audio/camera are the
+adaptation: GifOS forbids live camera/mic, WebRTC, and `eval` /
+`new Function` (script-src has no unsafe-eval).
+
+package: hydra-synth@1.4.0
+npm:     https://registry.npmjs.org/hydra-synth/-/hydra-synth-1.4.0.tgz
+repo:    https://github.com/hydra-synth/hydra-synth
+sha256:  aa0bc41fec48673c3c134e50c5a6cd5a0ece35d08f0f14a61afff1a573eb06da
+         (vendor/glsl-functions.js classic wrap of src/glsl/glsl-functions.js)
+entry:   src/glsl/glsl-functions.js
+         src/glsl/utility-functions.js
+         src/generate-glsl.js
+         src/generator-factory.js
+         src/glsl-source.js
+         src/format-arguments.js
+         src/lib/array-utils.js
+         src/lib/easing-functions.js
+         src/output.js (regl replaced with raw WebGL)
+
+Not carried:
+  regl, meyda, eval-sandbox, hydra-source camera/video, stream capture.
+
+The AGPL notice travels as COPYING-hydra-synth.txt and is packed
+inside the GIF as COPYING.txt.
