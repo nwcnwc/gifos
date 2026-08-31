@@ -1,0 +1,8 @@
+upstream: https://github.com/TiddlyWiki/TiddlyWiki5.git
+tag: v5.4.1
+pin: d391595836e2aead565480763f9bf9eb52e29e75
+plugins: tiddlywiki/markdown, tiddlywiki/vanilla, tiddlywiki/snowwhite
+wiki.html sha256: 37f0db1d317768965fa38068e20943e578284435ded02147974d7a78601f5100
+wiki.html.gz sha256: 454a9dd7fb17566d60f433cd6902b42537a397b33a84f4e5c0ea8d7dcf007fb3
+wiki.html bytes: 2806108
+wiki.html.gz bytes: 524019

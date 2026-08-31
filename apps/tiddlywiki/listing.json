@@ -1,0 +1,35 @@
+{
+  "tagline": "The wiki is the GIF — close it, hand it over, or invite someone in.",
+  "description": "TiddlyWiki always was a notebook that lived in one file. This copy keeps that promise: every tiddler is saved inside the app, so the GIF you close is the wiki you open again. Press Invite in the bar above and the same notebook is live with whoever opens the link — no account, no server, nothing to host.\n\nWrite in wiki-text or Markdown. Tag, search, link tiddlers together. The original asks you to download a new HTML file every time you save; here that dance is gone. On a phone the sidebar tucks away and Back closes the tiddler you are reading.\n\nAn unofficial port of TiddlyWiki 5 by Jeremy Ruston and the UnaMesa Association (BSD-3-Clause). Core plugins to actually write notes are bundled, including Markdown.",
+  "author": {
+    "name": "Jeremy Ruston & UnaMesa Association",
+    "url": "https://tiddlywiki.com"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "TiddlyWiki 5",
+    "url": "https://github.com/TiddlyWiki/TiddlyWiki5",
+    "donate": "https://opencollective.com/tiddlywiki",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Productivity"
+  ],
+  "tags": [
+    "wiki",
+    "notes",
+    "notebook",
+    "tiddlywiki",
+    "markdown",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "BSD-3-Clause",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tiddlywiki",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
