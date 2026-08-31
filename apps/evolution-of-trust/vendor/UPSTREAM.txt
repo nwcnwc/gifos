@@ -1,0 +1,27 @@
+ncase/trust
+commit 6ec45d73befdb922bd40654dd1c1c903a953562f
+branch gh-pages
+https://github.com/ncase/trust
+https://ncase.me/trust/
+
+Vendored 2026-08-30. CC0-1.0.
+
+Not copied (not needed to play the essay, or not CC0):
+- peeps/          supporter portraits; credits link to ncase.me/trust/peeps/
+- social/         Facebook/Twitter/email share art; Invite is OS chrome
+- js/slides/X_Slides_Feetnotes.js   unused duplicate of credits
+- assets/sounds/button1.mp3, button2.mp3, button3.mp3, bonk.mp3
+  (Owdeo, CC BY-NC — replaced with short tones)
+- assets/sounds/machine_start.mp3
+  (lukaso, CC Sampling+ — replaced with a rising beep)
+
+Local patches (search for "TRUST" / ".wav" / "bounding rect"):
+- js/core/Loader.js     treat .wav as sound
+- js/core/Button.js     .wav paths; null-safe play
+- js/core/Scratcher.js  null-safe play
+- js/core/Slider.js     aim using the painted rect (phone CSS scale)
+- js/lib/helpers.js     shuffle uses TRUST.random when set
+- js/sims/PD.js         noise + Random use TRUST.random when set
+- js/sims/Iterated.js / Tournament.js   .wav paths for replaced sounds
+- js/main.js            translations node may be absent
+- words.html            peeps credit link points at ncase.me
