@@ -1,0 +1,36 @@
+{
+  "tagline": "WYSIWYG markdown that lives in this file — Invite is the same document.",
+  "description": "Typora and Obsidian keep the page on a disk and a vault. This copy keeps it in the file itself: close it, come back, you are still in the same note. Press Invite in the bar above and a friend types on that same page — no account, no vault, no server.\n\nType markdown and watch it become the page: `# ` a heading, `**bold**`, `- ` a list, `- [ ]` a task, a table, a quote. The toolbar is there when you do not want the marks. Source is one tap, so you can copy the raw text out.\n\nAn unofficial port of Milkdown by Mirone. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Mirone",
+    "url": "https://github.com/Milkdown/milkdown"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Milkdown",
+    "url": "https://github.com/Milkdown/milkdown",
+    "donate": "https://github.com/sponsors/Saul-Mirone",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-30",
+  "categories": [
+    "Productivity",
+    "Utilities"
+  ],
+  "tags": [
+    "markdown",
+    "editor",
+    "wysiwyg",
+    "notes",
+    "typora",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/milkdown",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

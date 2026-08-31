@@ -1,0 +1,65 @@
+{
+  "catalog": "1.0",
+  "slug": "milkdown",
+  "appId": "milkdown",
+  "name": "Milkdown",
+  "shortName": "Milkdown",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "WYSIWYG markdown that lives in this file — Invite is the same document.",
+  "description": "Typora and Obsidian keep the page on a disk and a vault. This copy keeps it in the file itself: close it, come back, you are still in the same note. Press Invite in the bar above and a friend types on that same page — no account, no vault, no server.\n\nType markdown and watch it become the page: `# ` a heading, `**bold**`, `- ` a list, `- [ ]` a task, a table, a quote. The toolbar is there when you do not want the marks. Source is one tap, so you can copy the raw text out.\n\nAn unofficial port of Milkdown by Mirone. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Mirone",
+    "url": "https://github.com/Milkdown/milkdown"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Productivity",
+    "Utilities"
+  ],
+  "tags": [
+    "markdown",
+    "editor",
+    "wysiwyg",
+    "notes",
+    "typora",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2020-present Mirone",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/milkdown",
+  "accent": [
+    136,
+    192,
+    208
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/milkdown/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/milkdown/milkdown.gif",
+  "bytes": 350141,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "c9b0f54495e9a1f8d60203425d594b5422de46eddfbc4b2dcd22937065b8363f",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Milkdown",
+    "url": "https://github.com/Milkdown/milkdown",
+    "blessed": false,
+    "donate": "https://github.com/sponsors/Saul-Mirone"
+  }
+}
