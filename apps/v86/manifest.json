@@ -1,0 +1,21 @@
+{
+  "gifos": "1.0",
+  "appId": "v86",
+  "name": "v86",
+  "shortName": "v86",
+  "version": "1.0.0",
+  "minBuild": 1314,
+  "entry": "index.html",
+  "accent": [72, 220, 96],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "wasm": true,
+    "fullscreen": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "disk": { "visibility": "private" },
+    "snap": { "visibility": "private" }
+  }
+}

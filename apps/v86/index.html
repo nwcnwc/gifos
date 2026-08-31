@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>v86</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <div id="brand">
+      <span id="led"></span>
+      <div>
+        <b>v86</b>
+        <span>FreeDOS · 720K floppy</span>
+      </div>
+    </div>
+    <div id="acts">
+      <button type="button" id="btn-pause" title="Pause">Pause</button>
+      <button type="button" id="btn-reboot" title="Reboot, keep disk">Reboot</button>
+      <button type="button" id="btn-factory" title="Original floppy">Factory</button>
+      <button type="button" id="btn-sleep" title="Save running machine">Sleep</button>
+      <button type="button" id="btn-mute" title="Speaker">Mute</button>
+      <button type="button" id="btn-keys" title="Extra keys">Keys</button>
+      <button type="button" id="btn-full" title="Fullscreen">Full</button>
+    </div>
+  </header>
+
+  <div id="stage">
+    <div id="bezel">
+      <div id="crt">
+        <div id="screen_container">
+          <div style="white-space:pre;font:14px/14px monospace"></div>
+          <canvas style="display:none"></canvas>
+        </div>
+        <div id="scan" aria-hidden="true"></div>
+        <div id="boot-msg">Booting FreeDOS…</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="keys" hidden>
+    <div class="krow">
+      <button type="button" data-sc="1">Esc</button>
+      <button type="button" data-sc="59">F1</button>
+      <button type="button" data-sc="60">F2</button>
+      <button type="button" data-sc="61">F3</button>
+      <button type="button" data-sc="62">F4</button>
+      <button type="button" data-sc="63">F5</button>
+      <button type="button" data-sc="64">F6</button>
+      <button type="button" data-sc="65">F7</button>
+      <button type="button" data-sc="66">F8</button>
+      <button type="button" data-sc="67">F9</button>
+      <button type="button" data-sc="68">F10</button>
+    </div>
+    <div class="krow">
+      <button type="button" data-mod="ctrl">Ctrl</button>
+      <button type="button" data-mod="alt">Alt</button>
+      <button type="button" data-mod="shift">Shift</button>
+      <button type="button" data-sc="15">Tab</button>
+      <button type="button" data-sc="14">Bksp</button>
+      <button type="button" data-sc="28">Enter</button>
+      <button type="button" data-sc="1">Esc</button>
+    </div>
+    <div class="krow">
+      <button type="button" data-sc="72">↑</button>
+      <button type="button" data-sc="80">↓</button>
+      <button type="button" data-sc="75">←</button>
+      <button type="button" data-sc="77">→</button>
+      <button type="button" data-sc="71">Home</button>
+      <button type="button" data-sc="79">End</button>
+      <button type="button" data-sc="73">PgUp</button>
+      <button type="button" data-sc="81">PgDn</button>
+      <button type="button" id="btn-type">Type…</button>
+    </div>
+  </div>
+
+  <footer id="status">
+    <span id="stat-line">Starting…</span>
+    <span id="stat-disk"></span>
+  </footer>
+</div>
+
+<input id="phone-kbd" class="phone_keyboard" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" tabindex="-1">
+
+<script src="vendor/libv86.js"></script>
+<script src="v86-data.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
