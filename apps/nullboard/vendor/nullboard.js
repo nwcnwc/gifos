@@ -3374,8 +3374,10 @@
 	$('body').on('dragstart', function(){ return false; });
 
 
+	var NB;
 	window.startNullboard = function () {
-	var NB =
+	if (NB && NB.storage) return;
+	NB = window.NB =
 	{
 		codeVersion: 20231105,
 		blobVersion: 20190412, // board blob format in Storage

@@ -41,11 +41,11 @@
   "cover": "/apps/nullboard/cover.jpg",
   "screenshots": [],
   "gif": "/apps/nullboard/nullboard.gif",
-  "bytes": 400237,
+  "bytes": 400342,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "ec9e75f8216ad85eec883934b31efe2ebfd2e06c5a8ef8ecddf4102546a0926c",
+  "sha256": "9f19c8049c88335f0b11586cc63f3e118d6a269961a05456ce940e59138e95f9",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -43,7 +43,10 @@
     return false;
   }
 
+  var started = false;
   function boot() {
+    if (started) return;
+    started = true;
     root.NBHooks = { afterSave: afterSave };
     if (root.NBLocal) root.NBLocal._onPersist(persistLs);
     if (typeof root.startNullboard !== 'function') return;
@@ -56,7 +59,8 @@
   }
 
   function go() {
-    hydrate().then(boot).catch(boot);
+    // Hydrate-fail still boots once. Boot-throw must NOT re-enter boot.
+    hydrate().then(function () { boot(); }, function () { boot(); });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
