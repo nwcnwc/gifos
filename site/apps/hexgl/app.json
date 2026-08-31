@@ -1,0 +1,63 @@
+{
+  "catalog": "1.0",
+  "slug": "hexgl",
+  "appId": "hexgl",
+  "name": "HexGL",
+  "shortName": "HexGL",
+  "version": "1.0.0",
+  "minBuild": 1314,
+  "tagline": "The original futuristic racer, offline — your best lap lives in the GIF, and Invite is a ghost race.",
+  "description": "Works on a plane: every texture, every building, the ship and the music ride in the file. Close it and your best time is still there, because the GIF is the save. Send the Invite in the bar above and whoever opens it races a ghost of you on the same Cityscape track — no account, no server.\n\nThree laps. Boost pads light the hull cyan. Hit a wall and the shield drops; lose it and you are destroyed. On a computer the arrows or WASD drive; Q and E air-brake. On a phone the left thumb steers and the right thumb goes. A weaker GPU gets a smaller picture instead of a black screen.\n\nAn unofficial port of HexGL by Thibaut Despoulain (BKcore), MIT-licensed. The original needed a web server for its textures and stored records in the browser; this copy vendors them and keeps the times in the file.",
+  "author": {
+    "name": "Thibaut Despoulain",
+    "url": "https://github.com/BKcore/HexGL"
+  },
+  "releaseDate": "2026-08-30",
+  "updated": "2026-08-30",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "racing",
+    "webgl",
+    "futuristic",
+    "offline",
+    "multiplayer",
+    "touch"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2015 Thibaut Despoulain; Copyright (c) 2010-2012 Three.js authors.",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hexgl",
+  "accent": [
+    65,
+    144,
+    187
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "fullscreen": true
+  },
+  "cover": "/apps/hexgl/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/hexgl/hexgl.gif",
+  "bytes": 4191260,
+  "download": 0,
+  "provides": null,
+  "pay": null,
+  "sha256": "32ac5443f6cd59947f322b0c2260bfe2c6b081aabd86bd06a96b92546a7eecd8",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-31"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "HexGL",
+    "url": "https://github.com/BKcore/HexGL",
+    "blessed": false
+  }
+}

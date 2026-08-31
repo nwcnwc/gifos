@@ -1,0 +1,16 @@
+vendor/* is GENERATED. Do not edit it; run node apps/hexgl/vendor.mjs.
+
+upstream: https://github.com/BKcore/HexGL.git
+commit:   6addc95a2fce3bf05f4d751823cc054c61a16d68
+three:    r50dev, shipped as libs/Three.dev.js in that commit (the pin HexGL
+          was written against — a newer three.js will not load these JSON
+          geometries or these uniforms).
+license:  MIT (COPYING-hexgl.txt). Audio samples are CC-BY 3.0 / public
+          domain (COPYING-audio.txt). three.js MIT (COPYING-three.txt).
+
+HexGL file headers still mention CC-BY-NC 3.0 from before the relicensing;
+the repository LICENSE and README are MIT as of this pin.
+
+LOW-quality textures, cityscape geometries, and the five audio files ride
+under vendor/assets/. textures.full, Leap Motion, DAT.GUI, webfonts, and
+the unused edge-track geometry are not copied.
