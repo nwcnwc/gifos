@@ -3450,8 +3450,16 @@
       if (!r.ok) return { error: 'The link returned an error (' + r.status + ').' };
       buf = new Uint8Array(await r.arrayBuffer());
     } catch (e) {
-      // Almost always a CORS block: the host won’t let another page read its file.
-      return { error: 'Couldn’t load that link — the site it’s on won’t let another page read the file (no CORS). Use a direct link to the GIF bytes (for GitHub, the raw.githubusercontent.com link works), or save the GIF to your device and use ＋ Add file(s).' };
+      // A TypeError from fetch is the CORS/network signature. Anything else —
+      // an aborted read, running out of memory on a half-gigabyte app — must
+      // say what it was: for a while EVERY failure here was blamed on CORS,
+      // including a 500 MB download dying in a private tab.
+      if (e instanceof TypeError) {
+        return { error: 'Couldn’t load that link — the network refused, or the site it’s on won’t let another page read the file (no CORS). Use a direct link to the GIF bytes (for GitHub, the raw.githubusercontent.com link works), or save the GIF to your device and use ＋ Add file(s).' };
+      }
+      return { error: 'The download failed partway — ' +
+        (e && e.name ? e.name + ': ' : '') + ((e && e.message) || 'unknown error') +
+        '. A very large app needs a normal (not private) window and enough free memory.' };
     }
     if (!(buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46)) return { error: 'That link isn’t a GIF file.' };
     let name = '';
@@ -3529,14 +3537,25 @@
     } catch (e) {}
     const r = await fetchGifFromUrl(raw);
     if (r.error) { showModal('Couldn’t run that link', escapeHtml(r.error)); return; }
-    const archive = await gif.decode(r.bytes).catch(() => null);
-    const m = archive ? (gif.readManifest(archive) || {}) : {};
-    const isApp = !!(archive && (m.appId || m.entry));
-    const fileId = store.uid('file');
-    await store.putFile({ id: fileId, name: r.name, bytes: r.bytes, kind: 'gif', isApp, appId: m.appId || null, accent: m.accent || null, mime: 'image/gif' });
-    await ensureSystemItems(); // guarantees the 'sys_stolen' folder exists
-    await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: r.name, parent: 'sys_stolen', iconSize: 64 });
-    await load();
+    // Storing a half-gigabyte app is where a private/incognito window gives
+    // up (tiny storage quota) — that failure must name itself, not vanish as
+    // an unhandled rejection while the desktop sits there looking idle.
+    let archive, m, isApp, fileId;
+    try {
+      archive = await gif.decode(r.bytes).catch(() => null);
+      m = archive ? (gif.readManifest(archive) || {}) : {};
+      isApp = !!(archive && (m.appId || m.entry));
+      fileId = store.uid('file');
+      await store.putFile({ id: fileId, name: r.name, bytes: r.bytes, kind: 'gif', isApp, appId: m.appId || null, accent: m.accent || null, mime: 'image/gif' });
+      await ensureSystemItems(); // guarantees the 'sys_stolen' folder exists
+      await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: r.name, parent: 'sys_stolen', iconSize: 64 });
+      await load();
+    } catch (e) {
+      showModal('Couldn’t save that app',
+        escapeHtml((e && e.name ? e.name + ': ' : '') + ((e && e.message) || 'unknown error')) +
+        '<br>Saving a very large app usually fails in a private/incognito window — open gifos.app in a normal window and tap the link again.');
+      return;
+    }
     if (isApp) {
       const go = launch.map(([k, v]) => '&' + k + '=' + encodeURIComponent(v)).join('');
       location.href = 'run.html#id=' + encodeURIComponent(fileId) + nsParam('&db=') + go;
