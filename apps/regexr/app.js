@@ -88,7 +88,15 @@
     var t = lexer.token;
     while (t) {
       if (t.type === 'open' || t.type === 'close') { t = t.next; continue; }
-      if (t.i <= index && index < t.i + t.l) return t.open || t;
+      if (t.i <= index && index < t.i + t.l) {
+        var hit = t;
+        while (hit) {
+          if (hit.open) hit = hit.open;
+          else if (hit.proxy) hit = hit.proxy;
+          else break;
+        }
+        return hit;
+      }
       t = t.next;
     }
     return null;
@@ -203,7 +211,7 @@
       if (!rows2.length) { body.innerHTML = '<p class="hint">Enter an expression above and it will be explained here.</p>'; return; }
       body.innerHTML = rows2.map(function (row) {
         var cls = 'ex-row' + (row.error ? ' err' : '');
-        return '<div class="' + cls + '" data-i="' + row.i + '"><code>' + esc(fullExpr().substr(row.i, row.l)) + '</code> <span>' + esc(row.label) + '</span><small>' + esc(row.desc).replace(/<[^>]+>/g, '') + '</small></div>';
+        return '<div class="' + cls + '" data-i="' + row.i + '"><code>' + esc(fullExpr().substr(row.i, row.l)) + '</code> <span>' + esc(row.label) + (row.label ? '.' : '') + '</span><small>' + esc(row.desc) + '</small></div>';
       }).join('');
     }
   }
@@ -539,9 +547,9 @@
       paintExpression();
       if (!tok) { showTip('', 0, 0); return; }
       var lab = root.RegExrTester.labelOf(tok);
-      var desc = String(root.RegExrTester.descOf(tok) || '').replace(/<[^>]+>/g, '');
-      var err = tok.error ? root.RegExrTester.errorText(tok.error) : '';
-      showTip('<b>' + esc(lab) + '</b>' + (err ? '<div class="err">' + esc(err) + '</div>' : '') + '<div>' + esc(desc) + '</div>', e.clientX, e.clientY);
+      var desc = root.RegExrTester.descOf(tok) || '';
+      var err = tok.error ? root.RegExrTester.errorText(tok.error, tok) : '';
+      showTip('<b>' + esc(lab) + (lab ? '.' : '') + '</b>' + (err ? '<div class="err">' + esc(err) + '</div>' : '') + (desc ? '<div>' + esc(desc) + '</div>' : ''), e.clientX, e.clientY);
     });
     $('exp').addEventListener('mouseleave', function () {
       hoverTok = null;

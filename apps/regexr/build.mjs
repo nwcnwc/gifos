@@ -110,6 +110,12 @@ if (!/#textHl mark\.match/.test(files['style.css']) || !/mark\.match[^}]*color:\
 if (!files['net.js'].includes('primed') || !files['net.js'].includes('onRemote')) {
   throw new Error('guest must adopt the host live row before publishing');
 }
+if (files['net.js'].includes('Waiting for a friend')) {
+  throw new Error('solo boot must not paint occupancy of a room that does not exist yet');
+}
+if (!files['tester.js'].includes('fillTags') || !files['tester.js'].includes('getInsensitive')) {
+  throw new Error('tips must interpolate Handlebars into English');
+}
 if (files['app.js'].indexOf('net.watch()') < files['app.js'].indexOf("saveDb.get('current')")) {
   throw new Error('watch after local load — host must publish THIS expression');
 }
@@ -131,6 +137,7 @@ if (!files['COPYING.txt'].includes('GNU GENERAL PUBLIC LICENSE')) throw new Erro
   vm.createContext(ctx);
   vm.runInContext(files['vendor/profiles.js'], ctx);
   vm.runInContext(files['vendor/lexer.js'], ctx);
+  vm.runInContext(files['vendor/reference.js'], ctx);
   vm.runInContext(files['tester.js'], ctx);
   const ok = vm.runInContext(`
     (function () {
@@ -151,6 +158,42 @@ if (!files['COPYING.txt'].includes('GNU GENERAL PUBLIC LICENSE')) throw new Erro
         { id: "3", text: "aaa", type: "all" }
       ]);
       if (!t.results[0].pass || !t.results[1].pass || !t.results[2].pass) throw new Error("tests");
+      var range = null, ch = null, plus = null;
+      for (var x = tok; x; x = x.next) {
+        if (x.type === "range") range = x;
+        if (x.type === "char" && !x.proxy) ch = x;
+        if (x.clss === "quant") plus = x;
+      }
+      if (!range) throw new Error("no range token");
+      var d = RegExrTester.descOf(range);
+      if (/\\{\\{/.test(d)) throw new Error("leftover handlebars " + d);
+      if (d.indexOf('"A"') < 0 || d.indexOf('"Z"') < 0) throw new Error("range chars " + d);
+      if (d.indexOf("65") < 0 || d.indexOf("90") < 0) throw new Error("char codes " + d);
+      if (!/Case sensitive/.test(d)) throw new Error("insensitive " + d);
+      if (RegExrTester.labelOf(range) !== "Range") throw new Error("label " + RegExrTester.labelOf(range));
+      var rows = RegExrTester.walkExplain(tok);
+      var rr = null, leftover = [];
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].desc && /\\{\\{/.test(rows[i].desc)) leftover.push(rows[i].type + ":" + rows[i].desc);
+        if (rows[i].type === "range") rr = rows[i];
+      }
+      if (leftover.length) throw new Error("explain handlebars " + leftover.join(" | "));
+      if (!rr) throw new Error("explain no range");
+      var snippet = "/([A-Z])\\\\w+/g".substr(rr.i, rr.l);
+      if (snippet !== "A-Z") throw new Error("explain snippet " + JSON.stringify(snippet));
+      if (rr.desc.indexOf('"A"') < 0) throw new Error("explain desc " + rr.desc);
+      var ins = L.parse("/[A-Z]/i");
+      var ir = null;
+      for (var y = ins; y; y = y.next) if (y.type === "range") ir = y;
+      var idesc = RegExrTester.descOf(ir);
+      if (!/Case insensitive/.test(idesc)) throw new Error("flag i " + idesc);
+      var q = RegExrTester.descOf(plus);
+      if (/\\{\\{/.test(q) || q.indexOf("or more") < 0) throw new Error("quant " + q);
+      var lit = L.parse("/A/g");
+      var letter = null;
+      for (var z = lit; z; z = z.next) if (z.type === "char") letter = z;
+      var cd = RegExrTester.descOf(letter);
+      if (cd.indexOf('"A"') < 0 || cd.indexOf("65") < 0 || /\\{\\{/.test(cd)) throw new Error("char " + cd);
       return "ok " + r.matches.length;
     })()
   `, ctx);
@@ -183,6 +226,7 @@ if (!files['COPYING.txt'].includes('GNU GENERAL PUBLIC LICENSE')) throw new Erro
     vm.createContext(ctx);
     vm.runInContext(files['net.js'], ctx);
     const remote = [];
+    const statuses = [];
     ctx.RegExrNet.getState = () => state;
     ctx.RegExrNet.onRemote = (row) => {
       remote.push(row);
@@ -190,7 +234,8 @@ if (!files['COPYING.txt'].includes('GNU GENERAL PUBLIC LICENSE')) throw new Erro
       if (row.flags != null) state.flags = row.flags;
       if (row.text != null) state.text = row.text;
     };
-    return { state, remote, net: ctx.RegExrNet };
+    ctx.RegExrNet.onStatus = (msg) => { statuses.push(String(msg || '')); };
+    return { state, remote, statuses, net: ctx.RegExrNet };
   }
   const host = client('host', 'Hana', true, {
     pattern: 'fromHOST_99', flags: 'g', text: 'fromHOST_99 lives here'
@@ -204,6 +249,12 @@ if (!files['COPYING.txt'].includes('GNU GENERAL PUBLIC LICENSE')) throw new Erro
   };
   host.net.watch();
   await tick();
+  if (host.statuses.some((s) => /Waiting for a friend/.test(s))) {
+    throw new Error('solo host occupancy lie ' + JSON.stringify(host.statuses));
+  }
+  if (!host.statuses.some((s) => /Press Invite/.test(s))) {
+    throw new Error('solo host must still name Invite ' + JSON.stringify(host.statuses));
+  }
   guest.net.watch();
   await tick();
   const live = coll.live;

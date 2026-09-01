@@ -18,8 +18,7 @@
         if (r.id !== 'who_' + me.id) names.push(r.name || 'Friend');
       }
     });
-    if (!on) return 'Press Invite in the bar above to share this pattern with a friend.';
-    if (n <= 1) return 'Waiting for a friend… Invite sends the link. They get this pattern.';
+    if (!on || n <= 1) return 'Press Invite in the bar above to share this pattern with a friend.';
     if (names.length === 1) return names[0] + ' is on this pattern.';
     return names.length + ' friends on this pattern.';
   }
