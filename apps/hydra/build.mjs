@@ -100,7 +100,17 @@ if (/<button[^>]*>\s*Invite/i.test(html) || /id=["']invite/i.test(html)) {
   throw new Error('invite is OS chrome — do not add an invite button');
 }
 if (!html.includes('id="recipe"') || !html.includes('id="chips"') || !html.includes('id="view"')) {
-  throw new Error('index.html must have canvas, chips, and recipe box');
+  throw new Error('index.html must have canvas, chips, and recipe overlay');
+}
+if (!html.includes('id="welcome"')) throw new Error('index.html must have the welcome overlay');
+if (!files['style.css'].includes('position: fixed') || !files['style.css'].includes('#view')) {
+  throw new Error('canvas must fill the glass');
+}
+if (!files['app.js'].includes('currentLine') || !files['app.js'].includes('currentBlock')) {
+  throw new Error('app.js must eval a line and a block, not only the whole sketch');
+}
+if (!files['snippets.js'].includes('voronoi(50')) {
+  throw new Error('first sketch must be the gallery voronoi');
 }
 if (manifest.name !== 'Hydra') throw new Error('manifest.name must be Hydra');
 if (manifest.appId !== 'hydra') throw new Error('appId must be hydra');
@@ -190,7 +200,7 @@ const mock = {
 };
 function chain() {
   const o = {};
-  'color kaleid modulate rotate repeat scale out blend mult add diff colorama scroll pixelate hue saturate invert contrast brightness'.split(' ').forEach(function (m) {
+  'color kaleid modulate rotate repeat scale out blend mult add diff colorama scroll pixelate hue saturate invert contrast brightness luma'.split(' ').forEach(function (m) {
     o[m] = function () { return o; };
   });
   return o;

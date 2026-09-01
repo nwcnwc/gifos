@@ -1,22 +1,22 @@
 # Hydra
 
-A live-coded video synth. You write a short chain of sources and effects; the picture is the result. Time moves. A finger on the picture is `mouse`.
+A live-coded video synth. The picture is the window. You type a chain of sources and effects on it. Time moves. A finger on the picture is `mouse`.
 
 ## The loop
 
-1. Tap a named patch under the picture — **Osc**, **Kaleid**, **Modulate**, **Shape**, **Voronoi**, **Feedback**, **Spin**, or **Finger**.
-2. The recipe appears in the box. Change a number, a colour, or a count of kaleidoscope sides.
-3. Press **Run** (or Ctrl+Enter / Cmd+Enter). The picture becomes yours.
-4. **Patch** hides or shows the recipe so the picture can fill the screen. On a phone the recipe starts closed.
+1. A gallery sketch is already running. Change a number in the overlay.
+2. **Ctrl+Enter** (or Cmd+Enter) runs the line under the cursor. **Alt+Enter** runs the block. **Ctrl+Shift+Enter** or **Run** runs the whole sketch.
+3. Tap a named patch along the bottom — **Osc**, **Kaleid**, **Modulate**, **Shape**, **Voronoi**, **Feedback**, **Spin**, or **Finger** — to load that recipe.
+4. **Code** (or Ctrl+Shift+H) hides or shows the overlay so the picture is alone. The synth keeps running.
 
-The name in the top-right is the patch you are on, or **Yours** once the recipe no longer matches one of the eight.
+The name next to **hydra** is the patch you are on, or **Yours** once the recipe no longer matches one of the eight.
 
 ## The dialect
 
 A patch is a chain. It starts with a source, then effects, and ends with `.out()`:
 
 - **Sources:** `osc(freq, sync, offset)`, `noise(scale, offset)`, `voronoi(scale, speed, blending)`, `shape(sides, radius, smoothing)`, `gradient(speed)`, `solid(r, g, b, a)`, `src(o0)` (the last frame — feedback).
-- **Colour:** `.color(r, g, b)`, `.hue()`, `.saturate()`, `.invert()`, `.contrast()`, `.brightness()`, `.colorama()`, `.posterize()`.
+- **Colour:** `.color(r, g, b)`, `.hue()`, `.saturate()`, `.invert()`, `.contrast()`, `.brightness()`, `.colorama()`, `.posterize()`, `.luma()`.
 - **Geometry:** `.rotate(angle, speed)`, `.scale()`, `.kaleid(sides)`, `.repeat(x, y)`, `.pixelate()`, `.scroll()`, `.scrollX()`, `.scrollY()`.
 - **Mix:** `.blend(other)`, `.mult(other)`, `.add(other)`, `.diff(other)`, `.modulate(other)`, `.modulateRotate(other)`, `.modulateScale(other)`, `.layer(other)`, `.mask(other)`.
 

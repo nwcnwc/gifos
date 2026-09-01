@@ -1,6 +1,6 @@
 // Procedural Hydra icon: a dark card of oscillating bands that fold into
-// a kaleidoscope. Cover is mid-jam — the picture full of colour, recipe
-// visible at the bottom. Super-sample → box-downsample. Deterministic.
+// a kaleidoscope. Cover is the picture as the page — recipe typed on the
+// video, not a boxed kiosk. Super-sample → box-downsample. Deterministic.
 import { deflateSync } from 'node:zlib';
 
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
@@ -201,14 +201,17 @@ export function screenshotPng() {
     put(x, y, c[0], c[1], c[2]);
   }
 
-  // recipe overlay — mid-use, a real kaleid patch, not empty first-boot
-  rr(put, 28, 500, 1172, 696, 14, 10, 6, 16, 230);
-  drawText(put, 52, 524, 'osc(18, 0.1, 0.9)', 4, 214, 255, 232);
-  drawText(put, 52, 564, '  .kaleid(5)', 4, 214, 255, 232);
-  drawText(put, 52, 604, '  .color(0.9, 0.3, 0.6)', 4, 255, 211, 106);
-  drawText(put, 52, 644, '  .out()', 4, 232, 90, 160);
-  rr(put, 1008, 620, 1148, 672, 12, 57, 208, 197);
-  drawText(put, 1030, 632, 'RUN', 3, 8, 32, 24);
+  // recipe overlay on the picture — the original's livecoding surface
+  const lines = [
+    [48, 72, 'osc(18, 0.1, 0.9)', 214, 255, 232],
+    [48, 120, '  .kaleid(5)', 214, 255, 232],
+    [48, 168, '  .color(0.9, 0.3, 0.6)', 255, 211, 106],
+    [48, 216, '  .out()', 232, 90, 160]
+  ];
+  for (const L of lines) {
+    drawText(put, L[0] + 2, L[1] + 2, L[2], 5, 0, 0, 0);
+    drawText(put, L[0], L[1], L[2], 5, L[3], L[4], L[5]);
+  }
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
