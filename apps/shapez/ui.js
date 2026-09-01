@@ -61,6 +61,7 @@
 
   function paintTools() {
     var i, t, btn, cnv, locked;
+    if (!toolsEl) return;
     if (!toolsEl.childNodes.length) {
       for (i = 0; i < TOOLS.length; i++) {
         t = TOOLS[i];
@@ -93,6 +94,7 @@
   }
 
   function paintHud() {
+    if (!hud || !goalEl) return;
     var goal = g.goal();
     var lvl = g.level + 1;
     var need = goal ? goal.need : 0;
@@ -127,6 +129,7 @@
   }
 
   function paintRoster(list) {
+    if (!rosterEl) return;
     if (!list || list.length < 2) {
       rosterEl.hidden = true;
       return;
@@ -365,6 +368,7 @@
     onRotate = opts.onRotate;
     onCam = opts.onCam;
     meId = opts.meId || '';
+    if (root.SZDraw && root.SZDraw.bind) root.SZDraw.bind();
     paintTools();
     bindChrome();
     canvas.addEventListener('pointerdown', onDown);

@@ -22,10 +22,12 @@
   };
 
   function bind() {
-    TILE = root.SZConst.TILE;
-    DX = root.SZConst.DX;
-    DY = root.SZConst.DY;
-    isHub = root.SZConst.isHub;
+    var C = root.SZConst;
+    if (!C) return;
+    TILE = C.TILE;
+    DX = C.DX;
+    DY = C.DY;
+    isHub = C.isHub;
     SZ = root.SZ;
   }
 
@@ -415,6 +417,7 @@
   }
 
   function drawToolbarIcon(ctx, kind, w, locked) {
+    bind();
     ctx.clearRect(0, 0, w, w);
     ctx.save();
     ctx.translate(w / 2, w / 2);
@@ -453,7 +456,10 @@
     ctx.restore();
   }
 
+  bind();
+
   root.SZDraw = {
+    bind: bind,
     render: render,
     drawToolbarIcon: drawToolbarIcon,
     tileCenter: tileCenter,
