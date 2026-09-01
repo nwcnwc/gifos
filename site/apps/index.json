@@ -2289,11 +2289,15 @@
         48
       ],
       "cover": "/apps/epub-reader/cover.jpg",
-      "bytes": 354904,
+      "bytes": 355554,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "4898b55fbc79c03393930a603c69a77cab8b69ff9255f2487fa4fa231aa8bb7a"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-09-01"
+      },
+      "sha256": "d8cbb6a8d6b82563ce6507d313cf81fdb8b58f0a45e434421a2dca20fedbcb96"
     },
     {
       "slug": "evolution-of-trust",

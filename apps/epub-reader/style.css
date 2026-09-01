@@ -118,21 +118,33 @@ body { overflow: hidden; }
 #toc-list button.d1 { padding-left: 24px; color: #c8ccd0; font-size: 13px; }
 #toc-list button.d2 { padding-left: 36px; color: #9aa0a6; font-size: 13px; }
 #paper {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  align-self: stretch;
   min-width: 0;
   min-height: 0;
   position: relative;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   margin: 12px auto;
   width: min(720px, calc(100% - 24px));
+  max-width: min(720px, calc(100% - 24px));
+  padding: 28px 32px 36px;
   background: #f4efe4;
   color: #1c1610;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   border-radius: 2px;
 }
+.sheet {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
 .flow {
   height: 100%;
-  padding: 28px 32px 36px;
+  padding: 0;
   box-sizing: border-box;
   overflow: visible;
   color: #1c1610;
@@ -143,10 +155,19 @@ body { overflow: hidden; }
   hyphens: auto;
   column-fill: auto;
   column-gap: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
-.flow img {
+.flow img, .flow svg, .flow video, .flow table {
   max-width: 100%;
   height: auto;
+  break-inside: avoid;
+}
+.flow pre, .flow .pgmonospaced, .flow p.asterism {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 .flow a { color: #8a4e14; }
 .flow h1, .flow h2, .flow h3 {
@@ -211,6 +232,5 @@ body.loaded .empty { display: none !important; }
   #bar { flex-wrap: wrap; padding: 6px 8px; gap: 4px; }
   .meet { display: none; }
   .chip { min-height: 40px; padding: 10px 12px; font-size: 14px; }
-  #paper { margin: 0; width: 100%; border-radius: 0; }
-  .flow { padding: 20px 18px 28px; }
+  #paper { margin: 0; width: 100%; max-width: 100%; border-radius: 0; padding: 20px 18px 28px; }
 }
