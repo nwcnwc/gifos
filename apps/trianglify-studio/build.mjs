@@ -182,6 +182,32 @@ for (const [n, s] of Object.entries(files)) {
   if (!svg.includes('<svg') || !svg.includes('path')) throw new Error('toSVGTree did not serialize');
   const p2 = t({ width: 80, height: 50, cellSize: 28, seed: 'gifos', xColors: 'YlGnBu' });
   if (p.points[0][0] !== p2.points[0][0]) throw new Error('seed is not deterministic');
+
+  // toCanvas only writes width/height when scaling is truthy. An empty canvas
+  // plus {scaling:false} stays 300×150 — that was the postage-stamp PNG.
+  const fakeCtx = {
+    scale() {}, beginPath() {}, moveTo() {}, lineTo() {}, closePath() {},
+    fill() {}, stroke() {}, lineJoin: '', fillStyle: '', strokeStyle: '', lineWidth: 0
+  };
+  const fake = { width: 300, height: 150, style: {}, getContext() { return fakeCtx; } };
+  p.toCanvas(fake, { scaling: false, applyCssScaling: false });
+  if (fake.width !== 300 || fake.height !== 150) {
+    throw new Error('toCanvas(scaling:false) resized the canvas — the PNG size assumption moved');
+  }
+  fake.width = 1920;
+  fake.height = 1080;
+  p.toCanvas(fake, { scaling: false, applyCssScaling: false });
+  if (fake.width !== 1920 || fake.height !== 1080) {
+    throw new Error('pre-sized canvas + scaling:false must keep the picker size');
+  }
+}
+
+{
+  const png = files['app.js'].match(/function downloadPng\(\) \{[\s\S]*?\n  \}/);
+  if (!png) throw new Error('downloadPng is missing');
+  if (!/canvas\.width\s*=\s*sz\.w/.test(png[0]) || !/canvas\.height\s*=\s*sz\.h/.test(png[0])) {
+    throw new Error('downloadPng must assign canvas.width/height to the picker size before toCanvas — scaling:false does not');
+  }
 }
 
 const shot = screenshotPng();

@@ -151,6 +151,9 @@
     if (!canvas) return;
     try {
       lastPattern = makePattern(pv.w, pv.h, Math.max(12, state.cell * pv.s));
+      // scaling:false does not write canvas size, and assignment clears the previous fill.
+      canvas.width = pv.w;
+      canvas.height = pv.h;
       lastPattern.toCanvas(canvas, { scaling: false, applyCssScaling: false });
       canvas.style.width = '';
       canvas.style.height = '';
@@ -300,6 +303,9 @@
       var cell = cellFor(sz.w, sz.h, state.cell);
       var pattern = makePattern(sz.w, sz.h, cell);
       var canvas = root.document.createElement('canvas');
+      // toCanvas with scaling:false leaves the default 300×150 — size to the picker.
+      canvas.width = sz.w;
+      canvas.height = sz.h;
       pattern.toCanvas(canvas, { scaling: false, applyCssScaling: false });
       var name = safeName() + '.png';
       if (canvas.toBlob) {
