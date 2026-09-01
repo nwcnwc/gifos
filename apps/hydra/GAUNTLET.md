@@ -2,6 +2,8 @@
 
 A stranger who knows hydra.ojack.xyz would use this copy because the patch lives in the GIF and one Invite jams the same synth — no account, no server, works on a plane.
 
+**READY-TO-SIGN**
+
 ## Bars
 
 - **ONE:** hydra.ojack.xyz (Olivia Jack). Live-coded video synth, CodeMirror overlay, Ctrl+Enter, WebRTC jams, camera/mic.
@@ -16,8 +18,9 @@ A stranger who knows hydra.ojack.xyz would use this copy because the patch lives
 ## Rounds
 
 1. Vendor hydra-synth 1.4.0 GLSL tables. Raw WebGL output (no regl — regl uses `new Function`). Restricted sketch interpreter (no eval). Eight named patches. Jam via own-row publish. Last patch in gifos.db.
-2. Icon/cover/listing judged as the face. Remaining gap: line-at-a-time eval and camera/audio from the original are not in this copy — generated sources + Run-all are the honest subset.
+2. Icon/cover/listing judged as the face.
+3. The picture is the page: canvas fills the glass, editor overlays the video, first gallery sketch already running. Ctrl+Enter a line, Alt+Enter a block, Ctrl+Shift+Enter the sketch.
 
 ## Remaining gap
 
-Line-at-a-time (Ctrl+Enter on one line) and live camera/audio from the original. This copy runs the whole patch and stays generated-only, on purpose.
+Live camera/audio and WebRTC video nodes from the original. This copy stays generated-only, on purpose. Catalog listing is owned elsewhere.

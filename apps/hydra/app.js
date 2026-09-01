@@ -1,7 +1,8 @@
 /*
  * Hydra — GifOS chrome around Olivia Jack's video synth.
- * vendor/hydra-engine.js paints. This file is the shell: named patches,
- * the recipe box, Run, and a private last patch so the file is the save.
+ * vendor/hydra-engine.js paints the glass. This file is the overlay:
+ * named patches, the recipe you type on the picture, line / block /
+ * sketch eval, and a private last patch so the file is the save.
  *
  * Classic IIFE. No fetch, no sockets, no eval.
  */
@@ -13,8 +14,8 @@
   var saveDb = null;
   var saveTimer = 0;
   var hydra = null;
-  var current = { id: 'kaleid', code: '' };
-  var sheetOpen = true;
+  var current = { id: 'voronoi', code: '' };
+  var codeOpen = true;
   var $ = function (id) { return document.getElementById(id); };
 
   function snippets() { return root.HydraSnippets || []; }
@@ -69,20 +70,27 @@
     }, 250);
   }
 
-  function fitCanvas() {
-    if (!hydra || !hydra.canvas) return;
-    var stage = $('stage');
-    var r = stage.getBoundingClientRect();
-    var w = Math.max(16, Math.round(r.width));
-    var h = Math.max(16, Math.round(r.height));
-    hydra.setResolution(w, h);
+  function glassSize() {
+    var el = document.documentElement;
+    var w = Math.round((el && el.clientWidth) || window.innerWidth || 16);
+    var h = Math.round((el && el.clientHeight) || window.innerHeight || 16);
+    return { w: Math.max(16, w), h: Math.max(16, h) };
   }
 
-  function applyPatch(code, fromMp) {
+  function fitCanvas() {
+    if (!hydra || !hydra.canvas) return;
+    var s = glassSize();
+    hydra.setResolution(s.w, s.h);
+  }
+
+  function setEditor(code) {
     code = String(code || '').slice(0, MAX);
     current.code = code;
     if ($('recipe').value !== code) $('recipe').value = code;
     paintWhich();
+  }
+
+  function evalCode(code) {
     showErr('');
     if (!hydra || !hydra.api) {
       showErr(hydra && hydra.error ? hydra.error : 'The synth did not start.');
@@ -97,6 +105,11 @@
     }
   }
 
+  function applyPatch(code, fromMp) {
+    setEditor(code);
+    return evalCode(code);
+  }
+
   function applyFromEditor() {
     var code = $('recipe').value;
     if (root.HydraMp && root.HydraMp.onApply && root.HydraMp.onApply(code)) return;
@@ -104,12 +117,51 @@
     persist();
   }
 
+  function caret() {
+    var ta = $('recipe');
+    var n = ta.selectionStart;
+    if (n == null) n = ta.value.length;
+    return n;
+  }
+
+  function currentLine() {
+    var v = $('recipe').value;
+    var pos = caret();
+    var start = v.lastIndexOf('\n', pos - 1) + 1;
+    var end = v.indexOf('\n', pos);
+    if (end < 0) end = v.length;
+    return v.slice(start, end);
+  }
+
+  function currentBlock() {
+    var v = $('recipe').value;
+    var pos = caret();
+    var lines = v.split('\n');
+    var i = 0, acc = 0;
+    while (i < lines.length && acc + lines[i].length + 1 <= pos) {
+      acc += lines[i].length + 1;
+      i++;
+    }
+    if (i >= lines.length) i = Math.max(0, lines.length - 1);
+    var start = i, end = i;
+    while (start > 0 && lines[start - 1].trim() !== '') start--;
+    while (end < lines.length && lines[end].trim() !== '') end++;
+    return lines.slice(start, end).join('\n');
+  }
+
+  function evalLocal(src) {
+    src = String(src || '');
+    if (!src.trim()) return;
+    current.code = $('recipe').value;
+    paintWhich();
+    evalCode(src);
+    persist();
+  }
+
   function loadSnippet(sn) {
     if (!sn) return;
     if (root.HydraMp && root.HydraMp.onApply && root.HydraMp.onApply(sn.code)) {
-      $('recipe').value = sn.code;
-      current.code = sn.code;
-      paintWhich();
+      setEditor(sn.code);
       persist();
       return;
     }
@@ -133,41 +185,79 @@
     });
   }
 
-  function setSheet(open) {
-    sheetOpen = !!open;
-    document.body.classList.toggle('show-patch', sheetOpen);
+  function setCodeOpen(open) {
+    codeOpen = !!open;
+    document.body.classList.toggle('hide-code', !codeOpen);
     var btn = $('patchBtn');
-    if (btn) btn.setAttribute('aria-expanded', sheetOpen ? 'true' : 'false');
-    setTimeout(fitCanvas, 40);
+    if (btn) btn.setAttribute('aria-expanded', codeOpen ? 'true' : 'false');
+  }
+
+  function hideWelcome() {
+    var w = $('welcome');
+    if (w) w.hidden = true;
+  }
+
+  function showWelcome() {
+    var w = $('welcome');
+    if (w) w.hidden = false;
   }
 
   function bind() {
     $('runBtn').addEventListener('click', function (e) { e.preventDefault(); applyFromEditor(); });
     $('patchBtn').addEventListener('click', function (e) {
       e.preventDefault();
-      setSheet(!sheetOpen);
+      setCodeOpen(!codeOpen);
     });
-    $('recipe').addEventListener('keydown', function (e) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        applyFromEditor();
-      }
+    $('welcomeClose').addEventListener('click', function (e) {
+      e.preventDefault();
+      hideWelcome();
+    });
+    $('recipe').addEventListener('input', function () {
+      current.code = $('recipe').value;
+      paintWhich();
     });
     window.addEventListener('keydown', function (e) {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'H' || e.key === 'h')) {
+      var cmd = e.ctrlKey || e.metaKey;
+      if (cmd && e.shiftKey && (e.key === 'Enter')) {
         e.preventDefault();
-        setSheet(!sheetOpen);
+        applyFromEditor();
+        return;
+      }
+      if (cmd && !e.shiftKey && e.key === 'Enter') {
+        e.preventDefault();
+        evalLocal(currentLine());
+        return;
+      }
+      if (e.altKey && !cmd && e.key === 'Enter') {
+        e.preventDefault();
+        evalLocal(currentBlock());
+        return;
+      }
+      if (cmd && e.shiftKey && (e.key === 'H' || e.key === 'h')) {
+        e.preventDefault();
+        setCodeOpen(!codeOpen);
       }
     });
     if (api && api.onBack) {
       api.onBack(function () {
-        if (sheetOpen && window.matchMedia('(max-width: 720px)').matches) {
-          setSheet(false);
+        if (!$('welcome').hidden) {
+          hideWelcome();
+          return true;
+        }
+        if (codeOpen && window.matchMedia('(max-width: 720px)').matches) {
+          setCodeOpen(false);
           return true;
         }
         return false;
       });
     }
+    window.addEventListener('pointermove', function (ev) {
+      if (!hydra || !hydra.canvas) return;
+      var c = hydra.canvas;
+      var r = c.getBoundingClientRect();
+      hydra.mouse.x = (ev.clientX - r.left) * (c.width / (r.width || 1));
+      hydra.mouse.y = (ev.clientY - r.top) * (c.height / (r.height || 1));
+    }, { passive: true });
   }
 
   function bootSynth() {
@@ -185,7 +275,7 @@
     fitCanvas();
     window.addEventListener('resize', function () { fitCanvas(); });
     if (root.ResizeObserver) {
-      try { new ResizeObserver(function () { fitCanvas(); }).observe($('stage')); } catch (e) {}
+      try { new ResizeObserver(function () { fitCanvas(); }).observe(document.documentElement); } catch (e) {}
     }
   }
 
@@ -193,10 +283,9 @@
     bindChips();
     bind();
     bootSynth();
-    if (window.matchMedia('(max-width: 720px)').matches) setSheet(false);
-    else setSheet(true);
+    setCodeOpen(true);
 
-    var first = findByKey('kaleid') || snippets()[0];
+    var first = findByKey('voronoi') || snippets()[0];
     if (first) applyPatch(first.code);
 
     var launchP = (api && api.launch) ? Promise.resolve(api.launch()).catch(function () { return null; }) : Promise.resolve(null);
@@ -211,11 +300,12 @@
       if (root.HydraMp && root.HydraMp.busy()) return;
       var sn = go && go.patch ? findByKey(go.patch) : null;
       if (sn) { loadSnippet(sn); return; }
-      if (row && row.code) applyPatch(row.code);
+      if (row && row.code) {
+        applyPatch(row.code);
+        return;
+      }
+      showWelcome();
     }).catch(function () {});
-
-    var hint = $('hint');
-    if (hint) setTimeout(function () { hint.hidden = true; }, 5000);
   }
 
   root.HydraApp = {

@@ -1,6 +1,6 @@
 {
   "tagline": "The patch lives in the GIF. Invite jams the same synth — no account, no server.",
-  "description": "A live-coded video synth: oscillators, kaleidoscopes, noise, feedback. Type a chain, press Run, the picture moves. Close it and come back — the last patch is still there, inside the file.\n\nWant a friend on the same synth? Press Jam together, then Invite in the bar above the app, and send the link. You both run this patch. When anyone presses Run, everyone sees it. Playing alone is the original toy.\n\nThere is no camera and no microphone in this copy: generated sources only (osc, noise, voronoi, shape), plus the last frame (src(o0)). Offline, no account.\n\nAn unofficial port of Hydra by Olivia Jack. Bugs go to GifOS, not upstream.",
+  "description": "A live-coded video synth: oscillators, kaleidoscopes, noise, feedback. The picture is the window — type a chain on it, press Run, it moves. Close it and come back — the last patch is still there, inside the file.\n\nWant a friend on the same synth? Press Jam together, then Invite in the bar above the app, and send the link. You both run this patch. When anyone presses Run, everyone sees it. Playing alone is the original toy.\n\nThere is no camera and no microphone in this copy: generated sources only (osc, noise, voronoi, shape), plus the last frame (src(o0)). Offline, no account.\n\nAn unofficial port of Hydra by Olivia Jack. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "Olivia Jack",
     "url": "https://github.com/ojack"

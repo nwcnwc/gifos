@@ -1,16 +1,17 @@
 # Hydra
 
 An unofficial local port of **[Hydra](https://github.com/hydra-synth/hydra)**
-(AGPL-3.0) by Olivia Jack. A live-coded video synth. Playing alone is
-that toy. Press **Jam together**, then **Invite**, and a friend runs
-the same patch. Close it, come back — the last patch is still there.
+(AGPL-3.0) by Olivia Jack. A live-coded video synth. The picture is the
+page; you type on it. Playing alone is that toy. Press **Jam together**,
+then **Invite**, and a friend runs the same patch. Close it, come back —
+the last patch is still there.
 
 ![screenshot](screenshot.png)
 
 ```
-index.html                 shell: canvas, named patches, recipe box
-style.css                  dark synth, magenta chips, friend chrome
-app.js                     apply / last patch in gifos.db
+index.html                 shell: fullscreen canvas, overlay editor
+style.css                  code on the video, friend chrome over it
+app.js                     line / block / sketch eval, last patch in gifos.db
 mp.js                      shared patch string, own-row publish
 sketch.js                  restricted hydra interpreter (no eval)
 snippets.js                eight getting-started patches
@@ -31,6 +32,13 @@ vendor/COPYING-*.txt       AGPL-3.0 notice, packed inside the GIF
 | `launch.patch` | A shared URL can open a named patch (`?run=hydra&go.patch=kaleid`). |
 
 No `network`, no `wasm`. Camera, microphone, and WebRTC from the original are not in this copy: generated sources only, plus `src(o0)` feedback. Sketch evaluation is a restricted interpreter because the sandbox CSP has no `unsafe-eval`.
+
+## Keys (as on hydra.ojack.xyz)
+
+- **Ctrl+Enter** — run the line under the cursor
+- **Alt+Enter** — run the current block
+- **Ctrl+Shift+Enter** / **Run** — run the whole sketch
+- **Ctrl+Shift+H** / **Code** — hide or show the overlay
 
 ## How the patch is shared
 

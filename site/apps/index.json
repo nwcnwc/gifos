@@ -2289,15 +2289,11 @@
         48
       ],
       "cover": "/apps/epub-reader/cover.jpg",
-      "bytes": 354916,
+      "bytes": 354904,
       "download": 0,
       "provides": null,
-      "signature": {
-        "type": "domain",
-        "id": "gifos.app",
-        "ts": "2026-08-31"
-      },
-      "sha256": "220dbc33e8929d5a6dfcb5d020b94586729b2296cfef48ca98fc6610603da025"
+      "signature": null,
+      "sha256": "4898b55fbc79c03393930a603c69a77cab8b69ff9255f2487fa4fa231aa8bb7a"
     },
     {
       "slug": "evolution-of-trust",
@@ -3576,15 +3572,15 @@
         122
       ],
       "cover": "/apps/hydra/cover.jpg",
-      "bytes": 228377,
+      "bytes": 229737,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-31"
+        "ts": "2026-09-01"
       },
-      "sha256": "e0f6b9ac41dc8e40ed5508e1c6aa469d65d626f2c0980ad66a3167b44fc70ee6"
+      "sha256": "15558daef176207367d7bafd428307619801a27cdae9084f855003a125a0a330"
     },
     {
       "slug": "invaderz",

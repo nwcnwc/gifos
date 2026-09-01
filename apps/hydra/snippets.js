@@ -1,5 +1,5 @@
-/* Named hydra patches. The dialect is Olivia Jack's; these are the
- * getting-started shapes, sized to fill a screen. Classic IIFE.
+/* Named hydra patches. The dialect is Olivia Jack's; first-boot is a
+ * gallery-style sketch already running on the glass. Classic IIFE.
  */
 (function (root) {
   'use strict';
@@ -49,9 +49,10 @@
       id: 'voronoi',
       name: 'Voronoi',
       code: [
-        'voronoi(8, 0.3, 0.2)',
-        '  .color(0.95, 0.35, 0.55)',
-        '  .modulate(osc(4, 0.1), 0.05)',
+        'voronoi(50, 1)',
+        '  .luma(0.5)',
+        '  .mult(osc(10, 0.1, 0.5).modulate(noise(3)))',
+        '  .blend(o0, 0.8)',
         '  .out()'
       ].join('\n')
     },
