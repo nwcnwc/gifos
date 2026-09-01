@@ -1,3 +1,7 @@
+/* `hidden` is a UA `display:none` of lowest specificity. #boot and #app set
+   display:flex, which would keep the overlay on screen after boot.hidden = true. */
+[hidden] { display: none !important; }
+
 :root {
   --bg: #0b0e14;
   --panel: #121722;
