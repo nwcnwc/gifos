@@ -239,6 +239,14 @@ if (/src="[^"]*cascadestudio|\.wasm|cascade-worker/i.test(html)) {
   throw new Error('index.html must not reference the kernel — it rides under .assets/');
 }
 
+const css = read('style.css');
+if (!/\[hidden\]\s*\{[^}]*display\s*:\s*none\s*!important/i.test(css)) {
+  throw new Error('style.css must ship [hidden] { display: none !important } — #boot { display:flex } otherwise never yields');
+}
+if (!html.includes('id="boot"') || !read('boot.js').includes("$('boot').hidden = true")) {
+  throw new Error('boot overlay must hide via the hidden attribute after the kernel is ready');
+}
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': html,

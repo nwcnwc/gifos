@@ -3,6 +3,8 @@
 **Win:** Sketch a profile, pull it into a real OpenCascade solid, and the
 part lives in the GIF — no FreeCAD install, no account, works on a plane.
 
+**READY-TO-SIGN**
+
 ## Bars
 
 - **ONE** — CascadeStudio / FreeCAD. B-rep CAD, not CSG, not a mesh viewer.
