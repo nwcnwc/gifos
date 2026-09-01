@@ -1,53 +1,70 @@
 # Primitive — fresh-eyes gauntlet critic
 
-Comp inspected: [ondras.github.io/primitive.js](https://ondras.github.io/primitive.js/) (the named floor). Distinct from Pixel It (pixel blocks / palette). One Chromium. App run from `apps/primitive/` with a `gifos.db` stub; listing at `/store.html#app=primitive`; cover and icon judged at store-card, listing-hero, 64px and 32px.
+Comp inspected: [ondras.github.io/primitive.js](https://ondras.github.io/primitive.js/) (the named floor). Distinct from Pixel It (pixel blocks / palette snap, not triangles one at a time). One Chromium. **Packed GIF** `site/apps/primitive/primitive.gif` (204 326 B, 31 Aug, persist-bytes rebuild) installed onto a real Home Screen and opened through `run.html` — not the source tree, not a mock `gifos.db`.
 
 ## Winner
 
-**COMP**
+**OURS**
 
-The 2016 demo is a mediocre floor — Google Fonts, a CORS URL box, no Stop, no phone, no empty state, forgets the tab. Beating that by a hair is still shipping something weak. This port has the right chrome (empty state, Quick/Classic/Fine, Stop, Take photo, fat 44px controls, no CDN) and the algorithm does run. It does not yet beat the *category* bar, which is a photograph becoming triangles you can still see beside the original, and it does not deliver the platform reason it prints on the card.
+The 2016 demo is still a mediocre floor: Google Fonts, a CORS URL box, no Stop, no phone empty state, forgets the tab. That is not a ceiling. The persist hole that made the listing a lie is closed on the path a stranger actually uses. Choose a picture, Quick-run, close the app, open the same GIF: the original is a `data:image/png` and the triangles are still there. The original never could say that. Phone chrome, Stop, Take photo, no CDN — those are real. Beating a weak demo is not the same as finishing the category picture, which is still the remaining debt.
 
 ## Single biggest remaining gap
 
-**Choose a picture / Take photo do not save the original.** `loadFromUrl(blobUrl, false)` encodes a data URL, then the second `onload` does `srcDataUrl = url` and persists the dead `blob:` string (63 chars: `blob:http://127.0.0.1:8194/…`). Close and reopen is first boot — empty stage, “No photo yet” — even though `pic/out` held a 40 KB reconstruction. Try a sample is the only path that keeps a real data URL.
+**Original and result are not on screen together, and first-run Quick is a smear.** Comp’s whole demo is that comparison: same chosen portrait, default 50 shapes, original sitting next to a readable low-poly face (39 of 50, 93.06% similar when I stopped it). Ours first-run is Quick 20 — a muddy pile, no likeness — and the original is gated behind hold-to-peek. Classic 50 on a phone *does* grow eyes and a mouth (50 shapes · 94.06% similar, 11.7 s), but the landscape stage crops the portrait and you still cannot see the source without holding. The store cover still sells a pixel-font mask the running app does not produce.
 
-That is the listing’s lead sentence, and it is false for the path a stranger actually uses.
+## Close / reopen (the persist proof)
+
+Chosen image — **not** Try a sample. A 480×640 portrait PNG via `#file`. Packed `app.js` encodes through `FileReader` → `data:image/` and refuses a `blob:` on restore (`isDurableSrc` / `pickRestoreUrl`; unpacked GIF matches source).
+
+| moment | `pic/src` | `pic/out` | UI |
+|---|---|---|---|
+| boot | empty | empty | “No photo yet” |
+| after Choose | `data:image` 18 686 B (`data:image/png;base64,iVBORw0K…`) | — | original on stage, “Press Start to redraw.” |
+| after Quick | same `data:image` 18 686 B | `data:image` 46 870 B, 20 steps, similar 0.101 | “20 shapes · 89.86% similar.” |
+| **reopen same fileId** | **same `data:image` 18 686 B** | **same `data:image` 46 870 B** | **“Last reconstruction is still here.”** empty hidden, triangles painted, hold still shows the original |
+
+Take photo shares `loadBlob`; not separately driven (headless has no camera clip). Comp on the same PNG forgets everything the moment you leave.
 
 ## Stranger-reason
 
 Asked “you know primitive.js — why this one?” the card answers: *close it, the triangles are still there, nothing is sent, it runs on this device.*
 
-After using it: the reconstruction **does** run here, offline, with a camera clip and a Stop button the original never had. That is a real reason. I cannot say the file-is-the-save back without lying, because a chosen photo does not come back. Until that is true, the stranger’s answer is a shrug plus “nicer phone chrome.”
+After using it: that sentence is now true of a chosen photo. I can say the file-is-the-save back without lying. I cannot yet say “a photograph becoming triangles you can still see beside the original” — that is still Comp’s page, not ours.
 
 ## Wall breaks
 
-- **Save-in-GIF (primary path).** Current-version data for a chosen / camera picture does not load after close. Reconstruction bytes are written; restore prefers the dead `src` blob and `onerror`s into the empty state. Sample-only persist is not the claim. Listing overclaim: *“The photo and the reconstruction live in this file. Close it, open it later, the triangles are still there.”*
-- **No other load-time walls.** MIT notice is packed as `COPYING-primitive.txt` (Ondřej Žára, Michael Fogleman) and shown on the listing. No CDN, no webfont, no remote request while the app ran. Comp loads Lato from `fonts.googleapis.com` / `fonts.gstatic.com`. Leftover `Canvas.original` still assigns `img.src = url` and alerts CORS — dead, not called at boot.
-
-Not a sandbox wall, still a stranger hole: `site/apps/index.json` has no `primitive`. Search “primitive” on the store is “Nothing matches that.” Direct listing URL works via `app.json`.
+- **Save-in-GIF (primary path).** **PASS.** Chosen-photo bytes persist as `data:image/`. Close and reopen is the same picture plus the last triangles. Listing claim is no longer an overclaim.
+- **No CDN / MIT.** Packed `COPYING-primitive.txt` (Ondřej Žára, Michael Fogleman). App load is local. Comp pulls Lato from `fonts.googleapis.com` / `fonts.gstatic.com`.
+- **Catalog search.** Still a stranger hole, not a sandbox wall: `site/apps/index.json` has no `primitive` (156 apps). Store search “primitive” is “Nothing matches that.” Direct `/store.html#app=primitive` works via `app.json`.
 
 ---
 
 ### Icon
 
-OURS. 12 frames, 100 ms: three big triangles become a face (hair, skin, mouth, eyes). Reads at 64px; at 32px it is still a portrait, not a landscape. Distinct from Pixel It’s pixel-house loop. Comp’s mark is a low-poly “JS” on yellow — it says JavaScript, not photo-to-triangles. The animation earns the loop.
+OURS. 12 frames: three big triangles become a face (hair, skin, mouth, eyes). Reads at 64px; at 32px it is still a portrait. Distinct from Pixel It’s pixel-house loop. Comp’s mark is a low-poly “JS” on yellow — it says JavaScript, not photo-to-triangles. The animation earns the loop. On a busy Home Screen the dark card can sit on top of Welcome; the glyph itself is not the problem.
 
 ### Cover / listing art
 
-COMP’s category (a real photograph mid-reconstruction), not this JPEG. `screenshot.png` is a pixel-font mock of chrome the running app does not use (`system-ui` in `style.css`). Invented “50 OF 50  91.20% SIMILAR.” No `coverCrop`. At 240×150 (store `16/10`, top-center) the title and a clip-art face survive; the chrome is noise. Beside Pixel It’s cover they are twins: same bitmap type, same “PHOTO TO X.”, same “HOLD TO SEE THE ORIGINAL”, same button row. The running app at Quick on a portrait is a muddy smear, not that mask.
+COMP’s category (a real photograph mid-reconstruction), not this JPEG. `screenshot.png` / `cover.jpg` is a pixel-font mock of chrome the running app does not use (`system-ui` in `style.css`). Invented “50 OF 50  91.20% SIMILAR.” No `coverCrop`. Beside Pixel It’s cover they are twins: same bitmap type, same “PHOTO TO X.”, same “HOLD TO SEE THE ORIGINAL”, same button row. Classic on a portrait is a face; Quick is not that mask.
 
 ### Listing copy
 
-Leads with the platform reason, distinct from Pixel It (“triangles”, not “pixel art”), honest about unofficial. Then it overclaims the save (failed round, not a style note). Rendered listing matches `listing.json`. Tagline is a card-sized line. Search will not find it until the catalog index lists it.
+Leads with the platform reason, distinct from Pixel It (“triangles”, not “pixel art”), honest about unofficial. The save sentence is now true of Choose a picture. Tagline is a card-sized line. Rendered listing matches `listing.json`. Search will not find it until the catalog index lists it.
 
 ### Actually reconstructing a photo
 
-The engine works. Sample (three circles) → triangles in ~1.5 s at Quick, 89% similar; hold swaps to the original. A portrait PNG → 20 triangles in ~1.3 s, 93% similar — a face-shaped pile, not a likeness. Classic/Fine exist; Quick is what a first run hits, and it does not look like the cover. Comp keeps original and result side by side the whole time. Hold-to-peek is a demotion of the core loop.
+The engine works. Same algorithm as the floor.
+
+- Sample (three circles, prior run): 20 triangles in ~1.5 s, 89% similar.
+- Chosen portrait, Quick 20: 2.2 s, 89.86% similar — a smear. Hold swaps to the original.
+- Chosen portrait, Classic 50 on 390×844: 11.7 s, 94.06% similar — a face (hair, eyes, mouth).
+- Comp on the **same** PNG: original and result side by side the whole time; at 39 of 50 it already reads as a low-poly portrait.
+
+Hold-to-peek is still a demotion of the core loop. Quick is what a first run hits.
 
 ### Phone
 
-Empty state is the one place we clearly beat the form wall: 328×44 stacked actions, copy that fits a thumb. After a run the stage is a 362×260 strip under two rows of buttons plus chips plus slider; no horizontal overflow, 44px hits. Comp on 390px is a long numbered form and a Let’s go. Ours is usable. The picture is not the star.
+Empty state is the one place we clearly beat the form wall: 328×44 stacked actions, copy that fits a thumb, no overflow. After a run the stage is a short strip under two rows of buttons plus chips plus slider; hits stay ≥40px, no horizontal overflow. Comp on a phone is a long numbered form and a Let’s go. Ours is usable. The picture is still not the star.
 
 ### MIT / no CDN
 

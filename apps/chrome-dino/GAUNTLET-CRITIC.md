@@ -1,0 +1,28 @@
+# Chrome Dino — gauntlet critic
+
+Blind A/B against **chrome://dino** (Chromium's T-Rex) and **wayou/t-rex-runner** (https://wayou.github.io/t-rex-runner/, the extract this tree vendors). Played ours from `apps/chrome-dino/` (local server, `gifos.db` mocked, audio inlined as data: URLs the way the GifOS sandbox packs files). One Chromium. Desktop 1280×800 and phone 390×844. `chrome://dino` itself refused to open here (`net::ERR_INTERNET_DISCONNECTED`); wayou was the playable original. Invite was not two-tabbed — a second runner was injected through `players`.
+
+**winner:** OURS
+
+**single biggest remaining gap:** The side-by-side the listing sells is a scoreboard, not two dinosaurs on one horizon. Ghost `x` is `myX + (their distanceRan − mine)`. Display score is `distanceRan × 0.025`, so **three points is 120px** — already off the left of a 600-wide desert. Injecting Sam 120px behind produced a race bar (`You 65  Sam 57`) and **no second dino**. Injecting Sam 150px ahead stacked a second sprite on top of ours, not out in front of the cactus. At night `filter: invert(1)` on `.runner-container` also inverts the overlay, so the teal ghost becomes a red smudge (cover's blue ghost is the day picture). The HUD copy ("they are ahead" / "they are still running") is the actual race.
+
+**would a stranger who knows the original use this copy:** "chrome://dino is a tab that forgets. This one is always offline, the HI is in the file, and on a phone I can duck. I would use it for that even without a friend. The invite is a reason I'd *send* it — once the other dino actually sits a little ahead or behind like the cover, not only as a number in a box."
+
+**HARD WALL:** none. App origin requests were `index.html`, `style.css`, `vendor/game.js`, `net.js`, `touch.js`, `boot.js`, both sprite sheets. No CDN, no webfont, no `localStorage`. `COPYING-chromium.txt` and `COPYING-t-rex-runner.txt` ride in the tree and the GIF. `connect-src` is unused (`capabilities.network` absent). wayou, by contrast, pulls `fonts.googleapis.com` / `fonts.gstatic.com` Open Sans. Listing claims that were checked are true of a run that actually starts: unofficial, Chromium Authors + wayou, always offline, HI in the file, night at 700, Jump/Duck, Invite is OS chrome. "A little ahead or a little behind" is the one line that overreaches — the HUD is true, the desert picture is not.
+
+## Face (always judged)
+
+- **Icon (64px):** Real sprite, running, toward a cactus, on the sticker card. Eight frames, a hop every other step — it demonstrates, it does not wiggle. At Home Screen size the cactus is a stub; the dino still reads "Chrome dinosaur." Comp has no animated icon. This wins the slot.
+- **Store art:** `screenshot.png` / `cover.jpg` is a painted mid-jump over a large cactus, blue ghost behind, pterodactyl, `HI 00480` / `00312`, no shell toolbar. Not the blinking start screen. At grid-card crop (240×150 and 320×200) the ghost, the jump, and both scores still read. Hero on `/store.html#app=chrome-dino` (desktop and 390 phone) is the same frame. Beside 2048's "RACE A FRIEND FROM ONE LINK" card it is quieter and more honest — it *is* the desert. It does not match the night+HUD race the running window actually shows when someone else is here.
+- **Listing copy (read on the rendered store page):** Tagline *chrome://dino, always offline — high score in the file, Invite is a side-by-side run.* Description leads with always-offline / the file is the save / one invite is a ghost race, then the dinosaur, then unofficial. That is the right shape. Every mechanical claim is true of the build. "Side-by-side" is the stretch (see gap). Browse search for "chrome dino" on this clone's `index.json` returns "Nothing matches that" — the catalog index has not been regenerated; the listing URL itself renders.
+
+## Product notes (not the gap, but they sit on the table)
+
+- **Run feel.** Waiting pose, first-jump intro, arcade scale (`scale(2.13)` on 1280×800, `scale(1)` / width 390 on the phone), cacti, `GAME OVER` + restart glyph, 100-point chirp path — this is the original. Hint line `SPACE / TAP JUMP  DOWN DUCK` is quieter than wayou's "Press Space to start" overlay and closer to chrome://dino.
+- **Night.** Forced invert: moon, stars, white dino, `HI 00480  00059` on `#080808`. End state is chrome's night. No 1.5s filter fade (Chromium's `.offline` transition). Hint, JUMP/DUCK, and the race bar stay uninverted — a light sticker on the night sky.
+- **High score in the file.** Seeded `prefs.high = 19200` (display 480). After Space, the canvas shows `HI 00480`. Reload still 480. wayou keeps nothing; chrome://dino keeps a profile `localStorage` key, not a file you can hand to someone.
+- **Phone.** JUMP under the right thumb, DUCK under the left. Tap starts a run (`playing: true`, speed 4.76 on a 390-wide canvas). chrome://dino has no duck control on a phone; pterodactyls need a keyboard there. Ours wins that bar.
+- **Sounds.** `loadSounds` still `atob`s a data-URI. Served as files that throws and the first jump never sets `playing`. The GIF sandbox rewrites those `<audio src>` to `data:` (runtime `dataUrl`), and with that rewrite the three cues decode (`BUTTON_PRESS`, `HIT`, `SCORE`) and the run starts. Product is the GIF; the unpacked tree is not a second game.
+- **Invite.** Race bar only appears with someone else (`hidden` when solo). Copy is good. Ghost drawing is the gap. Not two-tabbed here.
+
+The run can leave on the stranger-reason (the file is the save, duck on a phone, a link is a race). It should not leave until a friend who is a little ahead is actually a little ahead on the sand, in day and at night, the way the cover already is.

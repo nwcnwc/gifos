@@ -3,87 +3,95 @@
 Bar ONE: http://adarkroom.doublespeakgames.com/ (the original).
 Bar TWO: the fire lives in the GIF; a phone can play; one Invite is the same fire.
 
-Judged from the running original, the running GifOS GIF (`site/apps/a-dark-room/a-dark-room.gif`), the listing at `/store/a-dark-room`, and a phone-sized sandbox (390×844). Labels stripped: A is the white-page original, B is this GIF.
+Judged from the packed GifOS GIF (`site/apps/a-dark-room/a-dark-room.gif`, 5 307 861 B, stamped 2026-08-31), the listing at `site/apps/a-dark-room/app.json`, and a phone sandbox: `run.html#id=` at **390×844**, iframe 390×812 under a 32px OS bar. One Chromium. Labels stripped: A is the white-page original, B is this GIF. Invite was not two-tabbed.
 
 ## Winner
 
-**COMP**
+**OURS**
 
-Desktop B is the original with the lights already off. That is not a reason to switch. The one structural win that is actually true — the save is the file — is not enough, because the face of the product (cover, store grid, phone) is either a costume, missing, or broken, and the listing overclaims the phone.
+A phone can light the fire. That was the last critic’s product red, and it is gone. The original still sends a phone UA to `mobileWarning.html`. B puts **light fire** on the glass, 132×44, and a tap turns the room into **A Firelit Room**. The file is still the save. The cover is this Times New Roman room, not a costume. Desktop B is still the original with the lights already off — that alone is not a switch. The phone is.
 
 ## Stranger-reason
 
 You know the original. Why use this one?
 
-*Almost:* the fire is inside the GIF. Close the tab, copy the file, open it somewhere else — still burning. The original is stuck in that browser’s `localStorage` unless you export a code. Sound is packed; nothing is fetched from doublespeakgames.
+The original is stuck in that browser’s `localStorage` and will not play in a phone browser. This copy is a file: close the tab, still burning. On a 390px thumb it is the same room, log above, light/stoke at 44px. Sound is packed; nothing is fetched from doublespeakgames.
 
-A stranger cannot say that and then *do* it from the store: searching “a dark room” on the grid returns **Nothing matches that.** Opening it on a phone — the original’s actual weakness — yields a black screen and the log, no **light fire**. Until those are true, the answer is a shrug.
+A stranger still cannot *find* it by searching the store grid. The listing URL opens; the catalog index does not know the slug. That is a shipping hole, not a reason to go back to A.
 
 ## Single biggest remaining gap
 
-**On a phone the room is not on the screen.**
+**Invite is half the tagline and has not been shown to work. A guest on a phone cannot walk the map even if it did.**
 
-At 390×844 the 720px reflow sets `#outerSlider`, `#outerSlider > div`, and `#locationSlider` to `display: none !important`. `#roomPanel` is `.adr-active` and `display: block`, but it is 0×0 because its parents are `none`. Measured: `lightButton` 0×0, `header` 0×0, `notifications` the only visible game chrome (log at y≈576). The listing says *“the buttons are thumb-sized, the log sits above the room, and a pad under the map walks the wanderer.”* That is false of the build it ships beside. Help repeats the same sentence.
+`net.js` forwards only `.button` nodes that have an id. The D-pad is `.adr-dir` with `data-dir`, no id. Help and the listing say a friend sits at the same fire and can stoke, gather, and build; they also say the pad walks the wanderer. Neither was proven live. A guest tap on ▲ never becomes a host step. Do not treat the Invite sentence as true until a second context stokes and the host woodpile moves, and a guest pad step moves `@`.
 
-The original is honest: a phone UA lands on `mobileWarning.html` and points at native apps. B promises to play and then hides the game.
+The letter grid on a very small phone was not walked this round. That is the next place a thumb will fail.
 
 ## Wall breaks
 
-1. **Catalog drift.** `site/apps/a-dark-room/{a-dark-room.gif,app.json,cover.jpg}` exist. `site/apps/index.json` does **not** mention `a-dark-room`. The pretty listing URL still opens (`app.json`). The grid does not list it; search does not find it. `build-app-catalog.mjs --check` cannot be green for this app until the index is regenerated. A stranger browsing Games never sees it.
-2. **Listing overclaim** (gauntlet copy wall, not sandbox): phone play, as above. Every claim must be true of the build it ships beside.
+1. **Catalog drift.** `site/apps/a-dark-room/{a-dark-room.gif,app.json,cover.jpg}` exist. `site/apps/index.json` does **not** mention `a-dark-room`. Search on the grid still cannot find it. `build-app-catalog.mjs --check` cannot be green for this app until the index is regenerated. A stranger browsing Games never sees the card. The listing URL itself still paints.
+2. **Invite copy** (gauntlet copy wall, not sandbox): claimed, not measured. Every claim must be true of the build it ships beside.
 
-Not a wall: audio is vendored. 86 FLAC under `.assets/audio/`, `audio.js` has no `fetch`, `boot.js` loads through `gifos.assets`. Original `loadAudioFile` does `fetch(window.location + src)` against the host. Packed `COPYING-adarkroom.txt`, `COPYING-jquery.txt`, sealed `credits.json`. `minBuild` 1206 matches packed `.assets/`. Save is `gifos.db('save')`; closing the tab and reopening still showed **A Firelit Room** / *the fire is burning.*
+Not a wall: phone play. Measured below. Audio is vendored (86 FLAC under `.assets/audio/`, loader is `gifos.assets`, packed `audio.js` has no `fetch`). MPL text packed. `minBuild` 1206 matches packed `.assets/`. Save path is still `gifos.db('save')` (not re-closed this round).
+
+## Phone — measured 390×844
+
+Iframe 390×812 at y=32. `#outerSlider` is `display:block`, 366×102, in flow. `#roomPanel` is `.location.adr-active`.
+
+| node | boot (after Sound dismiss) | after tap |
+|---|---|---|
+| `#lightButton` | **132×44 at (12, 134)** display flex, fully on screen, text **light fire** | display none (spent) |
+| `#stokeButton` | display none | **132×44 at (12, 208)** text **stoke fire** |
+| `#notifications` | 366×56 at (12, 8) — *the fire is dead. / the room is freezing.* | 366×130 — *the fire is burning.* |
+| `#header` | *A Dark Room* 366×46 at y=76 | *A Firelit Room* at y=150 |
+| fire | `{value:0, text:"dead"}` | `{value:3, text:"burning"}` |
+| `scrollWidth` | 390 (678 while the Sound modal was up) | 390 |
+
+A tap on **light fire** succeeded. Title became **A Firelit Room**. Stoke sat on its cooldown with a dim brown fill (`rgba(160,140,90,0.35)`), not the original dark-theme white slab. Log is above the room. Menu (*sound on. lights on. hyper. restart. save.*) is a 29px row at y=773. D-pad is in the DOM, hidden on the room screen (correct). No app-frame errors.
+
+First paint is the original **Sound Available!** modal (374×185 at y=90), covering the button until enable/disable. After that choice, light fire is free. That is A’s modal, not a hidden room. The previous 720px `display:none !important` on `#outerSlider` is gone.
 
 ## Pieces
 
-### Icon — COMP (the Home Screen)
+### Icon — OURS at the OS pill, Home Screen not recaptured
 
-Installed, it is a nearly black rounded square with a pinprick of orange, sitting next to Camera and Welcome. At 64px it does not read “A Dark Room”; it reads “empty dark tile.” The 12-frame grow-the-fire loop is the right idea and does not survive icon size. A stranger scanning the Home Screen will miss it.
+The 32px fire in the run bar is a flame, not an empty dark tile. The grow-the-fire loop is the right idea. A 64px Home Screen crop was not taken this round.
 
-### Cover — COMP (the catalog)
+### Cover — OURS
 
-Judged at listing hero and against 2048 / Chess Grandmaster (those covers *are* the running product).
+`cover.jpg` / `screenshot.png` is the running Times New Roman room: *the fire is burning. / the room is warm.*, **A Firelit Room**, **stoke fire**, stores wood 18, lights already off. It would survive a blind “which screenshot is this app?” The previous pixel-font costume is gone.
 
-B’s cover is a pixel-font mockup: block “A FIRELIT ROOM”, a cartoon flame, STOKE FIRE in a bitmap face. The running app is Times New Roman, same as A. There is no pixel fire in the game — the fire is a sentence in the log. The cover footer says LIGHTS ON; the listing says lights start off. It is mid-use content in the *wrong game*. 2048’s card shows the real tiles. This one would not survive a blind “which screenshot is this app?”
+### Listing copy — OURS on the phone paragraph, COMP on Invite
 
-### Listing copy — COMP on truth, OURS on the lead sentence
+Tagline: *“The fire lives in the file. Close the tab — still stoking. Invite someone to the same fire.”* Phone paragraph is now true of the build: light fire is on the screen, buttons are thumb-sized, log sits above the room. “A pad under the map walks the wanderer” is machinery in the tree (`#adr-pad`), not shown on this room screen. Invite is the overclaim.
 
-Tagline on the rendered page: *“The fire lives in the file. Close the tab — still stoking. Invite someone to the same fire.”* That is the right lead, and the first paragraph is the reason to switch, said plainly. Author is Townsend, porter GifOS, unofficial-port pill, MPL-2.0 in the facts, bugs to GifOS. Good.
+### Fire / village / world — OURS on the room, unwalked past it
 
-Then it spends a paragraph on a phone that does not play, and the card never appears on the grid. An overclaim is a failed round.
+A: white page, *the fire is dead*, **light fire**, phones bounced.
+B, 390px: the same room, dark, playable, log stacked, 44px verbs. Village, Dusty Path, and the letter map were not opened this round.
 
-### Fire / village / world — tie on desktop, COMP on honesty of the cover
+### Save-in-GIF — OURS (not re-closed)
 
-A: white page, *the fire is dead*, **light fire**, languages, github / get the app / share. Sound Available modal. After light: *the fire is burning.*
-
-B, desktop: the same room, lights already off, no store-splash chrome. Light fire works. Village and Dusty Path come up as the original (stores, build trap/hut/lodge, outfitting, embark). Default dark makes the original cooldown (`div.cooldown` `#DDDDDD`) a blank light slab over `#EEE` text — stoke looks like an empty white bar. That is A’s dark theme, now the first-run. World map was not walked live (embark sits on a 120s death cooldown with an empty pack); the engine is the vendored one.
-
-A port that looks like the original is losing. B has not yet *become* the best version of this game.
-
-### Save-in-GIF — OURS
-
-Lit the fire, closed the page, opened the same file id. Still **A Firelit Room**, *the fire is burning.* The file is the save. A is `localStorage` on that origin.
+Previous critic lit the fire, closed the page, opened the same file id, still **A Firelit Room**. Code path unchanged (`db('save')`). Not re-proven here.
 
 ### Shared fire Invite — not proven live
 
-`net.js` is host-simulates / guest-sends-`.button` clicks / host publishes `fire`. Help and the listing state it as fact. A live two-context join was not completed here. Guest forwarding only intercepts `.button` with an id — the D-pad is `.adr-dir`, so even if the room were visible on a phone, map walking would not be a shared fire. Do not treat the invite paragraph as true until a guest stokes and the host woodpile moves.
+See the gap. Host publishes `fire`; guests send `.button[id]` clicks. The D-pad is not a `.button`.
 
-### Phone — COMP, and the listing is wrong
+### Phone vs A — OURS
 
-A / iPhone UA: *“A Dark Room isn’t mobile-friendly… There are native apps.”* App Store + Play buttons.
-
-A / 390px with `?ignorebrowser=true`: cramped desktop, playable, menu piled on itself.
-
-B / 390px: Sound Available, then a black viewport and the log. No light, no stoke, no village, no map, no pad. See the gap above.
+A / iPhone UA: native-app splash.
+A / 390px with `?ignorebrowser=true`: cramped 700px desktop.
+B / 390px: the room, the log, the thumb button, a working light. That is the bar.
 
 ### MPL notice — OURS (adequate)
 
-Help → Credits: *License MPL-2.0 — Copyright (c) Michael Townsend and doublespeak games*, based-on, homepage, *Sealed inside this GIF and signed by gifos.app.* Listing facts repeat MPL-2.0. Full text is packed as `COPYING-adarkroom.txt` (and jQuery MIT). Source link is the tree. Not shown as a first-run plaque; enough to find.
+Unchanged: Help → Credits, packed `COPYING-adarkroom.txt`, listing facts MPL-2.0, unofficial-port pill.
 
 ### Audio from GIF, not CDN — OURS
 
-86 FLAC in `.assets/audio/`. Loader is `gifos.assets`, no `fetch` in packed `audio.js`. Original fetches FLAC from its own host on enable. B does not touch doublespeakgames for sound.
+Unchanged. 86 FLAC. No `fetch` in packed `audio.js`.
 
-## What would make the next critic pick OURS
+## What would make the next critic keep OURS
 
-A stranger who knows the original searches the store, finds the card, sees a cover that is *this* Times-New-Roman room mid-stoke, installs, lights the fire on a phone with a thumb, closes the tab, opens the GIF, still stoking, and can say the reason without being prompted. Right now they cannot find it, the picture is of another game, and the phone has no room.
+A stranger who knows the original searches the store, finds the card, sees this Times New Roman room, installs, lights the fire with a thumb, invites someone, and that someone stokes *and* walks `@` on the pad. Right now they can light the fire. They still cannot find the card on the grid, and the Invite sentence is a hope.
