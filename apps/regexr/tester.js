@@ -157,36 +157,167 @@
     return refMap;
   }
 
-  function labelOf(token) {
+  /* Plain-English walk of a token. Upstream Reference.fillTags + getChar /
+   * getInsensitive / getQuant — a leftover `{{getChar(prev)}}` is not a tip. */
+  var NONPRINTING = {
+    0: 'NULL', 1: 'SOH', 2: 'STX', 3: 'ETX', 4: 'EOT', 5: 'ENQ', 6: 'ACK',
+    7: 'BELL', 8: 'BS', 9: 'TAB', 10: 'LINE FEED', 11: 'VERTICAL TAB',
+    12: 'FORM FEED', 13: 'CARRIAGE RETURN', 14: 'SO', 15: 'SI', 16: 'DLE',
+    17: 'DC1', 18: 'DC2', 19: 'DC3', 20: 'DC4', 21: 'NAK', 22: 'SYN',
+    23: 'ETB', 24: 'CAN', 25: 'EM', 26: 'SUB', 27: 'ESC', 28: 'FS', 29: 'GS',
+    30: 'RS', 31: 'US', 32: 'SPACE', 127: 'DEL'
+  };
+  var UNICODE_CAT = {
+    C: 'Other', Cc: 'Control', Cf: 'Format', Cn: 'Unassigned', Co: 'Private use',
+    Cs: 'Surrogate', L: 'Letter', 'L&': 'Any letter ', Ll: 'Lower case letter',
+    Lm: 'Modifier letter', Lo: 'Other letter', Lt: 'Title case letter',
+    Lu: 'Upper case letter', M: 'Mark', Mc: 'Spacing mark', Me: 'Enclosing mark',
+    Mn: 'Non-spacing mark', N: 'Number', Nd: 'Decimal number', Nl: 'Letter number',
+    No: 'Other number', P: 'Punctuation', Pc: 'Connector punctuation',
+    Pd: 'Dash punctuation', Pe: 'Close punctuation', Pf: 'Final punctuation',
+    Pi: 'Initial punctuation', Po: 'Other punctuation', Ps: 'Open punctuation',
+    S: 'Symbol', Sc: 'Currency symbol', Sk: 'Modifier symbol',
+    Sm: 'Mathematical symbol', So: 'Other symbol', Z: 'Separator',
+    Zl: 'Line separator', Zp: 'Paragraph separator', Zs: 'Space separator'
+  };
+
+  function stripTags(s) {
+    return String(s == null ? '' : s).replace(/<[^>]+>/g, '');
+  }
+
+  function getNodeForToken(token) {
+    if (!token) return null;
     var m = map();
-    var row = m[token.type] || m[token.clss];
-    if (row && row.label) return row.label;
-    if (row && row.token) return row.token;
-    return token.type || token.clss || 'token';
+    var errId = token.error && token.error.id;
+    var id = (errId && m[errId]) ? errId
+      : m[token.type] ? token.type
+      : m[token.clss] ? token.clss
+      : errId || token.type || token.clss;
+    if (token.clss === 'quant') id = 'quant';
+    if (token.clss === 'esc' && token.type !== 'escsequence') id = 'escchar';
+    var node = m[id];
+    while (node && node.proxy) node = m[node.proxy];
+    return node || null;
+  }
+
+  function getChar(token) {
+    if (!token || token.code == null) return '';
+    var named = NONPRINTING[token.code];
+    if (named) return named;
+    return '"' + String.fromCharCode(token.code) + '"';
+  }
+
+  function getQuant(token) {
+    if (!token) return '';
+    var min = token.min, max = token.max;
+    return min === max ? String(min) : max === -1 ? min + ' or more' : 'between ' + min + ' and ' + max;
+  }
+
+  function getUniCat(token) {
+    return (token && UNICODE_CAT[token.value]) || '[Unrecognized]';
+  }
+
+  function getModes(token) {
+    if (!token) return '';
+    var str = token.on ? ' Enable "' + token.on + '".' : '';
+    if (token.off) str += ' Disable "' + token.off + '".';
+    return str;
+  }
+
+  function getInsensitive(token) {
+    if (token && token.code) {
+      var chr = String.fromCharCode(token.code);
+      if (chr.toLowerCase() === chr.toUpperCase()) return '';
+    }
+    return token && token.modes ? 'Case ' + (token.modes.i ? 'in' : '') + 'sensitive.' : '';
+  }
+
+  function getDotAll(token) {
+    return (token && token.modes && token.modes.s ? 'including' : 'except') + ' line breaks';
+  }
+
+  function getLabel(token) {
+    var node = getNodeForToken(token);
+    return node ? node.label || node.id || '' : (token && token.type) || '';
+  }
+
+  function getDescRaw(token) {
+    var node = getNodeForToken(token);
+    return node ? node.desc || '' : '';
+  }
+
+  function getLazy(token) {
+    return token && token.modes && token.modes.U ? 'greedy' : 'lazy';
+  }
+
+  function getLazyFew(token) {
+    return token && token.modes && token.modes.U ? 'many' : 'few';
+  }
+
+  function getEscChars() {
+    var o = root.RegExrProfiles && root.RegExrProfiles.js && root.RegExrProfiles.js.escChars;
+    var str = '';
+    if (o) for (var n in o) str += n;
+    return str;
+  }
+
+  var FUNCTS = {
+    getChar: getChar,
+    getQuant: getQuant,
+    getUniCat: getUniCat,
+    getModes: getModes,
+    getInsensitive: getInsensitive,
+    getDotAll: getDotAll,
+    getLabel: getLabel,
+    getDesc: function (token) { return stripTags(getDescRaw(token)); },
+    getLazy: getLazy,
+    getLazyFew: getLazyFew,
+    getEscChars: getEscChars
+  };
+
+  function fillTags(str, data) {
+    if (!str) return '';
+    str = String(str);
+    var match;
+    while ((match = str.match(/\{\{~?[\w.()]*\}\}/))) {
+      var val = match[0].substring(2, match[0].length - 2);
+      if (val.charAt(0) === '~') val = val.slice(1);
+      var call = val.match(/\([\w.]*\)/);
+      var f = null;
+      if (call) {
+        f = val.slice(0, call.index);
+        val = call[0].slice(1, -1);
+      }
+      var o = data, parts = val.split('.'), i;
+      for (i = 0; i < parts.length; i++) {
+        if (parts[i] && o) o = o[parts[i]];
+      }
+      val = o;
+      if (f) val = FUNCTS[f] ? FUNCTS[f](val) : '';
+      if (val == null) val = '';
+      str = str.replace(match[0], stripTags(val));
+    }
+    return stripTags(str).replace(/[ \t]+/g, ' ').replace(/\s+\./g, '.').trim();
+  }
+
+  function labelOf(token) {
+    var lab = getLabel(token) || token.type || token.clss || 'token';
+    if (token.type === 'group' && token.num) lab += ' #' + token.num;
+    return lab ? lab.charAt(0).toUpperCase() + lab.slice(1) : lab;
   }
 
   function descOf(token) {
-    var m = map();
-    var row = m[token.type] || m[token.clss];
-    if (!row) return '';
-    var s = row.tip || row.desc || '';
-    if (token.clss === 'quant' || token.type === 'quant') {
-      var mx = token.max === -1 ? 'unlimited' : token.max;
-      s = 'Match ' + token.min + ' to ' + mx + ' of the preceding token.';
-    }
-    if (token.type === 'char' && token.code != null) {
-      s = 'Matches a ' + JSON.stringify(String.fromCharCode(token.code)) + ' character (char code ' + token.code + ').';
-    }
-    if (token.name) s = s.replace(/\{\{name\}\}/g, token.name);
-    return s;
+    var node = getNodeForToken(token);
+    if (!node) return '';
+    return fillTags(node.tip || node.desc || '', token);
   }
 
-  function errorText(err, ref) {
+  function errorText(err, token) {
     if (!err) return '';
     if (err.message) return err.message;
-    var errors = (ref && ref.errors) || (root.RegExrReference && root.RegExrReference.errors) || {};
+    var errors = (root.RegExrReference && root.RegExrReference.errors) || {};
     var t = errors[err.id];
-    if (t) return String(t).replace(/<[^>]+>/g, '');
+    if (t) return fillTags(String(t), token || err);
     return err.id || 'Error';
   }
 
@@ -194,11 +325,16 @@
     var rows = [];
     if (!token) return rows;
     var t = token;
-    while (t) {
-      if (t.type !== 'open' && t.type !== 'close' && !t.proxy) {
+    while (t && t.type !== 'close') {
+      if (t.type !== 'open' && !t.proxy && !t.open) {
+        var i = t.i, l = t.l;
+        if (t.set && t.set[0] && t.set[2]) {
+          i = t.set[0].i;
+          l = t.set[2].i + t.set[2].l - i;
+        }
         rows.push({
-          i: t.i,
-          l: t.l,
+          i: i,
+          l: l,
           type: t.type,
           clss: t.clss,
           label: labelOf(t),
@@ -225,6 +361,7 @@
     labelOf: labelOf,
     descOf: descOf,
     errorText: errorText,
+    fillTags: fillTags,
     walkExplain: walkExplain,
     refMap: map
   };
