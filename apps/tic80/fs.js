@@ -1,21 +1,36 @@
 /*
  * TIC-80 — disk in the icon.
  *
- * The HTML build mounts IDBFS on --fs. IndexedDB is off in the sandbox, so
- * we replace IDBFS.syncfs: populate restores gifos.db('disk'), persist walks
- * /work back into it. Sample carts are seeded if missing.
+ * The HTML build always mounts IDBFS at /com.nesbox.tic/TIC-80/. --fs=/work
+ * is the engine's cart folder (studio_create uses it; missing = exit(1)).
+ * IndexedDB is off in the sandbox, so IDBFS.syncfs is stubbed and every
+ * write under /work is snapshotted into gifos.db('disk').
+ *
+ * FS/IDBFS live inside TIC80_START (not window) until build.mjs exports
+ * them at FS.staticInit. Patch from preRun, after that export.
  */
 (function (root) {
   'use strict';
 
   var WORK = '/work';
   var api = null;
-  var seeded = false;
   var persistTimer = 0;
   var lastHash = '';
   var onDisk = null;
+  var hooked = false;
 
   function db(n) { return api && api.db ? api.db(n) : null; }
+  function getFS() {
+    if (typeof FS !== 'undefined') return FS;
+    if (root.Module && root.Module.FS) return root.Module.FS;
+    return null;
+  }
+  function getIDBFS() {
+    if (typeof IDBFS !== 'undefined') return IDBFS;
+    if (root.Module && root.Module.IDBFS) return root.Module.IDBFS;
+    var fs = getFS();
+    return fs && fs.filesystems ? fs.filesystems.IDBFS : null;
+  }
 
   function b64(u8) {
     var s = '', i;
@@ -37,16 +52,18 @@
   }
 
   function walk(path, out) {
+    var fs = getFS();
     var names, i, n, p, st;
-    try { names = FS.readdir(path); } catch (e) { return; }
+    if (!fs) return;
+    try { names = fs.readdir(path); } catch (e) { return; }
     for (i = 0; i < names.length; i++) {
       n = names[i];
       if (n === '.' || n === '..') continue;
       p = path === '/' ? '/' + n : path + '/' + n;
-      try { st = FS.stat(p); } catch (e) { continue; }
-      if (FS.isDir(st.mode)) walk(p, out);
-      else if (FS.isFile(st.mode)) {
-        try { out.push({ path: p, bytes: FS.readFile(p) }); } catch (e) {}
+      try { st = fs.stat(p); } catch (e) { continue; }
+      if (fs.isDir(st.mode)) walk(p, out);
+      else if (fs.isFile(st.mode)) {
+        try { out.push({ path: p, bytes: fs.readFile(p) }); } catch (e) {}
       }
     }
   }
@@ -57,31 +74,39 @@
   }
 
   function mkdirp(p) {
+    var fs = getFS();
+    if (!fs || !p || p === '/') return;
+    if (fs.mkdirTree) {
+      try { fs.mkdirTree(p); return; } catch (e) {}
+    }
     var parts = p.split('/'), cur = '', i;
     for (i = 1; i < parts.length; i++) {
       cur += '/' + parts[i];
-      try { FS.mkdir(cur); } catch (e) {}
+      try { fs.mkdir(cur); } catch (e) {}
     }
   }
 
   function writeFile(path, bytes) {
+    var fs = getFS();
+    if (!fs) return;
     mkdirp(dirname(path));
-    FS.writeFile(path, bytes);
+    fs.writeFile(path, bytes);
   }
 
   function seed(rootPath) {
     var carts = root.TIC_CARTS || [];
-    var i, c, p;
+    var i, c, p, fs = getFS();
+    if (!fs) return;
+    mkdirp(rootPath);
     for (i = 0; i < carts.length; i++) {
       c = carts[i];
       p = rootPath + '/' + c.file;
       try {
-        FS.stat(p);
+        fs.stat(p);
       } catch (e) {
         try { writeFile(p, c.bytes); } catch (err) {}
       }
     }
-    seeded = true;
   }
 
   function restore() {
@@ -101,7 +126,8 @@
 
   function persistNow() {
     var col = db('disk');
-    if (!col) return Promise.resolve();
+    var fs = getFS();
+    if (!col || !fs) return Promise.resolve();
     var files = [];
     walk(WORK, files);
     var rows = [], i, h = '';
@@ -112,7 +138,7 @@
     if (h === lastHash) return Promise.resolve();
     lastHash = h;
     return col.getAll().then(function (list) {
-      var have = {}, i, puts = [];
+      var have = {}, puts = [];
       for (i = 0; i < rows.length; i++) {
         have[rows[i].id] = 1;
         puts.push(col.put(rows[i]));
@@ -150,25 +176,53 @@
     return out;
   }
 
-  function patch() {
-    if (typeof IDBFS === 'undefined') return;
-    IDBFS.syncfs = function (mount, populate, callback) {
-      var rootPath = (mount && mount.mountpoint) || WORK;
-      if (rootPath) WORK = rootPath;
-      function done() { try { callback(null); } catch (e) { callback(e); } }
-      if (populate) {
-        restore().then(function () {
-          seed(rootPath);
-          done();
-        }, function () {
-          seed(rootPath);
-          done();
-        });
-      } else {
-        persistSoon();
-        done();
-      }
+  function stubIDBFS() {
+    var idb = getIDBFS();
+    if (!idb) return;
+    idb.syncfs = function (mount, populate, callback) {
+      try { callback(null); } catch (e) { try { callback(e); } catch (err) {} }
     };
+  }
+
+  function fillWork() {
+    mkdirp(WORK);
+    return restore().then(function () {
+      seed(WORK);
+      return persistNow();
+    }, function () {
+      seed(WORK);
+      return persistNow();
+    });
+  }
+
+  function patch() {
+    var fs = getFS();
+    if (!fs) return;
+    stubIDBFS();
+    mkdirp(WORK);
+    seed(WORK);
+    if (!hooked) {
+      var orig = fs.syncfs.bind(fs);
+      fs.syncfs = function (populate, callback) {
+        if (typeof populate === 'function') {
+          callback = populate;
+          populate = false;
+        }
+        stubIDBFS();
+        function done(err) {
+          if (populate) {
+            fillWork().then(function () { if (callback) callback(err); }, function () { if (callback) callback(err); });
+          } else {
+            persistSoon();
+            if (callback) callback(err);
+          }
+        }
+        try { orig(populate, done); }
+        catch (e) { done(e); }
+      };
+      hooked = true;
+    }
+    fillWork();
   }
 
   function putCart(name, bytes) {
@@ -182,6 +236,12 @@
     init: function (gifos, opts) {
       api = gifos;
       onDisk = opts && opts.onDisk;
+      if (root.addEventListener) {
+        root.addEventListener('pagehide', function () { persistNow(); });
+        root.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'hidden') persistNow();
+        });
+      }
     },
     patch: patch,
     seed: function () { seed(WORK); },

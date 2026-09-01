@@ -49,11 +49,11 @@
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "68f818683fd17e48acfd7f36cf29001e2109f121f14904eafb784bb024cad2d4",
+  "sha256": "985c52c9e75dc3140ddb360055a57f4b789dc73786f75b865933be8a00ee65fd",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-31"
+    "ts": "2026-09-01"
   },
   "porter": {
     "name": "GifOS",
