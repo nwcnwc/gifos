@@ -62,6 +62,11 @@ const HEAD = 'var Module=typeof Module!="undefined"?Module:{};';
 let glue = read('vendor/tic80.js');
 if (!glue.startsWith(HEAD)) throw new Error('tic80.js preamble changed — re-check the TIC80_START wrap');
 glue = glue.slice(HEAD.length);
+if (!glue.includes('FS.staticInit();')) throw new Error('tic80.js lost FS.staticInit — cannot export FS/IDBFS');
+glue = glue.replace(
+  'FS.staticInit();',
+  'FS.staticInit();Module.FS=FS;Module.IDBFS=IDBFS;window.FS=FS;window.IDBFS=IDBFS;'
+);
 const startJs = 'window.TIC80_START=function(Module){Module=Module||{};window.Module=Module;' + glue + '\n};\n';
 if (/<\/script/i.test(startJs)) throw new Error('tic80.js contains </script — cannot inline safely');
 try { new vm.Script(startJs, { filename: 'tic80-start.js' }); }
@@ -144,6 +149,12 @@ if (!html.includes('id="dpad"')) throw new Error('touch d-pad missing');
 if (!html.includes('gifos.assets') && !read('boot.js').includes('gifos.assets') && !read('boot.js').includes('api.assets')) {
   throw new Error('boot.js must load the wasm through gifos.assets');
 }
+if (!read('boot.js').includes("'--fs=/work'")) {
+  throw new Error('boot.js must pass --fs=/work so studio_create uses /work (HTML IDBFS is a different folder)');
+}
+if (!read('boot.js').includes("'--skip'")) throw new Error('boot.js must pass --skip');
+if (!read('fs.js').includes("WORK = '/work'")) throw new Error('fs.js must seed /work');
+if (!startJs.includes('window.FS=FS')) throw new Error('glue wrap must export FS onto window — IDBFS/FS are function-local inside TIC80_START');
 
 const files = {
   'manifest.json': JSON.stringify(manifest),

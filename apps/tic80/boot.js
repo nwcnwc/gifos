@@ -39,13 +39,91 @@
     if (nameEl) nameEl.textContent = current;
   }
 
+  var inRun = false;
+  var typeBusy = false;
+  var typeQ = [];
+
+  function fireKey(spec, down) {
+    var type = down ? 'keydown' : 'keyup';
+    var ev = new KeyboardEvent(type, {
+      key: spec.key, code: spec.code, keyCode: spec.keyCode, which: spec.keyCode,
+      shiftKey: !!spec.shift, bubbles: true, cancelable: true
+    });
+    try { Object.defineProperty(ev, 'keyCode', { get: function () { return spec.keyCode; } }); } catch (e) {}
+    var canvas = $('canvas');
+    if (canvas) canvas.dispatchEvent(ev);
+    window.dispatchEvent(ev);
+    if (down && spec.ch) {
+      var press = new KeyboardEvent('keypress', {
+        key: spec.ch, charCode: spec.ch.charCodeAt(0), keyCode: spec.ch.charCodeAt(0),
+        bubbles: true, cancelable: true
+      });
+      if (canvas) canvas.dispatchEvent(press);
+      window.dispatchEvent(press);
+    }
+  }
+
+  function keySpec(name) {
+    var map = {
+      Escape: { key: 'Escape', code: 'Escape', keyCode: 27 },
+      Enter: { key: 'Enter', code: 'Enter', keyCode: 13 },
+      ArrowDown: { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
+      ' ': { key: ' ', code: 'Space', keyCode: 32, ch: ' ' }
+    };
+    if (map[name]) return map[name];
+    if (name === '&') return { key: '&', code: 'Digit7', keyCode: 55, shift: true, ch: '&' };
+    var ch = String(name);
+    var up = ch.toUpperCase();
+    var code = (ch >= 'a' && ch <= 'z') ? ('Key' + up) : ('Digit' + ch);
+    return { key: ch, code: code, keyCode: up.charCodeAt(0), ch: ch };
+  }
+
+  function pumpType() {
+    if (typeBusy || !typeQ.length) return;
+    typeBusy = true;
+    var spec = typeQ.shift();
+    if (spec.wait) {
+      setTimeout(function () { typeBusy = false; pumpType(); }, spec.wait);
+      return;
+    }
+    fireKey(spec, true);
+    setTimeout(function () {
+      fireKey(spec, false);
+      setTimeout(function () { typeBusy = false; pumpType(); }, spec.gap || 50);
+    }, spec.hold || 50);
+  }
+
+  function typeLine(line) {
+    var i, ch;
+    for (i = 0; i < line.length; i++) {
+      ch = line.charAt(i);
+      typeQ.push(keySpec(ch));
+    }
+    typeQ.push(keySpec('Enter'));
+    pumpType();
+  }
+
+  function engineLoad(name) {
+    var stem = String(name || '').replace(/\.[^.]+$/, '').replace(/^.*[/\\]/, '');
+    if (!stem) return;
+    setName(stem);
+    if (root.TicNet) root.TicNet.publishSession(stem);
+    if (!started) return;
+    if (inRun) {
+      typeQ.push(keySpec('Escape'));
+      typeQ.push({ wait: 220 });
+      typeQ.push(keySpec('ArrowDown'));
+      typeQ.push(keySpec('ArrowDown'));
+      typeQ.push(keySpec('Enter'));
+      typeQ.push({ wait: 220 });
+      inRun = false;
+    }
+    typeLine('load ' + stem + ' & run');
+    inRun = true;
+  }
+
   function cmdLoad(name) {
-    var Module = root.Module;
-    if (!Module) return;
-    // TIC-80 has no public JS load API. Dropping the file on the disk and
-    // asking the console is the documented path; we also set the overlay name.
-    setName(name);
-    if (root.TicNet) root.TicNet.publishSession(name);
+    engineLoad(name);
   }
 
   function paintLib() {
@@ -93,6 +171,8 @@
     if (root.TicFS) root.TicFS.putCart(c.file, c.bytes);
     setName(c.id);
     closeLib();
+    if (!started) start(c.id);
+    else engineLoad(c.id);
   }
 
   function ingestFile(file) {
@@ -103,9 +183,12 @@
       var name = file.name || 'drop.tic';
       if (root.TicFS) root.TicFS.putCart(name, u);
       if (root.TicNet) root.TicNet.publishCart(name, u);
-      setName(name.replace(/\.[^.]+$/, ''));
+      var stem = name.replace(/\.[^.]+$/, '');
+      setName(stem);
       closeLib();
       paintLib();
+      if (!started) current = stem;
+      else engineLoad(stem);
     };
     reader.readAsArrayBuffer(file);
   }
@@ -116,7 +199,7 @@
     var Module = {
       canvas: canvas,
       wasmBinary: wasmBuf instanceof Uint8Array ? wasmBuf : new Uint8Array(wasmBuf),
-      arguments: ['--skip', '--cmd', 'load ' + want + ' & run'],
+      arguments: ['--skip', '--fs=/work', '--cmd', 'load ' + want + ' & run'],
       noExitRuntime: true,
       preRun: [function () {
         if (root.TicFS) root.TicFS.patch();
@@ -124,6 +207,7 @@
       onRuntimeInitialized: function () {
         document.body.classList.add('on');
         setName(want);
+        inRun = true;
         if (root.TicFS) root.TicFS.persist();
       }
     };
@@ -180,8 +264,11 @@
       if (!t) return;
       if (t.getAttribute('data-sample')) loadSample(t.getAttribute('data-sample'));
       else if (t.getAttribute('data-user')) {
-        setName(t.getAttribute('data-user').replace(/\.[^.]+$/, ''));
+        var un = t.getAttribute('data-user');
+        setName(un.replace(/\.[^.]+$/, ''));
         closeLib();
+        if (!started) { current = un.replace(/\.[^.]+$/, ''); start(current); }
+        else engineLoad(un);
       }
     });
 

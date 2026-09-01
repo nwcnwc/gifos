@@ -6,7 +6,7 @@ A tiny computer for making and playing pixel games. 240×136, sixteen colours, f
 
 It boots into **HELLO WORLD**. Arrows move the little computer. **Z** is button A, **X** is B.
 
-**Escape** is the console — type commands here, the way a real TIC-80 does:
+During play, **Escape** is the game menu (RESUME / RESET / CLOSE GAME). **CLOSE GAME** is the console — type commands here, the way a real TIC-80 does:
 
 - `run` — play the cart that is loaded (or just press **Enter** / **Ctrl+R**)
 - `load fire` — the fire demo
@@ -17,7 +17,7 @@ It boots into **HELLO WORLD**. Arrows move the little computer. **Z** is button 
 - `dir` — list carts
 - `edit` or **Alt+1** … **Alt+5** — code, sprites, map, sfx, music
 
-**Escape** again leaves a game and returns to the console. **Ctrl+S** saves.
+**CLOSE GAME** leaves a running cart and returns to the console. **Ctrl+S** saves.
 
 ## Carts that come with it
 

@@ -9,9 +9,9 @@ A stranger who knows TIC-80 or PICO-8 uses this copy because the carts live in t
 
 1. **License.** TIC-80 MIT (Vadim Grigoruk). Sample carts: official `luademo.lua` and `fire.lua` from the same tag. No commercial PICO-8 carts. Notice packed in the GIF.
 2. **Engine.** Official 1.1.2837 HTML wasm + glue, hash-pinned. `wasmBinary` from `gifos.assets('tic80.wasm')`. IDBFS replaced so the disk survives without IndexedDB.
-3. **Carts boot.** `--skip --fs=/work --cmd "load hello & run"` — HELLO WORLD is on screen, not the empty console. Fire is `load fire`. Drop a `.tic` / `.lua` / `.gif` cart.
+3. **Carts boot.** `--skip --fs=/work --cmd "load hello & run"` — HELLO WORLD is the GIF's `hello.tic` on `/work`, not the engine default covering a failed load. `load hello` and `load fire` work. Carts sheet sends `load` / `run`. Drop a `.tic` / `.lua` / `.gif` cart.
 4. **Touch pad.** Plus-shaped d-pad, B then A, Esc/Run in the gutter. Phone playable without a keyboard.
-5. **Disk in the file.** Every save under `/work` snapshots to `gifos.db('disk')`. Close it, the carts are still there.
+5. **Disk in the file.** `/work` is seeded from the packed carts and snapshotted to `gifos.db('disk')` on first Start. Every later save under `/work` is written back. Close it, the carts are still there.
 6. **Desk over Invite.** Host and guests share `desk` (filename + bytes). A cart you save or drop shows up for them. Each writes only their own pad row.
 7. **ICON / COVER / LISTING.** The default little-computer sprite walks. Cover is HELLO WORLD on the 240×136 screen in a bezel. Tagline leads with the file-is-the-cart reason.
 
@@ -22,3 +22,5 @@ Pad exchange is ~24 Hz, not lockstep-60, and TIC-80 leaves player-2 keys unmappe
 ## Win
 
 The cart is the file: make one, close it, hand the GIF over, and the friend who opens your invite is sitting at the same tiny computer.
+
+**READY-TO-SIGN**
