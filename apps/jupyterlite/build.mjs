@@ -167,6 +167,19 @@ if (!appJs.includes('python_stdlib.zip')) throw new Error('app.js no longer asks
 if (!appJs.includes('pyodide-lock.json')) throw new Error('app.js no longer asks for pyodide-lock.json');
 if (!appJs.includes("gifos.db('notebook')")) throw new Error('app.js must persist the notebook in gifos.db');
 if (!kernelSrc.includes('installFetch')) throw new Error('kernel.js must intercept fetch so the loader never hits the network');
+if (!kernelSrc.includes('There is no pip here')) throw new Error('kernel.js must tell the truth about missing packages');
+if (!kernelSrc.includes('REPODATA_PACKAGES_IMPORT_TO_PACKAGE_NAME')) {
+  throw new Error('kernel.js must silence Pyodide package-install notes');
+}
+if (!kernelSrc.includes('_NotInThisFile')) throw new Error('kernel.js must intercept lock-listed imports');
+{
+  const blob = JSON.stringify(listing) + read('help.md');
+  if (!/not in this file/.test(blob)) throw new Error('listing/help must say numpy is not in this file');
+  if (!/\bno pip\b/i.test(blob)) throw new Error('listing/help must not claim pip');
+  for (const bad of ['micropip.install', 'pyodide.loadPackage', 'pip install']) {
+    if (blob.includes(bad)) throw new Error('listing/help offers ' + bad);
+  }
+}
 if (!indexHtml.includes('src="worker-src.js"') || !indexHtml.includes('src="app.js"')) {
   throw new Error('index.html missing scripts');
 }

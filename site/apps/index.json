@@ -4215,7 +4215,7 @@
         38
       ],
       "cover": "/apps/jupyterlite/cover.jpg",
-      "bytes": 2994739,
+      "bytes": 2996025,
       "download": 0,
       "optionalCount": 1,
       "optionalDownload": 10105545,
@@ -4223,9 +4223,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-31"
+        "ts": "2026-09-01"
       },
-      "sha256": "aa7629f7b2bf46f4cf0ebb5560229c84e39847eeb7eb85329a88f7091728604a"
+      "sha256": "ab7b1982a402b0e898240f96a8d34da0b0b47774f9bf9c300619b6609f983626"
     },
     {
       "slug": "kana-quiz",
