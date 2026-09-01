@@ -21,7 +21,7 @@ One Python, shared by every cell. `import math` in one cell is still imported in
 
 **Restart** wipes that memory and starts Python again. Cell text stays; **Out** stays until you run again.
 
-A line that fails is named as Python named it. It is not rewritten. This build ships the **standard library** (math, json, collections, datetime, statistics, pathlib, random, re, csv…). Packages such as numpy and matplotlib are not in this file; importing them will say they were not found.
+A line that fails is named as Python named it. This build ships the **standard library** (math, json, collections, datetime, statistics, pathlib, random, re, csv…). Packages such as numpy and matplotlib are not in this file; importing them says so, and that there is no pip.
 
 ## Jobs
 

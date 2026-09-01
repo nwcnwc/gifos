@@ -15,4 +15,6 @@
 
 ## Remaining gap
 
-This is a notebook and a stdlib kernel, not JupyterLab: no file browser, no numpy/matplotlib wheels, no ipywidgets. A stranger who wants the full lab still has jupyterlite.github.io; a stranger who wants the notebook in their pocket has this.
+This is a notebook and a stdlib kernel, not JupyterLab: no file browser, no numpy/matplotlib wheels, no ipywidgets. `import numpy` now says those wheels are not in this file and that there is no pip — it does not offer micropip. A stranger who wants the full lab still has jupyterlite.github.io; a stranger who wants the notebook in their pocket has this.
+
+**READY-TO-SIGN**

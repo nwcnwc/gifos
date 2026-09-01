@@ -64,12 +64,84 @@
     return s;
   }
 
+  // Pyodide annotates ModuleNotFoundError with micropip.install / loadPackage
+  // for every wheel in the lock. Those wheels are not in this GIF and fetch
+  // is a memory map of three files, so the annotation is a lie.
+  var FALLBACK_BLOCKED = [
+    'numpy', 'pandas', 'matplotlib', 'scipy', 'PIL', 'sklearn', 'requests',
+    'micropip', 'pip', 'pylab', 'mpl_toolkits'
+  ];
+
+  function lockImportNames(buf) {
+    var names = {};
+    try {
+      var lock = JSON.parse(new TextDecoder().decode(buf));
+      var pkgs = lock && lock.packages || {};
+      Object.keys(pkgs).forEach(function (k) {
+        var imps = pkgs[k] && pkgs[k].imports;
+        if (!imps || !imps.length) return;
+        imps.forEach(function (imp) {
+          var top = String(imp || '').split('.')[0];
+          if (top) names[top] = true;
+        });
+      });
+    } catch (e) {}
+    FALLBACK_BLOCKED.forEach(function (n) { names[n] = true; });
+    return Object.keys(names);
+  }
+
+  function honestMissing(name) {
+    var who = name || 'That package';
+    return who + ' is not in this file. This notebook ships the Python standard library only. There is no pip here.';
+  }
+
+  function hintedName(m) {
+    var mm = String(m || '').match(/No module named ['"]([^'"]+)['"]/)
+      || String(m || '').match(/The module ['"]([^'"]+)['"]/)
+      || String(m || '').match(/^([A-Za-z_][\w.]*) is not in this file/);
+    return mm ? mm[1].split('.')[0] : '';
+  }
+
+  function stripPipDoor(m) {
+    return String(m || '')
+      .split(/\nThe module |\nYou can install it by calling:|\nSee https:\/\/pyodide\.org/)[0]
+      .trim();
+  }
+
   function hint(err) {
     var m = String(err || '');
-    if (/ModuleNotFoundError/.test(m) && /numpy|pandas|matplotlib|scipy|PIL|sklearn|requests/.test(m)) {
-      return m + '\n\nThis notebook ships the Python standard library. Scientific packages are not in this file.';
+    if (/micropip|loadPackage|included in the Pyodide distribution|unvendored from the Python standard library/i.test(m)
+        || /pyodide\.org\/en\/stable\/usage\/loading-packages/i.test(m)) {
+      var head = stripPipDoor(m);
+      if (/is not in this file/.test(head)) return head;
+      return honestMissing(hintedName(m));
     }
     return m;
+  }
+
+  function honestHook(names) {
+    return [
+      'import json, sys',
+      '_BLOCKED = set(json.loads(' + JSON.stringify(JSON.stringify(names)) + '))',
+      'class _NotInThisFile:',
+      '    def find_spec(self, fullname, path, target=None):',
+      '        if path is not None:',
+      '            return None',
+      '        top = fullname.split(".", 1)[0]',
+      '        if top not in _BLOCKED:',
+      '            return None',
+      '        raise ModuleNotFoundError(',
+      '            "%s is not in this file. This notebook ships the Python standard library only. There is no pip here." % top,',
+      '            name=fullname,',
+      '        )',
+      'sys.meta_path.append(_NotInThisFile())',
+      'try:',
+      '    from _pyodide import _importhook',
+      '    _importhook.REPODATA_PACKAGES_IMPORT_TO_PACKAGE_NAME = {}',
+      '    _importhook.UNVENDORED_STDLIBS_AND_TEST = set()',
+      'except Exception:',
+      '    pass'
+    ].join('\n');
   }
 
   function boot(msg) {
@@ -80,6 +152,7 @@
       'python_stdlib.zip': u8of(msg.stdlib),
       'pyodide-lock.json': u8of(msg.lock)
     };
+    var blocked = lockImportNames(files['pyodide-lock.json']);
     installFetch(files);
     stdoutBuf = [];
     stderrBuf = [];
@@ -88,6 +161,8 @@
       stdin: function () { return ''; },
       stdout: function (s) { stdoutBuf.push(String(s)); },
       stderr: function (s) { stderrBuf.push(String(s)); }
+    }).then(function (py) {
+      return py.runPythonAsync(honestHook(blocked)).then(function () { return py; }, function () { return py; });
     }).then(function (py) {
       pyodide = py;
       post({ type: 'ready', version: py.version || '0.27.7' });
@@ -113,7 +188,7 @@
         id: id,
         ok: false,
         stdout: stdoutBuf.join('\n'),
-        stderr: stderrBuf.join('\n'),
+        stderr: hint(stderrBuf.join('\n')),
         error: hint(e && e.message || e)
       });
     });

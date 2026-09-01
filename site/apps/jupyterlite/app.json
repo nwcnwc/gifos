@@ -7,7 +7,7 @@
   "version": "1.0.0",
   "minBuild": 1381,
   "tagline": "A Python notebook that lives in this file. Invite shares the cells.",
-  "description": "The notebook is the file. Close it, come back, every cell and its output is still there. Press Invite and someone else lands in the same notebook — no JupyterHub, no Google account, no server. After Python downloads once (about 10 MB), it works on a plane.\n\nThis is a notebook and a CPython kernel, not the full JupyterLab file browser. Cells are code or text. Shift+Enter runs a cell (on a phone, the play button on the cell). The kernel is Python 3.12 with the standard library: math, json, collections, datetime, statistics, pathlib. numpy and matplotlib are not in this file.\n\nA Welcome notebook is already open the first time, so the first Run can print π. Download a .ipynb out, or open one in.\n\nUnofficial port of JupyterLite. Their demo forgets the notebook when you clear the site data. This one does not — the GIF is the save.",
+  "description": "The notebook is the file. Close it, come back, every cell and its output is still there. Press Invite and someone else lands in the same notebook — no JupyterHub, no Google account, no server. After Python downloads once (about 10 MB), it works on a plane.\n\nThis is a notebook and a CPython kernel, not the full JupyterLab file browser. Cells are code or text. Shift+Enter runs a cell (on a phone, the play button on the cell). The kernel is Python 3.12 with the standard library: math, json, collections, datetime, statistics, pathlib. numpy and matplotlib are not in this file. There is no pip.\n\nA Welcome notebook is already open the first time, so the first Run can print π. Download a .ipynb out, or open one in.\n\nUnofficial port of JupyterLite. Their demo forgets the notebook when you clear the site data. This one does not — the GIF is the save.",
   "author": {
     "name": "JupyterLite Contributors",
     "url": "https://github.com/jupyterlite/jupyterlite"
@@ -42,17 +42,17 @@
   "cover": "/apps/jupyterlite/cover.jpg",
   "screenshots": [],
   "gif": "/apps/jupyterlite/jupyterlite.gif",
-  "bytes": 2994739,
+  "bytes": 2996025,
   "download": 0,
   "optionalCount": 1,
   "optionalDownload": 10105545,
   "provides": null,
   "pay": null,
-  "sha256": "aa7629f7b2bf46f4cf0ebb5560229c84e39847eeb7eb85329a88f7091728604a",
+  "sha256": "ab7b1982a402b0e898240f96a8d34da0b0b47774f9bf9c300619b6609f983626",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-31"
+    "ts": "2026-09-01"
   },
   "porter": {
     "name": "GifOS",
