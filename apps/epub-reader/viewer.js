@@ -220,6 +220,10 @@
       var body = doc.body || doc.documentElement;
       var wrap = document.createElement('div');
       wrap.className = 'chapter';
+      wrap.style.columnWidth = 'auto';
+      wrap.style.columnCount = 'auto';
+      wrap.style.width = 'auto';
+      wrap.style.maxWidth = 'none';
       wrap.innerHTML = body ? body.innerHTML : '';
       var styleEl = document.createElement('style');
       styleEl.textContent = styles.join('\n');
@@ -288,12 +292,20 @@
     });
   };
 
+  Viewer.prototype.clip = function () {
+    return this.flow.parentNode || this.paper;
+  };
+
   Viewer.prototype.layout = function () {
-    var paper = this.paper;
     var flow = this.flow;
-    var w = paper.clientWidth;
-    var h = paper.clientHeight;
+    var clip = this.clip();
+    var w = clip.clientWidth;
+    var h = clip.clientHeight;
     if (w < 40 || h < 40) return;
+    // Column width and translateX share the clip's content box. Padding
+    // lives on #paper, outside .sheet — putting it on the column box
+    // shrinks the used column-width below clientWidth, and paging by
+    // paper width then lands between columns.
     flow.style.fontSize = this.fontPx + 'px';
     flow.style.width = w + 'px';
     flow.style.height = h + 'px';
@@ -302,10 +314,23 @@
     flow.style.columnFill = 'auto';
     flow.style.transform = 'translateX(0)';
     this.pageW = w;
-    this._cssW = w;
-    this._cssH = h;
+    this._cssW = this.paper.clientWidth;
+    this._cssH = this.paper.clientHeight;
+    void flow.offsetWidth;
     var sw = flow.scrollWidth;
-    this.pageN = Math.max(1, Math.round(sw / w) || 1);
+    var n = Math.max(1, Math.round(sw / w) || 1);
+    if (n <= 1) {
+      var range = flow.ownerDocument.createRange();
+      range.selectNodeContents(flow);
+      var rects = range.getClientRects();
+      var origin = clip.getBoundingClientRect().left;
+      var maxR = origin;
+      for (var i = 0; i < rects.length; i++) {
+        if (rects[i].right > maxR) maxR = rects[i].right;
+      }
+      n = Math.max(1, Math.round((maxR - origin) / w) || 1);
+    }
+    this.pageN = n;
   };
 
   Viewer.prototype.paintPage = function () {
@@ -474,9 +499,9 @@
   };
 
   Viewer.prototype.pageOfEl = function (el) {
-    var paper = this.paper.getBoundingClientRect();
+    var clip = this.clip().getBoundingClientRect();
     var box = el.getBoundingClientRect();
-    var abs = (box.left - paper.left) + this.pageI * this.pageW;
+    var abs = (box.left - clip.left) + this.pageI * this.pageW;
     return Math.max(0, Math.min(this.pageN - 1, Math.floor((abs + 2) / Math.max(1, this.pageW))));
   };
 
