@@ -43,15 +43,15 @@
   "cover": "/apps/trianglify-studio/cover.jpg",
   "screenshots": [],
   "gif": "/apps/trianglify-studio/trianglify-studio.gif",
-  "bytes": 251624,
+  "bytes": 251754,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "7b4da196341648720d73e4af72feb41307519f2bdb06e64137fa6aa61a888f7a",
+  "sha256": "1df69207b4e25def5801ac240b1833adf4bba3d5dc6d54ba4b982dd0af967760",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-31"
+    "ts": "2026-09-01"
   },
   "porter": {
     "name": "GifOS",

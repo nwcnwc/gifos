@@ -1,5 +1,7 @@
 A stranger who uses trianglify.io would pick this because the wallpaper they made is still there after they close the tab, it works on a plane, full-size PNG and SVG are free, and an invite is the same seed on a friend’s screen.
 
+**READY-TO-SIGN**
+
 ## Bars
 
 - **ONE:** [trianglify.io](https://trianglify.io) — the author’s GUI. Live preview, palettes, cell size, variance; high-res downloads are paid; needs the network; forgets you when you leave the tab.
