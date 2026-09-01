@@ -130,14 +130,16 @@
     if (!url) return;
     Array.prototype.forEach.call(document.querySelectorAll('image'), function (img) {
       var href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
-      if (href.indexOf('sprites.png') >= 0 || href === 'sprites.png') {
+      if (href.indexOf('sprites.png') >= 0) {
         img.setAttribute('href', url);
         img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', url);
       }
     });
     Array.prototype.forEach.call(document.querySelectorAll('style'), function (st) {
       if (st.textContent && st.textContent.indexOf('sprites.png') >= 0) {
-        st.textContent = st.textContent.split('sprites.png').join(url);
+        st.textContent = st.textContent.replace(/url\((['"]?)[^)]*sprites\.png\1\)/g, function () {
+          return 'url("' + url + '")';
+        });
       }
     });
   }
@@ -159,7 +161,7 @@
     var opts = {
       trashcan: gameName !== 'puzzle',
       sounds: false,
-      media: '',
+      media: './',
       zoom: {
         controls: true,
         wheel: true,

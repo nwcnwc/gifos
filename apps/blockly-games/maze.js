@@ -234,6 +234,7 @@
     mount: function (ws, canvasEl, lv) {
       workspace = ws;
       canvas = canvasEl;
+      ctx = canvas.getContext('2d');
       level = lv;
       map = MAPS[lv - 1];
       rows = map.length; cols = map[0].length;

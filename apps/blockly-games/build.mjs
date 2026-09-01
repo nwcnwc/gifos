@@ -55,9 +55,20 @@ const assetsJs = 'window.BG_ASSETS=' + JSON.stringify({
 }) + ';\n';
 writeFileSync(join(dir, 'vendor', 'assets.js'), assetsJs);
 
-const spriteUrl = dataUrl('vendor/sprites.png', 'image/png');
-let blockly = read('vendor/blockly_compressed.js').split('sprites.png').join(spriteUrl);
-blockly = blockly.split('<<<PATH>>>').join('');
+// Do not wipe <<<PATH>>>: Blockly's own replace(/<<<PATH>>>/g, path) would
+// become replace(//g, path) (a line comment) and fail to parse. Sprites are
+// patched to the packed data URL after inject (boot.js patchSprites).
+let blockly = read('vendor/blockly_compressed.js');
+const CDN = 'https://blockly-demo.appspot.com/static/media/';
+if (!blockly.includes(CDN)) throw new Error('blockly missing default media path');
+if (!blockly.includes('url:"sprites.png"')) throw new Error('blockly missing sprites.png');
+if (blockly.split('<<<PATH>>>').length < 3) throw new Error('blockly PATH tokens missing');
+blockly = blockly.split(CDN).join('./');
+if (blockly.includes('blockly-demo.appspot.com')) throw new Error('appspot URL remains');
+if (/replace\(\/\/g/.test(blockly)) throw new Error('PATH wipe broke the CSS regex');
+try { new Function(blockly); } catch (e) {
+  throw new Error('packed blockly does not parse: ' + e.message);
+}
 if (/<\/script/i.test(blockly)) throw new Error('blockly contains </script');
 
 const helpMd = read('help.md');
