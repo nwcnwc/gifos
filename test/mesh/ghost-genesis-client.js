@@ -60,7 +60,7 @@ process.on('exit', stopRelay);
 // A raw door probe: knock with a throwaway key, return the reply.
 function probeKnock(tag) {
   return new Promise((resolve) => {
-    const ws = new WebSocket(RELAY + '/s/ggc-sid?role=mesh&token=T&peer=' + tag + '&gk=probe_' + tag);
+    const ws = new WebSocket(RELAY + '/s/ggc-sid?role=mesh&token=T&peer=' + tag + '&dev=d_' + tag.slice(0, 13) + '&gk=probe_' + tag);
     const to = setTimeout(() => { try { ws.close(); } catch (e) {} resolve(null); }, 4000);
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
@@ -94,7 +94,7 @@ function probeKnock(tag) {
   let ghost = null;
   const ghostUp = new Promise((resolve) => {
     const dial = () => {
-      const ws = new WebSocket(RELAY + '/s/ggc-sid?role=mesh&token=T&peer=ghost&gk=GHOSTKEY');
+      const ws = new WebSocket(RELAY + '/s/ggc-sid?role=mesh&token=T&peer=ghost&dev=d_ghost&gk=GHOSTKEY'); // dev: a device tag is required at the door (4012)
       ws.onopen = () => { ghost = ws; try { ws.send(JSON.stringify({ t: 'knock', gk: 'GHOSTKEY' })); } catch (e) {} resolve(); };
       ws.onerror = () => { setTimeout(dial, 50); };
     };

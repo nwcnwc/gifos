@@ -65,8 +65,8 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   // at mint locks the room the moment its admin arrives.
   const p2b = await coldOpen('p2b');
   await p2b.locator('#lob-admin-btn').click();
-  check('the mint screen labels the ADMIN password "never share it"',
-    /never share it/i.test(await p2b.locator('#lob-admin .lob-pwlab').first().textContent()));
+  check('the mint screen labels the ADMIN password "do not share it"',
+    /(do not|never) share it/i.test(await p2b.locator('#lob-admin .lob-pwlab').first().textContent()));
   // The note is written for someone who has never heard the word "unblurred":
   // it must still say WHAT it buys (faces stop being blurred) and the one thing
   // a host can get wrong — that it is not carried by the link.

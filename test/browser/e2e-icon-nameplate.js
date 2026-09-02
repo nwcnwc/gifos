@@ -285,7 +285,10 @@ async function syncItems(page) {
   // The pill is the fresh flag: give the app saved data and BOTH the version
   // and the NEW tag go, exactly as NEW always did, while the nameplate stays.
   await page.evaluate(async (fid) => {
-    await GifOS.store.setState(fid, { collections: { notes: { a: { hi: 1 } } } });
+    // The store's shape for saved data: a collection is { seq, items: { id: rec } }
+    // (gifos-store explode()); a bare { id: rec } lands ZERO records, and
+    // appHasData() counts records.
+    await GifOS.store.setState(fid, { collections: { notes: { seq: 1, items: { a: { hi: 1 } } } } });
     await GifOS.desktop.load(); await GifOS.desktop.render();
   }, realId);
   await page.waitForFunction(() => {

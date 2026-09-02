@@ -35,7 +35,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 // us), collect greeters frames, optionally knock again later. No mesh node —
 // the zombie must be able to stay perfectly silent while its socket lives.
 function dial(peer, gk) {
-  const ws = new WebSocket('ws://127.0.0.1:' + PORT + '/s/zg-sid?role=mesh&token=T&peer=' + peer + '&gk=' + gk);
+  const ws = new WebSocket('ws://127.0.0.1:' + PORT + '/s/zg-sid?role=mesh&token=T&peer=' + peer + '&dev=d_' + peer.slice(0, 13) + '&gk=' + gk); // dev: the door refuses a socket without a device tag (4012)
   const c = { ws, greeters: [], open: new Promise((r) => ws.addEventListener('open', r)) };
   ws.addEventListener('message', (ev) => {
     try { const m = JSON.parse(ev.data); if (m.t === 'greeters') c.greeters.push(m); } catch (e) {}
