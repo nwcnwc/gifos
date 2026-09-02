@@ -1267,7 +1267,7 @@
     sigVerdicts.set(it.fileId, v);
     render();
     const body = {
-      valid: '✅ <b>Signed by ' + escapeHtml(v.id) + '</b>' + (v.type === 'email' ? ' (email/PGP)' : ' (domain)') + '.<br><br>The contents are unchanged since it was signed' + (v.ts ? ' on ' + escapeHtml(v.ts) : '') + '. This proves authorship — not that the app is safe.' + (v.keyChanged ? '<br><br>⚠️ The signing key is <b>different</b> from the first one you saw for this identity.' : ''),
+      valid: '✅ <b>Signed by ' + escapeHtml(v.id) + '</b>' + (v.type === 'email' ? ' (email/PGP)' : ' (domain)') + '.<br><br>The contents are unchanged since it was signed' + (v.ts ? ' on ' + escapeHtml(v.ts) : '') + '. This proves authorship — not that the app is safe.' + (v.keyChanged ? '<br><br>⚠️ The signing key is <b>different</b> from the first one you saw for this identity.' : '') + (v.unpinned ? '<br><br>⚠️ This is an older signature: ' + v.unpinned + ' sealed file' + (v.unpinned === 1 ? '' : 's') + ' under <span class="mono">.assets/</span> ' + (v.unpinned === 1 ? 'is' : 'are') + ' not covered by it. Ask the author for a re-signed copy.' : ''),
       tampered: '⚠️ <b>Tampered.</b> This GIF claims to be signed by ' + escapeHtml(v.id || '?') + ', but its contents were <b>changed after signing</b>. Do not trust it as coming from them.',
       unverified: '🛡 <b>Signed by ' + escapeHtml(v.id || '?') + '</b>, but the signature couldn\'t be checked right now: ' + escapeHtml(v.detail || 'offline') + '.<br><br>' + (v.type === 'domain' ? 'The key must be published at <span class="mono">https://' + escapeHtml(v.id || '') + '/gifos.key</span> (with CORS).' : 'Their key must be on keys.openpgp.org.'),
       unsigned: 'This GIF is unsigned.',

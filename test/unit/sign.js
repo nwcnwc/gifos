@@ -249,6 +249,65 @@ function buildApp(indexHtml, state) {
     fs.rmSync(rsaHome, { recursive: true, force: true });
   }
 
+  // ---- .assets/: the manifest's pins are skipped, the author's own sealed files are signed ----
+  {
+    const pinSha = 'a'.repeat(64);
+    const mf = (assets) => JSON.stringify({ gifos: '1.0', appId: 'sealed', name: 'Sealed', entry: 'index.html', assets });
+    const listed = [{ url: 'https://example.com/model.bin', sha256: pinSha, path: 'model.bin', bytes: 3 }];
+    const build = (pinnedBytes, ownBytes, assets) => gif.encode({
+      'manifest.json': mf(assets === undefined ? listed : assets),
+      'index.html': '<h1>sealed</h1>',
+      '.assets/model.bin': pinnedBytes,        // the OS seals this in; the manifest pins it
+      '.assets/packs/kjv.gbp': ownBytes,      // the author sealed this; nothing pins it
+    }, { accent: [1, 2, 3] });
+    const base = await build('one', 'pack-A');
+    const pinnedSwapped = await build('two', 'pack-A');
+    const ownSwapped = await build('one', 'pack-B');
+    const h = async (b, rules) => Buffer.from(await sign.contentHash(b, rules)).toString('hex');
+    check('a pinned .assets/ file may change without changing the hash (install fills it in)', await h(base) === await h(pinnedSwapped));
+    check('an unpinned .assets/ file IS signed: swapping it changes the hash', await h(base) !== await h(ownSwapped));
+    check('the legacy (v1) digest skipped both', await h(base, 1) === await h(ownSwapped, 1) && await h(base, 1) === await h(pinnedSwapped, 1));
+    check('unpinnedAssets() names what a v1 signature does not cover', JSON.stringify(sign.unpinnedAssets((await gif.decode(base)).files)) === JSON.stringify(['.assets/packs/kjv.gbp']));
+    const noPin = await build('one', 'pack-A', [{ url: 'https://example.com/model.bin', path: 'model.bin' }]);
+    check('an asset entry without a sha256 pins nothing, so that file is signed too', sign.unpinnedAssets((await gif.decode(noPin)).files).length === 2);
+    const traversal = await build('one', 'pack-A', [{ url: 'https://example.com/x', sha256: pinSha, path: '../model.bin' }]);
+    check('a traversal path in the manifest pins nothing', sign.unpinnedAssets((await gif.decode(traversal)).files).length === 2);
+    // An app with NO unpinned assets hashes identically under both rule sets, so a
+    // v2 signature still verifies on a build that predates the rule.
+    const plain = await gif.encode({ 'manifest.json': mf(listed), 'index.html': '<h1>plain</h1>', '.assets/model.bin': 'one' }, { accent: [1, 2, 3] });
+    check('with nothing unpinned, v1 and v2 digests agree (old builds verify a v2 signature)', await h(plain, 1) === await h(plain, 2));
+
+    // Sign and verify through the full path, with the key fetch stubbed.
+    const { keyPair: kp, publicKeyB64: pubB64 } = await sign.generateDomainKey();
+    const signed = await sign.signDomain(base, 'sealer.example.com', kp, '2026-09-02');
+    check('a new signature block says which rules wrote it (v: 2)', sign.readSig(signed).v === 2);
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, status: 200, text: async () => pubB64 });
+    try {
+      const ok = await sign.verify(signed);
+      check('a v2 signature verifies, with nothing left uncovered', ok.status === 'valid' && ok.rules === 2 && !ok.unpinned);
+      const swapped = sign.writeSig(ownSwapped, sign.readSig(signed));
+      check('swapping the author-sealed pack under a v2 signature is TAMPERED', (await sign.verify(swapped)).status === 'tampered');
+      const filled = sign.writeSig(pinnedSwapped, sign.readSig(signed));
+      check('filling in the manifest-pinned asset keeps a v2 signature valid', (await sign.verify(filled)).status === 'valid');
+      // A block rewritten to claim v1 makes the verifier skip files the digest
+      // included, so it cannot launder the swap.
+      const downgraded = sign.writeSig(ownSwapped, Object.assign({}, sign.readSig(signed), { v: 1 }));
+      check('downgrading the block to v1 does not launder a swapped pack', (await sign.verify(downgraded)).status === 'tampered');
+      const asked = await sign.signDomain(base, 'sealer.example.com', kp, '2026-09-02', { rules: 1 });
+      check('signDomain({ rules: 1 }) writes a legacy block on request', sign.readSig(asked).v === 1 && (await sign.verify(asked)).status === 'valid' && (await sign.verify(asked)).unpinned === 1);
+      // A genuine legacy signature: written under v1 rules, still verifies, and says what it misses.
+      const legacyHash = await h(base, 1);
+      const legacySig = await sign._ed25519SignFor(kp.privateKey, sign.statement('domain', 'sealer.example.com', legacyHash));
+      const legacy = sign.writeSig(base, { v: 1, type: 'domain', id: 'sealer.example.com', alg: 'ed25519', sig: sign._bytesToB64(legacySig), ts: '2026-08-01' });
+      const lv = await sign.verify(legacy);
+      check('a v1 signature from before the rule still verifies', lv.status === 'valid' && lv.rules === 1);
+      check('…and reports the sealed files it does not cover', lv.unpinned === 1);
+      const legacySwapped = sign.writeSig(ownSwapped, sign.readSig(legacy));
+      check('(a v1 signature cannot see that swap — which is why v2 exists)', (await sign.verify(legacySwapped)).status === 'valid');
+    } finally { globalThis.fetch = realFetch; }
+  }
+
   // ---- unsigned + verdict shape ----
   check('an unsigned GIF reports unsigned', (await sign.verify(app)).status === 'unsigned');
 
