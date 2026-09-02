@@ -30,7 +30,8 @@ WRANGLER="wrangler@4.128.0"
 #   mirror      gifos-mirror       0-9.gifos.app         (theme computers)
 #   relay       gifos-relay        relay.gifos.app       (WebSocket signaling)
 #   cors-proxy  gifos-cors-proxy   cors-proxy.gifos.app  (keyed-API CORS relay)
-WORKERS=(mirror relay cors-proxy)
+#   pay         gifos-pay          pay.gifos.app         (payments; docs/payments.md)
+WORKERS=(mirror relay cors-proxy pay)
 
 # A secret a Worker needs, set once and never printed. `wrangler secret list`
 # answers with a JSON array of {name,type}; a missing name is minted here from
@@ -45,6 +46,31 @@ ensure_secret() { # $1 = worker dir, $2 = secret name
     echo "✓ $1: secret $2 set"
   fi
 }
+
+# A secret that is a real credential — a processor key, the receipt-signing
+# JWK — can only be SET BY A PERSON. This never mints one; it says which are
+# missing and, for the two the pay Worker cannot start without, fails the
+# deploy so a Worker that would throw at init is not what lands on the domain.
+require_secret() { # $1 = worker dir, $2 = secret name, $3 = "required" | "optional"
+  if npx --yes "$WRANGLER" secret list -c "$1/wrangler.toml" 2>/dev/null | grep -q "\"name\": *\"$2\""; then
+    echo "· $1: secret $2 is set"
+  elif [ "$3" = required ]; then
+    echo "✗ $1: secret $2 is NOT set — npx $WRANGLER secret put $2 -c $1/wrangler.toml   (see $1/README.md)" >&2
+    return 1
+  else
+    echo "· $1: secret $2 is not set (optional — that rail stays off)"
+  fi
+}
+
+# The pay Worker throws at init without its signing key and cannot reach
+# PayPal without the client secret: check both BEFORE deploying it, so a
+# missing one stops the script here rather than after the Worker is live.
+# PAYPAL_CLIENT_ID is a plain var (public by nature), set in the dashboard or
+# wrangler.toml — wrangler does not list vars, so it is not checked here.
+require_secret pay GIFOS_PAY_SIGN_JWK required
+require_secret pay PAYPAL_CLIENT_SECRET required
+require_secret pay STRIPE_SECRET_KEY optional
+echo
 
 for d in "${WORKERS[@]}"; do
   echo "▶ deploying $d …"
