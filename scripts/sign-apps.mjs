@@ -230,15 +230,21 @@ for (const slug of slugs) {
     console.log('pack  ' + slug + '  ' + [CREDITS_PATH, packed.doc ? REMIX_DOC_PATH : null].filter(Boolean).join(' + ') + ' — re-signing');
   }
   if (!packed.changed && !FORCE && claim && claim.type === 'domain' && claim.id === DOMAIN) {
-    const chHex = Buffer.from(await sign.contentHash(bytes)).toString('hex');
+    // Read the digest the way the block was written, as verify() does.
+    const rules = sign.rulesOfSig(claim);
+    const chHex = Buffer.from(await sign.contentHash(bytes, rules)).toString('hex');
     const st = sign.statement('domain', DOMAIN, chHex);
     const ok = await sign._ed25519Verify(new Uint8Array(expectedPub), sign._b64ToBytes(claim.sig), st);
-    if (ok) {
+    // A legacy block left the app's own .assets/ files unsigned. If it has
+    // any, the block is true but not enough: re-sign under the current rules
+    // so a swapped pack or wasm reads as tampered.
+    const uncovered = ok && rules < sign.RULES_CURRENT ? sign.unpinnedAssets((await gif.decode(bytes)).files).length : 0;
+    if (ok && !uncovered) {
       console.log('skip  ' + slug + '  already signed ' + (claim.ts || ''));
       skipped++;
       continue;
     }
-    console.log('re-sign ' + slug + '  (block present but does not verify against gifos.key)');
+    console.log('re-sign ' + slug + '  ' + (ok ? '(v' + rules + ' block leaves ' + uncovered + ' sealed file(s) under .assets/ unsigned)' : '(block present but does not verify against gifos.key)'));
   }
   const out = await sign.signDomain(bytes, DOMAIN, keyPair, today);
   fs.writeFileSync(gifPath, Buffer.from(out));
