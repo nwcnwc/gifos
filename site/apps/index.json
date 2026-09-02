@@ -702,15 +702,15 @@
         255
       ],
       "cover": "/apps/beepbox/cover.jpg",
-      "bytes": 426515,
+      "bytes": 428152,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-31"
+        "ts": "2026-09-02"
       },
-      "sha256": "5723e24b4ea2a557200c17349b924407e344b2d84465faf69f324c2bc7f28d8a"
+      "sha256": "782e444ded1358b01b8e385e743658d1b8e081b4931e15b64eb584e4464aeb80"
     },
     {
       "slug": "besogo",
@@ -1048,15 +1048,15 @@
         92
       ],
       "cover": "/apps/blockly-games/cover.jpg",
-      "bytes": 557875,
+      "bytes": 559791,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-09-01"
+        "ts": "2026-09-02"
       },
-      "sha256": "cdc0ea68ed586681d8af510be65bb63524389ffd2d31541b435f009b030491eb"
+      "sha256": "f2a383a99144996e9d14e97c99ffcfe1d1a45ff2de0456c0ce9e888321f18675"
     },
     {
       "slug": "bowling",
@@ -4223,9 +4223,9 @@
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-09-01"
+        "ts": "2026-09-02"
       },
-      "sha256": "ab7b1982a402b0e898240f96a8d34da0b0b47774f9bf9c300619b6609f983626"
+      "sha256": "a5ede44aa9a7dec466a62e46ab3dd1ec28d8af2312ae904a70c94385f9325ec6"
     },
     {
       "slug": "kana-quiz",
@@ -8444,15 +8444,15 @@
         1
       ],
       "cover": "/apps/svg-edit/cover.jpg",
-      "bytes": 1432722,
+      "bytes": 1434566,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-31"
+        "ts": "2026-09-02"
       },
-      "sha256": "35d93093aba6907bc6cc5df5ce082d3f9c0d7e9be1c8870a25d1e9ae06c9a6d6"
+      "sha256": "642f304592fd51a6b637195f922acd2f30dde1bd7571eab46187e0df90fdc413"
     },
     {
       "slug": "svgomg",

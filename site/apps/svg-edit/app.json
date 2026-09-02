@@ -40,15 +40,15 @@
   "cover": "/apps/svg-edit/cover.jpg",
   "screenshots": [],
   "gif": "/apps/svg-edit/svg-edit.gif",
-  "bytes": 1432722,
+  "bytes": 1434566,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "35d93093aba6907bc6cc5df5ce082d3f9c0d7e9be1c8870a25d1e9ae06c9a6d6",
+  "sha256": "642f304592fd51a6b637195f922acd2f30dde1bd7571eab46187e0df90fdc413",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-31"
+    "ts": "2026-09-02"
   },
   "porter": {
     "name": "GifOS",
