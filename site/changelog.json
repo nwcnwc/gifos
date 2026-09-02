@@ -1,349 +1,370 @@
 {
- "note": "Release notes shown in Settings → Advanced → Version. Newest first. SHORT, PLAIN bullets under \"features\" and \"fixes\" — a line or two each, no jargon, no filler; anyone who wants the long story can read the repo. Every release needs at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so the desktop calls it out.",
- "entries": [
-  {
-   "version": "0.9.13",
-   "date": "2026-08-25",
-   "headline": "Every game and tool on the Home Screen got a play-test on a phone — and a dozen new ports",
-   "features": [
-    "New apps: Worldview (NASA satellite layers, a timeline, compare two days — with a Blue Marble that works offline), The House (a playable assembled house that makes sound), Sandspiel (a falling-sand world in the file), Bingo (a real hall — every phone speaks, fireworks on a verified win), plus Piano Trainer, Vintage Poker, fend, My Mind, JSON Editor, JSON Crack, Hexahedral, Blackjack, Server Survival and Backdooms as unofficial ports.",
-    "Over sixty existing apps were play-tested on a phone and fixed one by one: thumb pads and D-pads where a finger needs them, boards that fit the screen, empty states that say what to do, best scores and drafts kept in the file, and Invite that actually seats your friends (Ludo, Tanks, Aim, Coil, Crossword, Solitaire, Spider, Slots, Duck Hunt, Pac-Man, Queens, Memory, Tiny Yurts, Metronome, Tuner, QR, and more).",
-    "Share from a store card asks which link you mean: open the app in one tap, or the store listing. A ?run= link on a GitHub page opens the GIF — a blob link is rewritten to the raw file.",
-    "An app invite link is reused by default, so a day-old invite still works — and you can retire it and mint a fresh one. An empty app room explains itself instead of showing a blank page.",
-    "Opening an app is never a blank pane: the app's own animation and name show from the first second, the wait belongs to the app, and a light app fades in over the dark stage.",
-    "Help → About has a Report a problem link that pre-fills the GitHub issue with where you clicked it. Every page carries a static list of links for AI agents (llms.txt first).",
-    "The 0.8.x releases are retired. A computer still pinned to one is moved to the current release once, keeps everything, and is told why."
-   ],
-   "fixes": [
-    "Turning Talk on in an app room showed a row of blank camera boxes under the app. The room is audio-only, so they are gone — the app keeps the whole screen.",
-    "The launch splash could swallow the first tap on a fast phone: the app was already running under it. It stops taking taps the moment the app appears.",
-    "A computer pinned to a retired build looped between the loader and a 404 forever, with its desktop unreachable. It now bounces home once.",
-    "Worldview: closing the layer browser left a blurred, unclickable map; the tablet bottom bar pushed its own controls off the screen; offline warnings had gone quiet.",
-    "The app-update popup's link was unreadable on some pages; the store card's action button sat in the wrong place.",
-    "Catch the Cat: two fingers zoom the board and one finger is still a tap."
-   ]
-  },
-  {
-   "version": "0.9.12",
-   "date": "2026-08-24",
-   "headline": "The Home Screen games and tools are finished apps now — Ping Pong first",
-   "features": [
-    "Ping Pong is table tennis: a real table, real paddles, spin you can see, first to 11. Slide to move — the paddle hits for you. Play the computer, or Invite a friend to the far end.",
-    "Chess can play the computer (Easy / Medium / Hard) on the device. Castling, en passant, and promotion work. Minesweeper has Easy through Expert, a first click that never dies, and flags.",
-    "Tic-Tac-Toe and Connect Four look like the real things, keep a series score, and Invite sits you in a seat.",
-    "Paint is a sketch pad with brush, fill, undo, and the picture saved in the icon. Notes is a notebook you can actually edit. The calculator traces a value when you point at a curve.",
-    "Stopwatch has hundredths and laps and keeps running if you close it. Chat and Guestbook empty rooms tell you to Invite. Fortune says so when it cannot reach the slip, instead of inventing one.",
-    "IRL party games: Fake Facts scores the real players, and Catch the Spy / The Dial / Odd Word Out work over Invite, not only pass-the-phone.",
-    "Help ends with Credits: who made the app, who brought it to GifOS, what it is based on, the license — sealed inside the signed app itself, so the credit travels with every copy.",
-    "App rooms can Talk: the host flips Talk on the app bar and everyone gets their own mic. Audio only for now — for video, start a meeting and run the app from there.",
-    "The App Store installs, updates, and opens from the card — one button that says what you can do next — and a Works offline pill marks apps that never touch the network."
-   ],
-   "fixes": [
-    "Ping Pong used to be a brown gym with dots for paddles and a ball you had to tap. It now rallies.",
-    "Fake Facts (and Same Brain) printed “? fooled: ?” and never scored — they were reading the player id wrong.",
-    "Catch the Spy, The Dial, and Odd Word Out were private to one phone, so an Invite never synced.",
-    "Tilt could not use the accelerometer inside the app frame.",
-    "An app room had no way to start a call at all: everything was there, nothing opened the door.",
-    "The update bar's link was unreadable on dark app pages."
-   ]
-  },
-  {
-   "version": "0.9.11",
-   "date": "2026-08-23",
-   "headline": "Civiclock, a bigger IsoCity, and an app can’t bounce you into a meeting",
-   "critical": true,
-   "features": [
-    "Civiclock is in the store: a small city that ticks — homes, shops, power, water, people, night lights, blackouts. Invite a co-mayor.",
-    "IsoCity is now 16×16. Pinch or Ctrl+scroll to zoom, undo the last stroke, and New city asks before wiping the map.",
-    "Deepgram speech-to-text talks to Deepgram directly. Your key and your audio never pass through our proxy.",
-    "An app can ship its own Help page inside the GIF; the Help button shows it. Every Help screen also explains Invite, Save, Steal and remixing."
-   ],
-   "fixes": [
-    "Tapping an ordinary link inside an app no longer dumps you into the meeting lobby. This is the reason for the release — 0.9.10 still did it."
-   ]
-  },
-  {
-   "version": "0.9.10",
-   "date": "2026-08-22",
-   "headline": "A Camera that saves, a My Media that edits, and a vocal remover that runs on your own machine",
-   "features": [
-    "Vocal Remover is in the store: splits a song into vocals and everything else, on your device, nothing uploaded. It is slow without a graphics chip — expect most of an hour for a four-minute song. There is a Stop button and a “first 30 seconds” preview.",
-    "Big model files download when you first press Separate, not at install.",
-    "Camera on the Home Screen: live preview, filters, Burst, Boomerang and time-lapse. Only offers what your device can actually do.",
-    "My Media: download a file, turn a video clip into a looping GIF, flip photos and videos, clip or reverse recordings. Edits are new items; the original stays.",
-    "My Media: select several items to file or delete. Delete goes to Deleted first; a second Delete removes for good.",
-    "Ports of other people’s apps are credited to their authors and marked unofficial (Vocal Remover, FPS Simple).",
-    "You can tip an app or pay to feature a listing — no account needed. Install stays free.",
-    "Any app GIF can be handed to an AI and changed — ask for dark mode or bigger buttons, drop the new GIF on your Home Screen."
-   ],
-   "fixes": [
-    "Camera photos on computers were saving as a black square. Fixed — the photo is now taken from the preview you see.",
-    "Camera saves every shot the moment you take it, including a video you stop by closing the viewfinder. Before, only the last shot survived and closing right after a recording lost it.",
-    "Camera has a My Media button, and the flip button that did nothing is gone.",
-    "Vocal Remover finishes on a phone: a 12 MB upload that froze the app is fixed, and a fake software “graphics chip” is refused rather than hung on.",
-    "Opening an app that still needs a big download shows the download progress instead of a blank pane."
-   ]
-  },
-  {
-   "version": "0.9.9",
-   "date": "2026-08-18",
-   "headline": "Screen sharing in meetings, and FPS Simple works on a phone",
-   "features": [
-    "Share your screen in a meeting. Pick a window or a display; it goes out like your camera does, and there is a clear Stop.",
-    "A room with an app pinned doesn’t offer screen sharing — the app already runs on everyone’s device, which is sharper. The Share sheet offers Run app first.",
-    "FPS Simple: a Watch demo button that plays on its own, full screen, in a loop.",
-    "FPS Simple: the map now shows where shots come from."
-   ],
-   "fixes": [
-    "Inviting someone from a solo app left the room with no meeting bar or grid. Fixed.",
-    "The chat panel covered half the toolbar, so Record, CC, Stage, Settings and Help couldn’t be clicked while chat was open. Fixed.",
-    "Picking an app in a meeting no longer ends the meeting — the picker used to list Broadcast and the App Store, which navigate away.",
-    "FPS Simple: the bottom half of the screen was fogged over and the gun showed as a black silhouette. Fixed.",
-    "FPS Simple: the sky was black on some phones. Fixed.",
-    "FPS Simple: sound stopped cutting out during firefights.",
-    "FPS Simple: aiming works on touchscreen laptops, and the left thumbstick works in every direction.",
-    "FPS Simple: Play responds immediately and shows loading progress instead of a black screen.",
-    "Playing a game no longer counts as idle, so your phone doesn’t dim mid-game.",
-    "A shared app no longer restarts for everyone when one device gets busy, and no longer goes silent for one person while everything looks connected.",
-    "The App Store no longer offers an app your build can’t run (the check was skipped on the edge build).",
-    "Anyroad: rivers no longer hang in the air above their valley."
-   ]
-  },
-  {
-   "version": "0.9.8",
-   "date": "2026-08-14",
-   "headline": "A faster Home Screen, PDF tables to spreadsheets, and an offline voice",
-   "features": [
-    "The Home Screen appears right away — icons no longer wait for every app to be read first. Measured: 4.7 s to first icon before, a third of a second after.",
-    "PDF Tables turns a PDF’s tables into an Excel file. PDF Tables OCR does the same for scanned PDFs, using your graphics chip. Nothing is uploaded.",
-    "An offline neural text-to-speech voice that runs on your graphics chip. Pick it in Settings.",
-    "Apps can ask for the graphics chip; you approve it like any other permission.",
-    "The App Store has a Share button that copies a clean link to an app."
-   ],
-   "fixes": [
-    "Anyroad no longer slows to a crawl on a long drive — memory is released as you travel.",
-    "Anyroad: rivers and lakes draw where they are, bridges are driven across and tunnels through, street names stop being erased by the sky.",
-    "Chess pieces no longer flicker while you drag them."
-   ]
-  },
-  {
-   "version": "0.9.7",
-   "date": "2026-08-11",
-   "headline": "Links that open an app already doing something, and a chat that keeps every conversation",
-   "features": [
-    "A link can open an app with the first move made — e.g. Anyroad already flying over the Grand Canyon. You see what the link asks for and say yes first. Anyroad’s ☰ sheet copies a link to where you are.",
-    "Host an app GIF anywhere and share the link — no store submission needed. Now documented properly.",
-    "Ask AI keeps every chat, with a History list and a search that reads whole conversations. Only the trash button deletes.",
-    "AI answers arrive word by word, including from models on your own device.",
-    "A second offline voice, KittenTTS Nano: eight voices, 24 MB download. The 1.6 MB eSpeak voice stays.",
-    "When you join someone’s app you see a progress bar while it copies over."
-   ],
-   "fixes": [
-    "The offline text models warn you they are slow before you install them, not after.",
-    "A staged speaker’s video no longer freezes for people watching through someone else.",
-    "Sound It Out: the sight-word list is shared with everyone in the room, so both screens agree."
-   ]
-  },
-  {
-   "version": "0.9.6",
-   "date": "2026-08-10",
-   "headline": "Video that recovers in a second, provider apps, and Sound It Out",
-   "features": [
-    "Provider apps: put one in the Providers folder, give it a job in Settings → AI models, and every app that needs that job uses it. Four to start: offline text-to-speech and three small text models (BitNet, Gemma 3, Gemma 4). All run on your device.",
-    "Big model files download separately, are checked, stored once, and removed with the app. They stay out of backups.",
-    "Anyroad: fly. Press the aeroplane and the car takes off. Races put a flag on a real road for everyone.",
-    "Anyroad: you start stopped and press GO. Street names, a flare to be found by, thicker woods, a speedometer and altimeter, damage that still drives home, and shooting at friends.",
-    "Calculator draws graphs as you type: curves, polar, implicit, inequalities, sliders for variables.",
-    "Sound It Out is in the store: any word or sentence sounded out letter by letter in your own recorded voice. Also sight words.",
-    "The store shows the oldest GifOS each app needs, on the card.",
-    "Stealing an app asks whether you want the data too, and works offline.",
-    "The recording indicator can be dragged and remembers where you put it."
-   ],
-   "fixes": [
-    "When someone’s connection dropped, everyone downstream froze for six seconds and sometimes never recovered. Now the room routes around them in about a second.",
-    "A staged speaker with camera off no longer vanishes for listeners after twenty seconds.",
-    "A one-tap app link sent to a first-time visitor used to land on an empty Home Screen. It carries now.",
-    "Stealing an app shows its progress on the button you pressed.",
-    "Recording audio no longer dims the page.",
-    "The App Store grid now says when an app has an update."
-   ]
-  },
-  {
-   "version": "0.9.5",
-   "date": "2026-08-07",
-   "headline": "Rooms that split, a voice that went missing, a door that jammed",
-   "fixes": [
-    "Two people in the same room couldn’t see or hear each other if a browser had saved a password for a different room. GifOS now checks the room’s password and forgets a wrong one.",
-    "On stage with your camera off, the room stopped hearing you after twenty seconds. Fixed.",
-    "A room could get stuck so nobody new could join. Fixed.",
-    "Opening your own app no longer flashes the meeting toolbar first.",
-    "Someone who leaves is properly forgotten instead of lingering in the list for a minute.",
-    "Offline, a link to a saved version opens that version, not the newest."
-   ]
-  },
-  {
-   "version": "0.9.4",
-   "date": "2026-08-06",
-   "headline": "Older phones and computers can join meetings again",
-   "features": [
-    "Meetings work on much older browsers. GifOS carries its own copy of the signature code when the browser lacks it; security is unchanged.",
-    "Plain-language explanations when a browser genuinely can’t do something."
-   ],
-   "fixes": [
-    "Opening your own app no longer shows the “browser too old” message — that check only matters when you share it live.",
-    "The badge on built-in apps is smaller and quieter."
-   ]
-  },
-  {
-   "version": "0.9.3",
-   "date": "2026-08-05",
-   "headline": "Old browsers get a straight answer, big rooms seat reliably",
-   "features": [
-    "A browser that’s too old for meetings is told exactly which version it needs. A new Browsers page (from About) lists what works.",
-    "Firefox is in the test fleet."
-   ],
-   "fixes": [
-    "Large rooms could hand the same seat to two people, or jam partway through a mass join. Fixed.",
-    "A seat reserved for someone still joining can no longer be stolen by a stale goodbye."
-   ]
-  },
-  {
-   "version": "0.9.2",
-   "date": "2026-08-05",
-   "headline": "Joining works again — the demo-night failure, fixed",
-   "critical": true,
-   "features": [
-    "Meeting and Broadcast keep separate Recent & saved lists.",
-    "Plainer wording for connection errors, passwords, blur and the privacy explainer."
-   ],
-   "fixes": [
-    "Joining no longer waits on the camera prompt. You get your seat at once and the camera joins when you allow it.",
-    "One person’s bad link can’t knock someone else out of their seat; a dropped phone rejoins in seconds.",
-    "Share links from the newest build open on phones that have never visited before.",
-    "A broadcast link reopens as a broadcast."
-   ]
-  },
-  {
-   "version": "0.9.1",
-   "date": "2026-08-03",
-   "headline": "Three meeting bugs that hid behind flaky tests",
-   "critical": false,
-   "fixes": [
-    "Stopping a shared app sticks for everyone, even if people join or leave at that moment.",
-    "Video frozen after a split room rejoins now recovers on its own.",
-    "Joining during a connection blip no longer wedges your seat."
-   ]
-  },
-  {
-   "version": "0.9.0",
-   "date": "2026-08-02",
-   "headline": "Apps and meetings became one thing — and an App Store",
-   "critical": true,
-   "features": [
-    "Everyone needs this build to meet: rooms are addressed differently, so 0.8.8 or older lands in a different room.",
-    "An App Store on your Home Screen. The app downloads once, on Install.",
-    "Every app is a room: one link and someone joins you inside it, with video.",
-    "An app opened alone gets the whole window.",
-    "Share your screen into a room.",
-    "Home Screen icons are locked until you choose Arrange."
-   ],
-   "fixes": [
-    "Scrolling a phone no longer drops apps into folders.",
-    "The camera stops flipping sideways and keeps its real shape.",
-    "If the person hosting an app leaves, the room freezes and hands over instead of losing your work."
-   ]
-  },
-  {
-   "version": "0.8.8",
-   "date": "2026-07-31",
-   "headline": "Longer phone battery in big meetings",
-   "critical": false,
-   "features": [
-    "Two lighter video sizes (down to 144p) for phones low on battery.",
-    "An all-muted room wakes far less often."
-   ]
-  },
-  {
-   "version": "0.8.7",
-   "date": "2026-07-30",
-   "headline": "Deeper phone power savings",
-   "critical": false,
-   "features": [
-    "Phones run video one to two sizes lighter in every state."
-   ]
-  },
-  {
-   "version": "0.8.6",
-   "date": "2026-07-29",
-   "headline": "Build badge on every page",
-   "critical": false,
-   "features": [
-    "A small corner badge shows which build you’re running."
-   ],
-   "fixes": [
-    "Restored the version-pinning safeguard a loader redesign had broken."
-   ]
-  },
-  {
-   "version": "0.8.5",
-   "date": "2026-07-26",
-   "headline": "Invite links and room names fixed",
-   "critical": true,
-   "fixes": [
-    "Invite links (/meet, /call, /join) open the meeting again instead of the Home Screen.",
-    "Room names keep their capital letters, so the same link lands everyone in the same room.",
-    "Sharing an app into a meeting works for guests again.",
-    "The build number in the Version panel counts correctly."
-   ]
-  },
-  {
-   "version": "0.8.4",
-   "date": "2026-07-26",
-   "headline": "Fullscreen view and a smoother join",
-   "critical": false,
-   "features": [
-    "Fullscreen view: one feed big, the rest as floating thumbs.",
-    "Joining shows a veil until your seat is real.",
-    "Video quality eases down to match your battery."
-   ]
-  },
-  {
-   "version": "0.8.3",
-   "date": "2026-07-25",
-   "headline": "Honest video, camera flip, fullscreen, votes",
-   "critical": false,
-   "features": [
-    "Tiles show your whole camera frame, not a cropped square.",
-    "Flip between front and back cameras.",
-    "A real fullscreen button.",
-    "Recordings carry a burned-in “Recording — name” badge.",
-    "Vote someone onto the stage, off it, or out of the room."
-   ]
-  },
-  {
-   "version": "0.8.2",
-   "date": "2026-07-25",
-   "headline": "A relay blip can’t split a room",
-   "critical": true,
-   "features": [
-    "Diagnostics show when someone’s media arrives via a friend."
-   ],
-   "fixes": [
-    "A relay hiccup no longer strands joiners or spawns a duplicate room."
-   ]
-  },
-  {
-   "version": "0.8.1",
-   "date": "2026-07-22",
-   "headline": "First public release",
-   "critical": false,
-   "features": [
-    "Every app is a real animated GIF you own — drop it on your Home Screen and it runs. Share the file, share the app with its data inside.",
-    "Peer-to-peer meetings with no server in the middle; run any app live inside one.",
-    "Any app goes multiplayer with one invite link.",
-    "Works fully offline; back up a whole computer as one GIF.",
-    "Ten themed computers, signed apps, and per-person AI/API keys that apps use but never see."
-   ]
-  }
- ]
+  "note": "Release notes shown in Settings → Advanced → Version. Newest first. SHORT, PLAIN bullets under \"features\" and \"fixes\" — a line or two each, no jargon, no filler; anyone who wants the long story can read the repo. Every release needs at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so the desktop calls it out.",
+  "entries": [
+    {
+      "version": "0.9.14",
+      "date": "2026-09-02",
+      "critical": true,
+      "headline": "A security audit closed a critical sandbox hole — and forty-five new apps landed",
+      "features": [
+        "Forty-five new app ports, including JupyterLite (a real Python notebook, offline), Monaco Code, SQL Playground, ffmpeg.wasm Studio, Webamp, Monkeytype, TIC-80, shapez.io, RegExr, SVG-Edit, Blockly Games, Learn Git Branching, Hydra, alphaTab, EPUB Reader, OpenJSCAD, CascadeStudio, DigitalJS, jsnes, Carbon, OTP Auth, Hanzi Writer, Trianglify, RAWGraphs, Background Removal, Smartcrop, Primitive, Matter Sandbox and Parable of the Polygons.",
+        "Bible study: export and import everything you have made as ONE stamped GIF, an Include Apocrypha toggle (off by default), and a study panel and search that dock beside the text on a wide screen instead of covering it.",
+        "Payments: receipts are bound to the claim that earned them and invoices to the payer, and there is now an agent rail (HTTP 402 with Stripe Shared Payment Tokens) for software that pays on your behalf.",
+        "Four apps — beepbox, Blockly Games, JupyterLite and SVG-Edit — no longer use the browser prompt() the sandbox answers with null, so their dialogs work: SVG-Edit’s five dialogs, beepbox’s clipboard fallback and Blockly’s variable prompt all ask properly now."
+      ],
+      "fixes": [
+        "CRITICAL: a sandboxed app could navigate its own frame to any URL and keep its bridge to the desktop, with no CSP and no shim. The parent now pins frame-src to about:, an unload beacon freezes the bridge and re-mounts the app, and nested frames are swept (a srcdoc child had its own RTCPeerConnection). Every build before this one is affected, including pinned snapshots.",
+        "Meetings: names no longer cross the relay wire, a device tag is required to join, chat is bounded, and replayed joins are refused inside a fixed window.",
+        "Offline: the service worker now keys one cache entry per file, so an offline boot brings up the newest build this device actually ran instead of the one it was installed with."
+      ],
+      "notes": [
+        "This release is a flag day for meetings: the derivation scheme is gifos-net-4, so clients from before and after it land in different relay sessions. The Workers must be deployed with it.",
+        "Link secrets are now 16 characters, room passwords are stretched with PBKDF2, signed orders carry monotonic timestamps, and an owned link’s verifier commits to the owner’s key."
+      ]
+    },
+    {
+      "version": "0.9.13",
+      "date": "2026-08-25",
+      "headline": "Every game and tool on the Home Screen got a play-test on a phone — and a dozen new ports",
+      "features": [
+        "New apps: Worldview (NASA satellite layers, a timeline, compare two days — with a Blue Marble that works offline), The House (a playable assembled house that makes sound), Sandspiel (a falling-sand world in the file), Bingo (a real hall — every phone speaks, fireworks on a verified win), plus Piano Trainer, Vintage Poker, fend, My Mind, JSON Editor, JSON Crack, Hexahedral, Blackjack, Server Survival and Backdooms as unofficial ports.",
+        "Over sixty existing apps were play-tested on a phone and fixed one by one: thumb pads and D-pads where a finger needs them, boards that fit the screen, empty states that say what to do, best scores and drafts kept in the file, and Invite that actually seats your friends (Ludo, Tanks, Aim, Coil, Crossword, Solitaire, Spider, Slots, Duck Hunt, Pac-Man, Queens, Memory, Tiny Yurts, Metronome, Tuner, QR, and more).",
+        "Share from a store card asks which link you mean: open the app in one tap, or the store listing. A ?run= link on a GitHub page opens the GIF — a blob link is rewritten to the raw file.",
+        "An app invite link is reused by default, so a day-old invite still works — and you can retire it and mint a fresh one. An empty app room explains itself instead of showing a blank page.",
+        "Opening an app is never a blank pane: the app's own animation and name show from the first second, the wait belongs to the app, and a light app fades in over the dark stage.",
+        "Help → About has a Report a problem link that pre-fills the GitHub issue with where you clicked it. Every page carries a static list of links for AI agents (llms.txt first).",
+        "The 0.8.x releases are retired. A computer still pinned to one is moved to the current release once, keeps everything, and is told why."
+      ],
+      "fixes": [
+        "Turning Talk on in an app room showed a row of blank camera boxes under the app. The room is audio-only, so they are gone — the app keeps the whole screen.",
+        "The launch splash could swallow the first tap on a fast phone: the app was already running under it. It stops taking taps the moment the app appears.",
+        "A computer pinned to a retired build looped between the loader and a 404 forever, with its desktop unreachable. It now bounces home once.",
+        "Worldview: closing the layer browser left a blurred, unclickable map; the tablet bottom bar pushed its own controls off the screen; offline warnings had gone quiet.",
+        "The app-update popup's link was unreadable on some pages; the store card's action button sat in the wrong place.",
+        "Catch the Cat: two fingers zoom the board and one finger is still a tap."
+      ]
+    },
+    {
+      "version": "0.9.12",
+      "date": "2026-08-24",
+      "headline": "The Home Screen games and tools are finished apps now — Ping Pong first",
+      "features": [
+        "Ping Pong is table tennis: a real table, real paddles, spin you can see, first to 11. Slide to move — the paddle hits for you. Play the computer, or Invite a friend to the far end.",
+        "Chess can play the computer (Easy / Medium / Hard) on the device. Castling, en passant, and promotion work. Minesweeper has Easy through Expert, a first click that never dies, and flags.",
+        "Tic-Tac-Toe and Connect Four look like the real things, keep a series score, and Invite sits you in a seat.",
+        "Paint is a sketch pad with brush, fill, undo, and the picture saved in the icon. Notes is a notebook you can actually edit. The calculator traces a value when you point at a curve.",
+        "Stopwatch has hundredths and laps and keeps running if you close it. Chat and Guestbook empty rooms tell you to Invite. Fortune says so when it cannot reach the slip, instead of inventing one.",
+        "IRL party games: Fake Facts scores the real players, and Catch the Spy / The Dial / Odd Word Out work over Invite, not only pass-the-phone.",
+        "Help ends with Credits: who made the app, who brought it to GifOS, what it is based on, the license — sealed inside the signed app itself, so the credit travels with every copy.",
+        "App rooms can Talk: the host flips Talk on the app bar and everyone gets their own mic. Audio only for now — for video, start a meeting and run the app from there.",
+        "The App Store installs, updates, and opens from the card — one button that says what you can do next — and a Works offline pill marks apps that never touch the network."
+      ],
+      "fixes": [
+        "Ping Pong used to be a brown gym with dots for paddles and a ball you had to tap. It now rallies.",
+        "Fake Facts (and Same Brain) printed “? fooled: ?” and never scored — they were reading the player id wrong.",
+        "Catch the Spy, The Dial, and Odd Word Out were private to one phone, so an Invite never synced.",
+        "Tilt could not use the accelerometer inside the app frame.",
+        "An app room had no way to start a call at all: everything was there, nothing opened the door.",
+        "The update bar's link was unreadable on dark app pages."
+      ]
+    },
+    {
+      "version": "0.9.11",
+      "date": "2026-08-23",
+      "headline": "Civiclock, a bigger IsoCity, and an app can’t bounce you into a meeting",
+      "critical": true,
+      "features": [
+        "Civiclock is in the store: a small city that ticks — homes, shops, power, water, people, night lights, blackouts. Invite a co-mayor.",
+        "IsoCity is now 16×16. Pinch or Ctrl+scroll to zoom, undo the last stroke, and New city asks before wiping the map.",
+        "Deepgram speech-to-text talks to Deepgram directly. Your key and your audio never pass through our proxy.",
+        "An app can ship its own Help page inside the GIF; the Help button shows it. Every Help screen also explains Invite, Save, Steal and remixing."
+      ],
+      "fixes": [
+        "Tapping an ordinary link inside an app no longer dumps you into the meeting lobby. This is the reason for the release — 0.9.10 still did it."
+      ]
+    },
+    {
+      "version": "0.9.10",
+      "date": "2026-08-22",
+      "headline": "A Camera that saves, a My Media that edits, and a vocal remover that runs on your own machine",
+      "features": [
+        "Vocal Remover is in the store: splits a song into vocals and everything else, on your device, nothing uploaded. It is slow without a graphics chip — expect most of an hour for a four-minute song. There is a Stop button and a “first 30 seconds” preview.",
+        "Big model files download when you first press Separate, not at install.",
+        "Camera on the Home Screen: live preview, filters, Burst, Boomerang and time-lapse. Only offers what your device can actually do.",
+        "My Media: download a file, turn a video clip into a looping GIF, flip photos and videos, clip or reverse recordings. Edits are new items; the original stays.",
+        "My Media: select several items to file or delete. Delete goes to Deleted first; a second Delete removes for good.",
+        "Ports of other people’s apps are credited to their authors and marked unofficial (Vocal Remover, FPS Simple).",
+        "You can tip an app or pay to feature a listing — no account needed. Install stays free.",
+        "Any app GIF can be handed to an AI and changed — ask for dark mode or bigger buttons, drop the new GIF on your Home Screen."
+      ],
+      "fixes": [
+        "Camera photos on computers were saving as a black square. Fixed — the photo is now taken from the preview you see.",
+        "Camera saves every shot the moment you take it, including a video you stop by closing the viewfinder. Before, only the last shot survived and closing right after a recording lost it.",
+        "Camera has a My Media button, and the flip button that did nothing is gone.",
+        "Vocal Remover finishes on a phone: a 12 MB upload that froze the app is fixed, and a fake software “graphics chip” is refused rather than hung on.",
+        "Opening an app that still needs a big download shows the download progress instead of a blank pane."
+      ]
+    },
+    {
+      "version": "0.9.9",
+      "date": "2026-08-18",
+      "headline": "Screen sharing in meetings, and FPS Simple works on a phone",
+      "features": [
+        "Share your screen in a meeting. Pick a window or a display; it goes out like your camera does, and there is a clear Stop.",
+        "A room with an app pinned doesn’t offer screen sharing — the app already runs on everyone’s device, which is sharper. The Share sheet offers Run app first.",
+        "FPS Simple: a Watch demo button that plays on its own, full screen, in a loop.",
+        "FPS Simple: the map now shows where shots come from."
+      ],
+      "fixes": [
+        "Inviting someone from a solo app left the room with no meeting bar or grid. Fixed.",
+        "The chat panel covered half the toolbar, so Record, CC, Stage, Settings and Help couldn’t be clicked while chat was open. Fixed.",
+        "Picking an app in a meeting no longer ends the meeting — the picker used to list Broadcast and the App Store, which navigate away.",
+        "FPS Simple: the bottom half of the screen was fogged over and the gun showed as a black silhouette. Fixed.",
+        "FPS Simple: the sky was black on some phones. Fixed.",
+        "FPS Simple: sound stopped cutting out during firefights.",
+        "FPS Simple: aiming works on touchscreen laptops, and the left thumbstick works in every direction.",
+        "FPS Simple: Play responds immediately and shows loading progress instead of a black screen.",
+        "Playing a game no longer counts as idle, so your phone doesn’t dim mid-game.",
+        "A shared app no longer restarts for everyone when one device gets busy, and no longer goes silent for one person while everything looks connected.",
+        "The App Store no longer offers an app your build can’t run (the check was skipped on the edge build).",
+        "Anyroad: rivers no longer hang in the air above their valley."
+      ]
+    },
+    {
+      "version": "0.9.8",
+      "date": "2026-08-14",
+      "headline": "A faster Home Screen, PDF tables to spreadsheets, and an offline voice",
+      "features": [
+        "The Home Screen appears right away — icons no longer wait for every app to be read first. Measured: 4.7 s to first icon before, a third of a second after.",
+        "PDF Tables turns a PDF’s tables into an Excel file. PDF Tables OCR does the same for scanned PDFs, using your graphics chip. Nothing is uploaded.",
+        "An offline neural text-to-speech voice that runs on your graphics chip. Pick it in Settings.",
+        "Apps can ask for the graphics chip; you approve it like any other permission.",
+        "The App Store has a Share button that copies a clean link to an app."
+      ],
+      "fixes": [
+        "Anyroad no longer slows to a crawl on a long drive — memory is released as you travel.",
+        "Anyroad: rivers and lakes draw where they are, bridges are driven across and tunnels through, street names stop being erased by the sky.",
+        "Chess pieces no longer flicker while you drag them."
+      ]
+    },
+    {
+      "version": "0.9.7",
+      "date": "2026-08-11",
+      "headline": "Links that open an app already doing something, and a chat that keeps every conversation",
+      "features": [
+        "A link can open an app with the first move made — e.g. Anyroad already flying over the Grand Canyon. You see what the link asks for and say yes first. Anyroad’s ☰ sheet copies a link to where you are.",
+        "Host an app GIF anywhere and share the link — no store submission needed. Now documented properly.",
+        "Ask AI keeps every chat, with a History list and a search that reads whole conversations. Only the trash button deletes.",
+        "AI answers arrive word by word, including from models on your own device.",
+        "A second offline voice, KittenTTS Nano: eight voices, 24 MB download. The 1.6 MB eSpeak voice stays.",
+        "When you join someone’s app you see a progress bar while it copies over."
+      ],
+      "fixes": [
+        "The offline text models warn you they are slow before you install them, not after.",
+        "A staged speaker’s video no longer freezes for people watching through someone else.",
+        "Sound It Out: the sight-word list is shared with everyone in the room, so both screens agree."
+      ]
+    },
+    {
+      "version": "0.9.6",
+      "date": "2026-08-10",
+      "headline": "Video that recovers in a second, provider apps, and Sound It Out",
+      "features": [
+        "Provider apps: put one in the Providers folder, give it a job in Settings → AI models, and every app that needs that job uses it. Four to start: offline text-to-speech and three small text models (BitNet, Gemma 3, Gemma 4). All run on your device.",
+        "Big model files download separately, are checked, stored once, and removed with the app. They stay out of backups.",
+        "Anyroad: fly. Press the aeroplane and the car takes off. Races put a flag on a real road for everyone.",
+        "Anyroad: you start stopped and press GO. Street names, a flare to be found by, thicker woods, a speedometer and altimeter, damage that still drives home, and shooting at friends.",
+        "Calculator draws graphs as you type: curves, polar, implicit, inequalities, sliders for variables.",
+        "Sound It Out is in the store: any word or sentence sounded out letter by letter in your own recorded voice. Also sight words.",
+        "The store shows the oldest GifOS each app needs, on the card.",
+        "Stealing an app asks whether you want the data too, and works offline.",
+        "The recording indicator can be dragged and remembers where you put it."
+      ],
+      "fixes": [
+        "When someone’s connection dropped, everyone downstream froze for six seconds and sometimes never recovered. Now the room routes around them in about a second.",
+        "A staged speaker with camera off no longer vanishes for listeners after twenty seconds.",
+        "A one-tap app link sent to a first-time visitor used to land on an empty Home Screen. It carries now.",
+        "Stealing an app shows its progress on the button you pressed.",
+        "Recording audio no longer dims the page.",
+        "The App Store grid now says when an app has an update."
+      ]
+    },
+    {
+      "version": "0.9.5",
+      "date": "2026-08-07",
+      "headline": "Rooms that split, a voice that went missing, a door that jammed",
+      "fixes": [
+        "Two people in the same room couldn’t see or hear each other if a browser had saved a password for a different room. GifOS now checks the room’s password and forgets a wrong one.",
+        "On stage with your camera off, the room stopped hearing you after twenty seconds. Fixed.",
+        "A room could get stuck so nobody new could join. Fixed.",
+        "Opening your own app no longer flashes the meeting toolbar first.",
+        "Someone who leaves is properly forgotten instead of lingering in the list for a minute.",
+        "Offline, a link to a saved version opens that version, not the newest."
+      ]
+    },
+    {
+      "version": "0.9.4",
+      "date": "2026-08-06",
+      "headline": "Older phones and computers can join meetings again",
+      "features": [
+        "Meetings work on much older browsers. GifOS carries its own copy of the signature code when the browser lacks it; security is unchanged.",
+        "Plain-language explanations when a browser genuinely can’t do something."
+      ],
+      "fixes": [
+        "Opening your own app no longer shows the “browser too old” message — that check only matters when you share it live.",
+        "The badge on built-in apps is smaller and quieter."
+      ]
+    },
+    {
+      "version": "0.9.3",
+      "date": "2026-08-05",
+      "headline": "Old browsers get a straight answer, big rooms seat reliably",
+      "features": [
+        "A browser that’s too old for meetings is told exactly which version it needs. A new Browsers page (from About) lists what works.",
+        "Firefox is in the test fleet."
+      ],
+      "fixes": [
+        "Large rooms could hand the same seat to two people, or jam partway through a mass join. Fixed.",
+        "A seat reserved for someone still joining can no longer be stolen by a stale goodbye."
+      ]
+    },
+    {
+      "version": "0.9.2",
+      "date": "2026-08-05",
+      "headline": "Joining works again — the demo-night failure, fixed",
+      "critical": true,
+      "features": [
+        "Meeting and Broadcast keep separate Recent & saved lists.",
+        "Plainer wording for connection errors, passwords, blur and the privacy explainer."
+      ],
+      "fixes": [
+        "Joining no longer waits on the camera prompt. You get your seat at once and the camera joins when you allow it.",
+        "One person’s bad link can’t knock someone else out of their seat; a dropped phone rejoins in seconds.",
+        "Share links from the newest build open on phones that have never visited before.",
+        "A broadcast link reopens as a broadcast."
+      ]
+    },
+    {
+      "version": "0.9.1",
+      "date": "2026-08-03",
+      "headline": "Three meeting bugs that hid behind flaky tests",
+      "critical": false,
+      "fixes": [
+        "Stopping a shared app sticks for everyone, even if people join or leave at that moment.",
+        "Video frozen after a split room rejoins now recovers on its own.",
+        "Joining during a connection blip no longer wedges your seat."
+      ]
+    },
+    {
+      "version": "0.9.0",
+      "date": "2026-08-02",
+      "headline": "Apps and meetings became one thing — and an App Store",
+      "critical": true,
+      "features": [
+        "Everyone needs this build to meet: rooms are addressed differently, so 0.8.8 or older lands in a different room.",
+        "An App Store on your Home Screen. The app downloads once, on Install.",
+        "Every app is a room: one link and someone joins you inside it, with video.",
+        "An app opened alone gets the whole window.",
+        "Share your screen into a room.",
+        "Home Screen icons are locked until you choose Arrange."
+      ],
+      "fixes": [
+        "Scrolling a phone no longer drops apps into folders.",
+        "The camera stops flipping sideways and keeps its real shape.",
+        "If the person hosting an app leaves, the room freezes and hands over instead of losing your work."
+      ]
+    },
+    {
+      "version": "0.8.8",
+      "date": "2026-07-31",
+      "headline": "Longer phone battery in big meetings",
+      "critical": false,
+      "features": [
+        "Two lighter video sizes (down to 144p) for phones low on battery.",
+        "An all-muted room wakes far less often."
+      ]
+    },
+    {
+      "version": "0.8.7",
+      "date": "2026-07-30",
+      "headline": "Deeper phone power savings",
+      "critical": false,
+      "features": [
+        "Phones run video one to two sizes lighter in every state."
+      ]
+    },
+    {
+      "version": "0.8.6",
+      "date": "2026-07-29",
+      "headline": "Build badge on every page",
+      "critical": false,
+      "features": [
+        "A small corner badge shows which build you’re running."
+      ],
+      "fixes": [
+        "Restored the version-pinning safeguard a loader redesign had broken."
+      ]
+    },
+    {
+      "version": "0.8.5",
+      "date": "2026-07-26",
+      "headline": "Invite links and room names fixed",
+      "critical": true,
+      "fixes": [
+        "Invite links (/meet, /call, /join) open the meeting again instead of the Home Screen.",
+        "Room names keep their capital letters, so the same link lands everyone in the same room.",
+        "Sharing an app into a meeting works for guests again.",
+        "The build number in the Version panel counts correctly."
+      ]
+    },
+    {
+      "version": "0.8.4",
+      "date": "2026-07-26",
+      "headline": "Fullscreen view and a smoother join",
+      "critical": false,
+      "features": [
+        "Fullscreen view: one feed big, the rest as floating thumbs.",
+        "Joining shows a veil until your seat is real.",
+        "Video quality eases down to match your battery."
+      ]
+    },
+    {
+      "version": "0.8.3",
+      "date": "2026-07-25",
+      "headline": "Honest video, camera flip, fullscreen, votes",
+      "critical": false,
+      "features": [
+        "Tiles show your whole camera frame, not a cropped square.",
+        "Flip between front and back cameras.",
+        "A real fullscreen button.",
+        "Recordings carry a burned-in “Recording — name” badge.",
+        "Vote someone onto the stage, off it, or out of the room."
+      ]
+    },
+    {
+      "version": "0.8.2",
+      "date": "2026-07-25",
+      "headline": "A relay blip can’t split a room",
+      "critical": true,
+      "features": [
+        "Diagnostics show when someone’s media arrives via a friend."
+      ],
+      "fixes": [
+        "A relay hiccup no longer strands joiners or spawns a duplicate room."
+      ]
+    },
+    {
+      "version": "0.8.1",
+      "date": "2026-07-22",
+      "headline": "First public release",
+      "critical": false,
+      "features": [
+        "Every app is a real animated GIF you own — drop it on your Home Screen and it runs. Share the file, share the app with its data inside.",
+        "Peer-to-peer meetings with no server in the middle; run any app live inside one.",
+        "Any app goes multiplayer with one invite link.",
+        "Works fully offline; back up a whole computer as one GIF.",
+        "Ten themed computers, signed apps, and per-person AI/API keys that apps use but never see."
+      ]
+    }
+  ]
 }
