@@ -6,7 +6,7 @@ STANDALONE app-shares are now mesh rooms too — the OLD pre-one-runtime app
 runner page and the relay star bus (`t:'bcast'`, `role=host`/`client`) are
 DELETED (today's `run.html` is the former meet.html, renamed — the one room
 page), the relay is a greeter + door,
-and one derivation (deriveMeet, DS 'gifos-net-2') covers every room. The
+and one derivation (deriveMeet, DS 'gifos-net-3') covers every room. The
 migration plan below is retained as history of how the shape was found.
 
 ## The one idea

@@ -284,7 +284,7 @@
 
   // ---- derive, don't send ----------------------------------------------------
   // DS is the derivation version tag. Bumping it is a FLAG DAY on purpose.
-  const DS = 'gifos-net-2'; // ONE-RUNTIME FLAG DAY 2026-08-01: one derivation, app rooms on the mesh, star deleted
+  const DS = 'gifos-net-3'; // FLAG DAY 2026-09-02: the room password is STRETCHED (PBKDF2) before it reaches any derivation. (gifos-net-2, 2026-08-01: one derivation, app rooms on the mesh, star deleted.)
   const dsHash = (label, data) => sha256hex(DS + '|' + label + '|' + data);
   async function aesKey(label, secret) {
     if (!(root.crypto && root.crypto.subtle)) return null;
@@ -313,9 +313,38 @@
   // password RE-KEYS it (deriveMeetKey is the rotation primitive). sid/token
   // deliberately stay password-free — routing identity must not move when
   // the room re-keys.
+  // THE PASSWORD IS STRETCHED BEFORE IT IS USED ANYWHERE. A room password is
+  // human-chosen, and both things derived from it are visible to an
+  // adversary: the relay stores every occupant's proof, and every sealed
+  // frame is ciphertext under the key. With one plain SHA-256 either one was
+  // an offline dictionary attack at native hash speed for any past link
+  // holder. PBKDF2-SHA256 at 310k iterations (the admin path's cost,
+  // deriveAdminKey) with a room-and-verifier salt turns the password into
+  // 256 bits once; the key and the proof derive from THOSE bits under their
+  // own labels, so neither reveals the other. Memoised per (room, av, pw):
+  // a session re-derives both several times, and 310k iterations is a
+  // visible pause on a phone. Empty password → empty stretch (no work).
+  const PW_ITER = 310000;
+  const stretched = new Map();
+  function stretchPw(roomCode, av, pw) {
+    if (!pw) return Promise.resolve('');
+    const mk = roomCode + '|' + (av || '') + '|' + pw;
+    if (stretched.has(mk)) return stretched.get(mk);
+    const p = (async () => {
+      if (!(root.crypto && root.crypto.subtle)) throw new Error('WebCrypto is required to derive a room key');
+      const km = await root.crypto.subtle.importKey('raw', enc(pw), 'PBKDF2', false, ['deriveBits']);
+      const salt = enc(DS + '|meet-pw-stretch|' + roomCode + '|' + (av || ''));
+      const bits = await root.crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PW_ITER }, km, 256);
+      return Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    })();
+    stretched.set(mk, p);
+    p.catch(() => stretched.delete(mk));
+    return p;
+  }
   function deriveMeetKey(roomCode, av, pw) {
     const base = roomCode + '|' + (av || '');
-    return pw ? aesKey('meet-e2e-pw', base + '|' + pw) : aesKey('meet-e2e', base);
+    if (!pw) return aesKey('meet-e2e', base);
+    return stretchPw(roomCode, av, pw).then((s) => aesKey('meet-e2e-pw', base + '|' + s));
   }
   function deriveMeet(roomCode, av, pw) {
     const base = roomCode + '|' + (av || '');
@@ -327,7 +356,7 @@
   // in different rooms leave different proofs.
   function meetPwProof(roomCode, av, pw) {
     if (!pw) return Promise.resolve('');
-    return dsHash('meet-pw', roomCode + '|' + (av || '') + '|' + pw);
+    return stretchPw(roomCode, av, pw).then((s) => dsHash('meet-pw', roomCode + '|' + (av || '') + '|' + s));
   }
   // The GENESIS KEY (healing-laws R3): a throwaway, high-entropy PERSONAL token a
   // newcomer mints and presents on its first knock. The first knocker to meet an
