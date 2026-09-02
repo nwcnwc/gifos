@@ -5519,7 +5519,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // chat-delete tombstone: idempotent, monotonic, never re-armed) may
         // pass Infinity so 'hi' backfill can re-prove old orders to late
         // joiners; every state-changing act keeps the tight window.
-        if (Math.abs(Date.now() - o.ts) > (maxAge || 300000)) return null;
+        if (Math.abs(Date.now() - (+o.ts || 0)) > (maxAge || 300000)) return null; // coerced like the relay does: NaN must not pass
         return o;
       } catch (e) { return null; }
     }
