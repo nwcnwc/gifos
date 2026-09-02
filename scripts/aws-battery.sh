@@ -27,6 +27,16 @@ TAG=gifos-battery
 PEM=$HOME/.ssh/gifos-swarm.pem
 MAX_LIFE_MIN=${MAX_LIFE_MIN:-110}
 OUT=/tmp/aws-battery
+# WHAT THE BOXES RUN IS PINNED. A battery is a verdict on ONE tree, so every
+# box checks out the same commit — the freeze tag or sha of the clone this is
+# run from (GIFOS_REF overrides), never "whatever main is right now", which
+# could differ box to box across a launch. The tooling is pinned the same way:
+# node by the tarball's published SHA-256 (nodejs.org/dist SHASUMS256.txt), and
+# playwright by the repo's own package-lock.json (npm ci), so a box cannot
+# quietly test with a browser build no one else has.
+REF=${GIFOS_REF:-$(git -C "$(dirname "$0")/.." rev-parse HEAD)}
+NODE_VER=v22.14.0
+NODE_SHA256=69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec
 mkdir -p "$OUT"
 SSH="ssh -i $PEM -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o BatchMode=yes"
 
@@ -43,7 +53,7 @@ launch)
     --filters "Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*" "Name=state,Values=available" \
     --query 'sort_by(Images,&CreationDate)[-1].ImageId' --output text)
   [ -n "$AMI" ] && [ "$AMI" != "None" ] || { echo "AMI resolution failed" >&2; exit 1; }
-  echo "AMI $AMI, $N x $TYPE, dead-man ${MAX_LIFE_MIN}min"
+  echo "AMI $AMI, $N x $TYPE, dead-man ${MAX_LIFE_MIN}min, ref ${REF}"
   cat > "$OUT/userdata.sh" <<EOF
 #!/bin/bash
 shutdown -h +${MAX_LIFE_MIN}
@@ -57,8 +67,10 @@ echo 'kernel.apparmor_restrict_unprivileged_userns=0' > /etc/sysctl.d/60-chromiu
 # node via TARBALL, not apt: the NodeSource setup failed silently on cycle 1
 # and Ubuntu's own nodejs package ships WITHOUT npm — every actor then died
 # at spawn ("playwright not found") in the classic dead-environment shape.
-curl -fsSL https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz | tar -xJ -C /usr/local --strip-components=1
-sudo -u ubuntu bash -c 'cd /home/ubuntu && git clone --depth 1 https://github.com/nwcnwc/gifos && cd gifos && npm install playwright && npx playwright install chromium' > /tmp/bootstrap.log 2>&1
+curl -fsSL -o /tmp/node.tar.xz https://nodejs.org/dist/${NODE_VER}/node-${NODE_VER}-linux-x64.tar.xz
+echo "${NODE_SHA256}  /tmp/node.tar.xz" | sha256sum -c - || exit 1
+tar -xJ -C /usr/local --strip-components=1 -f /tmp/node.tar.xz
+sudo -u ubuntu bash -c 'cd /home/ubuntu && git clone https://github.com/nwcnwc/gifos && cd gifos && git fetch --depth 1 origin ${REF} && git checkout -q FETCH_HEAD && npm ci --no-audit --no-fund && npx playwright install chromium' > /tmp/bootstrap.log 2>&1
 cd /home/ubuntu/gifos && npx playwright install-deps chromium >> /tmp/bootstrap.log 2>&1
 # READY means AN ACTOR CAN RUN, not "npm finished": require('playwright')
 # passes on a box whose chromium download or system deps half-failed, and

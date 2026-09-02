@@ -333,13 +333,32 @@ server.on('upgrade', (req, socket, head) => {
     for (const c of sess.clients.values()) c.send(s);
   };
   const BAN_CAP = 20;
+  // THE 2 KB ATTACHMENT, EMULATED. The Worker keeps every occupant's join
+  // state in a socket attachment the platform caps at 2 KB (relay.js
+  // saveAtt); this process has no such cap, which is exactly how an overflow
+  // hid from every suite. Build the same shape, JSON-serialise it, apply the
+  // same limit, and answer the way the Worker does: a join that does not fit
+  // is refused, a later write that does not fit is dropped and logged (to
+  // stderr — the suites ignore this relay's stdout).
+  const ATT_CAP = 2048;
+  const attOf = (c, extra) => Object.assign({ role: 'mesh', peer: c.peer, iph: c.iph, tok: token, pw: sess.pw, av: sess.av, dev: c.dev, ban: sess.ban, rs: c.rs,
+    gkh: c.gkh, gblob: c.gblob, gexp: c.gexp, gseen: c.gseen, gmint: c.gmint, admTs: sess.admTs }, extra || {});
+  const attFits = (att, what) => {
+    const n = JSON.stringify(att).length;
+    if (n <= ATT_CAP) return true;
+    console.error('attachment overflow (' + what + ') ' + n + ' > ' + ATT_CAP + ' — the Worker would refuse this write (relay.js saveAtt)');
+    return false;
+  };
+  const attFitsAll = (what) => { for (const c of sess.clients.values()) if (!attFits(attOf(c), what)) return false; return true; };
   const cleanBanList = (list) => (Array.isArray(list) ? list : []).slice(0, BAN_CAP)
     .map((e) => ({ d: String((e && e.d) || '').slice(0, 16) })) // a device tag, never a name — mirrors relay/src/relay.js
     .filter((e) => e.d);
   const banDevice = (dev, name, by) => {
     dev = String(dev || '').slice(0, 16); if (!dev) return;
+    const prevBan = sess.ban;
     sess.ban = (sess.ban || []).filter((b) => b.d !== dev);
     sess.ban.push({ d: dev }); if (sess.ban.length > BAN_CAP) sess.ban.shift();
+    if (!attFitsAll('ban')) sess.ban = prevBan;
     const s = JSON.stringify({ t: 'ban', dev, by: String(by || '').slice(0, 64) });
     for (const c of sess.clients.values()) c.send(s);
     for (const c of sess.clients.values()) if (c.dev === dev) { try { c.close(4004, 'banned'); } catch (e) {} }
@@ -427,7 +446,11 @@ server.on('upgrade', (req, socket, head) => {
     if (!have) { c.gkh = gk ? sha256hex(gk) : null; founded = admitted = !!c.gkh; if (founded) c.gmint = Date.now(); } // empty ⇒ found (R3)
     else if (gk && sha256hex(gk) === have) { c.gkh = have; admitted = true; }       // key match ⇒ join pool
     if (c.gkh) c.gseen = Date.now(); // a knock is proof of life — see genesisHash
-    if (admitted && gblob) { c.gblob = String(gblob).slice(0, GBLOB_CAP); c.gexp = Date.now() + GREETER_TTL_MS; }
+    if (admitted && gblob) {
+      const prev = { gblob: c.gblob, gexp: c.gexp };
+      c.gblob = String(gblob).slice(0, GBLOB_CAP); c.gexp = Date.now() + GREETER_TTL_MS;
+      if (!attFits(attOf(c), 'knock')) Object.assign(c, prev); // the Worker's saveAtt failed: the registration is not kept
+    }
     const list = greeterList(c);
     if (GREETDEBUG) greetLog(sess, parts[1], c, { gk, gblob, have, founded, admitted, listLen: list.length });
     c.send(JSON.stringify({ t: 'greeters', list, founded, admitted }));
@@ -483,6 +506,7 @@ server.on('upgrade', (req, socket, head) => {
       if ((p === peer || (dev && c.dev === dev)) && c.rs && c.rs !== rs) { rejectConn('that id is in use from another device'); return; }
     }
     conn.rs = rs;
+    if (!attFits(attOf(Object.assign({ peer, iph, dev, rs }, {})), 'join')) { rejectConn('join state too large'); return; } // the Worker closes 1008 when serializeAttachment throws
     for (const [p, c] of Array.from(sess.clients)) {
       if (p === peer || (dev && c.dev === dev)) {
         sess.clients.delete(p);
@@ -521,8 +545,10 @@ server.on('upgrade', (req, socket, head) => {
         sess.admTs.ban = +o.ts;
         const d = m.dev.slice(0, 16);
         if (!d) return;
+        const prevBan = sess.ban;
         sess.ban = (sess.ban || []).filter((b) => b.d !== d);
         if (m.t === 'ban') { sess.ban.push({ d }); if (sess.ban.length > BAN_CAP) sess.ban.shift(); }
+        if (!attFitsAll(m.t)) sess.ban = prevBan;
         const s = JSON.stringify({ t: m.t, dev: d, by: String(o.by || '').slice(0, 64) });
         for (const c of sess.clients.values()) c.send(s);
         if (m.t === 'ban') for (const c of sess.clients.values()) if (c.dev === d) { try { c.close(4004, 'banned'); } catch (e) {} }
@@ -534,7 +560,9 @@ server.on('upgrade', (req, socket, head) => {
         if (!o || !Array.isArray(o.devs)) return;
         if (!orderIsNew(sess, 'banlist', o.ts)) return;
         sess.admTs.banlist = +o.ts;
+        const prevBan = sess.ban;
         sess.ban = cleanBanList(o.devs);
+        if (!attFitsAll('banlist')) sess.ban = prevBan;
         for (const c of sess.clients.values()) if (c.dev && sess.ban.some((b) => b.d === c.dev)) { try { c.close(4004, 'banned'); } catch (e) {} }
         roster();
       } else if (m.t === 'votekick' && !sess.av && Array.isArray(m.devs)) {

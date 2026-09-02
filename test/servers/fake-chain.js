@@ -6,8 +6,9 @@
 // list, and a test hook plays the buyer's wallet:
 //
 //   POST /rpc              eth_blockNumber | eth_getLogs (address + topics[2])
-//   POST /_send            { to, value } — "a wallet sent USDC": appends a
-//                          Transfer log at the next block
+//   POST /_send            { to, value, from? } — "a wallet sent USDC": appends
+//                          a Transfer log at the next block (from defaults to
+//                          one fixed stranger address)
 //   GET  /_state           the log list, for assertions
 //
 // What it cannot verify it does not pretend to (docs/payments-testing.md):
@@ -49,6 +50,7 @@ http.createServer(async (req, res) => {
       const out = logs.filter((l) =>
         parseInt(l.blockNumber, 16) >= from
         && (!f.address || l.address === String(f.address).toLowerCase())
+        && (!f.topics || !f.topics[1] || l.topics[1] === String(f.topics[1]).toLowerCase())
         && (!f.topics || !f.topics[2] || l.topics[2] === String(f.topics[2]).toLowerCase()));
       return reply(out);
     }
@@ -58,7 +60,7 @@ http.createServer(async (req, res) => {
     let body; try { body = JSON.parse(await readBody(req)); } catch (e) { return send(res, 400, { error: 'not JSON' }); }
     const l = {
       address: USDC,
-      topics: [TRANSFER_TOPIC, pad('0x' + 'ab'.repeat(20)), pad(body.to)],
+      topics: [TRANSFER_TOPIC, pad(body.from || ('0x' + 'ab'.repeat(20))), pad(body.to)],
       data: '0x' + BigInt(body.value).toString(16).padStart(64, '0'),
       blockNumber: '0x' + (++block).toString(16),
       transactionHash: '0x' + 'cc'.repeat(28) + String(++txSeq).padStart(8, '0'),

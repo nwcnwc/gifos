@@ -301,12 +301,24 @@ async function until(url, ms) {
   check('the transfer sheet names RockWallet, the chain, and the signed payee address',
     /RockWallet/.test(tSheet) && /Base Sepolia/.test(tSheet) && tSheet.includes(CHAIN_PAYEE),
     tSheet.replace(/\s+/g, ' ').slice(0, 120));
+  // The buyer names the wallet they send from: the invoice is re-signed
+  // bound to it, and the amount on the sheet does not move.
+  const MY_WALLET = '0x' + '11'.repeat(20), OTHER_WALLET = '0x' + '22'.repeat(20);
+  await app.locator('#gpt-from').fill(MY_WALLET);
+  await app.locator('#gpt-bind').click();
+  await app.locator('#gpt-bound').filter({ hasText: /Bound to/ }).waitFor({ timeout: 8000 });
+  check('binding keeps the exact amount the sheet already showed', (await app.locator('#gpt-amt').textContent()) === tExact);
   // a WRONG amount from someone else's payment must not complete this invoice
-  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: '3000000' }) });
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: '3000000', from: MY_WALLET }) });
   await sleep(4000);
   check('a transfer of the WRONG amount is not claimed', await app.evaluate(() => !!document.getElementById('gifos-pay-transfer')));
   const tUnits = String(BigInt(Math.round(Number(tExact) * 1e6)));
-  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: tUnits }) });
+  // …and the EXACT amount from a wallet that is not the bound one is a
+  // stranger's payment, not this buyer's — the pre-minted-dust attack.
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: tUnits, from: OTHER_WALLET }) });
+  await sleep(4000);
+  check('the exact amount from ANOTHER wallet is not claimed (the invoice is bound to the payer)', await app.evaluate(() => !!document.getElementById('gifos-pay-transfer')));
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: tUnits, from: MY_WALLET }) });
   await fr.locator('#out').filter({ hasText: /ok:|err:/ }).waitFor({ timeout: 20000 });
   check('the exact transfer completes the payment with the same signed-receipt proof',
     (await fr.locator('#out').textContent()) === 'ok:transfer:3000000', await fr.locator('#out').textContent());
@@ -514,13 +526,25 @@ async function until(url, ms) {
     purse.led.length === 4 && purse.ent.length === 1, JSON.stringify(purse));
 
   // ---- over-ceiling and unsigned --------------------------------------------
-  // The broker cached this appId's VALID verdict when the real app charged,
-  // so an over-ceiling ask reaches the ceiling check and dies there — before
-  // any sheet, exactly where the doctrine wants it.
-  const over = await app.evaluate(() =>
-    GifOS.payBroker.charge({ appId: 'paytest', name: 'paytest', capabilities: { pay: true } }, new Uint8Array(0), { amount: '25000000', reason: 'too much' }, 'paytest')
-      .then(() => 'ALLOWED', (e) => String(e.message || e)));
+  // The broker cached the VALID verdict for these exact BYTES when the real
+  // app charged, so an over-ceiling ask reaches the ceiling check and dies
+  // there — before any sheet, exactly where the doctrine wants it.
+  const over = await app.evaluate(async () => {
+    const f = (await GifOS.store.allFiles()).find((x) => x.name === 'PayTest.gif');
+    return GifOS.payBroker.charge({ appId: 'paytest', name: 'paytest', capabilities: { pay: true } }, f.bytes, { amount: '25000000', reason: 'too much' }, 'paytest')
+      .then(() => 'ALLOWED', (e) => String(e.message || e));
+  });
   check('an ask above the ceiling is refused before any sheet', /ceiling/.test(over), over);
+  // The verdict cache is keyed by bytes, not appId: an impostor wearing the
+  // same appId gets its own (unsigned) verdict, never the signed one's.
+  const wear = await app.evaluate(() =>
+    GifOS.payBroker.charge({ appId: 'paytest', name: 'paytest', capabilities: { pay: true } }, new Uint8Array(0), { amount: '100000', reason: 'impostor' }, 'paytest')
+      .then(() => 'ALLOWED', (e) => String(e.message || e)));
+  check('other bytes under the same appId do NOT inherit the cached valid verdict', wear !== 'ALLOWED' && !/ceiling/.test(wear), wear);
+  // A PayPal receipt is read with the claim its checkout minted — never by
+  // order id alone, which is a bearer lookup on someone else's purchase.
+  const bare = await fetch(PAY + '/receipt/' + encodeURIComponent('ORDER-1'));
+  check('a receipt lookup without its claim is refused', bare.status === 403, bare.status);
 
   await app.close();
   const [app2] = await Promise.all([

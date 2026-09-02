@@ -15,10 +15,11 @@ proves about one it proves about the other.
 |---|---|
 | `POST /checkout` | derive the payee from the app's signing identity in the PUBLISHED catalog (never the client), create the PayPal order with the 3% `platform_fees` |
 | `GET /return` | PayPal lands the buyer back here; capture |
-| `GET /receipt/:id` | PayPal's own answer, wrapped in an Ed25519-signed receipt the OS verifies against `gifos.app/gifos.key` |
+| `GET /receipt/:id?claim=` | PayPal's own answer, wrapped in an Ed25519-signed receipt the OS verifies against `gifos.app/gifos.key` — only to the one-time claim `/checkout` returned, so an order id alone reads nothing |
 | `POST /x402/settle` | the standard x402 facilitator wire (verify + settle per transfer of the 97/3 split), same signed-receipt shape |
 | `POST /transfer/invoice` | the wallet-transfer rail (RockWallet + every self-custody wallet): signed stateless invoice, dust-unique amount, catalog payee |
-| `POST /transfer/receipt` | watch the chain (read-only `BASE_RPC`) for the exact transfer; same signed receipt, `feeCollected:false` |
+| `POST /transfer/bind` | re-sign that invoice bound to the payer's wallet address (amount and dust unchanged), so only a transfer FROM that wallet completes it |
+| `POST /transfer/receipt` | watch the chain (read-only `BASE_RPC`) for the exact transfer, from the bound wallet when there is one; same signed receipt, `feeCollected:false` |
 | `POST /fednow/rfp` | FedNow via a provider (`FEDNOW_API`, Finzly-shaped — FedNow itself has no public API); payee = the registered account for the signing identity (`FEDNOW_PAYEES`) |
 | `GET /fednow/receipt/:id` | poll the RfP to settlement; same signed receipt, `feeCollected:false` |
 | `GET\|POST /mpp/charge/:appId?sku=&amount=` | the AGENT rail — Machine Payments Protocol (HTTP 402, mpp.dev), the wire Stripe's Link agent wallet speaks (link.com/agents): a `WWW-Authenticate: Payment … method="stripe"` challenge, then a Shared Payment Token back, settled as a Stripe Connect DESTINATION charge to the author's connected account with the 3% as `application_fee_amount`; same signed receipt, plus a `Payment-Receipt` header |

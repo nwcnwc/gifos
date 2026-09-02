@@ -81,7 +81,7 @@ async function init(env) {
 // one call per 1.5–3 s per purchase, well inside the budget.
 const REQ_PER_MIN_PER_IP = 240;
 const CREATES_PER_MIN_PER_IP = 40;   // order/invoice/settle/rfp creation
-const CREATE_PATHS = new Set(['/checkout', '/x402/settle', '/transfer/invoice', '/fednow/rfp', '/receipt/file']);
+const CREATE_PATHS = new Set(['/checkout', '/x402/settle', '/transfer/invoice', '/transfer/bind', '/fednow/rfp', '/receipt/file']);
 const ipHits = new Map();
 function ipKey(ip) {
   ip = String(ip || '');
