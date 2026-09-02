@@ -175,8 +175,11 @@ async function measureStems(fr, hz, amp) {
   // reach it, so the honest test is structural: exactly the two abilities the
   // manifest declares are offered, and no network row got in.
   const capRows = await app.locator('.perm-box [data-cap]').evaluateAll((els) => els.map((e) => e.getAttribute('data-cap')).sort());
-  check('...and offers exactly those two abilities and no network',
-    capRows.join(',') === 'gpu,wasm', capRows);
+  // The manifest also PINS its model files (assets: url + sha256), and the
+  // sheet lists that as its own ability — a pinned download is a stated fact
+  // about what arrives, not a host the app may talk to (no data-host row).
+  check('...and offers exactly those three abilities and no network',
+    capRows.join(',') === 'assets,gpu,wasm', capRows);
   check('...with NO host row, so nothing here can reach a server',
     (await app.locator('.perm-box [data-host]').count()) === 0);
   // The chip carries ONE name in every state — it used to rename itself

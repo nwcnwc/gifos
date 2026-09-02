@@ -977,7 +977,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // The whole point: (name, password) reconstruct the SAME room from scratch.
   // Independent reimplementation of the CURRENT scheme (§SIG, run.html
   // deriveAdminKey → net.edKeysFromSeedHex): V commits to the Ed25519 PUBLIC
-  // key that K seeds — V = SHA-256(base64(pub)).slice(0,24). The old
+  // key that K seeds — V = SHA-256(pub raw bytes).slice(0,24). The old
   // V = SHA-256(K-hex) died with the relay adm stamp; this leg still computed
   // it, so it failed against every current room. Third stale lever found by
   // getting the suite this deep.
@@ -990,8 +990,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const jwk = await crypto.subtle.exportKey('jwk', priv);
     const xb = jwk.x.replace(/-/g, '+').replace(/_/g, '/');
     const pubRaw = Uint8Array.from(atob(xb + '='.repeat((4 - xb.length % 4) % 4)), (c) => c.charCodeAt(0));
-    const pubB64 = btoa(String.fromCharCode(...pubRaw));
-    const vb = await crypto.subtle.digest('SHA-256', enc.encode(pubB64));
+    // CRY-13 (flag day gifos-net-4): V hashes the RAW 32-byte public key, not
+    // its base64 text — net.edKeysFromSeedHex: sha256hexOfBytes(k.pubRaw).
+    const vb = await crypto.subtle.digest('SHA-256', pubRaw);
     return Array.from(new Uint8Array(vb)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 24); // 24-hex truncated verifier
   }, { r: chosenRoom, p: 'sesame-topsecret' });
   check('the same name + password re-derive the same room, from nothing', rederived === admV);

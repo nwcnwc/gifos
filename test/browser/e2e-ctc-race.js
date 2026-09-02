@@ -128,14 +128,36 @@ function stub() {
     (await rowText('Bo')).indexOf('🔥' + 2) >= 0 && (await rowText('Cy')).indexOf('🔥') < 0,
     { bo: await rowText('Bo'), cy: await rowText('Cy') });
 
-  // I finish. The round is not over — two friends are still chasing.
-  await page.evaluate(() => window.__game.events.emit('ctc-win', { clicks: 11 }));
-  await page.waitForTimeout(200);
+  // I finish — through the real rules, not a Phaser event: the visible board is
+  // GifCat.view over GifCat.rules now and the Phaser scene is a hidden engine
+  // with its loop stopped, so nothing listens for 'ctc-win' any more. Wall
+  // five of my cat's six neighbours straight into the engine, then lay the
+  // sixth with a genuine tap on its hex pad, so the pen closes the way a
+  // player's does (view → boot's tap → rules.tap). Same recipe as
+  // e2e-catch-the-cat-room.js. The round is not over — two friends are still
+  // chasing.
+  const myClicks = await page.evaluate(() => {
+    const R = window.GifCat.rules, E = window.GifCat.engine;
+    const me = R.myCat();
+    const nbs = E.neighbours(me.i, me.j).filter((n) => E.inside(n.i, n.j));
+    const last = nbs.find((n) => !R.isWall(n.i, n.j));
+    nbs.forEach((n) => { if (n !== last) E.setWall(n.i, n.j, true); });
+    const h = document.querySelector('.cell .hit[data-i="' + last.i + '"][data-j="' + last.j + '"]');
+    h.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, clientX: 5, clientY: 5 }));
+    document.getElementById('stage').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, clientX: 5, clientY: 5 }));
+    return R.clicks();
+  });
+  const myTaps = myClicks === 1 ? '1 tap' : myClicks + ' taps';   // boot.js taps()
+  await page.waitForTimeout(1000);
   check('finishing says the round is not over yet', (await page.innerText('#status')).indexOf('Waiting on the others') >= 0, await page.innerText('#status'));
+  // The lock is #stage.done: the hex pads stop taking a pointer, while the
+  // stage itself keeps every gesture (touch-action: none is the APP owning
+  // the pinch and the drag, not the browser) — so a finished board can still
+  // be turned and zoomed.
   check('...and my finished board stops taking taps',
-    await page.evaluate(() => getComputedStyle(document.getElementById('board')).pointerEvents) === 'none');
+    await page.evaluate(() => getComputedStyle(document.querySelector('.cell .hit')).pointerEvents) === 'none');
   check('...while the pinch survives the lock',
-    await page.evaluate(() => getComputedStyle(document.getElementById('board')).touchAction) === 'pinch-zoom');
+    await page.evaluate(() => { const s = getComputedStyle(document.getElementById('stage')); return s.pointerEvents !== 'none' && s.touchAction === 'none'; }));
   check('...and the round is NOT called early',
     await page.evaluate(() => document.getElementById('flash').hidden) === true);
   check('...and the button is still New board',
@@ -149,10 +171,10 @@ function stub() {
   await page.waitForTimeout(300);
 
   const flash = await page.evaluate(() => document.getElementById('flash').textContent);
-  check('the winner is told, over the board', /yours/i.test(flash) && flash.indexOf('11 taps') >= 0, flash);
+  check('the winner is told, over the board', /yours/i.test(flash) && flash.indexOf(myTaps) >= 0, { flash, myTaps });
   check('...and in the status line', /take[s]? round 1/i.test(await page.innerText('#status')), await page.innerText('#status'));
   check('...and the button asks for the next round', (await page.innerText('#again')).trim() === 'Next round');
-  check('the win lands in my column', (await rowText('Ana')).indexOf('1') >= 0 && (await rowText('Ana')).indexOf('11 taps') >= 0, await rowText('Ana'));
+  check('the win lands in my column', (await rowText('Ana')).indexOf('1') >= 0 && (await rowText('Ana')).indexOf(myTaps) >= 0, await rowText('Ana'));
   check('the escaped cat is named, not scored', (await rowText('Cy')).indexOf('got away') >= 0, await rowText('Cy'));
   check('the round head says it is over', (await roster()).toLowerCase().indexOf('over') >= 0, await roster());
 
@@ -164,7 +186,7 @@ function stub() {
   check('Next round deals a new board', after.seed !== before, { before, after: after.seed });
   check('...and numbers it', after.n === 2, after);
   check('...and clears the verdict', await page.evaluate(() => document.getElementById('flash').hidden) === true);
-  check('...and gives the board back', await page.evaluate(() => getComputedStyle(document.getElementById('board')).pointerEvents) !== 'none');
+  check('...and gives the board back', await page.evaluate(() => getComputedStyle(document.querySelector('.cell .hit')).pointerEvents) !== 'none');
   check('...and the series carries over', (await rowText('Ana')).indexOf('1') >= 0 && (await rowText('Bo')).indexOf('2') >= 0,
     { ana: await rowText('Ana'), bo: await rowText('Bo') });
   check('...while this board starts blank', (await rowText('Ana')).indexOf('0 taps') >= 0, await rowText('Ana'));
