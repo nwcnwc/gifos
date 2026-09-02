@@ -81,7 +81,18 @@ if (!acorn) {
     // emscripten's stdin shim. Reached only if the wasm module reads stdin;
     // espeak is handed its text and tesseract its image, so neither does.
     'offline-tts/vendor/espeak.js',
-    'tesseract/vendor/tesseract-core-simd-lstm.js'
+    'tesseract/vendor/tesseract-core-simd-lstm.js',
+    // The same emscripten stdin shim ("Input: "). ffmpeg is handed its
+    // arguments and every invocation in app.js passes -y, so it never asks
+    // on stdin; sql.js is a library and sqlite never reads stdin; TIC-80's
+    // console is drawn in its own canvas, and its other prompt is the
+    // ASSERTIONS-build abort dialog, which treats a null answer as "ignore".
+    'ffmpeg-studio/vendor/ffmpeg-core.js',
+    'sql-playground/vendor/sql-wasm.js',
+    'tic80/vendor/tic80.js',
+    // A Worker script: it guards on globalThis.window?.prompt, and a Worker
+    // has no window, so the branch is dead by construction.
+    'cascade-studio/vendor/cascade-worker.js'
   ]);
   const offenders = [];
   let scanned = 0;

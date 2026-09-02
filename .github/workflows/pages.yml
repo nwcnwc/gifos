@@ -86,7 +86,9 @@ jobs:
       - name: Cache-bust local css/js assets
         run: |
           SHA="${GITHUB_SHA::8}"
-          find site -name '*.html' -print0 \
+          # site/versions/ holds FROZEN release snapshots: what is served must
+          # be what is committed, so they are excluded from the rewrite.
+          find site -path site/versions -prune -o -name '*.html' -print0 \
             | xargs -0 sed -i -E "s/(href|src)=\"([^\":?]+\.(css|js))\"/\1=\"\2?v=${SHA}\"/g"
       - uses: actions/upload-pages-artifact@v3
         with:

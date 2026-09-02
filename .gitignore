@@ -14,3 +14,14 @@ test/unit/sample.gif
 test/out/
 __pycache__/
 apps/bible/.cache/
+# wrangler's local secrets file and any env file — a `git add -A` after a
+# `wrangler dev` session must never publish a PayPal secret or the receipt key.
+.dev.vars
+**/.dev.vars
+.env
+.env.*
+*.pem
+*.jwk
+*-SECRET*.json
+# the never-committed fleet hosts file (CLAUDE.md), should it ever land in a clone
+.gifos-behavior-hosts.json

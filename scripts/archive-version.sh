@@ -16,6 +16,8 @@
 set -euo pipefail
 
 V="${1:?usage: archive-version.sh <x.y.z>}"
+# The argument becomes a path, a <base href> and a sed pattern: only x.y.z.
+[[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "archive-version.sh: version must be x.y.z (got '$V')" >&2; exit 2; }
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SITE="$ROOT/site"
 DEST="$SITE/versions/$V"

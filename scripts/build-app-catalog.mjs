@@ -74,7 +74,30 @@ const SRC = path.join(ROOT, 'apps');
 })();
 if (!globalThis.crypto) globalThis.crypto = crypto.webcrypto;
 createRequire(import.meta.url)(path.join(ROOT, 'site/js/gifos-gif.js'));
+createRequire(import.meta.url)(path.join(ROOT, 'site/js/gifos-ed.js'));
+createRequire(import.meta.url)(path.join(ROOT, 'site/js/gifos-sign.js'));
 const gifCodec = globalThis.GifOS.gif;
+const signMod = globalThis.GifOS.sign;
+// The site's own published key: a listed GIF's GIFOSSIG must VERIFY against it
+// under --require-signed, not merely exist. A stale re-pack, a wrong-key
+// signature or a hand edit that kept the old block used to pass the gate and
+// then fail every Install in the browser.
+let sitePub = null;
+try { sitePub = Buffer.from(fs.readFileSync(path.join(ROOT, 'site', 'gifos.key'), 'utf8').trim(), 'base64'); } catch (e) { sitePub = null; }
+async function claimVerifies(bytes) {
+  if (!sitePub || sitePub.length !== 32) return false;
+  const at = bytes.indexOf(Buffer.from('GIFOSSIG'));
+  if (at < 0) return false;
+  let p = at + 11; const parts = [];
+  while (p < bytes.length) { const n = bytes[p]; if (!n) break; parts.push(bytes.subarray(p + 1, p + 1 + n)); p += 1 + n; }
+  let sig; try { sig = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch (e) { return false; }
+  if (!sig || sig.type !== 'domain' || sig.id !== 'gifos.app' || typeof sig.sig !== 'string') return false;
+  try {
+    const chHex = Buffer.from(await signMod.contentHash(new Uint8Array(bytes))).toString('hex');
+    const st = signMod.statement('domain', 'gifos.app', chHex);
+    return await signMod._ed25519Verify(new Uint8Array(sitePub), signMod._b64ToBytes(sig.sig), st);
+  } catch (e) { return false; }
+}
 const OUT = path.join(ROOT, 'site', 'apps');
 const CHECK = process.argv.includes('--check');
 const REQUIRE_SIGNED = process.argv.includes('--require-signed');
@@ -443,6 +466,8 @@ async function buildApp(slug) {
     if (REQUIRE_SIGNED) fail(slug + ': listed GIF has no GIFOSSIG — node scripts/sign-apps.mjs');
   } else if (claim.type !== 'domain' || claim.id !== 'gifos.app') {
     fail(slug + ': listed GIF is signed as ' + (claim.id || '(none)') + ' — certified apps sign as gifos.app');
+  } else if (REQUIRE_SIGNED && gifBytes && !(await claimVerifies(gifBytes))) {
+    fail(slug + ': listed GIF carries a gifos.app GIFOSSIG that does not verify against site/gifos.key — node scripts/sign-apps.mjs ' + slug);
   }
 
   for (const f of ['tagline', 'description', 'author', 'releaseDate', 'categories', 'license']) {

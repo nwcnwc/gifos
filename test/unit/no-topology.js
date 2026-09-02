@@ -81,6 +81,11 @@ function tracked() {
 // "everything was checked".
 const MAX_BYTES = 262144;
 const BINARY = /\.(gif|png|jpe?g|ico|woff2?|ttf|otf|eot|wasm|mp3|wav|ogg|mp4|webm|pdf|zip|gz|tgz|onnx|gguf|bin|so|a|o)$/i;
+// The size cap exists for vendored bundles and data blobs under apps/ and
+// site/apps/. The shell's own files are prose and code written by hand —
+// run.html alone is ~900 KB, and every frozen snapshot of it is served by
+// gifos.app — so those are scanned whatever their size.
+const HAND_WRITTEN = /^(site\/(?!apps\/)[^\0]*\.(html|js|css|md|txt|json|webmanifest)|(docs|scripts|test|relay|pay|cors-proxy|mirror)\/[^\0]*\.(html|js|mjs|css|md|txt|json|sh|ya?ml|toml)|[^\/]+\.(md|json|sh|txt))$/i;
 let skippedBig = 0, skippedBinary = 0, scannedBytes = 0;
 
 function scannable() {
@@ -89,7 +94,7 @@ function scannable() {
     if (BINARY.test(f)) { skippedBinary++; continue; }
     let n = 0;
     try { n = fs.statSync(path.join(ROOT, f)).size; } catch (e) { continue; }
-    if (n > MAX_BYTES) { skippedBig++; continue; }
+    if (n > MAX_BYTES && !HAND_WRITTEN.test(f)) { skippedBig++; continue; }
     out.push(f);
     scannedBytes += n;
   }
