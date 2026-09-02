@@ -98,9 +98,20 @@
           // records by (app, collection, id) for O(range) reads — see appRange().
           if (!db.objectStoreNames.contains('apprecords')) db.createObjectStore('apprecords', { keyPath: ['fileId', 'collection', 'id'] });
         };
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => {
+          const db = req.result;
+          // Another tab upgrading (or deleting) this database: let go, and
+          // open afresh on the next call instead of holding a dead handle.
+          db.onversionchange = () => { try { db.close(); } catch (e) {} if (dbp === p) dbp = null; };
+          resolve(db);
+        };
         req.onerror = () => reject(req.error);
+        req.onblocked = () => reject(new Error('the computer\'s database is held open by another tab — close it and reload'));
       });
+      const p = dbp;
+      // A failed open is not the page's fate: forget it so the next call can
+      // try again (a dismissed quota prompt, a private-mode race).
+      p.catch(() => { if (dbp === p) dbp = null; });
       return dbp;
     }
 
@@ -347,6 +358,15 @@
       allItems: () => tx('items', 'readonly', (os) => reqP(os.getAll())),
       deleteItem: (id) => tx('items', 'readwrite', (os) => reqP(os.delete(id))),
       // ---- app state (lives with the icon) — assembled/exploded views ----
+      // "Does this app hold any data?" without assembling it: a count over the
+      // app's record range for per-record apps, the blob's own keys otherwise.
+      appHasData: (fileId) => txMulti(['appstate', 'apprecords'], 'readonly', (s) => reqP(s.appstate.get(fileId)).then((r) => {
+        if (!r || !r.state) return false;
+        if (r.state._perRecord) return reqP(s.apprecords.count(appRange(fileId))).then((n) => n > 0);
+        const st = r.state;
+        if (st.collections) { for (const c in st.collections) { const coll = st.collections[c]; if (coll && Object.keys(coll).length) return true; } return false; }
+        return Object.keys(st).length > 0;
+      })),
       getState: (fileId) => txMulti(['appstate', 'apprecords'], 'readonly', (s) => reqP(s.appstate.get(fileId)).then((r) => {
         if (!r) return null;
         if (r.state && r.state._perRecord) return assemble(s.apprecords, fileId, r.state);

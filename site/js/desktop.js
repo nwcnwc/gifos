@@ -141,7 +141,10 @@
         const cur = byId.get(rec.id);
         if (!cur) return rec;
         for (const k of Object.keys(cur)) if (!(k in rec)) delete cur[k];
-        return Object.assign(cur, rec);
+        // Object.assign would invoke the __proto__ setter on a restored row
+        // that carries that key; copy own keys by name instead.
+        for (const k of Object.keys(rec)) { if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue; cur[k] = rec[k]; }
+        return cur;
       });
     });
   }
@@ -496,7 +499,10 @@
         if (items.find((i) => i.fileId === fileId)) continue;  // already placed
         await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: file.name || 'Receipt.gif', iconSize: 64 }, { into: folder.id });
       }
-      localStorage.removeItem(PAY_PENDING);
+      // Only what THIS pass placed leaves the queue: the purchase tab may have
+      // appended another receipt while the awaits above were pending.
+      let left = []; try { left = (JSON.parse(localStorage.getItem(PAY_PENDING) || '[]') || []).filter((id) => q.indexOf(id) < 0); } catch (e) {}
+      if (left.length) localStorage.setItem(PAY_PENDING, JSON.stringify(left)); else localStorage.removeItem(PAY_PENDING);
       await load(); render();
     } finally { drainingReceipts = false; }
   }
@@ -542,10 +548,10 @@
     const stamp = (root.GIFOS_VERSION || 'edge') + ':' + (Number(root.GIFOS_BUILD) || 0);
     let flagged = false, stored = null;
     try {
-      flagged = localStorage.getItem('gifos_reseed') === '1';
-      stored = localStorage.getItem('gifos_reseed_build');
-      localStorage.removeItem('gifos_reseed');
-      localStorage.setItem('gifos_reseed_build', stamp);
+      flagged = localStorage.getItem(nsKey('gifos_reseed')) === '1';
+      stored = localStorage.getItem(nsKey('gifos_reseed_build'));
+      localStorage.removeItem(nsKey('gifos_reseed'));
+      localStorage.setItem(nsKey('gifos_reseed_build'), stamp);
     } catch (e) {}
     if (!flagged && !(stored && stored !== stamp)) return;
     try {
@@ -781,8 +787,12 @@
         // they are cheap — but they are still not worth withholding a desktop
         // for, and they can change under us, so they are re-read per pass.
         if (rec.isApp && !SYSTEM_LAUNCHERS[rec.appId]) {
-          const st = await Promise.resolve(store.getState(fileId)).catch(() => null);
-          const fr = !stateHasData(st);
+          // Asked as a COUNT: assembling the state pulls every row into memory
+          // — for My Media that is every photo and clip — after every repaint.
+          const has = store.appHasData
+            ? await Promise.resolve(store.appHasData(fileId)).catch(() => false)
+            : stateHasData(await Promise.resolve(store.getState(fileId)).catch(() => null));
+          const fr = !has;
           if (fr !== !!d.fresh) { d.fresh = fr; changed = true; }
         }
         if (rec.isApp && rec.kind === 'gif') {
@@ -792,7 +802,12 @@
         }
         decor.set(fileId, d);
       }
-    } finally { decorRunning = false; }
+    } finally {
+      decorRunning = false;
+      // A render that landed while this pass ran parked its view in
+      // decorQueue and was told "your own pass will run" — this is that pass.
+      if (decorQueue) { const q = decorQueue; decorQueue = null; scheduleDecorate(q); }
+    }
     if (changed && renderSeq === seq) render();
   }
 
@@ -828,7 +843,9 @@
   }
   // Another tab (or an app page) may have rewritten any file: forget everything
   // visual and repaint from scratch. Only runs on cross-tab / refocus events.
+  let bgDirty = true; // the wallpaper is re-read at boot, on a change, and after a cross-tab sync — never per repaint
   function dropRenderCaches() {
+    bgDirty = true;
     fileCache.clear();
     appMetaCache.clear();
     artCache.clear();
@@ -969,7 +986,7 @@
     els.forEach((el) => surface.appendChild(el));
     dropHint.style.display = visible.length ? '' : 'none'; // the empty hint explains instead
     updateExtent();
-    applyBackground();
+    if (bgDirty) { bgDirty = false; applyBackground(); }
     pruneFileCaches(new Set(visible.map((it) => it.fileId)));
     // Lightweight observability: how big the last paint was, how many icons it
     // reused vs. rebuilt, and current cache sizes. Read from the console via
@@ -1391,12 +1408,20 @@
       const spot = nearestFreeCell(aim.x, aim.y, dest, it.id);
       it.x = spot.x; it.y = spot.y;
     }
-    await store.putItem(it);
     // Keep the in-memory list authoritative so a BURST of saves — importing ten
     // files, unpacking a folder bundle — sees its own earlier placements
-    // instead of piling every one of them onto the same free cell.
+    // instead of piling every one of them onto the same free cell. The cell is
+    // reserved BEFORE the write is awaited: two saves interleaved at that
+    // await used to both find it free.
     const i = items.findIndex((n) => n.id === it.id);
+    const prev = i >= 0 ? Object.assign({}, items[i]) : null;
     if (i >= 0) Object.assign(items[i], it); else items.push(it);
+    try { await store.putItem(it); }
+    catch (e) {
+      const j = items.findIndex((n) => n.id === it.id);
+      if (prev) { if (j >= 0) items[j] = prev; } else if (j >= 0) items.splice(j, 1);
+      throw e;
+    }
     return it;
   }
 
@@ -1815,8 +1840,10 @@
   }
 
   function isInTrash(it) {
-    let p = it.parent || null;
-    while (p) {
+    let p = it.parent || null, hops = 0;
+    // A parent cycle (two folders inside each other — a crafted backup, or
+    // two tabs dragging at once) must not pin the tab in this loop forever.
+    while (p && hops++ < 256) {
       if (p === TRASH_ID) return true;
       const parent = items.find((i) => i.id === p);
       p = parent ? (parent.parent || null) : null;
@@ -2049,8 +2076,9 @@
   }
   function descendantsOf(id) {
     const out = [];
+    const seen = new Set([id]); // a parent cycle would recurse without end
     const walk = (pid) => {
-      for (const c of items.filter((i) => i.parent === pid)) { out.push(c); walk(c.id); }
+      for (const c of items.filter((i) => i.parent === pid)) { if (seen.has(c.id)) continue; seen.add(c.id); out.push(c); walk(c.id); }
     };
     walk(id);
     return out;
@@ -2158,6 +2186,16 @@
 
   // ---------- whole-desktop backup/restore: your computer as ONE GIF ----------
   async function backupDesktop() {
+    try { return await backupDesktopInner(); }
+    catch (e) {
+      // A backup that did not happen must SAY so — past the JSON/base64
+      // string ceiling this rejected silently, and "Back up first, then
+      // erase" went on as if a file had been saved.
+      showModal('Backup failed', 'The backup could not be built: ' + escapeHtml(String(e && e.message || e)) + '.<br><br>A very large computer can exceed what one GIF can hold in this browser; try again in a normal (not private) window with more free memory, or back up the biggest apps one at a time (right-click → Download).');
+      throw e;
+    }
+  }
+  async function backupDesktopInner() {
     const [allItems, allFiles, allStates] = await Promise.all([store.allItems(), store.allFiles(), store.allStates()]);
     const archive = {
       'manifest.json': JSON.stringify({ gifos: '1.0', type: 'desktop', name: 'GifOS Desktop Backup', version: VERSION, savedAt: store.nowISO() }),
@@ -2180,6 +2218,19 @@
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 
+  function sanitizeItems(list) {
+    const out = [];
+    for (const raw of Array.isArray(list) ? list : []) {
+      if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || !raw.id) continue;
+      const it = {};
+      for (const k of Object.keys(raw)) { if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue; it[k] = raw[k]; }
+      out.push(it);
+    }
+    const byId = new Map(out.map((i) => [i.id, i]));
+    const rooted = (it) => { let p = it.parent || null, hops = 0; while (p && hops++ < 256) { const n = byId.get(p); if (!n) return true; p = n.parent || null; } return !p; };
+    for (const it of out) if (!rooted(it)) it.parent = null; // a cycle member is re-homed at the root rather than lost
+    return out;
+  }
   async function restoreDesktop(archive) {
     const dj = store.unpackJSON(gif.bytesToText(archive.files['desktop.json']));
     await store.clearAll();
@@ -2191,7 +2242,10 @@
     // all. saveItem cannot help here anyway — clearAll() has just emptied the
     // store while `items` still holds the OLD desktop, so every free-cell
     // search would be answered against a list that no longer exists.
-    for (const it of dj.items || []) await store.putItem(it);
+    // Verbatim, but not blind: an item is an object with a string id, carries
+    // no prototype-member keys, and its parent chain ends at the root — a
+    // cycle in a backup would otherwise hang every trash walk for good.
+    for (const it of sanitizeItems(dj.items || [])) await store.putItem(it);
     for (const s of dj.states || []) await store.setState(s.fileId, s.state);
     for (const url of blobUrls.values()) URL.revokeObjectURL(url);
     blobUrls.clear();
@@ -2302,7 +2356,9 @@
         return;
       }
     }
-    if (bg && bg.color) { surface.style.background = bg.color; return; }
+    // A colour, only: prefs come back verbatim from a restored backup, and a
+    // url(...) here would be a beacon fired on every paint.
+    if (bg && typeof bg.color === 'string' && /^(#[0-9a-f]{3,8}|[a-z]{1,30}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%]+\))$/i.test(bg.color.trim())) { surface.style.background = bg.color.trim(); return; }
     surface.style.background = '';   // the default CSS gradient
   }
   async function setBackgroundColor(color) {
@@ -2476,6 +2532,10 @@
   // opt-offs and signed-app trust pins, invite history, and the saved name/uid
   // — a fresh computer regenerates those. The version channel is intentionally
   // NOT erased so the user stays on their chosen build.
+  // A per-desktop localStorage key: bare on the real computer, suffixed with
+  // the database name inside a booted image, so an image never consumes the
+  // host's reseed flag or marks the host's sweeps as done.
+  function nsKey(k) { return store.dbName === 'gifos' ? k : k + '::' + store.dbName; }
   function eraseLocalStorage() {
     try {
       const kill = [];
@@ -2504,6 +2564,15 @@
   }
 
   async function eraseComputer() {
+    // Inside a BOOTED IMAGE only the image's own database is this desktop;
+    // localStorage (API keys, identity, channel) and the shell cache are the
+    // host's, and boot.html promised the host is untouched.
+    if (store.dbName !== 'gifos') {
+      try { localStorage.setItem(nsKey('gifos_reseed'), '1'); } catch (e) {}
+      await store.clearAll();
+      location.reload();
+      return;
+    }
     eraseLocalStorage();
     // Set the reseed flag for the build we're about to land on so it bakes the
     // current default apps into the fresh desktop (the flag is consumed by
@@ -2959,7 +3028,7 @@
       const k = localStorage.key(i);
       let m;
       if ((m = /^pay\.led:(.+):(\d+)$/.exec(k))) {
-        (apps[m[1]] = apps[m[1]] || { led: [], ent: [] }).led.push(JSON.parse(localStorage.getItem(k)));
+        try { (apps[m[1]] = apps[m[1]] || { led: [], ent: [] }).led.push(JSON.parse(localStorage.getItem(k))); } catch (e) { /* one corrupt ledger row must not close Settings */ }
       } else if ((m = /^pay\.ent:([^:]+):(.+)$/.exec(k))) {
         (apps[m[1]] = apps[m[1]] || { led: [], ent: [] }).ent.push(m[2]);
       }
@@ -2986,7 +3055,7 @@
         '<div class="pay-head"><b>' + escapeHtml(id) + '</b><span class="pay-dim">' + a.led.length + ' payment' + (a.led.length === 1 ? '' : 's') + ' · ' + payUsd(String(spent)) + ' total</span></div>' +
         (ent ? '<div class="pay-ents">Purchased: ' + ent + '</div>' : '') +
         led +
-        '<div class="pay-cap-row">Per-charge ceiling $<input class="pay-cap" data-app="' + escapeHtml(id) + '" type="number" min="0" step="1" value="' + (Number(BigInt(cap) / 10000n) / 100) + '"></div>' +
+        '<div class="pay-cap-row">Per-charge ceiling $<input class="pay-cap" data-app="' + escapeHtml(id) + '" type="number" min="0" step="1" value="' + (function () { try { return Number(BigInt(cap) / 10000n) / 100; } catch (e) { return ''; } })() + '"></div>' +
         '</div>';
     }).join('');
     return '<details class="adv"><summary>Payments</summary>' +
@@ -3342,7 +3411,7 @@
         (h.length ? '<div class="hist-clearwrap"><a class="hist-clear-link" id="hist-clear">Clear all invites</a></div>' : '');
       // Tapping a row opens the invite in a new tab — a direct gesture, so it's
       // allowed on iOS (unlike the deferred app-open, which reserves its tab).
-      box.querySelectorAll('.hist-open').forEach((a) => { a.onclick = () => { const u = a.getAttribute('data-url'); if (u) root.open(u, '_blank'); }; });
+      box.querySelectorAll('.hist-open').forEach((a) => { a.onclick = () => { const u = a.getAttribute('data-url'); if (u && /^https?:\/\//i.test(u)) root.open(u, '_blank'); }; });
       box.querySelectorAll('.hist-del').forEach((b) => { b.onclick = (ev) => { ev.stopPropagation(); const arr = loadInviteHistory(); arr.splice(+b.getAttribute('data-i'), 1); saveInviteHistory(arr); paint(); }; });
       const clr = box.querySelector('#hist-clear'); if (clr) clr.onclick = () => {
         const n = loadInviteHistory().length;
@@ -3581,7 +3650,7 @@
       return;
     }
     if (isApp) {
-      const go = launch.map(([k, v]) => '&' + k + '=' + encodeURIComponent(v)).join('');
+      const go = launch.map(([k, v]) => '&' + encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('');
       location.href = 'run.html#id=' + encodeURIComponent(fileId) + nsParam('&db=') + go;
       return;
     }
@@ -3735,7 +3804,7 @@
     restoreInput.value = '';
     if (!f) return;
     const bytes = new Uint8Array(await f.arrayBuffer());
-    const archive = await gif.decode(bytes);
+    const archive = await gif.decode(bytes).catch(() => null);
     if (!archive || !archive.files['desktop.json']) {
       showModal('Not a backup GIF', 'That GIF is not a GifOS backup. (App snapshots load by dropping them on the Home Screen.)');
       return;
@@ -3751,7 +3820,7 @@
       'This is not just the Home Screen layout — it wipes the <b>whole computer</b> stored in this browser: every app, file, folder, wallpaper, and all app state. It then reinstalls a fresh computer on the latest version from gifos.app. There is no undo and no server copy.',
       [
         { label: 'Back up first, then erase', fn: async () => {
-          await backupDesktop();
+          if (!(await backupDesktop().then(() => true, () => false))) return; // no backup, no erase
           showConfirm('Backup downloaded', 'Your computer image is downloading — it can boot or restore this exact computer later. Erase and reinstall the latest now?',
             [{ label: 'Erase This Computer', danger: true, fn: eraseComputer }]);
         } },
@@ -3849,7 +3918,7 @@
   // stamp and runs again next boot, and any file it never reaches is still
   // repaired on sight by getArtCached. Nothing here writes a FILE — only the
   // '::art' cache beside it.
-  const ART_SWEEP_KEY = 'gifos_art_backfill';
+  const ART_SWEEP_KEY = nsKey('gifos_art_backfill');
   const ART_SWEEP_V = '1';
   async function backfillOrnaments() {
     if (!store.getArt || !store.putArt) return;

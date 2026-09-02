@@ -3783,7 +3783,7 @@
               }
               return { collections: cols };
             };
-            let stageBus = null, stageSigner = null, stageUnsub = null, snapTimer = null;
+            let stageBus = null, stageSigner = null, stageUnsub = null, snapTimer = null, deltaTimer = null;
             // Binary (My Media's photo/video Uint8Array) rides the state RAW:
             // the mesh transport (gifos-net seal/open) already round-trips a
             // typed array losslessly, and canonical() signs it to a stable
@@ -3909,8 +3909,11 @@
                 });
                 // Refresh the retained snapshot (with app bytes) on a debounce,
                 // and push a live delta immediately, on every change.
+                // The delta is coalesced on a short trailing edge: every put
+                // used to assemble, sign and broadcast the FULL state, so an
+                // app writing per keystroke multiplied that by its rate.
                 stageOnChange = () => {
-                  sendDelta();
+                  if (!deltaTimer) deltaTimer = setTimeout(() => { deltaTimer = null; sendDelta(); }, 40);
                   if (!snapTimer) snapTimer = setTimeout(() => { snapTimer = null; sendSnap(); }, 1200);
                 };
                 announceConn({ mode: 'host', counts: { up: 0, soft: 0, warn: 0 }, total: 0, p2p: 0, self: 'up' });
