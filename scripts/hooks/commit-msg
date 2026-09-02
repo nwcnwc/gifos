@@ -69,6 +69,15 @@ for (const h of ((fleet && fleet.hosts) || [])) {
 for (const generic of ['local', 'localhost']) names.delete(generic);
 const hostish = [...names].filter((n) => n.length >= 4);
 
+// A NAME, NOT A SUBSTRING — the same rule test/unit/no-topology.js applies, and
+// the two must not drift: a name the gate allows and this hook refuses would
+// block commits over text that merely contains one inside a longer word. A
+// match may not be FLANKED by [A-Za-z0-9]; hyphen, dot, slash, @ and whitespace
+// are not in that class, so `<name>-2`, `<name>.local` and `user@<name>` still
+// match.
+const esc = (n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const needle = (n) => new RegExp('(?<![A-Za-z0-9])' + esc(n) + '(?![A-Za-z0-9])', 'i');
+
 // The four patterns, shared with test/unit/no-topology.js so the two can never
 // disagree. A broken require must not block every commit in the repo, but it
 // must not be silent either — the one thing worse than a noisy guard is one
@@ -88,7 +97,7 @@ const lines = msg.split('\n').filter((l) => !/^\s*#/.test(l));
 const hits = [];
 lines.forEach((line, i) => {
   for (const n of hostish) {
-    if (line.toLowerCase().includes(n.toLowerCase())) {
+    if (needle(n).test(line)) {
       // WHERE, never WHAT — the same rule the guard follows, so that this
       // output is safe to paste into an issue or a transcript.
       hits.push('  line ' + (i + 1) + ': a machine name (…' + n.slice(0, 2) + '…)');

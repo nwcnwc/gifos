@@ -142,13 +142,32 @@ if (!fleet) {
   const hostish = [...names].filter((n) => n.length >= 4);
   check('the hosts file named some machines to look for', hostish.length > 0, hostish.length + ' name(s)');
   const esc = (n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // A NAME, NOT A SUBSTRING. Bare containment went red on vendored upstream
+  // text where a fleet name sits INSIDE a longer word — an unrelated project's
+  // identifier, not a machine. (Which name and which word are deliberately not
+  // written here; that is the leak this file exists to prevent, and the rule is
+  // what matters, not the instance.) A red nobody can act on is exactly how a
+  // real one gets waved through, so: a match may not be FLANKED by
+  // [A-Za-z0-9]. Hyphen, dot, slash, @ and whitespace are not in that class, so
+  // `<name>-2`, `<name>.local`, `user@<name>` and a bare `<name>` all still
+  // match. The only thing this drops is a name buried inside another word.
+  const needle = (n) => '(?<![A-Za-z0-9])' + esc(n) + '(?![A-Za-z0-9])';
+  const namesIn = (text) => hostish.some((n) => new RegExp(needle(n), 'i').test(text || ''));
+
+  // THE RULE IS TESTED, with a name that is nobody's. A tightening that matched
+  // nothing at all would turn every check below green and read as clean.
+  const rule = (text) => new RegExp(needle('zzbox'), 'i').test(text);
+  check('a name is matched as a name, not as part of a longer word',
+    rule('measured on zzbox today') && rule('zzbox-2') && rule('zzbox.local')
+      && rule('ssh user@zzbox') && !rule('ZZboxFoundation/blockly') && !rule('myzzbox'));
+
   // ONE pass for every name; only if something matched do we spend a pass per
   // name to say WHICH. The clean case is the fast case.
-  const dirty = scan(hostish.map(esc));
+  const dirty = scan(hostish.map(needle));
   const offenders = {};
   if (dirty.length) {
     for (const n of hostish) {
-      const hits = scan([esc(n)]);
+      const hits = scan([needle(n)]);
       if (hits.length) offenders[n.slice(0, 2) + '…'] = hits;   // report WHERE, never WHAT
     }
   }
@@ -200,9 +219,7 @@ if (!fleet) {
   for (const rec of msgs) {
     const [sha, body] = rec.replace(/^\n/, '').split('\x1f');
     if (EXEMPT_COMMITS.has(sha)) continue;
-    for (const n of hostish) {
-      if ((body || '').toLowerCase().includes(n.toLowerCase())) { guilty.push(sha.slice(0, 8)); break; }
-    }
+    if (namesIn(body)) guilty.push(sha.slice(0, 8));
   }
   check('no commit message on any branch or tag names a machine (' + msgs.length + ' scanned)',
     guilty.length === 0, guilty.length ? guilty.slice(0, 10) : undefined);
@@ -215,8 +232,7 @@ if (!fleet) {
   // and `git push --tags` publishes it. Four of the eleven rewritten tags had
   // one.
   const tagBodies = git(['for-each-ref', '--format=%(contents)', 'refs/tags']);
-  check('no tag message names a machine',
-    !hostish.some((n) => tagBodies.toLowerCase().includes(n.toLowerCase())));
+  check('no tag message names a machine', !namesIn(tagBodies));
 }
 
 // ---- 2. the shapes, which need no hosts file -------------------------------
