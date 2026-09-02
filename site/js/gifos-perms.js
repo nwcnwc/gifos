@@ -341,7 +341,7 @@
           var any = e.host === '*';
           var desc = any
             ? 'Lets the app reach any website, so it could send whatever it sees to anyone.'
-            : 'Lets the app send and receive data with this one website.';
+            : 'Lets the app send and receive data with this website and its subdomains.';
           return '<label class="perm-row' + (any ? ' any' : '') + '">' +
             '<input type="checkbox" data-host="' + escapeText(e.host) + '" ' + (e.allowed ? 'checked' : '') + '>' +
             '<span><span class="host">' + (any ? 'Go anywhere on the internet' : 'Connect to ' + escapeText(e.host)) + '</span>' +

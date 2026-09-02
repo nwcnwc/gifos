@@ -190,6 +190,9 @@
         });
       }
       window.addEventListener('message', function(e){
+        // Only the OS speaks to this frame: a popup this app opened holds
+        // window.opener and could otherwise inject replies and db-change frames.
+        if (e.source !== window.parent) return;
         var d = e.data; if(!d || d.ns!=='gifos') return;
         if(d.type==='reply' && pending[d.id]){
           d.ok ? pending[d.id].res(d.result) : pending[d.id].rej(new Error(d.error));
@@ -1851,8 +1854,16 @@
         else if (d.type === 'asset') { replyAsset(files, fileId, manifest, d, (p, t) => { const w = iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); }); }
         else if (d.id) { const w = iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'reply', id: d.id, ok: false, error: 'Not available in a provider service mount.' }, '*'); }
       };
+      // A provider that nobody has asked anything for a while is unloaded —
+      // its decoded archive and hidden frame are megabytes — and re-mounted
+      // from its bytes on the next call.
+      const PROVIDER_IDLE_MS = 10 * 60 * 1000;
+      let idleT = null;
+      const armIdle = () => { if (idleT) clearTimeout(idleT); idleT = setTimeout(() => { if (pending.size) { armIdle(); return; } root.removeEventListener('message', handler); try { iframe.remove(); } catch (e) {} providerServices.delete(fileId); provArchives.delete(fileId); }, PROVIDER_IDLE_MS); };
+      armIdle();
       const service = {
         call: (role, req, onNote, onDelta) => new Promise((res, rej) => {
+          armIdle();
           const w = iframe.contentWindow;
           if (!w) { rej(new Error(label + ' is not running.')); return; }
           const id = 'p' + (++idSeq);
@@ -2141,7 +2152,7 @@
    * what the unpooled app would have done.
    */
   const POOL_TTL = 30 * 60 * 1000;      // an answer is good for half an hour
-  const POOL_MAX = 96;                  // entries retained per app session
+  const POOL_MAX = 32;                  // entries retained per app session (32 × 3 MB is the ceiling a long room pays)
   const POOL_BYTES = 3 * 1024 * 1024;   // never RETAIN a response bigger than this
   // …and never PUSH one bigger than this onto the room's data channels. The
   // mesh's own history is the argument (see run.html sgaApp): a multi-megabyte

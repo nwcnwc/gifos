@@ -2905,7 +2905,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             const dev = devOf[id];
             if (window.__banDebug) console.error('[banclick]', id, dev, amAdmin, relayUp());
             if (!amAdmin || !dev) return;
-            admSigned('ban', { dev }).then((w) => { if (w) relaySendObj({ t: 'ban', dev, name: (peers.get(id) || {}).name || '', by: myName(), w }); });
+            rememberBanName(dev, (peers.get(id) || {}).name || rosterNames[id] || '');
+            admSigned('ban', { dev }).then((w) => { if (w) relaySendObj({ t: 'ban', dev, w }); }); // no name, no by: the relay carries a device tag and the order's author id
             return;
           }
           const f = e.target.dataset.mod;
@@ -4153,7 +4154,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // beat-retried at high volume.
         let nFan = 1;
         if (envl.k === 'fsig') nFan = 3;
-        else if (envl.k === 'fmesh' && envl.m && (envl.m.t === 'HELLO' || envl.m.t === 'CLAIM')) nFan = doors.length;
+        else if (envl.k === 'fmesh' && envl.m && (envl.m.t === 'HELLO' || envl.m.t === 'CLAIM')) nFan = Math.min(doors.length, 6); // wide enough to land past one dead-end greeter, never the whole pool per beat
         const fan = doors.slice(0, Math.min(nFan, doors.length));
         txStats.doorSig += fan.length;
         for (const d of fan) {
@@ -5596,6 +5597,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Admin rooms only: the admin carries the ban list in their own storage
     // and re-seeds an emptied room from it (the relay stores nothing).
     function loadBans() { try { return JSON.parse(localStorage.getItem(banStoreKey()) || '[]') || []; } catch (e) { return []; } }
+    // Who a banned device WAS is the admin's own memory, kept here — the relay
+    // holds a device tag and nothing else. Everyone else resolves a tag to a
+    // name from their own sealed roster (nameForDev).
+    const banNamesKey = () => 'gifos_vbannames_' + roomKey();
+    function banNames() { try { return JSON.parse(localStorage.getItem(banNamesKey()) || '{}') || {}; } catch (e) { return {}; } }
+    function rememberBanName(dev, name) {
+      if (!dev || !name) return;
+      const m = banNames(); m[dev] = String(name).slice(0, 40);
+      const keys = Object.keys(m); if (keys.length > 100) delete m[keys[0]];
+      try { localStorage.setItem(banNamesKey(), JSON.stringify(m)); } catch (e) {}
+    }
+    function nameForDev(dev) {
+      for (const pid of Object.keys(devOf)) if (devOf[pid] === dev) return (peers.get(pid) || {}).name || rosterNames[pid] || '';
+      return '';
+    }
+    // The `by` on a relay-authored ban/unban/pw frame is the signed order's
+    // author — a PEER ID — or the vote marker; a name is looked up here.
+    function nameForPeer(pid) { return pid === 'the room (vote)' ? pid : ((peers.get(pid) || {}).name || rosterNames[pid] || ''); }
     function saveBans(list) { try { localStorage.setItem(banStoreKey(), JSON.stringify(list.slice(0, 100))); } catch (e) {} }
     function loadAdm() {
       try { admKey = localStorage.getItem(admStoreKey()); } catch (e) { admKey = null; }
@@ -5989,7 +6008,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // eviction the waiting room may have reopened lockless.
           if (roomPw && pwProof && !pwReasserted) {
             const proof = pwProof;
-            admSigned('setpw', { pw: proof }).then((w) => { if (w) relaySendObj({ t: 'setpw', pw: proof, by: myName(), w }); });
+            admSigned('setpw', { pw: proof }).then((w) => { if (w) relaySendObj({ t: 'setpw', pw: proof, w }); });
             // \u2026AND RE-GRANT THE KEY (2026-07-29): the door gate alone leaves
             // the waiting room's occupants sealed apart from me \u2014 an evicted
             // admin room re-seeds on the OPEN key (provisional-pw rule), so
@@ -6043,10 +6062,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           bannedOut = true;
           for (const pid of Array.from(peers.keys())) dropPeer(pid);
           try { meshNode && meshNode.stop(); } catch (e) {}
-          setStatus(voted ? '\u26d4 The people on this meeting voted you off.' : '\u26d4 You were banned from this room by ' + (m.by || 'an admin'));
-        } else setStatus(voted ? '\u26d4 ' + (m.name || 'Someone') + ' was voted off the meeting.' : '\u26d4 ' + (m.name || 'A device') + ' was banned by ' + (m.by || 'an admin'));
+          setStatus(voted ? '\u26d4 The people on this meeting voted you off.' : '\u26d4 You were banned from this room by ' + (nameForPeer(m.by) || 'an admin'));
+        } else setStatus(voted ? '\u26d4 ' + (nameForDev(m.dev) || 'Someone') + ' was voted off the meeting.' : '\u26d4 ' + (nameForDev(m.dev) || banNames()[m.dev] || 'A device') + ' was banned by ' + (nameForPeer(m.by) || 'an admin'));
       }
-      else if (m.t === 'unban') setStatus('\u2705 ' + (m.name || 'A device') + ' was unbanned by ' + (m.by || 'an admin'));
+      else if (m.t === 'unban') setStatus('\u2705 ' + (nameForDev(m.dev) || banNames()[m.dev] || 'A device') + ' was unbanned by ' + (nameForPeer(m.by) || 'an admin'));
       else if (m.t === 'votes') { voteTally = m.tally || {}; voteNeed = m.need || 0; refreshAllTiles(); }
       else if (m.t === 'peer-leave') {
         const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000);
@@ -6665,7 +6684,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const ep = pwEpoch + 1; // the signed epoch: replaying an older grant can never roll anyone backwards
           const wRelay = hasAdminRoom() ? await admSigned('setpw', { pw: pr }) : undefined;
           const wPeers = hasAdminRoom() ? await admSigned('pwinfo', { pw: v, ep }) : undefined;
-          relaySendObj({ t: 'setpw', pw: pr, by: myName(), w: wRelay });
+          relaySendObj({ t: 'setpw', pw: pr, w: wRelay });
           const grant = { k: 'pwinfo', pw: v, by: myName(), w: wPeers, ep };
           sendAll(grant);
           // RELAY-ENVELOPE COPY (same law as the follow-me link): the flood
@@ -6716,9 +6735,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const b of roomBan) {
         const row = document.createElement('div'); row.className = 'brow';
         const nm = document.createElement('span'); nm.style.flex = '1';
-        nm.textContent = (b.n || 'unnamed') + ' · ' + b.d;
+        nm.textContent = (banNames()[b.d] || nameForDev(b.d) || 'unnamed') + ' · ' + b.d;
         const btn = document.createElement('button'); btn.textContent = 'Unban';
-        btn.onclick = () => { admSigned('unban', { dev: b.d }).then((w) => { if (w) relaySendObj({ t: 'unban', dev: b.d, name: b.n, by: myName(), w }); }); };
+        btn.onclick = () => { admSigned('unban', { dev: b.d }).then((w) => { if (w) relaySendObj({ t: 'unban', dev: b.d, w }); }); };
         row.appendChild(nm); row.appendChild(btn); box.appendChild(row);
       }
     }
@@ -7996,8 +8015,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           .catch((e) => { if (typeof clog === 'function') clog('ranswer-FAIL ' + String(p.id).slice(0, 6) + ' ' + (p.pc && p.pc.signalingState) + ' ' + (e && e.name)); });
       }
     }
+    // A peer's lines are bounded two ways: per sender per window (a script
+    // minting unique ids), and in total (the oldest fall off). Without this
+    // the map grew without bound and every arrival re-painted all of it.
+    const CHAT_MAX = 500, CHAT_PER_10S = 20;
+    const chatRate = new Map(); // byId -> [timestamps]
+    function chatRateOk(byId) {
+      const now = Date.now(), k = String(byId || '?');
+      const l = (chatRate.get(k) || []).filter((t) => now - t < 10000);
+      if (l.length >= CHAT_PER_10S) return false;
+      l.push(now); chatRate.set(k, l);
+      if (chatRate.size > 256) chatRate.clear();
+      return true;
+    }
+    function trimMap(map, max) {
+      if (map.size <= max) return;
+      const old = Array.from(map.values()).sort((a, b) => (a.at || 0) - (b.at || 0));
+      for (let i = 0; i < old.length - max; i++) map.delete(old[i].id);
+    }
     function takeChat(m) {
       if (!m || !m.id || chat.has(m.id) || chatTombs.has(m.id)) return false;
+      if (m.byId !== myId && !chatRateOk(m.byId)) return false;
       // While the admin's chat-off stands, only a verified admin's NEW lines
       // land — receiver-enforced, so a DOM-hacked sender is still unheard by
       // everyone honest. Lines from BEFORE the switch stay: turning chat off
@@ -8008,6 +8046,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // http(s) URL (never javascript:/data:) so a peer can't inject a live link.
       const link = (typeof m.link === 'string' && /^https?:\/\//i.test(m.link)) ? m.link.slice(0, 400) : undefined;
       chat.set(m.id, { id: m.id, by: String(m.by || '?').slice(0, 40), byId: m.byId, at: m.at || 0, text: String(m.text || '').slice(0, 2000), link });
+      trimMap(chat, CHAT_MAX);
       return true;
     }
     function takeTomb(id, t) {
@@ -8062,7 +8101,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 
     function renderChat() {
       const log = document.getElementById('chatlog');
-      const ms = Array.from(chat.values()).sort((a, b) => a.at - b.at);
+      const ms = Array.from(chat.values()).sort((a, b) => a.at - b.at).slice(-200); // the newest 200 are the log; older lines stay in the map for delete/history
       log.innerHTML = ms.map((m) => {
         const body = m.link
           ? esc(m.text) + ' <a href="' + esc(m.link) + '" style="color:#8ab4ff;font-weight:600">Join →</a>'
@@ -11233,7 +11272,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const trs = new Map(); // id -> { id, byId, by, at, text }
     function takeTr(m) {
       if (!m || !m.id || trs.has(m.id)) return false;
+      if (m.byId !== myId && !chatRateOk('tr:' + m.byId)) return false;
       trs.set(m.id, { id: m.id, byId: m.byId, by: String(m.by || '?').slice(0, 40), at: m.at || 0, text: String(m.text || '').slice(0, 400) });
+      trimMap(trs, CHAT_MAX);
       return true;
     }
     function showCaption(byId, text) {

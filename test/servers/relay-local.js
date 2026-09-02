@@ -259,6 +259,7 @@ server.on('upgrade', (req, socket, head) => {
     'banned': 4004,
     'voted-off': 4007,
     'that id is in use from another device': 4011,
+    'a device tag is required': 4012,
   };
   const rejectConn = (error) => { clog('REJECT sid=' + parts[1] + ' peer=' + peer + ' ip=' + ip + ' :: ' + error); conn.send(JSON.stringify({ t: 'error', error })); conn.close(REJECT_CODES[error] || 0, error); };
   const allConns = () => sess.clients.size;
@@ -318,7 +319,6 @@ server.on('upgrade', (req, socket, head) => {
       // them. Mirrors relay/src/relay.js.
       msg.devs = {}; for (const [p, c] of sess.clients) if (c.dev) msg.devs[p] = c.dev;
       if (sess.av) {
-        msg.hasAdmin = true;
         // no admins[] — adminship is a signature peers verify themselves (§9)
         msg.ban = sess.ban || [];
         // Door-gate state (2026-07-29): in an admin room the gate is set ONLY
@@ -332,17 +332,17 @@ server.on('upgrade', (req, socket, head) => {
     const s = JSON.stringify(msg);
     for (const c of sess.clients.values()) c.send(s);
   };
-  const BAN_CAP = 20, BAN_NAME = 12;
+  const BAN_CAP = 20;
   const cleanBanList = (list) => (Array.isArray(list) ? list : []).slice(0, BAN_CAP)
-    .map((e) => ({ d: String((e && e.d) || '').slice(0, 16), n: String((e && e.n) || '').slice(0, BAN_NAME) }))
+    .map((e) => ({ d: String((e && e.d) || '').slice(0, 16) })) // a device tag, never a name — mirrors relay/src/relay.js
     .filter((e) => e.d);
   const banDevice = (dev, name, by) => {
     dev = String(dev || '').slice(0, 16); if (!dev) return;
     sess.ban = (sess.ban || []).filter((b) => b.d !== dev);
-    sess.ban.push({ d: dev, n: String(name || '').slice(0, BAN_NAME) }); if (sess.ban.length > BAN_CAP) sess.ban.shift();
-    const s = JSON.stringify({ t: 'ban', dev, name: String(name || '').slice(0, 24), by: String(by || '').slice(0, 40) });
+    sess.ban.push({ d: dev }); if (sess.ban.length > BAN_CAP) sess.ban.shift();
+    const s = JSON.stringify({ t: 'ban', dev, by: String(by || '').slice(0, 64) });
     for (const c of sess.clients.values()) c.send(s);
-    for (const c of sess.clients.values()) if (c.dev === dev && !c.isAdmin) { try { c.close(4004, 'banned'); } catch (e) {} }
+    for (const c of sess.clients.values()) if (c.dev === dev) { try { c.close(4004, 'banned'); } catch (e) {} }
     roster();
   };
   const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 64)
@@ -365,7 +365,7 @@ server.on('upgrade', (req, socket, head) => {
     for (const c of occ) c.send(s);
     for (const d in tally) {
       if (tally[d] >= need) {
-        const b = JSON.stringify({ t: 'ban', dev: d, name: '', by: 'the room (vote)' });
+        const b = JSON.stringify({ t: 'ban', dev: d, by: 'the room (vote)' });
         for (const c of sess.clients.values()) c.send(b);
         for (const c of Array.from(sess.clients.values())) if (c.dev === d) { try { c.close(4007, 'voted-off'); } catch (e) {} }
         roster();
@@ -456,9 +456,10 @@ server.on('upgrade', (req, socket, head) => {
       // the anarchy tier. Mirrors relay/src/relay.js.
       sess.pw = av ? null : ((url.searchParams.get('pw') || '').slice(0, 64) || null);
     }
-    if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
+    if (sess.meshToken !== token) { rejectConn('bad room token'); return; } // 1008, as the Worker sends it — the client treats that as fatal
     if (sess.pw && (url.searchParams.get('pw') || '').slice(0, 64) !== sess.pw) { rejectConn('password required'); return; }
     const dev = (url.searchParams.get('dev') || '').slice(0, 16);
+    if (!dev) { rejectConn('a device tag is required'); return; } // mirrors relay/src/relay.js
     const rs = (url.searchParams.get('rs') || '').slice(0, 24); // reconnect secret — mirrors relay/src/relay.js
     const gk = (url.searchParams.get('gk') || '').slice(0, 128); // genesis-key token (R3)
     if (dev && (sess.ban || []).some((b) => b.d === dev)) { rejectConn('banned'); return; }
@@ -502,14 +503,15 @@ server.on('upgrade', (req, socket, head) => {
       else if (m.t === 'setpw' && typeof m.pw === 'string') {
         // Signed in admin rooms (§9): the relay verifies the same Ed25519
         // proof any peer would — mirrors relay/src/relay.js.
+        let admOrder = null;
         if (sess.av) {
-          const o = await admProvenGet(sess.av, m.w, 'setpw');
-          if (!o || o.pw !== m.pw) { conn.send(JSON.stringify({ t: 'error', error: 'admins only: this room\'s password is managed by its admin' })); return; }
-          if (!orderIsNew(sess, 'setpw', o.ts)) return; // replay of an older order — mirrors relay/src/relay.js
-          sess.admTs.setpw = +o.ts;
+          admOrder = await admProvenGet(sess.av, m.w, 'setpw');
+          if (!admOrder || admOrder.pw !== m.pw) { conn.send(JSON.stringify({ t: 'error', error: 'admins only: this room\'s password is managed by its admin' })); return; }
+          if (!orderIsNew(sess, 'setpw', admOrder.ts)) return; // replay of an older order — mirrors relay/src/relay.js
+          sess.admTs.setpw = +admOrder.ts;
         }
         sess.pw = m.pw.slice(0, 64) || null;
-        const s = JSON.stringify({ t: 'pw', pw: sess.pw || '', by: String(m.by || '').slice(0, 40) });
+        const s = JSON.stringify({ t: 'pw', pw: sess.pw || '', by: String((admOrder && admOrder.by) || '').slice(0, 64) });
         for (const c of sess.clients.values()) c.send(s);
       } else if ((m.t === 'ban' || m.t === 'unban') && typeof m.dev === 'string') {
         if (!sess.av) return;
@@ -520,8 +522,8 @@ server.on('upgrade', (req, socket, head) => {
         const d = m.dev.slice(0, 16);
         if (!d) return;
         sess.ban = (sess.ban || []).filter((b) => b.d !== d);
-        if (m.t === 'ban') { sess.ban.push({ d, n: String(m.name || '').slice(0, BAN_NAME) }); if (sess.ban.length > BAN_CAP) sess.ban.shift(); }
-        const s = JSON.stringify({ t: m.t, dev: d, name: String(m.name || '').slice(0, BAN_NAME), by: (m.by || '').slice(0, 40) });
+        if (m.t === 'ban') { sess.ban.push({ d }); if (sess.ban.length > BAN_CAP) sess.ban.shift(); }
+        const s = JSON.stringify({ t: m.t, dev: d, by: String(o.by || '').slice(0, 64) });
         for (const c of sess.clients.values()) c.send(s);
         if (m.t === 'ban') for (const c of sess.clients.values()) if (c.dev === d) { try { c.close(4004, 'banned'); } catch (e) {} }
         roster();

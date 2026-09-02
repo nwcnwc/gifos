@@ -176,22 +176,37 @@
     // tab of mine can, a link holder who read my ids off the roster cannot.
     // No storage (a private window, Node) → empty → the relay's older
     // behaviour, replaceable by anyone naming the id.
-    let rs = '';
+    // The DEVICE TAG the relay keys bans, vote-offs and one-slot-per-device
+    // on. run.html supplies its own room-salted tag through urlParams; every
+    // other caller (app rooms) gets one here from the same device secret,
+    // hashed with the room so the relay cannot correlate a device across
+    // rooms. With no storage at all it is ephemeral — one per page load —
+    // because the relay refuses a socket without one (4012).
+    let rs = '', devTag = '';
     const rsFor = () => {
+      let sec = null;
       try {
         const st = root.localStorage;
-        if (!st) return Promise.resolve('');
-        let sec = st.getItem('gifos_rs_secret');
-        if (!sec || !/^[0-9a-f]{32}$/.test(sec)) { sec = net.randHex(16); st.setItem('gifos_rs_secret', sec); }
-        return net.sha256hex(sec + '|' + opts.sid).then((h) => (rs = String(h || '').slice(0, 24)));
-      } catch (e) { return Promise.resolve(''); }
+        if (st) {
+          sec = st.getItem('gifos_rs_secret');
+          if (!sec || !/^[0-9a-f]{32}$/.test(sec)) { sec = net.randHex(16); st.setItem('gifos_rs_secret', sec); }
+        }
+      } catch (e) { sec = null; }
+      if (!sec) { devTag = net.randHex(8); return Promise.resolve(''); }
+      return Promise.all([net.sha256hex(sec + '|' + opts.sid), net.sha256hex(sec + '|dev|' + opts.sid)])
+        .then(([h, d]) => { rs = String(h || '').slice(0, 24); devTag = String(d || '').slice(0, 16) || net.randHex(8); })
+        .catch(() => { devTag = devTag || net.randHex(8); });
     };
-    const makeUrl = () => relayBase + '/s/' + opts.sid
-      + '?role=mesh&token=' + encodeURIComponent(opts.tok || '')
-      + '&peer=' + encodeURIComponent(peer)
-      + '&gk=' + encodeURIComponent(seat.genKey || myKey)
-      + (rs ? '&rs=' + rs : '')
-      + (opts.urlParams ? opts.urlParams() : '');
+    const makeUrl = () => {
+      const extra = opts.urlParams ? String(opts.urlParams() || '') : '';
+      return relayBase + '/s/' + opts.sid
+        + '?role=mesh&token=' + encodeURIComponent(opts.tok || '')
+        + '&peer=' + encodeURIComponent(peer)
+        + '&gk=' + encodeURIComponent(seat.genKey || myKey)
+        + (rs ? '&rs=' + rs : '')
+        + (/[&?]dev=/.test(extra) ? '' : '&dev=' + encodeURIComponent(devTag || net.randHex(8)))
+        + extra;
+    };
 
     // deliver(to, m): the raw transport step — DataChannel first, sealed relay
     // {t:'peer'} fallback. (Signing, when S4 is on, happens in env.send before
@@ -312,7 +327,7 @@
       if (s4on && SIGNED.has(m.t)) {
         verifyChain(() => ident.verifyFill(seat.pins, m).then((v) => {
           if (stopped) return;
-          if (v && v.ok) { m.s4ok = true; seat.recv(m); }
+          if (v && v.ok) { m.s4ok = true; m.s4from = v.from; seat.recv(m); }
           // else: unsigned / forged / impostor / key-swapped fill — DROP it.
         }).catch(() => {}));
         return;

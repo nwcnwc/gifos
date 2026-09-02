@@ -85,6 +85,15 @@ function ipKey(ip) {
   }
   return groups.slice(0, 4).map((g) => g.toLowerCase().replace(/^0+(?=.)/, '')).join(':') + '::/64';
 }
+// Every write of a socket's state goes through here: the platform caps an
+// attachment at 2 KB and THROWS past it, and a swallowed throw was a founder
+// that recorded nothing (R3), a greeter that silently left the pool. The
+// caps above keep a real attachment far under the line; if one still
+// overflows, it is logged with the socket's peer id so it can be seen.
+function saveAtt(ws, a) {
+  try { ws.serializeAttachment(a); return true; }
+  catch (e) { console.log('attachment overflow', a && a.peer, String(e && e.message || '').slice(0, 80)); return false; }
+}
 async function ipTag(ip, env) {
   const salt = (env && env.ABUSE_SALT) || 'gifos-relay-ip-tag';
   // Say so, once per isolate, when production runs on the public default:
@@ -141,7 +150,7 @@ function orderIsNew(members, att, act, ts) {
 function markOrder(members, att, act, ts) {
   for (const ws of members) {
     const a = att(ws); a.admTs = a.admTs || {}; a.admTs[act] = +ts || 0;
-    try { ws.serializeAttachment(a); } catch (e) {}
+    saveAtt(ws, a)
   }
 }
 
@@ -174,7 +183,7 @@ const MAX_JOINS_PER_IP_MIN = 120;   // several flapping devices behind one NAT s
 // Must exceed the E3 re-knock worst case (E3_PERIOD + jitter = up to 400 ticks
 // = 200s), or live greeters would expire off the list between re-knocks.
 const GREETER_TTL_MS = 250 * 1000;
-const GBLOB_CAP = 4096;             // a sealed greeter address — opaque ciphertext
+const GBLOB_CAP = 1024;             // a sealed greeter address — opaque ciphertext (a real one is ~250 chars; the attachment is 2 KB in all)
 // A mint is a PROMISE to greet. A socket that founds the room but never
 // registers a greeter blob holds it only this long — see genesisHash's
 // ghost-genesis note. Comfortably above a real founder's seat-and-register
@@ -194,12 +203,14 @@ const CLAIM_GRACE_MS = Math.min(60 * 1000, GREETER_TTL_MS);
 // keep entries tiny. Plain rooms have NO ban list at all: exclusion there is
 // only ever a live MAJORITY of personal vote-offs (see tallyVotes).
 const BAN_CAP = 20;
-const BAN_NAME = 12;
+// A ban entry is a device tag and nothing else. Names never reach the relay
+// readable (they travel sealed, end to end) — a banned person's name in the
+// attachment and in every roster was the one exception, and it is gone.
 const cleanBanList = (list) => (Array.isArray(list) ? list : []).slice(0, BAN_CAP)
-  .map((e) => ({ d: String((e && e.d) || '').slice(0, 16), n: String((e && e.n) || '').slice(0, BAN_NAME) }))
+  .map((e) => ({ d: String((e && e.d) || '').slice(0, 16) }))
   .filter((e) => e.d);
 // A voter's relay-held vote set: device ids, bounded by room size.
-const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 64)
+const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 24) // 24 × 16 chars fits the 2 KB attachment beside the rest
   .map((d) => String(d || '').slice(0, 16)).filter(Boolean);
 
 // FRAME-rate guard beside the byte guard: tiny frames sail under the byte
@@ -431,7 +442,7 @@ export class Session {
       a.gblob = String(gblob).slice(0, GBLOB_CAP);
       a.gexp = Date.now() + GREETER_TTL_MS;
     }
-    try { ws.serializeAttachment(a); } catch (e) {}
+    saveAtt(ws, a)
     this.send(ws, { t: 'greeters', list: this.greeterList(ws), founded, admitted });
   }
 
@@ -477,6 +488,22 @@ export class Session {
     // carries no role. The client sends a 24-hex token and a 64-hex proof.
     const token = (url.searchParams.get('token') || '').slice(0, 64);
     const peer = (url.searchParams.get('peer') || 'c_' + crypto.randomUUID().slice(0, 8)).slice(0, 64);
+    // The DEVICE TAG (room-salted by the client) is what a ban, a vote-off
+    // and the one-slot-per-device rule key on; a socket without one was
+    // unbannable and un-vote-off-able by construction. mesh-wire always
+    // sends one (an ephemeral one without storage), so none means a
+    // hand-made client that wants the door's exclusion verbs not to apply.
+    const dev = (url.searchParams.get('dev') || '').slice(0, 16);
+    if (!dev) return reject('a device tag is required', 4012);
+    // The RECONNECT SECRET: a per-device token hashed with the room by the
+    // client (mesh-wire.js). Replacing a socket that holds the same peer
+    // id or device tag is a reload's right and a ghost's cure — but both
+    // ids are broadcast in every roster, so without this any link holder
+    // could connect as anyone and have them cut with a fatal 4000. A
+    // socket that presented one may only be replaced by a socket that
+    // presents the same one; a socket that presented none (no storage,
+    // an older client) is replaced as before.
+    const rs = (url.searchParams.get('rs') || '').slice(0, 24);
     // NOTE: no display name is read here. Participant names travel end-to-end
     // sealed (in status/offer/answer frames the relay only ever sees as
     // ciphertext), so the relay never learns who is in a room by name — even
@@ -506,7 +533,10 @@ export class Session {
     // ROOM is never full — deep seats drop their sockets, so a stadium holds
     // billions; it's the relay's bootstrap socket slots that are momentarily
     // saturated by simultaneous joiners.
-    if (sockets.length >= MAX_SOCKETS_PER_SESSION) return reject('too many joining right now — try again in a moment', 1013);
+    // A reload into a full room replaces its own old socket, so that socket
+    // does not count against the cap it is about to free.
+    const replacing = sockets.filter((ws) => { const a = this.att(ws); return a.peer === peer || (dev && a.dev === dev); }).length;
+    if (sockets.length - replacing >= MAX_SOCKETS_PER_SESSION) return reject('too many joining right now — try again in a moment', 1013);
     const trusted = isTrusted(ip, this.env); // operator load-test IPs skip the per-IP caps
     const iph = await ipTag(ip, this.env);   // salted tag; the raw IP is never stored
     let mine = 0;
@@ -583,16 +613,6 @@ export class Session {
       // matters is the ciphertext, not this courtesy gate.
       const roomPw = first ? (first.pw || '') : (av ? '' : offeredPw);
       if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
-      const dev = (url.searchParams.get('dev') || '').slice(0, 16);
-      // The RECONNECT SECRET: a per-device token hashed with the room by the
-      // client (mesh-wire.js). Replacing a socket that holds the same peer
-      // id or device tag is a reload's right and a ghost's cure — but both
-      // ids are broadcast in every roster, so without this any link holder
-      // could connect as anyone and have them cut with a fatal 4000. A
-      // socket that presented one may only be replaced by a socket that
-      // presents the same one; a socket that presented none (an older
-      // client) is replaced as before.
-      const rs = (url.searchParams.get('rs') || '').slice(0, 24);
       const gk = (url.searchParams.get('gk') || '').slice(0, 128); // genesis-key token (R3)
       const ban = first ? (first.ban || []) : [];
       if (dev && ban.some((b) => b.d === dev)) return reject('banned', 4004);
@@ -683,18 +703,19 @@ export class Session {
         // into every occupant's attachment (the room's only "memory");
         // empty removes the lock.
         const av2 = this.meshAdmV();
+        let admOrder = null;
         if (av2) {
-          const o = await admProvenGet(av2, m.w, 'setpw');
-          if (!o || o.pw !== m.pw) return this.send(ws, { t: 'error', error: 'admins only: this room\'s password is managed by its admin' });
-          if (!orderIsNew(this.members(), (s) => this.att(s), 'setpw', o.ts)) return; // a replay of an older order
-          markOrder(this.members(), (s) => this.att(s), 'setpw', o.ts);
+          admOrder = await admProvenGet(av2, m.w, 'setpw');
+          if (!admOrder || admOrder.pw !== m.pw) return this.send(ws, { t: 'error', error: 'admins only: this room\'s password is managed by its admin' });
+          if (!orderIsNew(this.members(), (s) => this.att(s), 'setpw', admOrder.ts)) return; // a replay of an older order
+          markOrder(this.members(), (s) => this.att(s), 'setpw', admOrder.ts);
         }
         const pw = m.pw.slice(0, 64);
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2); a2.pw = pw;
-          try { ws2.serializeAttachment(a2); } catch (e) {}
+          saveAtt(ws2, a2)
         }
-        this.broadcast({ t: 'pw', pw, by: String(m.by || '').slice(0, 40) });
+        this.broadcast({ t: 'pw', pw, by: String((admOrder && admOrder.by) || '').slice(0, 64) }); // a peer id in admin rooms, empty in plain ones — never a name
       } else if ((m.t === 'ban' || m.t === 'unban') && typeof m.dev === 'string') {
         // Signed admin orders only — verifier rooms are the only rooms with
         // a ban list, and the signature is the entire authority.
@@ -705,8 +726,8 @@ export class Session {
         // ban and unban share one clock: an old unban must not undo a newer ban.
         if (!orderIsNew(this.members(), (s) => this.att(s), 'ban', o.ts)) return;
         markOrder(this.members(), (s) => this.att(s), 'ban', o.ts);
-        if (m.t === 'ban') this.banDevice(m.dev, m.name, m.by);
-        else this.unbanDevice(m.dev, m.name, m.by);
+        if (m.t === 'ban') this.banDevice(m.dev, o.by);
+        else this.unbanDevice(m.dev, o.by);
       } else if (m.t === 'votekick' && !this.meshAdmV() && Array.isArray(m.devs)) {
         // Vote-off-the-island: no admin exists to ban bad actors, so the ROOM
         // does it. Each participant carries a PERSONAL, GLOBAL vote-off list
@@ -715,7 +736,7 @@ export class Session {
         // — there is NO ban list in plain rooms, so no injected "insta-ban"
         // can do more than cast its author's one vote.
         a.votes = cleanDevList(m.devs);
-        try { ws.serializeAttachment(a); } catch (e) {}
+        saveAtt(ws, a)
         this.tallyVotes();
       } else if (m.t === 'banlist' && Array.isArray(m.devs)) {
         // An admin re-arriving to a (possibly re-emptied) admin room re-seeds
@@ -732,7 +753,7 @@ export class Session {
         const ban = cleanBanList(o.devs);
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2); a2.ban = ban;
-          try { ws2.serializeAttachment(a2); } catch (e) {}
+          saveAtt(ws2, a2)
         }
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2);
@@ -769,32 +790,34 @@ export class Session {
   // Ban a device: written into every occupant's attachment (occupancy memory),
   // announced, and any matching non-admin socket is cut. Shared by admin bans
   // and consensus vote-kicks.
-  banDevice(dev, name, by) {
+  banDevice(dev, by) {
     dev = String(dev || '').slice(0, 16);
     if (!dev) return;
-    const entry = { d: dev, n: String(name || '').slice(0, BAN_NAME) };
+    const entry = { d: dev };
     for (const ws2 of this.members()) {
       const a2 = this.att(ws2);
       const ban = (a2.ban || []).filter((b) => b.d !== dev);
       ban.push(entry); if (ban.length > BAN_CAP) ban.shift(); // attachments cap at 2KB — keep it tiny
       a2.ban = ban;
-      try { ws2.serializeAttachment(a2); } catch (e) {}
+      saveAtt(ws2, a2)
     }
-    this.broadcast({ t: 'ban', dev, name: entry.n, by: String(by || '').slice(0, 40) });
+    // `by` is the signed order's author — a PEER ID, which every member
+    // resolves to a name from its own sealed roster; the relay carries no name.
+    this.broadcast({ t: 'ban', dev, by: String(by || '').slice(0, 64) });
     for (const ws2 of this.members()) {
       const a2 = this.att(ws2);
       if (a2.dev === dev) { try { ws2.close(4004, 'banned'); } catch (e) {} }
     }
     this.roster();
   }
-  unbanDevice(dev, name, by) {
+  unbanDevice(dev, by) {
     dev = String(dev || '').slice(0, 16);
     if (!dev) return;
     for (const ws2 of this.members()) {
       const a2 = this.att(ws2); a2.ban = (a2.ban || []).filter((b) => b.d !== dev);
-      try { ws2.serializeAttachment(a2); } catch (e) {}
+      saveAtt(ws2, a2)
     }
-    this.broadcast({ t: 'unban', dev, name: String(name || '').slice(0, 24), by: String(by || '').slice(0, 40) });
+    this.broadcast({ t: 'unban', dev, by: String(by || '').slice(0, 64) });
     this.roster();
   }
 
@@ -823,7 +846,7 @@ export class Session {
     this.broadcast({ t: 'votes', tally, need });
     for (const d in tally) {
       if (tally[d] >= need) {
-        this.broadcast({ t: 'ban', dev: d, name: '', by: 'the room (vote)' });
+        this.broadcast({ t: 'ban', dev: d, by: 'the room (vote)' });
         for (const s of this.members()) {
           const a2 = this.att(s);
           if (a2.dev === d) { try { s.close(4007, 'voted-off'); } catch (e) {} }

@@ -73,16 +73,23 @@
     if (m.ck) return 'k:' + m.ck;
     return '-';
   }
-  function statement(from, m) {
-    return JSON.stringify({ v: 1, t: m.t, k: fillKeyOf(m), id: (m.id != null ? m.id : null), from });
+  // `ts` is the minting time: Ed25519 is deterministic, so two honest
+  // re-sends of one CLAIM would otherwise be byte-identical, and a replay
+  // could not be told from a re-send. With it, an exact replay is the one
+  // thing a receiver has seen before (verifyFill's seen set), and a captured
+  // frame older than the window is stale on its face.
+  function statement(from, m, ts) {
+    return JSON.stringify({ v: 2, t: m.t, k: fillKeyOf(m), id: (m.id != null ? m.id : null), from, ts: (+ts || 0) });
   }
+  const FILL_WINDOW_MS = 10 * 60 * 1000;
+  const SEEN_MAX = 4096;
 
   // Sign a fill frame as `identity`. Returns a {sp, sig, pub} block (mirrors the
   // admin §SIG shape) to attach to the frame as m.s4. `from` is the signer's
   // stable peer id (H(pub)); the receiver re-derives H(pub) and checks it equals
   // `from`, so the id can't be lied about.
   async function signFill(identity, m) {
-    const sp = statement(identity.peerId, m);
+    const sp = statement(identity.peerId, m, Date.now());
     const sig = await net.edSign(identity.priv, sp);
     return { sp, sig, pub: identity.pubB64 };
   }
@@ -91,7 +98,14 @@
   // participant wins and is recognised thereafter, across links and moves.
   function newPins() {
     const map = new Map();
+    const seen = new Set(); // signatures already accepted — an exact replay is refused
     return {
+      seen(sig) {
+        if (seen.has(sig)) return true;
+        seen.add(sig);
+        if (seen.size > SEEN_MAX) { const it = seen.values(); for (let i = 0; i < SEEN_MAX / 4; i++) seen.delete(it.next().value); }
+        return false;
+      },
       // pin(id, pub): returns { ok, changed }. ok=false ⇒ this pub CONFLICTS with
       // the one already pinned for id (a key-swap attempt) — reject. changed is
       // reserved for surfacing a key rotation (not used to reject here).
@@ -124,8 +138,11 @@
     if (!from || typeof from !== 'string') return { ok: false, from: null };
     // (1) id is bound to the key: H(pub) === from
     if ((await peerIdOf(s.pub)) !== from) return { ok: false, from: null };
-    // the signed statement must describe THIS frame (no cross-frame replay)
-    if (statement(from, m) !== s.sp) return { ok: false, from: null };
+    // the signed statement must describe THIS frame (no cross-frame replay),
+    // be minted inside the window, and not be one this seat already accepted
+    if (statement(from, m, sp.ts) !== s.sp) return { ok: false, from: null };
+    if (Math.abs(Date.now() - (+sp.ts || 0)) > FILL_WINDOW_MS) return { ok: false, from: null };
+    if (pins.seen && pins.seen(String(s.sig))) return { ok: false, from: null };
     // an occupant-bearing frame must be signed BY that occupant
     if (m.id != null && m.id !== from) return { ok: false, from: null };
     // (2) the signer actually holds the private key

@@ -35,7 +35,7 @@ function probe(sid, q, waitMs) {
   check('role=client is REJECTED too', client.msgs.some((m) => m.t === 'error'));
   const dflt = await probe('someroom', {});
   check('a role-less socket (old default: client) is rejected', dflt.msgs.some((m) => m.t === 'error'));
-  const mesh = await probe('meshroom', { role: 'mesh', token: 't', peer: 'p_probe1' });
+  const mesh = await probe('meshroom', { role: 'mesh', token: 't', peer: 'p_probe1', dev: 'd_probe1' });
   check('role=mesh is SERVED (joined + greeters flow)', mesh.msgs.some((m) => m.t === 'joined'), JSON.stringify(mesh.msgs.map((m) => m.t)));
 
   relay.kill();

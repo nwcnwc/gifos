@@ -38,11 +38,12 @@ ZONE_NAME="${ZONE_NAME:-gifos.app}"
 API="https://api.cloudflare.com/client/v4"
 DRY=0
 ALERT_EMAIL=""
-SKIP_MCP=0
+SKIP_MCP=1   # a hardening script does not delete Workers unless asked (--remove-mcp)
 for a in "$@"; do
   case "$a" in
     --dry-run) DRY=1 ;;
     --keep-mcp) SKIP_MCP=1 ;;
+    --remove-mcp) SKIP_MCP=0 ;;
     --alert-email=*) ALERT_EMAIL="${a#*=}" ;;
     -h|--help) sed -n '2,44p' "$0"; exit 0 ;;
     *) echo "unknown arg: $a (try --help)"; exit 2 ;;
@@ -104,7 +105,7 @@ RULES=$(jq -n --arg z "$ZONE_NAME" '
       expression:"(http.host eq \"cors-proxy.\($z)\")", action:"block",
       ratelimit:{characteristics:["ip.src","cf.colo.id"], period:10, requests_per_period:40, mitigation_timeout:10} },
     { description:"gifos-harden: site + theme backstop",
-      expression:"(http.host eq \"\($z)\" or ends_with(http.host, \".\($z)\"))", action:"managed_challenge",
+      expression:"(http.host eq \"\($z)\" or ends_with(http.host, \".\($z)\")) and http.host ne \"relay.\($z)\"", action:"managed_challenge",
       ratelimit:{characteristics:["ip.src","cf.colo.id"], period:10, requests_per_period:200, mitigation_timeout:10} } ]')
 # The Free plan allows only ONE http_ratelimit rule, so keep a consolidated
 # fallback: block ANY subdomain (relay, cors-proxy, 0-9 mirror — the

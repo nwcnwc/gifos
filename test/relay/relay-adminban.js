@@ -59,10 +59,10 @@ const until = async (fn, ms) => { const t0 = Date.now(); while (Date.now() - t0 
       !B.closed && !A.frames.some((f) => f.t === 'ban'));
 
     // signed ban → the device's socket is cut and announced
-    A.send({ t: 'ban', dev: 'devB', name: 'Ben', by: 'Ada', w: signed({ act: 'ban', dev: 'devB' }) });
+    A.send({ t: 'ban', dev: 'devB', w: signed({ act: 'ban', dev: 'devB', by: 'peerA' }) }); // no name, no by on the frame: the relay attributes from the SIGNED order
     await until(() => !!B.closed, 4000);
     check('a SIGNED ban cuts the banned device\'s live socket (4004)', !!B.closed && B.closed.code === 4004);
-    check('the ban is broadcast, attributed', A.frames.some((f) => f.t === 'ban' && f.dev === 'devB' && f.by === 'Ada'));
+    check('the ban is broadcast, attributed to the order\'s author id, carrying no name', A.frames.some((f) => f.t === 'ban' && f.dev === 'devB' && f.by === 'peerA' && f.name === undefined));
 
     // the door refuses the banned device
     const B2 = occupant(sid, 'pB2', 'devB');
@@ -70,7 +70,7 @@ const until = async (fn, ms) => { const t0 = Date.now(); while (Date.now() - t0 
     check('the door refuses a banned device (banned, 4004)', /banned/.test(B2.err || '') && !B2.joined);
 
     // signed unban → readmitted (the undo path)
-    A.send({ t: 'unban', dev: 'devB', name: 'Ben', by: 'Ada', w: signed({ act: 'unban', dev: 'devB' }) });
+    A.send({ t: 'unban', dev: 'devB', w: signed({ act: 'unban', dev: 'devB', by: 'peerA' }) });
     await until(() => A.frames.some((f) => f.t === 'unban' && f.dev === 'devB'), 3000);
     const B3 = occupant(sid, 'pB3', 'devB');
     await until(() => B3.joined || B3.err !== null, 3000);
