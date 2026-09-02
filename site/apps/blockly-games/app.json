@@ -43,15 +43,15 @@
   "cover": "/apps/blockly-games/cover.jpg",
   "screenshots": [],
   "gif": "/apps/blockly-games/blockly-games.gif",
-  "bytes": 557875,
+  "bytes": 559791,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "cdc0ea68ed586681d8af510be65bb63524389ffd2d31541b435f009b030491eb",
+  "sha256": "f2a383a99144996e9d14e97c99ffcfe1d1a45ff2de0456c0ce9e888321f18675",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-09-01"
+    "ts": "2026-09-02"
   },
   "porter": {
     "name": "GifOS",

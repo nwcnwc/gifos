@@ -42,15 +42,15 @@
   "cover": "/apps/beepbox/cover.jpg",
   "screenshots": [],
   "gif": "/apps/beepbox/beepbox.gif",
-  "bytes": 426515,
+  "bytes": 428152,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "5723e24b4ea2a557200c17349b924407e344b2d84465faf69f324c2bc7f28d8a",
+  "sha256": "782e444ded1358b01b8e385e743658d1b8e081b4931e15b64eb584e4464aeb80",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-31"
+    "ts": "2026-09-02"
   },
   "porter": {
     "name": "GifOS",
