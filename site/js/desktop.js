@@ -270,8 +270,6 @@
     (function walk(list) { (list || []).forEach((f) => { (f.apps || []).forEach(add); walk(f.sub); }); })(seed.folders);
     const files = await store.allFiles();
     const fileById = {}; for (const f of files) fileById[f.id] = f;
-    const itemById = {}; for (const it of items) itemById[it.id] = it;
-    const underStolen = (it) => { let c = it, g = 0; while (c && g++ < 64) { if (c.id === 'sys_stolen' || c.parent === 'sys_stolen') return true; c = c.parent ? itemById[c.parent] : null; } return false; };
     const seenAppIds = new Set();
     let updated = 0;
     for (const it of items) {
@@ -281,7 +279,13 @@
       seenAppIds.add(f.appId);
       const a = fresh[f.appId];
       if (!a) continue;                                  // user-built/renamed app, or a default this build dropped
-      if (underStolen(it) && f.isDefault !== true) continue;  // a stolen copy that shares a default appId — leave it
+      // Only a file the seed itself stamped is the seed's to refresh. A copy
+      // that merely SHARES a default appId — a stolen one, an AI remix the
+      // build prompt tells users to splice back into the same GIF, a store
+      // port — is the user's work, wherever its icon sits; the folder it is
+      // in says nothing about who wrote the bytes. putDefaultApp has always
+      // written isDefault: true, so the flag is the whole test.
+      if (f.isDefault !== true) continue;
       await store.putFile(Object.assign({}, f, { bytes: a.bytes, accent: a.accent, isDefault: true }));
       updated++;                                         // code swapped in place; the app's saved data (by fileId) is untouched
     }

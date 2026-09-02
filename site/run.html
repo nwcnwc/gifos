@@ -1971,10 +1971,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function stageVoteTallies() {
       const now = Date.now();
       if (now - stgTallyCache.at < 500) return stgTallyCache;
-      const bagUp = {}, bagDn = {};
+      const bagUp = Object.create(null), bagDn = Object.create(null); // a peer's vup:['__proto__'] must not find Object.prototype here
       const add = (bag, voterDev, list) => {
         for (const d of (Array.isArray(list) ? list : [])) {
-          if (!d || d === voterDev) continue; // a self-vote counts for nothing
+          if (typeof d !== 'string' || !d || d === voterDev) continue; // a self-vote counts for nothing
           (bag[d] = bag[d] || new Set()).add(voterDev || 'x');
         }
       };
@@ -2560,6 +2560,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function mergeMod(incoming) {
       let changed = false;
       for (const target in incoming || {}) {
+        // A peer's table is JSON: a '__proto__' key is an OWN key there, and
+        // modTable['__proto__'] is Object.prototype — one unsigned frame
+        // would then put a room-wide order on every object in the page.
+        if ((target in Object.prototype) || !incoming[target] || typeof incoming[target] !== 'object') continue;
         const mine = modTable[target] = modTable[target] || {};
         // 'chat' lives under the pseudo-target '*' — the one ROOM-WIDE mod
         // field (the admin's chat on/off switch). It rides the same signed
@@ -2567,7 +2571,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // heartbeat and a forged copy dies in takeMod's admVerify.
         for (const field of ['mute', 'blur', 'cam', 'app', 'chat']) {
           const inc = incoming[target][field];
-          if (!inc) continue;
+          if (!inc || typeof inc !== 'object') continue;
           // The TARGET cannot lift a restriction the group put on them —
           // every receiver rejects a self-authored "off" independently.
           if (inc.on === false && inc.byId === target) continue;
@@ -4029,7 +4033,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function fwdNextCoord(c, t) {
       const T = net.topo;
       if (c.pc === t.pc && c.r === t.r) return (c.i === t.i) ? null : { pc: c.pc, r: c.r, i: t.i }; // same row: one hop
-      const digs = (pc) => { const v = []; while (pc) { v.push(T.lastDigit(pc)); pc = T.parentPath(pc); } v.reverse(); return v; };
+      const digs = (pc) => { const v = []; if (!Number.isInteger(pc) || pc < 0) return v; while (pc > 0) { v.push(T.lastDigit(pc)); pc = T.parentPath(pc); } v.reverse(); return v; };
       const pb = digs(t.pc);
       if (c.pc === 0) {                                                  // Section 1 (rook): row+column are one hop
         if (t.pc !== 0 && c.r === t.r) {
@@ -4738,7 +4742,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return Array.from(q.values()).sort((a, b) => (a.t - b.t) || (a.i < b.i ? -1 : 1));
     }
     function learn(from, msg, p, adm) {
-      if (msg.name && p) { p.name = msg.name; p.label.textContent = msg.name; p.avatar.textContent = msg.name[0].toUpperCase(); }
+      if (msg.name && p) { const nm = String(msg.name).slice(0, 40); p.name = nm; p.label.textContent = nm; p.avatar.textContent = (nm[0] || '?').toUpperCase(); }
       if (msg.name) rosterNames[from] = String(msg.name).slice(0, 40);
       if (msg.ip) ipsOf[from] = String(msg.ip).slice(0, 64);
       if (p) p.lastHeard = Date.now();
@@ -4873,7 +4877,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const sp = peers.get(from);
         if (sp) {
           sp.lastHeard = Date.now();
-          if (msg.name && sp.name !== msg.name) { sp.name = msg.name; if (sp.label) sp.label.textContent = msg.name; if (sp.avatar) sp.avatar.textContent = msg.name[0].toUpperCase(); }
+          if (msg.name && sp.name !== msg.name) { const nm = String(msg.name).slice(0, 40); sp.name = nm; if (sp.label) sp.label.textContent = nm; if (sp.avatar) sp.avatar.textContent = (nm[0] || '?').toUpperCase(); }
           if ('sid' in msg) { sp.ownSid = msg.sid; claimOwnStream(sp); }
         }
         reactRoomState(); // their agreement (or its withdrawal) can move the whole room's floor
@@ -5012,7 +5016,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!pid || pid === myId || meshGone.has(pid)) return;
       meshGone.set(pid, Date.now());
       occVanish.delete(pid);
-      statusOf.delete(pid); connsOf.delete(pid); delete rosterNames[pid];
+      statusOf.delete(pid); connsOf.delete(pid); delete rosterNames[pid]; delete ipsOf[pid]; delete devOf[pid];
       // A probe-confirmed departure is ABSENCE EVIDENCE (2026-07-29): without
       // this, a departed admin stayed "present" until the 30s admSeen decay,
       // so the host-absence grace could not even START for half a minute — a
@@ -7636,7 +7640,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         }));
       };
     }
-    function onDc(p, dc, m) {
+    // admOk is the OS's own flag for a pwinfo whose admin signature has just
+    // been verified (the handler re-enters itself with it). It is a parameter,
+    // not a field on the frame: m is the peer's decrypted JSON, and a field
+    // there is the peer's to set.
+    function onDc(p, dc, m, admOk) {
       if (p && p.id && isSevered(p.id)) return; // DEBUG sever — see severPair
       // ANY DataChannel receive is FIRST-HAND transport proof (peer-instance
       // regression report, 2026-07-27): the starve edge keyed on MESH
@@ -7907,8 +7915,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // re-derive our proof so reconnects keep working. In an ADMIN room
         // only a SIGNED order re-keys the room (§9) — verify, then re-enter
         // this handler with the proof already checked.
-        if (hasAdminRoom() && !m.__admOk) {
-          admVerify(m.w, 'pwinfo').then((o) => { if (o && String(o.pw || '') === String(m.pw || '') && (o.ep == null || o.ep === m.ep)) onDc(p, null, Object.assign({}, m, { __admOk: 1 })); });
+        if (hasAdminRoom() && admOk !== true) {
+          admVerify(m.w, 'pwinfo').then((o) => { if (o && String(o.pw || '') === String(m.pw || '') && (o.ep == null || o.ep === m.ep)) onDc(p, null, m, true); });
           return;
         }
         // EPOCH GUARD (§LOCK healing): a grant at or below my own generation

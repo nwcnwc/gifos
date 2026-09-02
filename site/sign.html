@@ -245,7 +245,12 @@
     gifName = (name || 'app.gif').replace(/\.gif$/i, '');
     if (!(gifBytes[0] === 0x47 && gifBytes[1] === 0x49 && gifBytes[2] === 0x46)) { msg('That is not a GIF file.', 'err'); return; }
     drop.classList.add('have');
-    drop.innerHTML = '<b>' + gifName + '.gif</b> loaded — sign it below';
+    // The name is whatever the file record carries — a dropped download's
+    // name, an entry from a restored image — on the page that loads the
+    // signing private key. Text, never markup.
+    drop.textContent = '';
+    const nameEl = document.createElement('b'); nameEl.textContent = gifName + '.gif';
+    drop.append(nameEl, ' loaded — sign it below');
     $('signui').style.display = '';
     const existing = GifOS.sign.readSig(gifBytes);
     msg(existing ? 'Note: this GIF is already signed by ' + existing.id + '. Signing replaces it.' : '', existing ? 'err' : '');
