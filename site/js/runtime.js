@@ -3054,7 +3054,16 @@
       // stop), when contentWindow is null — a reply then must be a no-op,
       // not an unhandled "reading 'postMessage'" rejection.
       const reply = (p) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*'); };
-      if (d.type === 'db') db.op(d.op, d.collection, d.key, d.value).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      // The collection name is the ONE app-chosen string that indexes a
+      // trusted-side map (store.badCollectionName says why it is gated); and
+      // a synchronous throw inside an op must still become a reply, never an
+      // uncaught error that leaves the app's promise hanging.
+      if (d.type === 'db') {
+        (d.op !== 'dump' && store.badCollectionName(d.collection)
+          ? Promise.reject(new Error('bad collection name'))
+          : Promise.resolve().then(() => db.op(d.op, d.collection, d.key, d.value)))
+          .then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      }
       else if (d.type === 'fetch') {
         (poolable(manifest, d) ? pooledFetch(policy, d) : bridgeFetch(policy, d))
           .then((r) => reply({ ok: true, result: r }))
@@ -3794,6 +3803,7 @@
             // room adopts — a non-owner can propose but never author state.
             const onAct = (op) => {
               if (!op || (op.op !== 'put' && op.op !== 'delete')) return;
+              if (store.badCollectionName(op.collection)) return;
               // op.value already carries real Uint8Array bytes — the transport
               // revived them; no {$bin} decode needed.
               const targetId = op.op === 'put' ? (op.value && op.value.id) : op.key;
@@ -4041,6 +4051,7 @@
             const eff = stored ? visOf(dataVis, collection, stored) : collVis(dataVis, collection);
             if (eff !== 'read-write') return Promise.reject(new Error('read-only for guests'));
             if (fenced(collection, rec.id)) return Promise.reject(new Error('the leader is driving this record'));
+            if (store.badCollectionName(collection)) return Promise.reject(new Error('bad collection name'));
             const c = mirror.collections[collection] || (mirror.collections[collection] = { items: {}, seq: 0 });
             c.items[rec.id] = rec; notify(collection);
             const d = { op: 'put', collection: collection, value: rec };

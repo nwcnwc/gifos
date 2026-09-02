@@ -245,13 +245,27 @@
     const appRange = (fileId) => IDBKeyRange.bound([fileId], [fileId, []]);
     const collRange = (fileId, coll) => IDBKeyRange.bound([fileId, coll], [fileId, coll, []]);
 
+    // A collection name an app may use. Names that are Object.prototype
+    // members ('constructor', '__proto__', 'toString', …) are refused: the
+    // `map[name] || (map[name] = …)` idiom every consumer uses would hand back
+    // the inherited member as "the collection" — for '__proto__' that WRITES
+    // to Object.prototype in the trusted page, and any of them makes
+    // assemble() throw, so allStates() (whole-computer backup) rejects
+    // forever on one bad row. The bridge refuses such names up front; the
+    // readers below skip a row that carries one anyway, so a row written
+    // before the gate existed cannot brick a backup.
+    function badCollectionName(name) {
+      return typeof name !== 'string' || name.length === 0 || name.length > 64 || (name in Object.prototype);
+    }
+
     // Assemble a full { collections } object for a per-record app from its rows.
     function assemble(recOS, fileId, skel) {
       const collections = {};
       const sc = (skel && skel.collections) || {};
-      for (const name in sc) collections[name] = { items: {}, seq: (sc[name] || {}).seq || 1 };
+      for (const name in sc) { if (!badCollectionName(name)) collections[name] = { items: {}, seq: (sc[name] || {}).seq || 1 }; }
       return reqP(recOS.getAll(appRange(fileId))).then((rows) => {
         for (const row of rows || []) {
+          if (badCollectionName(row.collection)) continue;
           const c = collections[row.collection] || (collections[row.collection] = { items: {}, seq: 1 });
           c.items[row.id] = row.rec;
         }
@@ -265,6 +279,7 @@
         for (const k of keys || []) recOS.delete(k);
         const skel = { _perRecord: true, collections: {} };
         for (const name in state.collections) {
+          if (badCollectionName(name)) continue;
           const c = state.collections[name] || {};
           skel.collections[name] = { seq: c.seq || 1 };
           const items = c.items || {};
@@ -278,6 +293,7 @@
     const store = {
       uid,
       dbName,
+      badCollectionName,
       // ---- files ----
       // THE ONE PLACE A FILE'S BYTES ARE WRITTEN, which is why the ornament is
       // stripped here: install, seed, import, rename and an app saving its own
@@ -361,7 +377,7 @@
       // counter (in the skeleton) when the record has none — the skeleton read,
       // seq bump and record write all happen in ONE transaction, so concurrent
       // tabs never reuse an id.
-      appAdd: (fileId, coll, rec) => txMulti(['appstate', 'apprecords'], 'readwrite', (s) =>
+      appAdd: (fileId, coll, rec) => badCollectionName(coll) ? Promise.reject(new Error('bad collection name')) : txMulti(['appstate', 'apprecords'], 'readwrite', (s) =>
         reqP(s.appstate.get(fileId)).then((r) => {
           const skel = (r && r.state && r.state._perRecord) ? r.state : { _perRecord: true, collections: {} };
           const c = skel.collections[coll] || (skel.collections[coll] = { seq: 1 });

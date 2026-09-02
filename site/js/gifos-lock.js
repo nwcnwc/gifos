@@ -464,6 +464,7 @@
       };
     }
     const collOf = (name) => {
+      if (GifOS.store.badCollectionName(name)) throw new Error('bad collection name');
       const c = state.collections[name] || (state.collections[name] = { items: {}, seq: 1 });
       if (!c.items) c.items = {};
       if (!c.seq) c.seq = 1;
