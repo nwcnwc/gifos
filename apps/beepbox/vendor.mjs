@@ -24,7 +24,7 @@ const out = join(dir, 'vendor');
 
 const UPSTREAM = 'https://github.com/johnnesky/beepbox.git';
 const PIN = '3a88cd674149c8c15b7f59064db07c082f9eb152'; // v4.2.2
-const EDITOR_SHA256 = '21473aa7a0b10042aeb11c11a5c49b601dcae9854f753ac54a65b4607119fca7';
+const EDITOR_SHA256 = '62d253d49f5987928d0c7c81e43a7cae62e82e3c289fe341df58d3f2d2d7fe59';
 
 const run = (cmd, args, cwd, opts = {}) => execFileSync(cmd, args, {
   cwd, stdio: 'inherit', timeout: 600000,
@@ -55,13 +55,26 @@ if (!existsSync(editorJs) || !existsSync(synthJs)) {
 }
 if (!existsSync(editorJs)) throw new Error('editor bundle missing after build');
 
-const buf = readFileSync(editorJs);
+// prompt() in the app frame returns null without asking (no allow-modals —
+// test/unit/app-modals.js). The editor's two prompts are both the clipboard
+// fallback (the text to copy, when the Clipboard API or execCommand fails);
+// they now ask through gifosAsk (shim.js), which shows the text selected in a
+// dialog of its own. The pin below is the sha256 of the PATCHED bundle.
+let editorSrc = readFileSync(editorJs, 'utf8');
+for (const [from, to] of [
+  ['window.prompt("Copy to clipboard:",t)', 'window.gifosAsk("Copy to clipboard:",t)'],
+  ['window.prompt("Copy this:",t)', 'window.gifosAsk("Copy this:",t)'],
+]) {
+  if (editorSrc.split(from).length !== 2) throw new Error('prompt() patch did not match exactly once: ' + from);
+  editorSrc = editorSrc.replace(from, to);
+}
+const buf = Buffer.from(editorSrc, 'utf8');
 const hex = createHash('sha256').update(buf).digest('hex');
 if (hex !== EDITOR_SHA256) {
   console.warn('editor sha256 is ' + hex + ' (pin was ' + EDITOR_SHA256 + ') — update EDITOR_SHA256 in vendor.mjs and build.mjs if the pin moved.');
 }
 
-copyFileSync(editorJs, join(out, 'beepbox_editor.min.js'));
+writeFileSync(join(out, 'beepbox_editor.min.js'), buf);
 copyFileSync(join(src, 'LICENSE.md'), join(out, 'COPYING-beepbox.txt'));
 
 function makeSeed() {

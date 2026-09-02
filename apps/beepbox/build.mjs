@@ -44,7 +44,7 @@ const read = (p) => readFileSync(join(dir, p), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
 
-const EDITOR_SHA256 = '21473aa7a0b10042aeb11c11a5c49b601dcae9854f753ac54a65b4607119fca7';
+const EDITOR_SHA256 = '62d253d49f5987928d0c7c81e43a7cae62e82e3c289fe341df58d3f2d2d7fe59';
 
 for (const need of [
   'vendor/beepbox_editor.min.js', 'vendor/seed.js', 'vendor/seed.json',

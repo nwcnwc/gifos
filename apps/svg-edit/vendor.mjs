@@ -157,6 +157,29 @@ if (/<\/script/i.test(imagesJs)) throw new Error('images.js contains </script');
 
 const outDir = join(dir, 'vendor');
 mkdirSync(outDir, { recursive: true });
+// prompt() in the app frame. The sandbox carries no allow-modals, so
+// window.prompt returns null without asking and the feature silently does not
+// happen (test/unit/app-modals.js). The five places the editor asks for a
+// string — image URL, hyperlink, new/clone/rename layer — are rewritten to
+// take the answer late from gifosAsk (boot.js), the same async dialog piskel
+// uses. Each patch must match exactly once; a moved pin that changes the
+// text fails here rather than shipping a prompt() that does nothing.
+const PROMPT_PATCHES = [
+  ["let n=prompt(this.editor.i18next.t(`notification.enterNewImgURL`),t);n?this.setImageURL(n):e&&this.editor.svgCanvas.deleteSelectedElements()}",
+   "window.gifosAsk(this.editor.i18next.t(`notification.enterNewImgURL`),t).then(n=>{n?this.setImageURL(n):e&&this.editor.svgCanvas.deleteSelectedElements()})}"],
+  ["let e=prompt(this.editor.i18next.t(`notification.enterNewLinkURL`),`http://`);e&&this.editor.svgCanvas.makeHyperlink(e)}",
+   "window.gifosAsk(this.editor.i18next.t(`notification.enterNewLinkURL`),`http://`).then(e=>{e&&this.editor.svgCanvas.makeHyperlink(e)})}"],
+  ["let n=prompt(this.editor.i18next.t(`notification.enterUniqueLayerName`),e);if(n){if(this.editor.svgCanvas.getCurrentDrawing().hasLayer(n)){alert(this.editor.i18next.t(`notification.dupeLayerName`));return}this.editor.svgCanvas.createLayer(n),this.updateContextPanel(),this.populateLayers()}}",
+   "window.gifosAsk(this.editor.i18next.t(`notification.enterUniqueLayerName`),e).then(n=>{if(n){if(this.editor.svgCanvas.getCurrentDrawing().hasLayer(n)){alert(this.editor.i18next.t(`notification.dupeLayerName`));return}this.editor.svgCanvas.createLayer(n),this.updateContextPanel(),this.populateLayers()}})}"],
+  ["t=prompt(this.editor.i18next.t(`notification.enterUniqueLayerName`),e);if(t){if(this.editor.svgCanvas.getCurrentDrawing().hasLayer(t)){alert(this.editor.i18next.t(`notification.dupeLayerName`));return}this.editor.svgCanvas.cloneLayer(t),this.updateContextPanel(),this.populateLayers()}}",
+   "t=e;window.gifosAsk(this.editor.i18next.t(`notification.enterUniqueLayerName`),e).then(t=>{if(t){if(this.editor.svgCanvas.getCurrentDrawing().hasLayer(t)){alert(this.editor.i18next.t(`notification.dupeLayerName`));return}this.editor.svgCanvas.cloneLayer(t),this.updateContextPanel(),this.populateLayers()}})}"],
+  ["n=prompt(this.editor.i18next.t(`notification.enterNewLayerName`),``);if(n){if(t===n||this.editor.svgCanvas.getCurrentDrawing().hasLayer(n)){alert(this.editor.i18next.t(`notification.layerHasThatName`));return}this.editor.svgCanvas.renameCurrentLayer(n),this.populateLayers()}}",
+   "n=``;window.gifosAsk(this.editor.i18next.t(`notification.enterNewLayerName`),``).then(n=>{if(n){if(t===n||this.editor.svgCanvas.getCurrentDrawing().hasLayer(n)){alert(this.editor.i18next.t(`notification.layerHasThatName`));return}this.editor.svgCanvas.renameCurrentLayer(n),this.populateLayers()}})}"],
+];
+for (const [from, to] of PROMPT_PATCHES) {
+  if (js.split(from).length !== 2) throw new Error('prompt() patch did not match exactly once: ' + from.slice(0, 60));
+  js = js.replace(from, to);
+}
 writeFileSync(join(outDir, 'iife-Editor.js'), js);
 writeFileSync(join(outDir, 'svgedit.css'), css);
 writeFileSync(join(outDir, 'images.js'), imagesJs);

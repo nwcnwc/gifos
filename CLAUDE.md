@@ -97,12 +97,12 @@ get a release out.
 `docs/audit-2026-09-02.md` is the index of the 2026-09-02 security, stability
 and performance audit: what was fixed (with its commit and guard), what was
 deferred and why, and **"What needs a person"** — the items a release agent
-must act on or consciously carry. Two of them decide whether a cut is even
-possible: `test/unit/app-modals.js` is RED by design until beepbox,
-blockly-games, jupyterlite and svg-edit are ported off `prompt()`, rebuilt and
-re-signed (the gate is green-or-no-cut, so that port is part of the next
-release, not something to explain around), and the Workers must be deployed
-with the site (`DS` is `gifos-net-4`; an old relay refuses new clients). Read
+must act on or consciously carry. Two of them decide what a cut ships: four
+apps (beepbox, blockly-games, jupyterlite, svg-edit) were ported off
+`prompt()` in source and must be REBUILT and RE-SIGNED on the box with the key
+before the cut, or the store keeps shipping the old bytes; and the Workers must
+be deployed with the site (`DS` is `gifos-net-4`; an old relay refuses new
+clients). Read
 that section before tagging the freeze, and update the file when an item
 closes — it is the one place the open list lives.
 
