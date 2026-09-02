@@ -3444,6 +3444,7 @@
   // folder bundles and backups all work. Returns null on success, or a short
   // human error string to show inline (CORS/404/not-a-GIF).
   // Fetch + validate a GIF from a web URL. Returns { bytes, name } or { error }.
+  const RUN_MAX_BYTES = 1024 * 1024 * 1024; // 1 GB: the ?run= / add-by-URL download ceiling
   async function fetchGifFromUrl(raw) {
     let url;
     try { url = new URL(raw); } catch (e) { return { error: 'That doesn’t look like a web link.' }; }
@@ -3452,7 +3453,26 @@
     try {
       const r = await fetch(url.toString(), { redirect: 'follow' });
       if (!r.ok) return { error: 'The link returned an error (' + r.status + ').' };
-      buf = new Uint8Array(await r.arrayBuffer());
+      // Read up to the ceiling WHILE it streams: a link to a multi-gigabyte
+      // file must fail with a message, not by exhausting the tab's memory
+      // before arrayBuffer() ever returns. The ceiling is well above any App
+      // GIF (the inflate cap is 2 GB−1 on the unpacked side).
+      const cl = Number(r.headers.get('content-length'));
+      if (cl > RUN_MAX_BYTES) { try { r.body && r.body.cancel(); } catch (e) {} return { error: 'That file is bigger than ' + Math.round(RUN_MAX_BYTES / 1048576) + ' MB — too large to open here.' }; }
+      if (r.body && typeof r.body.getReader === 'function') {
+        const reader = r.body.getReader(); const chunks = []; let total = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          total += value.length;
+          if (total > RUN_MAX_BYTES) { try { reader.cancel(); } catch (e) {} return { error: 'That file is bigger than ' + Math.round(RUN_MAX_BYTES / 1048576) + ' MB — too large to open here.' }; }
+          chunks.push(value);
+        }
+        buf = new Uint8Array(total); let o = 0; for (const c of chunks) { buf.set(c, o); o += c.length; }
+      } else {
+        buf = new Uint8Array(await r.arrayBuffer());
+        if (buf.length > RUN_MAX_BYTES) return { error: 'That file is bigger than ' + Math.round(RUN_MAX_BYTES / 1048576) + ' MB — too large to open here.' };
+      }
     } catch (e) {
       // A TypeError from fetch is the CORS/network signature. Anything else —
       // an aborted read, running out of memory on a half-gigabyte app — must

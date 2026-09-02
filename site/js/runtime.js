@@ -686,7 +686,37 @@
   // reach is decided entirely by the declared-and-user-approved host allowlist —
   // never by what the bytes happen to contain.
   const FETCH_MAX_BYTES = 8 * 1024 * 1024; // 8 MB response ceiling
+  // Read a response body up to `max` bytes and refuse past it — WHILE it
+  // streams, not after arrayBuffer() has already pulled the whole thing into
+  // this tab. A Content-Length beyond the cap is refused before a byte is read.
+  function readBodyCapped(resp, max) {
+    const cl = Number(resp.headers.get('content-length'));
+    if (cl > max) { try { resp.body && resp.body.cancel(); } catch (e) {} return Promise.reject(new Error('response too large')); }
+    if (!resp.body || typeof resp.body.getReader !== 'function') {
+      return resp.arrayBuffer().then((buf) => { if (buf.byteLength > max) throw new Error('response too large'); return buf; });
+    }
+    const reader = resp.body.getReader();
+    const chunks = []; let total = 0;
+    return (function pump() {
+      return reader.read().then(({ done, value }) => {
+        if (done) {
+          const out = new Uint8Array(total); let o = 0;
+          for (const c of chunks) { out.set(c, o); o += c.length; }
+          return out.buffer;
+        }
+        total += value.length;
+        if (total > max) { try { reader.cancel(); } catch (e) {} throw new Error('response too large'); }
+        chunks.push(value);
+        return pump();
+      });
+    })();
+  }
+  // A URL's hostname as the denylist and allowlist see it: lower-case with
+  // trailing dots stripped (the URL parser keeps "gifos.app." verbatim, and
+  // DNS and the certificate check treat it as gifos.app).
+  function canonHost(h) { return String(h == null ? '' : h).toLowerCase().replace(/\.+$/, ''); }
   function firstPartyHost(host) {
+    host = canonHost(host);
     // gifos.app and *.gifos.app (relay/mirrors) are always off-limits.
     if (host === 'gifos.app' || host.endsWith('.gifos.app')) return true;
     // Custom deployments can protect their own sibling services by setting
@@ -715,7 +745,10 @@
   // none (empty or absent) and can never touch the network; anything here is a
   // capability the user gets to see and veto.
   function networkHosts(manifest) {
-    const raw = (manifest && manifest.capabilities && manifest.capabilities.network) || [];
+    const x = manifest && manifest.capabilities && manifest.capabilities.network;
+    // One string is one host, not a list of its characters; anything that
+    // is not an array or a string declares nothing.
+    const raw = Array.isArray(x) ? x : (typeof x === 'string' ? [x] : []);
     const seen = {}, out = [];
     for (const h of raw) { const s = normHost(h); if (s && !seen[s]) { seen[s] = 1; out.push(s); } }
     return out;
@@ -739,7 +772,7 @@
       hasNetwork: () => declared.length > 0,
       unsafe: () => declared.indexOf('*') >= 0 && !denied['*'],
       list: () => declared.map((h) => ({ host: h, allowed: !denied[h] })),
-      allow: (host) => declared.some((p) => !denied[p] && (p === '*' || host === p || host.endsWith('.' + p))),
+      allow: (host) => { host = canonHost(host); return declared.some((p) => !denied[p] && (p === '*' || host === p || host.endsWith('.' + p))); },
       set: (host, allowed) => { if (allowed) delete denied[host]; else denied[host] = 1; return persist(); },
       // Has the user seen THIS exact set of requested hosts before? False on first
       // run and again whenever the app changes what it asks for.
@@ -794,8 +827,7 @@
             throw new Error('Network denied: redirected to a disallowed host (' + finalHost + ')');
           }
         }
-        return resp.arrayBuffer().then((buf) => {
-          if (buf.byteLength > FETCH_MAX_BYTES) throw new Error('response too large');
+        return readBodyCapped(resp, FETCH_MAX_BYTES).then((buf) => {
           // Hand back the BYTES, not a decoded string. structuredClone carries an
           // ArrayBuffer across postMessage natively (the same way brokered capture
           // and gifos.api's as:'bytes' already do), and the shim decodes on demand.
@@ -1285,6 +1317,7 @@
     for (const m of cands) { try { if (MR.isTypeSupported(m)) return m; } catch (e) {} }
     return '';
   }
+  let captureBusy = false; // a brokered photo/audio/video capture is open
   function brokerCapture(manifest, d, onShot) {
     if (d && d.studio) {
       const CS = GifOS.cameraStudio;
@@ -1298,6 +1331,10 @@
       return CS.open(Object.assign({}, d, { label: label, audio: d.audio !== false && hasMic }), { hasMic: hasMic, onShot: onShot })
         .catch((err) => { throw new Error(err && err.name === 'NotAllowedError' ? 'Permission to use the camera was denied.' : (err && err.message) || String(err)); });
     }
+    // One capture at a time: each call would otherwise open another overlay
+    // and another device stream, stacking dialogs a user can only dismiss
+    // one by one.
+    if (captureBusy) return Promise.reject(new Error('A capture is already open.'));
     const kind = d.media === 'video' ? 'video' : d.media === 'photo' ? 'photo' : 'audio';
     const cap = CAP_FOR[kind];
     if (!hasCap(manifest, cap)) return Promise.reject(new Error('This app did not declare the "' + cap + '" capability.'));
@@ -1314,9 +1351,10 @@
     const acquire = (f) => nav.mediaDevices.getUserMedia({ audio: wantAudio, video: wantVideo ? { facingMode: f } : false });
     return acquire(facing)
       .then((stream0) => new Promise((resolve, reject) => {
+        captureBusy = true;
         let done = false, ov = null, autoT = null, rec = null, stream = stream0, chunks = [], startMs = 0, flipping = false;
         const stopTracks = (s) => { try { (s || stream).getTracks().forEach((t) => t.stop()); } catch (e) {} };
-        const cleanup = () => { if (autoT) clearTimeout(autoT); stopTracks(); if (ov) ov.close(); };
+        const cleanup = () => { captureBusy = false; if (autoT) clearTimeout(autoT); stopTracks(); if (ov) ov.close(); };
         // ---- PHOTO: live preview, tap to capture, flip to switch camera ----
         if (kind === 'photo') {
           const snap = () => {
@@ -1343,7 +1381,9 @@
             onCancel: () => { if (!done) { done = true; cleanup(); reject(new Error('Capture cancelled.')); } },
           });
           ov.setStream(stream, facing);
-          autoT = setTimeout(() => { if (!done) snap(); }, 60000); // safety: never hang forever
+          // The sheet promises a photo "only when you tap"; a dialog nobody
+          // answered in a minute is CANCELLED, never snapped on their behalf.
+          autoT = setTimeout(() => { if (!done) { done = true; cleanup(); reject(new Error('Capture cancelled.')); } }, 60000);
           return;
         }
 
@@ -1468,6 +1508,7 @@
     }
     return null;
   }
+  const libPutLog = new Map(); // mountFileId -> timestamps of recent library saves
   async function brokerLibraryPut(manifest, mountFileId, d, emit) {
     const bytes = asU8(d && d.bytes);
     if (!bytes || !bytes.length) throw new Error('Nothing to save.');
@@ -1475,13 +1516,25 @@
     const mime = String((d && d.mime) || 'application/octet-stream');
     const type = (d && d.mediaType) || libTypeOf(mime);
     if (type !== 'image' && type !== 'video' && type !== 'audio') throw new Error('Only images, audio and video can be added.');
-    const name = String((d && d.name) || type);
-    const category = String((d && d.category) || 'Camera');
+    // Bounded, like every other app string that lands in a trusted store:
+    // a name and a category are labels, and a thumb is a small data: image
+    // or it is regenerated here — never a 100 MB string riding in a record
+    // the library has to read to paint.
+    const name = String((d && d.name) || type).slice(0, 120);
+    const category = String((d && d.category) || 'Camera').slice(0, 40);
     const id = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    let thumb = (d && d.thumb) || '';
+    let thumb = (d && typeof d.thumb === 'string' && /^data:image\//.test(d.thumb) && d.thumb.length <= 65536) ? d.thumb : '';
     if (!thumb) {
       try { thumb = await libThumb(bytes, mime, type); } catch (e) { thumb = ''; }
     }
+    // A loop that files entries by the thousand fills the origin's quota with
+    // things the user then deletes one by one: sixty a minute per app is
+    // beyond any camera and under any flood.
+    const lp = libPutLog.get(mountFileId || '?') || [];
+    const nowMs = Date.now();
+    while (lp.length && nowMs - lp[0] > 60000) lp.shift();
+    if (lp.length >= 60) throw new Error('Too many library saves — try again in a minute.');
+    lp.push(nowMs); libPutLog.set(mountFileId || '?', lp);
     const mediaRec = { id: id, name: name, type: type, mime: mime, category: category, size: bytes.length, at: Date.now(), thumb: thumb };
     const blobRec = { id: id, bytes: bytes };
     let myMedia = false;
@@ -2978,6 +3031,7 @@
     return out;
   }
 
+  let setupShownAt = 0; // the last time an app raised an apiSetup/aiSetup modal
   function mountApp(iframe, files, manifest, db, originalBytes, policy, mountFileId, launch) {
     policy = policy || makeNetPolicy(null, manifest); // client-run: session-only
     mountFileId = mountFileId || null; // set for host mounts — lets gifos.assets() serve the icon's asset cache
@@ -3102,8 +3156,21 @@
       }
       else if (d.type === 'api') brokerApi(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'apiReady') { const c = apiEntry(d.name); reply({ ok: true, result: apiAllowed(manifest, d.name) && !!(c && c.url) }); }
-      else if (d.type === 'apiSetup') { showSystemSetup({ kind: 'api', name: d.name, hint: d.hint }); reply({ ok: true, result: true }); }
-      else if (d.type === 'aiSetup') { showSystemSetup({ kind: 'ai', role: d.role, hint: d.hint }); reply({ ok: true, result: true }); }
+      // A setup modal is OS chrome with the app's words in it: only for an
+      // API or role the manifest declares (the same gate as the call itself),
+      // with a short hint, and not more than once every few seconds.
+      else if (d.type === 'apiSetup' || d.type === 'aiSetup') {
+        const okName = d.type === 'apiSetup' ? apiAllowed(manifest, d.name) : aiAllowed(manifest, d.role);
+        const nowMs = Date.now();
+        if (!okName) reply({ ok: false, error: d.type === 'apiSetup' ? 'This app did not declare that API.' : 'This app did not declare that AI role.' });
+        else if (nowMs - setupShownAt < 5000) reply({ ok: false, error: 'A setup panel was just shown.' });
+        else {
+          setupShownAt = nowMs;
+          const hint = String(d.hint == null ? '' : d.hint).slice(0, 200);
+          showSystemSetup(d.type === 'apiSetup' ? { kind: 'api', name: d.name, hint } : { kind: 'ai', role: d.role, hint });
+          reply({ ok: true, result: true });
+        }
+      }
       else if (d.type === 'agentChat') brokerAgentChat(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       // owner = this app runs on its OWNER's computer (host / local), so it may
       // change visibility (setVisibility). A guest view is not the owner.

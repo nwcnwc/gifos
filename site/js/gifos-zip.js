@@ -12,9 +12,23 @@
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
 
+  // The GIF codec's inflate carries the decompression ceiling (a small
+  // payload that expands past max(64 MB, 16× its size) is refused); a bare
+  // Response.arrayBuffer() would inflate a zip bomb whole.
   function inflateRaw(bytes) {
+    if (GifOS.gif && typeof GifOS.gif.inflate === 'function') return GifOS.gif.inflate(bytes);
     const stream = new Blob([bytes]).stream().pipeThrough(new root.DecompressionStream('deflate-raw'));
     return new root.Response(stream).arrayBuffer().then((b) => new Uint8Array(b));
+  }
+  // An entry name as a path inside the app: forward slashes, no leading
+  // slash or "./", no ".." segment, no NUL. Anything else is not a file this
+  // reader will hand to the runtime.
+  function cleanName(name) {
+    let n = String(name).replace(/\\/g, '/');
+    while (n.startsWith('./') || n.startsWith('/')) n = n.replace(/^(\.\/|\/)+/, '');
+    if (!n || n.indexOf('\0') >= 0) return null;
+    if (n.split('/').some((seg) => seg === '..' || seg === '')) return null;
+    return n;
   }
 
   function looksLikeZip(bytes) {
@@ -34,8 +48,11 @@
     let cd = dv.getUint32(eocd + 16, true);
 
     const jobs = [];
+    const seen = new Set();
     for (let n = 0; n < count; n++) {
-      if (dv.getUint32(cd, true) !== 0x02014b50) break;
+      // A directory that ends early is a truncated or inconsistent archive,
+      // not a shorter app.
+      if (dv.getUint32(cd, true) !== 0x02014b50) return Promise.reject(new Error('corrupt zip (central directory ends early)'));
       const method = dv.getUint16(cd + 10, true);
       const compSize = dv.getUint32(cd + 20, true);
       const nameLen = dv.getUint16(cd + 28, true);
@@ -46,21 +63,27 @@
       cd += 46 + nameLen + extraLen + commentLen;
 
       if (name.endsWith('/')) continue; // directory entry
+      const path = cleanName(name);
+      if (!path || path === '__proto__') continue; // not a path we serve (see cleanName)
+      if (seen.has(path)) continue;                 // first entry wins; a duplicate never silently replaces it
+      seen.add(path);
       // Local header: data begins after its own name+extra fields.
+      if (dv.getUint32(localOff, true) !== 0x04034b50) return Promise.reject(new Error('corrupt zip (bad local header for ' + path + ')'));
       const lNameLen = dv.getUint16(localOff + 26, true);
       const lExtraLen = dv.getUint16(localOff + 28, true);
       const dataStart = localOff + 30 + lNameLen + lExtraLen;
+      if (dataStart + compSize > bytes.length) return Promise.reject(new Error('corrupt zip (truncated entry ' + path + ')'));
       const raw = bytes.subarray(dataStart, dataStart + compSize);
-      if (method === 0) jobs.push(Promise.resolve([name, raw.slice()]));
-      else if (method === 8) jobs.push(inflateRaw(raw).then((out) => [name, out]));
-      else return Promise.reject(new Error('unsupported zip compression method ' + method + ' for ' + name));
+      if (method === 0) jobs.push(() => Promise.resolve([path, raw.slice()]));
+      else if (method === 8) jobs.push(() => inflateRaw(raw).then((out) => [path, out]));
+      else return Promise.reject(new Error('unsupported zip compression method ' + method + ' for ' + path));
     }
 
-    return Promise.all(jobs).then((entries) => {
-      const files = {};
-      for (const [name, data] of entries) files[name] = data;
-      return stripCommonPrefix(files);
-    });
+    // One entry inflates at a time, so the ceiling is per archive, not per
+    // entry times the entry count.
+    const files = {};
+    return jobs.reduce((p, job) => p.then(job).then(([path, data]) => { files[path] = data; }), Promise.resolve())
+      .then(() => stripCommonPrefix(files));
   }
 
   // If every file lives under one top-level folder (e.g. "myapp/"), drop it so

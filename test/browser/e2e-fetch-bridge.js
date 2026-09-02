@@ -15,7 +15,7 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const API_PORT = Number(process.env.API_PORT || 8791);
 
 let failures = 0;
-function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; }
+function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (detail !== undefined && !cond ? '  (' + String(detail).slice(0, 120) + ')' : '')); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // A binary body that CANNOT survive a UTF-8 decode: a PNG signature followed by
@@ -40,6 +40,16 @@ function startApi() {
         res.writeHead(200, Object.assign({ 'Content-Type': 'text/plain' }, cors)); res.end('PLAIN-OK');
       } else if (req.url.startsWith('/bin')) {
         res.writeHead(200, Object.assign({ 'Content-Type': 'image/png' }, cors)); res.end(BIN);
+      } else if (req.url.startsWith('/big-declared')) {
+        // 9 MB with a Content-Length: refused before a byte is read.
+        res.writeHead(200, Object.assign({ 'Content-Type': 'application/octet-stream', 'Content-Length': String(9 * 1024 * 1024) }, cors));
+        const chunk = Buffer.alloc(1024 * 1024, 0x41);
+        let n = 0; const push = () => { while (n < 9) { n++; if (!res.write(chunk)) return res.once('drain', push); } res.end(); }; push();
+      } else if (req.url.startsWith('/big-chunked')) {
+        // 9 MB with no Content-Length: refused WHILE it streams.
+        res.writeHead(200, Object.assign({ 'Content-Type': 'application/octet-stream' }, cors));
+        const chunk = Buffer.alloc(1024 * 1024, 0x42);
+        let n = 0; const push = () => { while (n < 9) { n++; if (!res.write(chunk)) return res.once('drain', push); } res.end(); }; push();
       } else { res.writeHead(404, cors); res.end('no'); }
     });
     srv.listen(API_PORT, () => resolve(srv));
@@ -124,6 +134,19 @@ async function fetchInApp(browser, opts) {
   const r7 = await fetchInApp(browser, { network: ['127.0.0.1'], url: G + '/bin',
     read: 'r.blob().then(function(b){return b.type+":"+b.size;})' });
   check('blob() carries content-type and length', r7 === 'GOT:image/png:' + BIN.length);
+
+  // 8. The 8 MB cap holds whether or not the server declares a length: a
+  //    declared 9 MB is refused up front, an undeclared one while it streams —
+  //    never after the whole body has been buffered into the trusted tab.
+  const r8 = await fetchInApp(browser, { network: ['127.0.0.1'], url: G + '/big-declared', read: 'r.arrayBuffer().then(function(b){return String(b.byteLength);})' });
+  check('a response over the 8 MB cap with a Content-Length is refused', /^DENIED:.*too large/.test(r8), r8);
+  const r9 = await fetchInApp(browser, { network: ['127.0.0.1'], url: G + '/big-chunked', read: 'r.arrayBuffer().then(function(b){return String(b.byteLength);})' });
+  check('a response over the 8 MB cap with NO Content-Length is refused while streaming', /^DENIED:.*too large/.test(r9), r9);
+
+  // 9. A trailing dot is the same host to DNS and the certificate check; it
+  //    must be the same host to the denylist and the allowlist too.
+  const r10 = await fetchInApp(browser, { firstParty: ['localhost'], network: ['*'], url: 'http://localhost.:' + API_PORT + '/plain' });
+  check('a trailing-dot spelling of a first-party host is still refused', /^DENIED:/.test(r10) && !/PLAIN-OK/.test(r10), r10);
 
   await browser.close();
   api.close();
