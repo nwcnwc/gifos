@@ -58,17 +58,82 @@
   //  - visualBytes = the GIF with the GIFOS1.0 and GIFOSSIG blocks removed
   //    (i.e. every pixel/palette/animation byte), and
   //  - filesDigest = SHA256 over the sorted list of "path\0sha256(bytes)" for
-  //    every app file EXCEPT .state/**, .lock/** and .assets/** .
+  //    every app file EXCEPT .state/**, .lock/** and the .assets/** entries
+  //    the manifest pins.
   // Consequence: saving app state (which only rewrites .state inside GIFOS1.0)
   // or passkey-wrapping it into .lock/v1 changes neither term, so the
   // signature survives; changing app code or artwork changes one of them, so
-  // it (correctly) breaks. `.assets/**` are
-  // the install-time downloads the OS seals in (gifos-assets.js): excluded so
-  // installing them voids nothing, and SAFE to exclude because the SIGNED
-  // manifest already pins each asset by sha256 — the excluded bytes are still
-  // hash-committed, just one hop away. (Builds before 2026-08-09 would count
-  // .assets/ files into the digest and call such a signed app tampered; no
-  // signed app carried assets before this line existed.)
+  // it (correctly) breaks.
+  //
+  // `.assets/<path>` is where gifos-assets.js seals an install-time download,
+  // and the SIGNED manifest pins that path by sha256 — so those bytes are
+  // excluded (installing them voids nothing) and still hash-committed, one hop
+  // away. Anything ELSE under .assets/ is the author's own file — a pack, a
+  // model, a wasm — sealed at build time and pinned by nothing, so it is
+  // signed like any other file. Until 2026-09-02 every .assets/ entry was
+  // skipped on the strength of a pin a self-sealed file never had: a GIF with
+  // one such file swapped verified as signed. (Builds before 2026-08-09 counted
+  // every .assets/ file and called an installed app tampered; no signed app
+  // carried assets before that line existed.)
+  //
+  // RULES VERSION. The signature block carries `v`: 1 = the old digest (every
+  // .assets/ file skipped), 2 = this one. A verifier reads the digest the way
+  // the signer wrote it, so a v1 signature — every app signed before today —
+  // still verifies; what it does not cover is reported as `unpinned` so the
+  // UI can say so. The statement bytes are unchanged ("v1" there is the
+  // STATEMENT format), and for an app with no unpinned assets the two digests
+  // are identical, so a v2 signature also verifies on a build that predates
+  // this rule. An app that DOES self-seal must raise manifest.minBuild to a
+  // build that reads v2, or an older computer calls it tampered. Rewriting
+  // `v` on a v2 block cannot help an attacker: dropping to v1 makes the
+  // verifier skip files the digest included, so the hash no longer matches.
+  function normAssetPath(p) {
+    const t = String(p || '').replace(/\\/g, '/').replace(/^\/+/, '');
+    if (!t || t.split('/').some((seg) => seg === '' || seg === '.' || seg === '..')) return '';
+    return t;
+  }
+  // The .assets/ paths the manifest pins by sha256 — the only ones a signature
+  // may skip. Mirrors gifos-assets.js list(): a bare relative path and a 64-hex
+  // digest, or the entry pins nothing.
+  function pinnedAssetPaths(files) {
+    const out = Object.create(null);
+    let manifest = null;
+    try { manifest = files['manifest.json'] ? JSON.parse(gif.bytesToText(files['manifest.json'])) : null; } catch (e) { manifest = null; }
+    const list = manifest && Array.isArray(manifest.assets) ? manifest.assets : [];
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i];
+      const path = a && typeof a.path === 'string' ? normAssetPath(a.path) : '';
+      const sha = a && typeof a.sha256 === 'string' ? a.sha256 : '';
+      if (!path || !/^[0-9a-f]{64}$/i.test(sha)) continue;
+      out['.assets/' + path] = true;
+    }
+    return out;
+  }
+  // .assets/ files a v1 digest leaves out: sealed by the author, pinned by nothing.
+  function unpinnedAssets(files) {
+    const pinned = pinnedAssetPaths(files);
+    const out = [];
+    for (const path of Object.keys(files || {}).sort()) {
+      if (path.indexOf('.assets/') === 0 && !pinned[path]) out.push(path);
+    }
+    return out;
+  }
+  const RULES_CURRENT = 2;
+  const rulesOf = (r) => (r === 1 || r === '1' ? 1 : RULES_CURRENT);
+  const rulesOfSig = (sig) => (Number(sig && sig.v) >= 2 ? 2 : 1);
+  async function filesDigestOf(files, rules) {
+    const pinned = rules >= 2 ? pinnedAssetPaths(files) : null;
+    const parts = [];
+    for (const path of Object.keys(files).sort()) {
+      if (path.indexOf('.state/') === 0) continue;  // volatile — never signed
+      if (path.indexOf('.lock/') === 0) continue;   // passkey wrap of that volatile state — never signed
+      if (path.indexOf('.assets/') === 0 && (rules < 2 || pinned[path])) continue; // OS-sealed download, pinned by the signed manifest (v1: every .assets/ file)
+      parts.push(te(path + '\0'));
+      parts.push(await sha256(files[path]));
+      parts.push(te('\n'));
+    }
+    return sha256(concat(parts));
+  }
   function stripBlock(bytes, marker) {
     const span = gif.findAppExtSpan(bytes, marker, SIG_AUTH); // both blocks carry the 'GOS' code — the walk checks it
     if (!span) return bytes;
@@ -77,23 +142,15 @@
     out.set(bytes.subarray(span.end), span.start);
     return out;
   }
-  async function contentHash(bytes) {
+  // rules: 2 (default — every unpinned file is signed) or 1 (the legacy
+  // digest a v1 block was written with). `archive` lets a caller that has
+  // already decoded the bytes skip a second decode.
+  async function contentHash(bytes, rules, archive) {
     let visual = stripBlock(bytes, 'GIFOS1.0');
     visual = stripBlock(visual, SIG_MARKER);
-    const archive = await gif.decode(bytes);
+    const arc = archive === undefined ? await gif.decode(bytes) : archive;
     let filesDigest = new Uint8Array(32); // all-zero if not a GifOS app
-    if (archive && archive.files) {
-      const parts = [];
-      for (const path of Object.keys(archive.files).sort()) {
-        if (path.indexOf('.state/') === 0) continue;  // volatile — never signed
-        if (path.indexOf('.lock/') === 0) continue;   // passkey wrap of that volatile state — never signed
-        if (path.indexOf('.assets/') === 0) continue; // OS-sealed downloads — pinned by the signed manifest instead
-        parts.push(te(path + '\0'));
-        parts.push(await sha256(archive.files[path]));
-        parts.push(te('\n'));
-      }
-      filesDigest = await sha256(concat(parts));
-    }
+    if (arc && arc.files) filesDigest = await filesDigestOf(arc.files, rulesOf(rules));
     return sha256(concat([visual, new Uint8Array([0]), filesDigest]));
   }
 
@@ -455,8 +512,15 @@
     if (!sigBytes || !sigBytes.length || (type === 'domain' && sigBytes.length !== 64)) {
       return { status: 'tampered', id, type, ts: sig.ts, detail: 'malformed signature' };
     }
-    const chHex = hex(await contentHash(bytes));
+    // The digest is read the way the block says it was written. A v1 block
+    // leaves the author's own .assets/ files out; `unpinned` names how many,
+    // so a verdict of "valid" can also say what it does not cover.
+    const rules = rulesOfSig(sig);
+    const archive = await gif.decode(bytes);
+    const chHex = hex(await contentHash(bytes, rules, archive));
+    const unpinned = rules < 2 && archive && archive.files ? unpinnedAssets(archive.files).length : 0;
     const msg = statement(type, id, chHex);
+    const valid = (extra) => Object.assign({ status: 'valid', id, type, ts: sig.ts, rules }, unpinned ? { unpinned } : null, extra);
     try {
       if (type === 'domain') {
         let pub;
@@ -470,19 +534,19 @@
           if (!pinned) throw e;
           const okPinned = await ed25519Verify(pinned, sigBytes, msg);
           if (!okPinned) throw e;
-          return { status: 'valid', id, type, ts: sig.ts, keyChanged: false, offline: true };
+          return valid({ keyChanged: false, offline: true });
         }
         const ok = await ed25519Verify(pub, sigBytes, msg);
         if (!ok) return { status: 'tampered', id, type, ts: sig.ts, detail: 'signature does not match these contents' };
         const pin = pinKey('domain:' + id, hex(pub));
-        return { status: 'valid', id, type, ts: sig.ts, keyChanged: pin.changed };
+        return valid({ keyChanged: pin.changed });
       }
       if (type === 'email') {
         const keyBytes = await fetchEmailKey(id);
         const ok = await pgpVerify(msg, sigBytes, keyBytes);
         if (!ok) return { status: 'tampered', id, type, ts: sig.ts, detail: 'signature does not match these contents' };
         const pin = pinKey('email:' + id, hex(await sha256(keyBytes)).slice(0, 40));
-        return { status: 'valid', id, type, ts: sig.ts, keyChanged: pin.changed };
+        return valid({ keyChanged: pin.changed });
       }
       return { status: 'tampered', detail: 'unknown signature type' };
     } catch (e) {
@@ -492,26 +556,30 @@
 
   // ---- signing helpers (used by sign.html) ----------------------------------
   // Domain: sign entirely in-browser; the private key never leaves.
-  async function signDomain(bytes, domain, keyPair, ts) {
-    const chHex = hex(await contentHash(bytes));
+  // opts.rules — 1 writes a legacy block (every .assets/ file left out) for an
+  // app whose minBuild predates v2 and that self-seals under .assets/; the
+  // default is the current rules. See the note above contentHash.
+  async function signDomain(bytes, domain, keyPair, ts, opts) {
+    const rules = rulesOf(opts && opts.rules);
+    const chHex = hex(await contentHash(bytes, rules));
     const sig = await ed25519Sign(keyPair.privateKey, statement('domain', domain, chHex));
-    return writeSig(bytes, { v: 1, type: 'domain', id: domain, alg: 'ed25519', sig: bytesToB64(sig), ts: ts || null });
+    return writeSig(bytes, { v: rules, type: 'domain', id: domain, alg: 'ed25519', sig: bytesToB64(sig), ts: ts || null });
   }
   // Email: the user signs the statement bytes with their own PGP tool; we embed
   // the resulting detached OpenPGP signature. This returns the statement to sign.
-  async function emailStatement(bytes, email) {
-    const chHex = hex(await contentHash(bytes));
+  async function emailStatement(bytes, email, opts) {
+    const chHex = hex(await contentHash(bytes, rulesOf(opts && opts.rules)));
     return statement('email', email, chHex);
   }
-  function attachEmailSig(bytes, email, detachedSigBytes, ts) {
-    return writeSig(bytes, { v: 1, type: 'email', id: email, alg: 'openpgp', sig: bytesToB64(detachedSigBytes), ts: ts || null });
+  function attachEmailSig(bytes, email, detachedSigBytes, ts, opts) {
+    return writeSig(bytes, { v: rulesOf(opts && opts.rules), type: 'email', id: email, alg: 'openpgp', sig: bytesToB64(detachedSigBytes), ts: ts || null });
   }
 
   GifOS.sign = {
-    verify, readSig, writeSig, contentHash, statement,
+    verify, readSig, writeSig, contentHash, statement, unpinnedAssets, RULES_CURRENT,
     generateDomainKey, signDomain, emailStatement, attachEmailSig,
     isDomain, isEmail,
     // exposed for tests
-    _pgpVerify: pgpVerify, _pgpSigningKeys: pgpSigningKeys, _ed25519Verify: ed25519Verify, _b64ToBytes: b64ToBytes, _bytesToB64: bytesToB64, _dearmor: dearmor,
+    _pinnedAssetPaths: pinnedAssetPaths, _ed25519SignFor: ed25519Sign, _pgpVerify: pgpVerify, _pgpSigningKeys: pgpSigningKeys, _ed25519Verify: ed25519Verify, _b64ToBytes: b64ToBytes, _bytesToB64: bytesToB64, _dearmor: dearmor,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
