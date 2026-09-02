@@ -180,7 +180,17 @@ const CSV = [
   await sheet.locator('#gifos-handoff-yes').click();
   await sheet.waitFor({ state: 'detached', timeout: 8000 });
 
-  const rec = await page.evaluate(() => GifOS.store.getState('sys::handoff'));
+  // The sheet leaves the DOM on the click; the shelf write behind it is a
+  // store round-trip that lands a beat later. Wait for the record, not the
+  // sheet — on a loaded box a read straight after detach saw null.
+  const rec = await page.evaluate(async () => {
+    for (let i = 0; i < 100; i++) {
+      const r = await GifOS.store.getState('sys::handoff').catch(() => null);
+      if (r && r['finance.plan']) return r;
+      await new Promise((res) => setTimeout(res, 50));
+    }
+    return GifOS.store.getState('sys::handoff').catch(() => null);
+  });
   const doc = rec && rec['finance.plan'] && rec['finance.plan'].doc;
   check('the shelf holds the summary, from this app', !!doc && rec['finance.plan'].from.appId === 'finance');
   check('…carrying the age that was typed and the pot that was computed',

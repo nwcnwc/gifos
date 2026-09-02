@@ -81,7 +81,7 @@ const check = (n, c, d) => {
 const SID = 'ghost' + Math.random().toString(36).slice(2, 10);
 function open(name, gk) {
   return new Promise((res, rej) => {
-    const ws = new WebSocket(RELAY + '/s/' + SID + '?role=mesh&token=&peer=' + name + '&gk=' + encodeURIComponent(gk));
+    const ws = new WebSocket(RELAY + '/s/' + SID + '?role=mesh&token=&peer=' + name + '&dev=d_' + name.slice(0, 13) + '&gk=' + encodeURIComponent(gk)); // dev: a device tag is required at the door (4012)
     const c = { ws, name, gk, replies: [] };
     ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch (err) { return; } if (m.t === 'greeters') c.replies.push(m); };
     ws.onopen = () => setTimeout(() => res(c), 250);
