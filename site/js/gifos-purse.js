@@ -70,7 +70,10 @@
     // ---- ledger (append only) -----------------------------------------------
     function record(appId, entry) {
       const seq = store.keys().filter((k) => k.startsWith(LED + appId + ':')).length;
-      const key = LED + appId + ':' + String(seq).padStart(6, '0');
+      // seq orders the ledger; the suffix makes two tabs recording in the
+      // same tick land on two keys instead of one throwing AFTER its money
+      // moved. Keys still sort by seq (history() sorts lexically).
+      const key = LED + appId + ':' + String(seq).padStart(6, '0') + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       if (g(key) !== undefined) throw new Error('gifos-purse: ledger entries are append-only');
       s(key, Object.assign({ seq }, entry));
       return key;

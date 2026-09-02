@@ -120,6 +120,19 @@
     return verdicts.get(key);
   }
 
+  // ---- receipt ↔ request binding -----------------------------------------------
+  // A verified receipt still has to be THIS payment's: same amount, same app,
+  // same sku, and the rail that was actually driven. (A receipt for a cheaper
+  // sku at the same price must not unlock a dearer one.)
+  function bindReceipt(receipt, manifest, sheetData, amount, rail) {
+    const skuOf = (v) => (v == null ? '' : String(v));
+    if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId
+        || skuOf(receipt.sku) !== skuOf(sheetData && sheetData.sku)
+        || (receipt.rail != null && rail != null && receipt.rail !== rail)) {
+      throw new Error('the signed receipt does not match this payment — refusing to record it');
+    }
+  }
+
   // ---- receipt verification --------------------------------------------------
   // The Worker signs the exact JSON STRING it returns; we verify those UTF-8
   // bytes against this site's own /gifos.key (the same key that certifies the
@@ -154,8 +167,12 @@
     const doc = root.document;
     if (!doc || !doc.body) return Promise.reject(new Error('no display to ask the human on — payments need a visible page'));
     return new Promise((resolve) => {
-      const old = doc.getElementById('gifos-pay-sheet'); if (old) old.remove();
+      // A second ask while one is open answers the first as declined, so its
+      // bridge call is replied to instead of hanging for the tab's life.
+      const old = doc.getElementById('gifos-pay-sheet');
+      if (old) { try { if (old.__decline) old.__decline(); } catch (e) {} old.remove(); }
       const bg = doc.createElement('div'); bg.id = 'gifos-pay-sheet';
+      bg.__decline = () => resolve({ declined: true });
       bg.setAttribute('style', 'position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1.2rem;');
       const box = doc.createElement('div');
       box.setAttribute('style', 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.8rem;max-width:24rem;width:100%;padding:1.2rem;font:15px/1.55 system-ui,-apple-system,sans-serif;');
@@ -184,9 +201,13 @@
 
       const amountNow = () => {
         if (!sheetData.editable) return BigInt(sheetData.amount);
-        const v = Number(box.querySelector('#gp-amt').value);
-        if (!isFinite(v) || v <= 0) return null;
-        return BigInt(Math.round(v * 100)) * CENT; // whole cents, exactly
+        // Parsed as a decimal STRING, never a float: 1.005 must not become
+        // 100 cents by rounding, and what the human typed is what is charged.
+        const m = /^\s*(\d{1,7})(?:[.,](\d{1,2}))?\s*$/.exec(String(box.querySelector('#gp-amt').value || ''));
+        if (!m) return null;
+        const cents = BigInt(m[1]) * 100n + BigInt((m[2] || '').padEnd(2, '0'));
+        if (cents <= 0n) return null;
+        return cents * CENT; // whole cents, exactly
       };
       const done = (result) => { bg.remove(); resolve(result); };
 
@@ -261,6 +282,9 @@
       if (!r.ok) throw new Error('checkout failed (HTTP ' + r.status + '): ' + (await r.text()).slice(0, 200));
       const co = await r.json(); // { id, approveUrl }
       if (!co.id || !co.approveUrl) throw new Error('checkout answered without an order');
+      // The popup is an about:blank window of THIS origin: only an https
+      // URL may ever be assigned to it (a javascript: URL would run here).
+      if (!/^https:\/\//i.test(String(co.approveUrl)) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(String(co.approveUrl))) throw new Error('checkout answered with an unusable approval link');
       if (win && !win.closed) win.location = co.approveUrl;
       busyUi.say('Finish the payment in the PayPal window…');
       // Poll for the signed receipt. PayPal may land the capture moments after
@@ -277,9 +301,7 @@
           const body = await rr.json(); // { status, receiptJson, sig }
           if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
             const receipt = await verifyReceipt(body.receiptJson, body.sig);
-            if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId) {
-              throw new Error('the signed receipt does not match this payment — refusing to record it');
-            }
+            bindReceipt(receipt, manifest, sheetData, amount, 'paypal');
             return { receipt, receiptJson: body.receiptJson, sig: body.sig };
           }
         }
@@ -324,9 +346,7 @@
       const body = await r.json(); // { status, receiptJson, sig }
       if (body.status !== 'COMPLETED' || !body.receiptJson || !body.sig) throw new Error('settlement did not complete');
       const receipt = await verifyReceipt(body.receiptJson, body.sig);
-      if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId) {
-        throw new Error('the signed receipt does not match this payment — refusing to record it');
-      }
+      bindReceipt(receipt, manifest, sheetData, amount, 'x402');
       return { receipt, receiptJson: body.receiptJson, sig: body.sig };
     } finally { busyUi.close(); }
   }
@@ -353,7 +373,7 @@
         '<div style="display:flex;gap:.5rem;align-items:center"><b id="gpt-amt" style="font-size:1.05rem">' + esc(exact) + '</b><button data-copy="' + esc(exact) + '" class="gpt-copy" style="padding:.2rem .6rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.78rem">Copy</button></div>' +
         '<div style="color:#9a9ab5;font-size:.78rem;margin-top:.6rem">To address</div>' +
         '<div style="display:flex;gap:.5rem;align-items:center"><b style="font-size:.8rem;word-break:break-all">' + esc(inv.payTo) + '</b><button data-copy="' + esc(inv.payTo) + '" class="gpt-copy" style="padding:.2rem .6rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.78rem">Copy</button></div>' +
-        '<a href="' + esc(inv.uri) + '" style="display:inline-block;margin-top:.6rem;color:#9db4ff;font-size:.82rem">Open in a wallet on this device</a>' +
+        (/^ethereum:/i.test(String(inv.uri || '')) ? '<a href="' + esc(inv.uri) + '" style="display:inline-block;margin-top:.6rem;color:#9db4ff;font-size:.82rem">Open in a wallet on this device</a>' : '') +
       '</div>' +
       '<p id="gpt-status" style="color:#b6b6cf;font-size:.86rem;margin:0 0 .8rem">Watching for your transfer…</p>' +
       '<div style="text-align:right"><button id="gpt-cancel" style="padding:.5rem 1.2rem;border-radius:.5rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">Cancel</button></div>';
@@ -384,9 +404,7 @@
           const body = await rr.json();
           if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
             const receipt = await verifyReceipt(body.receiptJson, body.sig);
-            if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId) {
-              throw new Error('the signed receipt does not match this payment — refusing to record it');
-            }
+            bindReceipt(receipt, manifest, sheetData, amount, 'transfer');
             return { receipt, receiptJson: body.receiptJson, sig: body.sig };
           }
         } else if (rr && rr.status === 410) {
@@ -421,9 +439,7 @@
           const body = await rr.json();
           if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
             const receipt = await verifyReceipt(body.receiptJson, body.sig);
-            if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId) {
-              throw new Error('the signed receipt does not match this payment — refusing to record it');
-            }
+            bindReceipt(receipt, manifest, sheetData, amount, 'fednow');
             return { receipt, receiptJson: body.receiptJson, sig: body.sig };
           }
         }
@@ -469,7 +485,7 @@
     // APP gets back is the pure-module shape — it never sees the Worker's raw
     // signed object, which names the payee account.
     const out = GifOS.charge.receipt(sheetData, receipt.tx || receipt.orderId || null, receipt.at || Date.now(), choice.rail);
-    if (request.sku) p.grant(manifest.appId, request.sku, { tx: out.tx, amount: out.amount, rail: out.rail, at: out.at });
+    if (request.sku) p.grant(manifest.appId, request.sku, { tx: out.tx, amount: out.amount, rail: out.rail, at: out.at, payeeId: sheetData.payingTo });
     p.record(manifest.appId, { amount: String(choice.amount), rail: choice.rail, sku: request.sku || null, reason: request.reason, payeeId: sheetData.payingTo, tx: out.tx, at: out.at });
     // The receipt becomes a FILE (docs/payments.md "The receipt is a file"):
     // proof you can hold, back up, and carry to a new computer. Best-effort
@@ -479,12 +495,30 @@
     return out;
   }
 
-  function entitled(manifest, sku) {
+  // entitled() and license() are keyed by appId, which is a free-text field
+  // of an unsigned manifest — so they are gated exactly as charge() is: the
+  // RUNNING bytes must verify for the identity that was paid. Otherwise any
+  // GIF that copied a victim's appId could read its purchases and, through
+  // license(), the transaction id sellers treat as the buyer's account. A
+  // grant remembers the identity it was made for (payeeId); an older grant
+  // without one falls back to "signed and valid".
+  async function paidIdentityFor(manifest, appBytes, sku, what) {
     if (!manifest || !manifest.capabilities || !manifest.capabilities.pay) {
-      return Promise.reject(new Error('This app did not declare the "pay" capability.'));
+      throw new Error('This app did not declare the "pay" capability.');
     }
-    if (typeof sku !== 'string' || !sku.trim()) return Promise.reject(new Error('entitled() needs a sku'));
-    return Promise.resolve(purse().entitled(manifest.appId, sku));
+    if (typeof sku !== 'string' || !sku.trim()) throw new Error(what + '() needs a sku');
+    const verdict = await verdictFor(manifest, appBytes);
+    const elig = GifOS.charge.eligibility(verdict, manifest);
+    if (!elig.allowed) throw new Error(elig.reason);
+    return elig.identity && elig.identity.id;
+  }
+  function entitledTo(ent, identityId) {
+    if (!ent) return false;
+    return !ent.payeeId || !identityId || ent.payeeId === identityId;
+  }
+  async function entitled(manifest, sku, appBytes) {
+    const who = await paidIdentityFor(manifest, appBytes, sku, 'entitled');
+    return entitledTo(purse().entitlement(manifest.appId, sku), who);
   }
 
   // ---- the receipt as a FILE ------------------------------------------------
@@ -537,13 +571,10 @@
   // The seller anchors whatever they like to it — a server account, a save
   // namespace, a room identity — which is what turns a shared receipt into a
   // shared IDENTITY rather than a free copy (docs/payments.md).
-  function license(manifest, sku) {
-    if (!manifest || !manifest.capabilities || !manifest.capabilities.pay) {
-      return Promise.reject(new Error('This app did not declare the "pay" capability.'));
-    }
-    if (typeof sku !== 'string' || !sku.trim()) return Promise.reject(new Error('license() needs a sku'));
+  async function license(manifest, sku, appBytes) {
+    const who = await paidIdentityFor(manifest, appBytes, sku, 'license');
     const ent = purse().entitlement(manifest.appId, sku);
-    return Promise.resolve(ent && ent.tx ? String(ent.tx) : null);
+    return entitledTo(ent, who) && ent.tx ? String(ent.tx) : null;
   }
 
   GifOS.payBroker = {

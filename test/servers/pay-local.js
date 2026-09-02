@@ -41,6 +41,7 @@ const STRIPE_API = process.env.STRIPE_API || 'http://127.0.0.1:8801';
     paypalClientId: 'test-client',
     paypalClientSecret: 'test-secret',
     treasuryEmail: 'payments@gifos.app',
+    treasuryAddress: '0x1111111111111111111111111111111111111111', // the broker's TREASURY
     feeBps: 300,
     catalogUrl: CATALOG_URL,
     returnBase: 'http://127.0.0.1:' + PORT,
