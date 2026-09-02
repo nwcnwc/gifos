@@ -129,6 +129,21 @@ async function admProven(av, w, act, check) {
   const o = await admProvenGet(av, w, act);
   return !!(o && (!check || check(o)));
 }
+// REPLAY inside the freshness window: a verified order stays verifiable for
+// five minutes, so a member who captured an `unban` could re-send it after a
+// later `ban`. Every occupant's attachment carries the newest ts applied per
+// act (the room's only memory); an order not newer than that is refused.
+function orderIsNew(members, att, act, ts) {
+  let last = 0;
+  for (const ws of members) { const t = (att(ws).admTs || {})[act]; if (t > last) last = t; }
+  return (+ts || 0) > last;
+}
+function markOrder(members, att, act, ts) {
+  for (const ws of members) {
+    const a = att(ws); a.admTs = a.admTs || {}; a.admTs[act] = +ts || 0;
+    try { ws.serializeAttachment(a); } catch (e) {}
+  }
+}
 
 // Token bucket: a one-time BURST (delivering an App GIF) is fine, but SUSTAINED
 // throughput is refilled far below any usable audio/video bitrate.
@@ -569,6 +584,15 @@ export class Session {
       const roomPw = first ? (first.pw || '') : (av ? '' : offeredPw);
       if (first && roomPw && offeredPw !== roomPw) return reject('password required', 4003);
       const dev = (url.searchParams.get('dev') || '').slice(0, 16);
+      // The RECONNECT SECRET: a per-device token hashed with the room by the
+      // client (mesh-wire.js). Replacing a socket that holds the same peer
+      // id or device tag is a reload's right and a ghost's cure — but both
+      // ids are broadcast in every roster, so without this any link holder
+      // could connect as anyone and have them cut with a fatal 4000. A
+      // socket that presented one may only be replaced by a socket that
+      // presents the same one; a socket that presented none (an older
+      // client) is replaced as before.
+      const rs = (url.searchParams.get('rs') || '').slice(0, 24);
       const gk = (url.searchParams.get('gk') || '').slice(0, 128); // genesis-key token (R3)
       const ban = first ? (first.ban || []) : [];
       if (dev && ban.some((b) => b.d === dev)) return reject('banned', 4004);
@@ -592,12 +616,17 @@ export class Session {
       // and a frozen mobile socket may never send a close. Evict any same-device
       // occupant too; its close broadcasts a peer-leave so everyone drops the
       // ghost at once. dev is empty in private mode → fall back to peer-id only.
+      const evict = [];
       for (const ws of occupants) {
         const a = this.att(ws);
-        if (a.peer === peer || (dev && a.dev === dev)) { try { ws.close(4000, 'replaced'); } catch (e) {} }
+        if (a.peer === peer || (dev && a.dev === dev)) {
+          if (a.rs && a.rs !== rs) return reject('that id is in use from another device', 4011);
+          evict.push(ws);
+        }
       }
+      for (const ws of evict) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
-      try { server.serializeAttachment({ role: 'mesh', peer, iph, tok: token, pw: roomPw, av, dev, ban }); }
+      try { server.serializeAttachment({ role: 'mesh', peer, iph, tok: token, pw: roomPw, av, dev, ban, rs }); }
       catch (e) { try { server.close(1008, 'join state too large'); } catch (e2) {} return new Response(null, { status: 101, webSocket: client }); }
       this.send(server, { t: 'joined', peer });
       // Tell this socket its OWN address (privately, once). The relay can't
@@ -654,8 +683,12 @@ export class Session {
         // into every occupant's attachment (the room's only "memory");
         // empty removes the lock.
         const av2 = this.meshAdmV();
-        if (av2 && !(await admProven(av2, m.w, 'setpw', (o) => o.pw === m.pw)))
-          return this.send(ws, { t: 'error', error: 'admins only: this room\'s password is managed by its admin' });
+        if (av2) {
+          const o = await admProvenGet(av2, m.w, 'setpw');
+          if (!o || o.pw !== m.pw) return this.send(ws, { t: 'error', error: 'admins only: this room\'s password is managed by its admin' });
+          if (!orderIsNew(this.members(), (s) => this.att(s), 'setpw', o.ts)) return; // a replay of an older order
+          markOrder(this.members(), (s) => this.att(s), 'setpw', o.ts);
+        }
         const pw = m.pw.slice(0, 64);
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2); a2.pw = pw;
@@ -666,7 +699,12 @@ export class Session {
         // Signed admin orders only — verifier rooms are the only rooms with
         // a ban list, and the signature is the entire authority.
         const av2 = this.meshAdmV();
-        if (!av2 || !(await admProven(av2, m.w, m.t, (o) => o.dev === m.dev))) return;
+        if (!av2) return;
+        const o = await admProvenGet(av2, m.w, m.t);
+        if (!o || o.dev !== m.dev) return;
+        // ban and unban share one clock: an old unban must not undo a newer ban.
+        if (!orderIsNew(this.members(), (s) => this.att(s), 'ban', o.ts)) return;
+        markOrder(this.members(), (s) => this.att(s), 'ban', o.ts);
         if (m.t === 'ban') this.banDevice(m.dev, m.name, m.by);
         else this.unbanDevice(m.dev, m.name, m.by);
       } else if (m.t === 'votekick' && !this.meshAdmV() && Array.isArray(m.devs)) {
@@ -689,6 +727,8 @@ export class Session {
         const av2 = this.meshAdmV();
         const o = av2 ? await admProvenGet(av2, m.w, 'banlist') : null;
         if (!o || !Array.isArray(o.devs)) return;
+        if (!orderIsNew(this.members(), (s) => this.att(s), 'banlist', o.ts)) return;
+        markOrder(this.members(), (s) => this.att(s), 'banlist', o.ts);
         const ban = cleanBanList(o.devs);
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2); a2.ban = ban;

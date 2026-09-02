@@ -169,10 +169,28 @@
     // freshest key: the genesis key once learned, the throwaway before that.
     // opts.urlParams() (optional) appends app params — pw proof, device tag —
     // re-evaluated per reconnect so rotated credentials ride the next attempt.
+    // The RECONNECT SECRET (relay.js `rs`): a per-device token, kept in this
+    // browser, hashed with the room so the relay cannot correlate a device
+    // across rooms. A socket holding my peer id or device tag may be replaced
+    // only by a socket that presents the same value — a reload or a second
+    // tab of mine can, a link holder who read my ids off the roster cannot.
+    // No storage (a private window, Node) → empty → the relay's older
+    // behaviour, replaceable by anyone naming the id.
+    let rs = '';
+    const rsFor = () => {
+      try {
+        const st = root.localStorage;
+        if (!st) return Promise.resolve('');
+        let sec = st.getItem('gifos_rs_secret');
+        if (!sec || !/^[0-9a-f]{32}$/.test(sec)) { sec = net.randHex(16); st.setItem('gifos_rs_secret', sec); }
+        return net.sha256hex(sec + '|' + opts.sid).then((h) => (rs = String(h || '').slice(0, 24)));
+      } catch (e) { return Promise.resolve(''); }
+    };
     const makeUrl = () => relayBase + '/s/' + opts.sid
       + '?role=mesh&token=' + encodeURIComponent(opts.tok || '')
       + '&peer=' + encodeURIComponent(peer)
       + '&gk=' + encodeURIComponent(seat.genKey || myKey)
+      + (rs ? '&rs=' + rs : '')
       + (opts.urlParams ? opts.urlParams() : '');
 
     // deliver(to, m): the raw transport step — DataChannel first, sealed relay
@@ -775,13 +793,13 @@
     };
 
     if (wantMint) {
-      ident.mint().then((id) => {
+      Promise.all([ident.mint(), rsFor()]).then(([id]) => {
         if (stopped) return;
         identity = id; peer = id.peerId; node.peer = peer;
         build();
       }).catch(() => {});
     } else {
-      build();
+      rsFor().then(() => { if (!stopped) build(); }, () => { if (!stopped) build(); });
     }
     return node;
   }
