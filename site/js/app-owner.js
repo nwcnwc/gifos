@@ -175,6 +175,9 @@
   // patch (null = delete). Both are pure: same inputs, same output, everywhere.
   function emptyState() { return { collections: {} }; }
   function coll(state, name) {
+    // A prototype-member name would read Object.prototype as "the collection"
+    // (GifOS.store.badCollectionName); such a frame gets an empty, detached one.
+    if (typeof name !== 'string' || (name in Object.prototype)) return { items: {}, seq: 0 };
     if (!state.collections[name]) state.collections[name] = { items: {}, seq: 0 };
     return state.collections[name];
   }
