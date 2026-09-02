@@ -43,7 +43,7 @@ const until = async (fn, ms) => { const t0 = Date.now(); while (Date.now() - t0 
     // The admin keypair: V commits to the PUBLIC key (meet-security §SIG).
     const kp = crypto.generateKeyPairSync('ed25519');
     const pubB64 = kp.publicKey.export({ type: 'spki', format: 'der' }).subarray(-32).toString('base64');
-    const V = crypto.createHash('sha256').update(pubB64).digest('hex').slice(0, 24);
+    const V = crypto.createHash('sha256').update(Buffer.from(pubB64, 'base64')).digest('hex').slice(0, 24); // the verifier hashes the RAW key bytes
     const signed = (obj) => { const sp = JSON.stringify(Object.assign({ ts: Date.now() }, obj)); return { sp, sig: crypto.sign(null, Buffer.from(sp, 'utf8'), kp.privateKey).toString('base64'), pub: pubB64 }; };
 
     const sid = 'banroom-' + Math.random().toString(36).slice(2, 8) + '.' + V;

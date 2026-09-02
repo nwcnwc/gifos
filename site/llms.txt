@@ -54,6 +54,19 @@ finished GIF directly — everything you need is right here:
 
 Attach the resulting file for the user to download.
 
+What the reader accepts, exactly: the block is found by WALKING the GIF's
+own block structure (not by searching for the marker), so it must sit
+where the grammar allows an extension — after the colour table, before
+the trailer, as the recipe above places it. Both the identifier
+"GIFOS1.0" and the authentication code "GOS" are checked. The payload's
+first byte 0x01 means raw-deflate; the JSON inside is {"v": 1, "files":
+{path: base64}} and "v" must be 1 (it is the only JSON archive version).
+GifOS's own packer writes a second, binary archive ("GFA2": a 4-byte
+magic, a little-endian u32 header length, a JSON directory of
+{path: [offset, length]}, then the file bytes) that needs no per-file
+decoding; readers accept both, and the JSON form above is all a recipe
+needs to produce.
+
 PACK THIS DOCUMENT IN TOO. GifOS's own packer puts a copy of llms.txt
 (these exact bytes, from https://gifos.app/llms.txt) inside every app GIF
 it builds, so whoever unpacks one already has the recipe, the manifest
@@ -272,7 +285,9 @@ WHO/WHAT AM I
                                when running on the owner's computer — host
                                or solo; false on a guest)
    await gifos.me()         -> { id, name }   (per-browser identity)
-   await gifos.setName(n)   -> { id, name }   (sets the browser-wide name)
+   await gifos.setName(n)   -> { id, name }   (ASKS the person, on an OS sheet,
+                                to take that name; resolves with the identity
+                                as it is afterwards — unchanged if they declined)
    await gifos.launch()     -> { <declared keys> } or null — what the link
                                that opened the app asked for (see
                                "Sharing"). Resolves LATE (after the person

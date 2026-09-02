@@ -42,12 +42,13 @@
   const net = GifOS.net;
 
   // The authoritative peer id derived from a public key: peer id = H(pubkey).
-  // 40 hex chars (160 bits) of SHA-256 over the base64 public key — plenty to
-  // make a collision infeasible, short enough to ride socket URLs / occ maps.
+  // 40 hex chars (160 bits) of SHA-256 over the RAW 32 key bytes (net.keyId —
+  // never over the base64 spelling, which is not canonical) — plenty to make
+  // a collision infeasible, short enough to ride socket URLs / occ maps.
   // Prefixed 'k_' so an identity-derived id is visibly distinct from a legacy
   // client-set id (the forgeable ids this scheme retires).
   async function peerIdOf(pubB64) {
-    return 'k_' + (await net.sha256hex(pubB64)).slice(0, 40);
+    return 'k_' + (await net.keyId(pubB64)).slice(0, 40);
   }
 
   // Mint a fresh per-participant identity. Called ONCE at join. The keypair is

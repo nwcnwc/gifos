@@ -271,7 +271,7 @@
     const add = (a) => { if (a && a.appId && !(a.appId in fresh)) fresh[a.appId] = a; };
     (seed.loose || []).forEach(add);
     (function walk(list) { (list || []).forEach((f) => { (f.apps || []).forEach(add); walk(f.sub); }); })(seed.folders);
-    const files = await store.allFiles();
+    const files = await store.allFileMeta(); // flags and ids only — the bytes of every app are not the question
     const fileById = {}; for (const f of files) fileById[f.id] = f;
     const seenAppIds = new Set();
     let updated = 0;
@@ -382,7 +382,7 @@
     const key = 'gifos_mig_bc_slot' + (store.dbName === 'gifos' ? '' : '::' + store.dbName);
     try { if (localStorage.getItem(key)) return 0; } catch (e) {}
     const done = () => { try { localStorage.setItem(key, '1'); } catch (e) {} };
-    const files = await store.allFiles();
+    const files = await store.allFileMeta();
     const rootApp = (match) => {
       for (const it of items) {
         if (it.kind !== 'file' || it.parent) continue;
@@ -417,7 +417,7 @@
     const key = 'gifos_mig_camera_slot' + (store.dbName === 'gifos' ? '' : '::' + store.dbName);
     try { if (localStorage.getItem(key)) return 0; } catch (e) {}
     const done = () => { try { localStorage.setItem(key, '1'); } catch (e) {} };
-    const files = await store.allFiles();
+    const files = await store.allFileMeta();
     const rootApp = (match) => {
       for (const it of items) {
         if (it.kind !== 'file' || it.parent) continue;

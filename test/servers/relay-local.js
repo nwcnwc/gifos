@@ -146,7 +146,9 @@ function verifierOf(sid) {
 async function admProvenGet(av, w, act) {
   try {
     if (!av || !w || typeof w.sp !== 'string' || w.sp.length > 8192 || !w.sig || !w.pub) return null;
-    const h = crypto.createHash('sha256').update(String(w.pub)).digest('hex');
+    const rawPub = Buffer.from(String(w.pub), 'base64');
+    if (rawPub.length !== 32) return null;
+    const h = crypto.createHash('sha256').update(rawPub).digest('hex'); // over the RAW key bytes — mirrors relay.js keyHex / gifos-net keyId
     if (h.slice(0, 24) !== String(av).toLowerCase().slice(0, 24)) return null;
     const raw = (b) => Buffer.from(String(b), 'base64');
     const pub = await crypto.webcrypto.subtle.importKey('raw', raw(w.pub), 'Ed25519', false, ['verify']);
