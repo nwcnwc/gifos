@@ -15,8 +15,10 @@
  *   POST /transfer/invoice  the WALLET-TRANSFER rail (RockWallet and every
  *                       other self-custody wallet): mint a signed invoice
  *                       token naming the catalog's payee and a dust-unique
- *                       amount; /transfer/receipt watches the chain for that
- *                       exact USDC transfer and signs the same receipt shape
+ *                       amount; /transfer/bind ties it to the payer's wallet;
+ *                       /transfer/receipt watches the chain for that exact
+ *                       USDC transfer (from that wallet) and signs the same
+ *                       receipt shape
  *   POST /fednow/rfp    the FEDNOW rail, via a provider (FedNow itself has
  *                       no public API): create a Request-for-Payment the
  *                       buyer approves in their own banking app;
@@ -179,6 +181,9 @@ export function makeCore(cfg) {
   // STATELESS invoices: the token IS the state, signed with the same key as
   // the receipts and verified here before it is honored. The client can hold
   // it, lose it, or tamper with it — tampering just fails the signature.
+  const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  const randHex = (n) => { const b = new Uint8Array(n); crypto.getRandomValues(b); return hex(b); };
+  const sha256hex = async (str) => hex(new Uint8Array(await subtle.digest('SHA-256', new TextEncoder().encode(String(str)))));
   const b64u = (bytes) => { let s2 = ''; for (const b of bytes) s2 += String.fromCharCode(b); return btoa(s2).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
   const unb64u = (str) => { const b = atob(String(str).replace(/-/g, '+').replace(/_/g, '/')); const out = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) out[i] = b.charCodeAt(i); return out; };
   async function signToken(obj) {
@@ -233,7 +238,15 @@ export function makeCore(cfg) {
     // custom_id is what the receipt is rebuilt from after capture; PayPal
     // cuts it at 127 chars, and a cut JSON is a receipt with no app and no
     // sku — money taken, nothing granted. Refuse BEFORE an order exists.
-    const customId = JSON.stringify({ a: appId, s: sku });
+    //
+    // It also carries the CLAIM TAG. PayPal order ids are guessable enough
+    // that /receipt/:id was a bearer lookup: anyone naming an id got a signed
+    // receipt for someone else's purchase. The buyer's page alone receives
+    // `claim` (16 random bytes); the order remembers only its SHA-256 tail,
+    // and /receipt answers only to the claim that hashes to it. Stateless,
+    // like everything else here — the order IS the memory.
+    const claim = randHex(16);
+    const customId = JSON.stringify({ a: appId, s: sku, c: (await sha256hex(claim)).slice(0, 16) });
     if (customId.length > 127) return bad('appId and sku are too long together for a PayPal order (' + customId.length + ' > 127 chars)');
 
     let payee;
@@ -272,13 +285,17 @@ export function makeCore(cfg) {
         shipping_preference: 'NO_SHIPPING',
       },
     });
-    if (!order.ok) return bad('paypal refused the order: ' + order.text.slice(0, 300), 502);
+    // Upstream bodies are logged, never forwarded: a provider's error text can
+    // name accounts, ids and internal state that belong in the Worker log,
+    // not in a browser that any page on the internet can drive.
+    if (!order.ok) { console.log('paypal order refused', order.status, String(order.text || '').slice(0, 300)); return bad('PayPal refused the order', 502); }
     const approve = (order.body.links || []).find((l) => l.rel === 'approve' || l.rel === 'payer-action');
-    if (!approve) return bad('paypal returned no approval link', 502);
-    return json({ id: order.body.id, approveUrl: approve.href });
+    if (!approve) return bad('PayPal returned no approval link', 502);
+    return json({ id: order.body.id, approveUrl: approve.href, claim });
   }
 
-  async function receiptFor(orderId) {
+  async function receiptFor(orderId, claim) {
+    if (!/^[0-9a-f]{32}$/.test(String(claim || ''))) return bad('a receipt is read with the claim its checkout returned', 403);
     const got = await pp('/v2/checkout/orders/' + encodeURIComponent(orderId));
     if (!got.ok) return json({ status: 'PENDING' });
     let order = got.body;
@@ -290,8 +307,9 @@ export function makeCore(cfg) {
     }
     if (order.status !== 'COMPLETED') return json({ status: order.status || 'PENDING' });
     const unit = (order.purchase_units || [])[0] || {};
-    let meta = { a: null, s: null };
+    let meta = { a: null, s: null, c: null };
     try { meta = JSON.parse(unit.custom_id || (unit.payments.captures[0].custom_id)); } catch (e) {}
+    if (!meta.c || (await sha256hex(claim)).slice(0, 16) !== meta.c) return bad('that claim does not open this order', 403);
     const capture = ((unit.payments || {}).captures || [])[0] || {};
     const amountValue = (capture.amount && capture.amount.value) || (unit.amount && unit.amount.value);
     const { receiptJson, sig } = await signedReceipt({
@@ -411,11 +429,13 @@ export function makeCore(cfg) {
       };
       const v = await facilitator('/verify', { x402Version: 1, paymentPayload, paymentRequirements });
       if (!v.ok || !v.body || v.body.isValid !== true) {
-        return bad('facilitator refused transfer ' + i + ': ' + ((v.body && (v.body.invalidReason || v.body.error)) || v.text.slice(0, 200)), 502);
+        console.log('facilitator refused transfer', i, v.status, String((v.body && (v.body.invalidReason || v.body.error)) || v.text || '').slice(0, 200));
+        return bad('the facilitator refused transfer ' + i, 502);
       }
       const st = await facilitator('/settle', { x402Version: 1, paymentPayload, paymentRequirements });
       if (!st.ok || !st.body || st.body.success !== true || !st.body.transaction) {
-        return bad('facilitator did not settle transfer ' + i + ': ' + ((st.body && (st.body.errorReason || st.body.error)) || st.text.slice(0, 200)), 502);
+        console.log('facilitator did not settle transfer', i, st.status, String((st.body && (st.body.errorReason || st.body.error)) || st.text || '').slice(0, 200));
+        return bad('the facilitator did not settle transfer ' + i, 502);
       }
       txs.push(st.body.transaction);
     }
@@ -475,6 +495,27 @@ export function makeCore(cfg) {
     });
   }
 
+  // The dust makes an amount unique among honest concurrent buyers; it does
+  // not make it secret. Someone minting invoices for every dust value of a
+  // popular price holds a token for whichever one a stranger's wallet later
+  // happens to send, and /transfer/receipt would sign that stranger's payment
+  // over to them. Binding the invoice to the PAYER closes it: the receipt
+  // then honours only a Transfer FROM that address. The buyer names the
+  // wallet they are sending from (the sheet asks), the same token is
+  // re-signed with `from`, and the amount and dust stay exactly as shown.
+  async function transferBind(req) {
+    let body; try { body = await req.json(); } catch (e) { return bad('body must be JSON'); }
+    let inv;
+    try { inv = await verifyToken(body.token); } catch (e) { return bad(String(e.message || e), 403); }
+    if (inv.kind !== 'gifos-pay-invoice') return bad('not an invoice token', 403);
+    if (Date.now() > inv.exp) return bad('this invoice expired — start the payment again', 410);
+    const from = String(body.from || '').toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(from)) return bad('from must be a 0x… wallet address');
+    if (inv.from && inv.from !== from) return bad('this invoice is already bound to another wallet', 409);
+    const token = await signToken(Object.assign({}, inv, { from }));
+    return json({ token, from });
+  }
+
   async function transferReceipt(req) {
     let body; try { body = await req.json(); } catch (e) { return bad('body must be JSON'); }
     let inv;
@@ -485,10 +526,16 @@ export function makeCore(cfg) {
     const logs = await rpc('eth_getLogs', [{
       fromBlock: inv.block, toBlock: 'latest',
       address: inv.asset,
-      topics: [TRANSFER_TOPIC, null, pad(inv.payTo)],
+      topics: [TRANSFER_TOPIC, inv.from ? pad(inv.from) : null, pad(inv.payTo)],
     }]);
     const hit = (logs || []).find((l) => {
-      try { return BigInt(l.data) === BigInt(inv.expected); } catch (e) { return false; }
+      try {
+        if (BigInt(l.data) !== BigInt(inv.expected)) return false;
+        // The node filtered on topics[1] already; check it here too, so a
+        // node that ignores a topic filter cannot widen the binding.
+        if (inv.from && String((l.topics || [])[1] || '').toLowerCase() !== pad(inv.from)) return false;
+        return true;
+      } catch (e) { return false; }
     });
     if (!hit) return json({ status: 'PENDING' });
     const { receiptJson, sig } = await signedReceipt({
@@ -496,6 +543,7 @@ export function makeCore(cfg) {
       appId: inv.appId, sku: inv.sku,
       amount: inv.amount,
       payee: inv.payTo,
+      payer: inv.from || null,
       tx: hit.transactionHash,
       feeCollected: false,
       at: Date.now(),
@@ -532,7 +580,7 @@ export function makeCore(cfg) {
         description: String(body.reason || '').slice(0, 140),
       }),
     });
-    if (!r.ok) return bad('the payment provider refused: ' + (await r.text()).slice(0, 200), 502);
+    if (!r.ok) { console.log('fednow provider refused', r.status, (await r.text()).slice(0, 200)); return bad('the payment provider refused the request', 502); }
     const b = await r.json();
     if (!b.id) return bad('the payment provider returned no request id', 502);
     return json({ id: b.id });
@@ -662,7 +710,7 @@ export function makeCore(cfg) {
     });
     const text = await r.text();
     let pi = null; try { pi = JSON.parse(text); } catch (e) {}
-    if (!r.ok) return challenge('verification-failed', 'Stripe refused the payment: ' + ((pi && pi.error && pi.error.message) || text.slice(0, 200)));
+    if (!r.ok) { console.log('stripe refused', r.status, String((pi && pi.error && pi.error.message) || text || '').slice(0, 200)); return challenge('verification-failed', 'Stripe refused the payment'); }
     if (r.headers.get('idempotent-replayed') === 'true') return challenge('invalid-challenge', 'this credential was already used — a replay, not a payment');
     if (!pi || pi.status !== 'succeeded') return challenge('verification-failed', 'Stripe did not settle the payment (status ' + (pi && pi.status) + ')');
 
@@ -710,11 +758,12 @@ export function makeCore(cfg) {
     const url = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     if (req.method === 'POST' && url.pathname === '/checkout') return checkout(req);
-    if (req.method === 'GET' && url.pathname.startsWith('/receipt/')) return receiptFor(decodeURIComponent(url.pathname.slice('/receipt/'.length)));
+    if (req.method === 'GET' && url.pathname.startsWith('/receipt/')) return receiptFor(decodeURIComponent(url.pathname.slice('/receipt/'.length)), url.searchParams.get('claim'));
     if (req.method === 'GET' && url.pathname === '/return') return returnPage(url);
     if (req.method === 'GET' && url.pathname === '/cancelled') return html('<p style="font:16px system-ui">Payment cancelled — you can close this window.</p>');
     if (req.method === 'POST' && url.pathname === '/x402/settle') return settle(req);
     if (req.method === 'POST' && url.pathname === '/transfer/invoice') return transferInvoice(req);
+    if (req.method === 'POST' && url.pathname === '/transfer/bind') return transferBind(req);
     if (req.method === 'POST' && url.pathname === '/transfer/receipt') return transferReceipt(req);
     if (req.method === 'POST' && url.pathname === '/fednow/rfp') return fednowRfp(req);
     if (req.method === 'GET' && url.pathname.startsWith('/fednow/receipt/')) return fednowReceipt(decodeURIComponent(url.pathname.slice('/fednow/receipt/'.length)));

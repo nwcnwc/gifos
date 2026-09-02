@@ -559,9 +559,8 @@ Cloudflare Worker beside relay, cors-proxy and mirror:
 
 | endpoint | job |
 |---|---|
-| `POST /checkout` | derive the payee from the app's VERIFIED signing identity, create the PayPal order with `platform_fees` |
-| `POST /webhook` | verify PayPal's webhook signature — the only proof money moved |
-| `GET /receipt/:id` | return an **Ed25519-signed receipt**, verifiable against `gifos.app/gifos.key` |
+| `POST /checkout` | derive the payee from the app's signing identity as recorded in the published, gate-verified catalog, create the PayPal order with `platform_fees`; answers with the order id and a one-time **claim** only this page ever sees |
+| `GET /receipt/:id?claim=` | ask PayPal for the order (capturing it if the return page never did) and, only when the claim matches the tag the order was minted with, return an **Ed25519-signed receipt**, verifiable against `gifos.app/gifos.key`. PayPal's own answer is the only proof money moved — there is no webhook and no store of ours |
 
 The signed receipt is the load-bearing piece. The Worker signs
 `{appId, sku, amount, payee, at, nonce}` with the same key infrastructure
@@ -572,14 +571,16 @@ It is also the answer to the roadmap's open question about restoring purchases
 on a new device without accounts: the receipt IS the portable proof.
 
 **THE WORKER DERIVES THE PAYEE ITSELF, NEVER FROM THE CLIENT.** It does not
-accept a payee email from the browser. For a catalog app it looks the signing
-identity up in the published `site/apps/index.json`; for an uncatalogued app it
-verifies the submitted signature against the author's published key
-(`https://<domain>/gifos.key`, or the keyserver for an email identity) exactly
-as `gifos-sign.js` does, and derives the payee from what VERIFIED. A client
-that cannot present a verifiable signature gets no checkout at all — the same
-refusal `gifos-charge.js` makes locally, enforced again where it cannot be
-bypassed.
+accept a payee email from the browser. It looks the signing identity up in the
+published `site/apps/index.json` and nowhere else: an app that is not in the
+catalog gets no checkout at all. The catalog's `signature` field is not the
+Worker's finding — the Worker trusts the file as committed — it is the gate's:
+`scripts/build-app-catalog.mjs --check --require-signed` verifies every listed
+GIF's `GIFOSSIG` against `site/gifos.key` and refuses to commit a catalog whose
+claim does not verify, and `e2e-app-store.js` runs that check. So the chain is
+signed bytes → verified at commit → read at checkout, and the browser is never
+asked what it thinks the payee is — the same refusal `gifos-charge.js` makes
+locally, enforced again where it cannot be bypassed.
 
 ### Funding the Worker is not the argument for the fee
 

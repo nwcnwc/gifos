@@ -107,15 +107,21 @@
     return (n / 1000000n) + '.' + String(n % 1000000n).padStart(6, '0');
   }
 
-  // ---- the signature verdict, once per mount ---------------------------------
-  // verify() fetches the author's published key, so it is cached per appId for
-  // the session. A charge re-verifies only what this page loaded — the bytes
-  // that are RUNNING — which is exactly the thing the payee derives from.
+  // ---- the signature verdict, once per BYTES ---------------------------------
+  // verify() fetches the author's published key, so it is cached for the
+  // session — keyed by the SHA-256 of the bytes it judged, never by appId: an
+  // appId is a string any GIF can wear, and a cache keyed on it would let an
+  // unsigned copy mounted after a valid one inherit that valid verdict. A
+  // charge re-verifies only what this page loaded — the bytes that are
+  // RUNNING — which is exactly the thing the payee derives from.
   const verdicts = new Map();
-  function verdictFor(manifest, appBytes) {
-    const key = (manifest && manifest.appId) || '?';
+  async function verdictFor(manifest, appBytes) {
+    const bytes = appBytes instanceof Uint8Array ? appBytes : new Uint8Array(appBytes || 0);
+    let key;
+    try { key = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), (b) => b.toString(16).padStart(2, '0')).join(''); }
+    catch (e) { key = 'len:' + bytes.length; }
     if (!verdicts.has(key)) {
-      verdicts.set(key, Promise.resolve().then(() => GifOS.sign.verify(appBytes)).catch((e) => ({ status: 'unverified', detail: String(e && e.message || e) })));
+      verdicts.set(key, Promise.resolve().then(() => GifOS.sign.verify(bytes)).catch((e) => ({ status: 'unverified', detail: String(e && e.message || e) })));
     }
     return verdicts.get(key);
   }
@@ -296,7 +302,9 @@
         if (busyUi.cancelled()) throw new Error(GifOS.charge.DECLINED);
         if (win && win.closed && !closedAt) closedAt = Date.now();
         if (closedAt && Date.now() - closedAt > 15000) throw new Error(GifOS.charge.DECLINED);
-        const rr = await fetch(base + '/receipt/' + encodeURIComponent(co.id)).catch(() => null);
+        // The claim came back with the checkout and only to this page: the
+        // Worker signs a receipt for an order only to the claim it was minted with.
+        const rr = await fetch(base + '/receipt/' + encodeURIComponent(co.id) + '?claim=' + encodeURIComponent(co.claim || '')).catch(() => null);
         if (rr && rr.ok) {
           const body = await rr.json(); // { status, receiptJson, sig }
           if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
@@ -375,13 +383,30 @@
         '<div style="display:flex;gap:.5rem;align-items:center"><b style="font-size:.8rem;word-break:break-all">' + esc(inv.payTo) + '</b><button data-copy="' + esc(inv.payTo) + '" class="gpt-copy" style="padding:.2rem .6rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.78rem">Copy</button></div>' +
         (/^ethereum:/i.test(String(inv.uri || '')) ? '<a href="' + esc(inv.uri) + '" style="display:inline-block;margin-top:.6rem;color:#9db4ff;font-size:.82rem">Open in a wallet on this device</a>' : '') +
       '</div>' +
+      '<div style="background:#0e0e17;border:1px solid #23233a;border-radius:.6rem;padding:.8rem .9rem;margin-bottom:.9rem">' +
+        '<div style="color:#9a9ab5;font-size:.78rem">Sending from (your wallet address)</div>' +
+        '<div style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem"><input id="gpt-from" placeholder="0x…" spellcheck="false" style="flex:1;min-width:0;padding:.35rem .5rem;border-radius:.4rem;border:1px solid #2a2a3f;background:#14141f;color:#e8e8f4;font:inherit;font-size:.8rem"><button id="gpt-bind" style="padding:.3rem .7rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.78rem">Bind</button></div>' +
+        '<div id="gpt-bound" style="color:#9a9ab5;font-size:.78rem;margin-top:.4rem">Naming your wallet ties this payment to you: only a transfer from that address can complete it, and nobody else\'s can be mistaken for yours.</div>' +
+      '</div>' +
       '<p id="gpt-status" style="color:#b6b6cf;font-size:.86rem;margin:0 0 .8rem">Watching for your transfer…</p>' +
       '<div style="text-align:right"><button id="gpt-cancel" style="padding:.5rem 1.2rem;border-radius:.5rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">Cancel</button></div>';
     bg.appendChild(box); doc.body.appendChild(bg);
     for (const b of box.querySelectorAll('.gpt-copy')) b.onclick = () => { try { root.navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; } catch (e) {} };
     let cancelled = false;
     box.querySelector('#gpt-cancel').onclick = () => { cancelled = true; };
-    return { cancelled: () => cancelled, close: () => bg.remove() };
+    const api = { cancelled: () => cancelled, close: () => bg.remove(), onBind: null };
+    const fromIn = box.querySelector('#gpt-from'), bindBtn = box.querySelector('#gpt-bind'), bound = box.querySelector('#gpt-bound');
+    bindBtn.onclick = () => {
+      const from = String(fromIn.value || '').trim();
+      if (!/^0x[0-9a-fA-F]{40}$/.test(from)) { bound.textContent = 'That is not a 0x… wallet address.'; return; }
+      if (!api.onBind) return;
+      bindBtn.disabled = true;
+      api.onBind(from).then(() => {
+        fromIn.disabled = true;
+        bound.textContent = 'Bound to ' + from.slice(0, 6) + '…' + from.slice(-4) + ' — only a transfer from that wallet completes this payment.';
+      }, (e) => { bindBtn.disabled = false; bound.textContent = String(e && e.message || e); });
+    };
+    return api;
   }
 
   async function payWithTransfer(manifest, sheetData, amount) {
@@ -393,6 +418,16 @@
     if (!r.ok) throw new Error('could not start the transfer (HTTP ' + r.status + '): ' + (await r.text()).slice(0, 200));
     const inv = await r.json();
     const ui = showTransferSheet(inv);
+    // Binding re-signs the same invoice with the payer's address (amount and
+    // dust unchanged); the poll below reads inv.token, so it follows.
+    ui.onBind = async (from) => {
+      const rb = await fetch(base + '/transfer/bind', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: inv.token, from }),
+      });
+      if (!rb.ok) throw new Error('could not bind the payment to that wallet (HTTP ' + rb.status + ')');
+      inv.token = (await rb.json()).token;
+    };
     try {
       while (Date.now() < inv.exp) {
         if (ui.cancelled()) throw new Error(GifOS.charge.DECLINED);

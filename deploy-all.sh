@@ -19,6 +19,12 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# PINNED. A bare `npx wrangler` resolves to whatever is newest on the registry
+# at the moment of the deploy, so two deploys a week apart can run two
+# different tools against the same config — and a compromised or broken
+# release would ship straight into production Workers. Bump deliberately.
+WRANGLER="wrangler@4.128.0"
+
 # Order is not load-bearing (mirror carries an explicit route allow-list, no
 # wildcard, so nothing swallows relay/cors-proxy) — this is just a readable order.
 #   mirror      gifos-mirror       0-9.gifos.app         (theme computers)
@@ -31,18 +37,18 @@ WORKERS=(mirror relay cors-proxy)
 # the OS entropy pool and piped straight into `wrangler secret put`, so the
 # value never touches a shell variable, a file or the terminal.
 ensure_secret() { # $1 = worker dir, $2 = secret name
-  if npx wrangler secret list -c "$1/wrangler.toml" 2>/dev/null | grep -q "\"name\": *\"$2\""; then
+  if npx --yes "$WRANGLER" secret list -c "$1/wrangler.toml" 2>/dev/null | grep -q "\"name\": *\"$2\""; then
     echo "· $1: secret $2 is set"
   else
     echo "▶ $1: minting secret $2 …"
-    openssl rand -hex 32 | npx wrangler secret put "$2" -c "$1/wrangler.toml"
+    openssl rand -hex 32 | npx --yes "$WRANGLER" secret put "$2" -c "$1/wrangler.toml"
     echo "✓ $1: secret $2 set"
   fi
 }
 
 for d in "${WORKERS[@]}"; do
   echo "▶ deploying $d …"
-  npx wrangler deploy -c "$d/wrangler.toml"
+  npx --yes "$WRANGLER" deploy -c "$d/wrangler.toml"
   echo "✓ $d deployed"
   echo
 done

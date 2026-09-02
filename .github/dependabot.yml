@@ -1,0 +1,19 @@
+# Dependabot keeps the two kinds of pinned dependency current with a PR each,
+# so a pin is a decision that is revisited, not one that rots:
+#   - GitHub Actions in .github/workflows (checkout, setup-node, the Pages
+#     trio) — a PR per new major/minor, reviewed like any other change;
+#   - the npm devDependencies (acorn, playwright, sharp) in package-lock.json.
+# The product itself is dependency-free (site/, apps/, relay/, pay/ carry no
+# package.json), so nothing here reaches gifos.app without a human merge.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies]
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies]
