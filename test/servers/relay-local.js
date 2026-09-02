@@ -161,6 +161,8 @@ async function admProven(av, w, act, check) {
   const o = await admProvenGet(av, w, act);
   return !!(o && (!check || check(o)));
 }
+// The newest ts applied per act — mirrors relay/src/relay.js orderIsNew/markOrder.
+function orderIsNew(sess, act, ts) { sess.admTs = sess.admTs || {}; return (+ts || 0) > (sess.admTs[act] || 0); }
 
 // ---- session hub (mirrors the Durable Object) ----
 const sessions = new Map(); // id -> { host, token, meshToken, clients:Map }
@@ -256,6 +258,7 @@ server.on('upgrade', (req, socket, head) => {
     'password required': 4003,
     'banned': 4004,
     'voted-off': 4007,
+    'that id is in use from another device': 4011,
   };
   const rejectConn = (error) => { clog('REJECT sid=' + parts[1] + ' peer=' + peer + ' ip=' + ip + ' :: ' + error); conn.send(JSON.stringify({ t: 'error', error })); conn.close(REJECT_CODES[error] || 0, error); };
   const allConns = () => sess.clients.size;
@@ -456,6 +459,7 @@ server.on('upgrade', (req, socket, head) => {
     if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
     if (sess.pw && (url.searchParams.get('pw') || '').slice(0, 64) !== sess.pw) { rejectConn('password required'); return; }
     const dev = (url.searchParams.get('dev') || '').slice(0, 16);
+    const rs = (url.searchParams.get('rs') || '').slice(0, 24); // reconnect secret — mirrors relay/src/relay.js
     const gk = (url.searchParams.get('gk') || '').slice(0, 128); // genesis-key token (R3)
     if (dev && (sess.ban || []).some((b) => b.d === dev)) { rejectConn('banned'); return; }
     // Standing-votes gate (plain rooms): a majority of the devices already
@@ -474,6 +478,10 @@ server.on('upgrade', (req, socket, head) => {
     // reload reuses its peer id and swaps silently; a NEW tab/session from the
     // same device gets a fresh peer id but the same device id — evict its ghost
     // and announce the departure so everyone drops the stale tile.
+    for (const [p, c] of Array.from(sess.clients)) {
+      if ((p === peer || (dev && c.dev === dev)) && c.rs && c.rs !== rs) { rejectConn('that id is in use from another device'); return; }
+    }
+    conn.rs = rs;
     for (const [p, c] of Array.from(sess.clients)) {
       if (p === peer || (dev && c.dev === dev)) {
         sess.clients.delete(p);
@@ -494,14 +502,21 @@ server.on('upgrade', (req, socket, head) => {
       else if (m.t === 'setpw' && typeof m.pw === 'string') {
         // Signed in admin rooms (§9): the relay verifies the same Ed25519
         // proof any peer would — mirrors relay/src/relay.js.
-        if (sess.av && !(await admProven(sess.av, m.w, 'setpw', (o) => o.pw === m.pw))) {
-          conn.send(JSON.stringify({ t: 'error', error: 'admins only: this room\'s password is managed by its admin' })); return;
+        if (sess.av) {
+          const o = await admProvenGet(sess.av, m.w, 'setpw');
+          if (!o || o.pw !== m.pw) { conn.send(JSON.stringify({ t: 'error', error: 'admins only: this room\'s password is managed by its admin' })); return; }
+          if (!orderIsNew(sess, 'setpw', o.ts)) return; // replay of an older order — mirrors relay/src/relay.js
+          sess.admTs.setpw = +o.ts;
         }
         sess.pw = m.pw.slice(0, 64) || null;
         const s = JSON.stringify({ t: 'pw', pw: sess.pw || '', by: String(m.by || '').slice(0, 40) });
         for (const c of sess.clients.values()) c.send(s);
       } else if ((m.t === 'ban' || m.t === 'unban') && typeof m.dev === 'string') {
-        if (!sess.av || !(await admProven(sess.av, m.w, m.t, (o) => o.dev === m.dev))) return;
+        if (!sess.av) return;
+        const o = await admProvenGet(sess.av, m.w, m.t);
+        if (!o || o.dev !== m.dev) return;
+        if (!orderIsNew(sess, 'ban', o.ts)) return;
+        sess.admTs.ban = +o.ts;
         const d = m.dev.slice(0, 16);
         if (!d) return;
         sess.ban = (sess.ban || []).filter((b) => b.d !== d);
@@ -515,6 +530,8 @@ server.on('upgrade', (req, socket, head) => {
         // CUTS any listed device already on a socket — mirrors relay/src/relay.js.
         const o = sess.av ? await admProvenGet(sess.av, m.w, 'banlist') : null;
         if (!o || !Array.isArray(o.devs)) return;
+        if (!orderIsNew(sess, 'banlist', o.ts)) return;
+        sess.admTs.banlist = +o.ts;
         sess.ban = cleanBanList(o.devs);
         for (const c of sess.clients.values()) if (c.dev && sess.ban.some((b) => b.d === c.dev)) { try { c.close(4004, 'banned'); } catch (e) {} }
         roster();

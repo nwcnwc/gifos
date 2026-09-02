@@ -92,8 +92,14 @@
   // iPhone) can still share; the key is seed-derived like the S4 identity —
   // the former non-extractable generateKey bought nothing the seed path
   // doesn't, since the S4 seed already lives in JS memory.
-  async function createSigner() {
-    const seed = new Uint8Array(32); rnd.getRandomValues(seed);
+  // seedHex (optional): the owner's persisted secret. Given, the keypair is
+  // deterministic — the same across resumes — so the link's verifier can
+  // commit to its public key (makeVerifier's `boundable`). Absent, a fresh
+  // random key (anyone-owns / resilient lanes, where nothing binds).
+  async function createSigner(seedHex) {
+    let seed;
+    if (typeof seedHex === 'string' && /^[0-9a-f]{64}$/i.test(seedHex)) seed = fromHex(seedHex);
+    else { seed = new Uint8Array(32); rnd.getRandomValues(seed); }
     const k = await ed().keysFromSeed(seed);
     const pkHex = hex(k.pubRaw);
     let n = 0;
@@ -124,6 +130,7 @@
     const sidTail = dot >= 0 ? String(sid).slice(dot + 1) : null;
     const boundable = !!(sidTail && /^[0-9a-f]{8,}$/.test(sidTail));
     let pinned = (typeof ownerPk === 'string' && /^[0-9a-f]{16,}$/.test(ownerPk)) ? ownerPk : null;
+    let pinChecked = false;
     let lastN = 0;
     return {
       get pinnedPk() { return pinned; },
@@ -132,6 +139,15 @@
         if (!frame || !frame.p || !frame.pk || !frame.sig) return { ok: false, reason: 'malformed' };
         const p = frame.p;
         if (p.sid !== sid) return { ok: false, reason: 'wrong-sid' };
+        // A pre-pinned key came from a status ad — self-asserted gossip. In a
+        // bound lane the sid tail is the commitment; a pin that does not hash
+        // to it is an impostor's ad and is dropped, so the first frame that
+        // DOES hash to the tail pins the real owner.
+        if (pinned && boundable && !pinChecked) {
+          pinChecked = true;
+          const h = await sha256hex(fromHex(pinned));
+          if (h.slice(0, sidTail.length) !== sidTail) pinned = null;
+        }
         if (pinned && frame.pk !== pinned) return { ok: false, reason: 'not-owner' };
         if (!pinned && boundable) {
           const h = await sha256hex(fromHex(frame.pk));

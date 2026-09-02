@@ -50,6 +50,9 @@
   const shortCode = net.shortCode;
   const randHex = net.randHex;
   const sha256hex = net.sha256hex;
+  // SHA-256 of BYTES (net.sha256hex hashes a string); app-owner's verifier
+  // binding hashes the raw public key, so the owned-link mint must too.
+  const sha256hexOfBytes = (u8) => root.crypto.subtle.digest('SHA-256', u8).then((d) => Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, '0')).join(''));
 
   // ---- owner-authority for app-state on the mesh ----------------------------
   // App-state rides the meeting mesh's Stage DATA lane (GifOS.meetStageData),
@@ -3741,8 +3744,14 @@
               const signed = !!(GifOS.sign && GifOS.sign.readSig && GifOS.sign.readSig(appBytes));
               const shortName = manifest.shortName || manifest.name || manifest.appId || 'app';
               const room = slug(signed ? shortName : shortName + '-anon');
-              const sec = randHex(24);
-              return sha256hex(sec).then((h) => {
+              // The verifier COMMITS TO THE OWNER'S PUBLIC KEY: sec seeds the
+              // stage signer's Ed25519 keypair (app-owner createSigner), and
+              // av is the 24-hex prefix of SHA-256(raw public key) — the same
+              // hash app-owner's makeVerifier binds the first signed frame to.
+              // It was SHA-256(sec) before, which nothing could ever match, so
+              // every guest trusted whichever status ad named a pk first.
+              const sec = randHex(32);
+              return appOwnerLib().then((AO) => AO.createSigner(sec)).then((signer) => sha256hexOfBytes(Uint8Array.from(signer.pkHex.match(/../g), (x) => parseInt(x, 16)))).then((h) => {
                 const av = h.slice(0, 24);
                 return { sid: room + '.' + av, lsec, epoch: 0, keep: spec.keep, exp: spec.exp, heal: false, av: av, sec: sec };
               });
@@ -3893,7 +3902,7 @@
               // mesh. The local authoritative store (db) and the running iframe
               // are untouched; only the relay transport goes.
               if (liveHost) { const gone = liveHost; liveHost = null; if (gone.timer) clearTimeout(gone.timer); try { gone.stop && gone.stop(); } catch (e) {} try { gone.ws.close(); } catch (e) {} }
-              return appOwnerLib().then((AO) => AO.createSigner()).then((signer) => {
+              return appOwnerLib().then((AO) => AO.createSigner(sec || undefined)).then((signer) => {
                 stageSigner = signer; stageBus = bus;
                 // The pool rides the same lane, UNSIGNED and by design: any peer
                 // may answer, and what it answers is content addressed by URL —

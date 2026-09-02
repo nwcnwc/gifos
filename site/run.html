@@ -5854,6 +5854,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // state the in-band ban sets; every other policy code (replaced,
         // stale host, bad token) keeps its own path.
         onRejected: (code) => {
+          if (code === 4011) { setStatus('\u26d4 This room already has you connected from another device. Close it there, or reload here.'); return; }
           if (code !== 4004 && code !== 4007) return;
           bannedOut = true;
           for (const pid of Array.from(peers.keys())) dropPeer(pid);

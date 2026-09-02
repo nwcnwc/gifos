@@ -86,7 +86,7 @@
     // code, and only an explicit s.kick() (the app changed something: new
     // password, deliberate re-join) re-arms. CROWD codes (full / rate-limited /
     // no host yet) keep retrying on a longer leash.
-    const FATAL_CLOSES = [1008, 4000, 4001, 4003, 4004, 4007, 4008, 4009, 4010];
+    const FATAL_CLOSES = [1008, 4000, 4001, 4003, 4004, 4007, 4008, 4009, 4010, 4011];
     const SLOW_CLOSES = [1011, 1013];
     const setState = (st) => {
       if (s.state === st) return;
@@ -261,7 +261,12 @@
   // 1/l/i) so codes survive being read aloud.
   const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
   function shortCode(len) {
-    const n = len || 10; // 31^10 ≈ 2^49 — plenty for ephemeral, unlisted rooms
+    // 31^16 ≈ 2^79. The code is the link SECRET: the relay routes on
+    // SHA-256(code).slice(0,20) and an unlocked room's key is derived from
+    // the code alone, so a relay operator holding a session id could search
+    // 2^49 candidates (ten characters) offline and read the room. Sixteen
+    // characters put that out of reach; a URL grows by six characters.
+    const n = len || 16;
     const buf = new Uint8Array(n);
     (root.crypto || {}).getRandomValues ? root.crypto.getRandomValues(buf) : buf.forEach((_, i) => (buf[i] = i * 7));
     let s = '';

@@ -24,6 +24,7 @@ wrangler deploy
 # Without this secret the salt is a public constant from the source, so a
 # state or log dump is brute-forceable back to IPv4 addresses. The Worker
 # logs "ABUSE_SALT unset" once per isolate while it is missing.
+# ./deploy-all.sh does this for you (ensure_secret); by hand it is:
 openssl rand -hex 32 | wrangler secret put ABUSE_SALT
 ```
 
