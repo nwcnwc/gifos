@@ -474,6 +474,7 @@
         open().then(() => Promise.all(['files', 'items', 'appstate', 'apprecords'].map((s) =>
           tx(s, 'readwrite', (os) => reqP(os.clear()))))),
         atx('readwrite', (os) => reqP(os.clear())).catch(() => {}), // erase wipes the model cache too
+        rtx('readwrite', (os) => reqP(os.clear())).catch(() => {}), // …and the ornament cache (an icon of an erased app is still its picture)
       ]),
     };
 
