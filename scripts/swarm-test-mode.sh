@@ -31,7 +31,8 @@ say()  { printf '\n\033[1m▶ %s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
 die()  { printf '  \033[31m✗ %s\033[0m\n' "$*"; exit 1; }
-cf() { local m="$1" p="$2" b="${3:-}"; local a=(-s -X "$m" "$API$p" -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json"); [ -n "$b" ] && a+=(--data "$b"); curl "${a[@]}"; }
+CF_HDR=$(mktemp); chmod 600 "$CF_HDR"; printf 'Authorization: Bearer %s\n' "$CF_API_TOKEN" > "$CF_HDR"; trap 'rm -f "$CF_HDR"' EXIT
+cf() { local m="$1" p="$2" b="${3:-}"; local a=(-s -X "$m" "$API$p" -H "@$CF_HDR" -H "Content-Type: application/json"); [ -n "$b" ] && a+=(--data "$b"); curl "${a[@]}"; }
 succeeded() { [ "$(echo "$1" | jq -r '.success // false')" = "true" ]; }
 
 # --- toggle the Cloudflare gifos-harden rate-limit rule(s) enabled/disabled ---
@@ -77,8 +78,12 @@ case "$MODE" in
   on)
     [ -n "$IPS" ] || die "usage: $0 on <ip1,ip2,...>   (the IPs running many bots — home + any dense AWS box)"
     say "SWARM TEST MODE: ON"
-    set_rules_enabled false
+    [[ "$IPS" =~ ^[0-9a-fA-F.:,]+$ ]] || die "IPs must be a comma-separated list of addresses (got '$IPS')"
+    # Deploy FIRST, then lift the backstop: a failed deploy used to leave the
+    # zone-wide rate limit off with nothing to show for it.
     deploy_relay "$IPS"
+    trap 'set_rules_enabled true' ERR
+    set_rules_enabled false
     say "Ready. Run your swarm. When done: ./scripts/swarm-test-mode.sh off"
     ;;
   off)

@@ -1,0 +1,47 @@
+# Fast checks on every push and pull request. Deliberately NOT a gate on
+# pages.yml: main auto-deploys, and the release gate is test/batteries/release.sh
+# run by a person from a freeze clone (CLAUDE.md). This is the signal that was
+# missing between `git push` and gifos.app — a syntax error, a drifted
+# generated file, a red unit suite — visible on the commit within minutes.
+name: Check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # no-topology.js asserts over all history
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - name: Every script parses
+        run: |
+          set -euo pipefail
+          for f in site/js/*.js site/js/vendor/*.js site/sw.js scripts/*.mjs scripts/*.js relay/src/*.js cors-proxy/src/*.js pay/src/*.js mirror/src/*.js test/servers/*.js test/lib/*.js; do
+            node --check "$f"
+          done
+      - name: Generated files have not drifted
+        run: |
+          set -euo pipefail
+          node scripts/build-app-catalog.mjs --check --require-signed --skip-remote-gifs
+          node scripts/build-browser-support.mjs --check
+      - name: Unit tier
+        run: |
+          set -uo pipefail
+          red=0
+          for t in test/unit/*.js; do
+            if ! timeout 240 node "$t" > /tmp/unit.log 2>&1; then
+              red=$((red + 1)); echo "::error::RED $t"; tail -20 /tmp/unit.log
+            fi
+          done
+          echo "unit suites red: $red"
+          exit $red

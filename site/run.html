@@ -2,6 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- FRAME GUARD. GitHub Pages sends no X-Frame-Options and a <meta> cannot
+     carry frame-ancestors, so this is the only thing that keeps a third-party
+     page from framing GifOS at opacity 0 and steering a click onto Allow,
+     Install or Approve. Same-origin framing (booted images, app mounts) is
+     allowed; anything else sees a link to open the page itself. Parser-
+     blocking and ES5 on purpose: it runs before any chrome paints.
+     Guarded by test/unit/frame-guard.js. -->
+<script id="gifos-frame-guard">(function(){try{if(window.top===window.self)return;var ok=false;try{ok=window.top.location.origin===window.location.origin}catch(e){}if(ok)return;var h=document.documentElement;h.style.visibility='hidden';function show(){var b=document.body;if(!b)return;while(b.firstChild)b.removeChild(b.firstChild);var p=document.createElement('p');p.style.cssText='font:16px system-ui,sans-serif;padding:24px;color:#eee;background:#111;margin:0';p.appendChild(document.createTextNode('GifOS does not run inside another site\'s page. '));var a=document.createElement('a');a.href=location.href;a.target='_blank';a.rel='noopener';a.textContent='Open it in its own tab';a.style.color='#9db4ff';p.appendChild(a);b.appendChild(p);h.style.visibility='';}if(document.body)show();else document.addEventListener('DOMContentLoaded',show);}catch(e){}})();</script>
 <!-- The ONLY frames this page ever holds are srcdoc app mounts. A sandboxed
      frame may still navigate ITSELF, and the replacement document would keep
      the runtime's bridge with none of the app CSP (site/js/runtime.js,

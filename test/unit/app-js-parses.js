@@ -56,13 +56,24 @@ const isModule = (file, src) =>
 const apps = fs.readdirSync(APPS).filter((d) => fs.existsSync(path.join(APPS, d, 'listing.json')));
 check('there are apps to scan', apps.length > 0, apps.length);
 
+// Data wearing a .js name: three.js JSON geometry (hexgl ships nine) is
+// fetched and JSON.parse'd by the engine, never executed as a script. It is
+// recognised by being valid JSON whose top level is an object or array —
+// no program is.
+const isJsonData = (src) => {
+  const t = src.trimStart();
+  if (t[0] !== '{' && t[0] !== '[') return false;
+  try { JSON.parse(src); return true; } catch (e) { return false; }
+};
+
 const broken = [];
-let scripts = 0, modules = 0;
+let scripts = 0, modules = 0, data = 0;
 for (const slug of apps) {
   for (const file of walk(path.join(APPS, slug), [])) {
     const src = fs.readFileSync(file, 'utf8');
     const rel = path.relative(ROOT, file);
     if (isModule(file, src)) { modules++; continue; }
+    if (isJsonData(src)) { data++; continue; }
     scripts++;
     try {
       new vm.Script(src, { filename: rel });
@@ -72,7 +83,7 @@ for (const slug of apps) {
   }
 }
 
-check('the scan actually read the app trees', scripts > 500, { scripts: scripts, modules: modules });
+check('the scan actually read the app trees', scripts > 500, { scripts: scripts, modules: modules, data: data });
 check('every classic script an app ships parses', broken.length === 0, broken);
 
 if (failures) {

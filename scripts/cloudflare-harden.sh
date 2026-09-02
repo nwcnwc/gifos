@@ -60,6 +60,7 @@ die()  { printf '  \033[31m✗ %s\033[0m\n' "$*"; exit 1; }
 
 # cf METHOD PATH [JSON_BODY] — returns the raw response JSON on stdout.
 # In --dry-run, non-GET calls are printed and NOT sent (returns a stub success).
+CF_HDR=$(mktemp); chmod 600 "$CF_HDR"; printf 'Authorization: Bearer %s\n' "$CF_API_TOKEN" > "$CF_HDR"; trap 'rm -f "$CF_HDR"' EXIT
 cf() {
   local m="$1" p="$2" b="${3:-}"
   if [ "$DRY" = 1 ] && [ "$m" != "GET" ]; then
@@ -67,7 +68,8 @@ cf() {
     [ -n "$b" ] && printf '      %s\n' "$(echo "$b" | jq -c . 2>/dev/null || echo "$b")" >&2
     echo '{"success":true,"result":{},"dry":true}'; return 0
   fi
-  local args=(-s -X "$m" "$API$p" -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json")
+  # The token rides a header FILE, not the argv (which every local user can read in ps).
+  local args=(-s -X "$m" "$API$p" -H "@$CF_HDR" -H "Content-Type: application/json")
   [ -n "$b" ] && args+=(--data "$b")
   curl "${args[@]}"
 }

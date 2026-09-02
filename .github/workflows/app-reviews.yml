@@ -19,9 +19,11 @@
 #                         JSON file in GitHub's web UI cannot be asked to run
 #                         a build script; this closes that gap mechanically.
 #                         The commit touches only site/, so it cannot
-#                         retrigger this workflow (paths filter), and it DOES
-#                         trigger pages.yml — which is exactly the deploy that
-#                         puts the new stars on gifos.app/store.
+#                         retrigger this workflow (paths filter). A push made
+#                         with the workflow's own GITHUB_TOKEN never starts
+#                         another workflow, so the deploy that puts the new
+#                         stars on gifos.app/store is DISPATCHED explicitly
+#                         (pages.yml has workflow_dispatch).
 name: App reviews
 
 on:
@@ -48,14 +50,25 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
+          # A review PR touches review files and nothing else: a PR that also
+          # edited the validator (or anything outside apps/*/reviews/) is not
+          # a review PR, and its green would be self-attested.
+          if git diff --name-only "$BASE_SHA"...HEAD | grep -vE '^apps/[^/]+/reviews/' ; then
+            echo "::error::a review PR may touch only apps/<slug>/reviews/<user>.json"
+            exit 1
+          fi
+          # The validator that runs is the BASE branch's copy, never the PR's.
+          git show "$BASE_SHA:scripts/build-app-reviews.mjs" > /tmp/validate-reviews.mjs
+          git show "$BASE_SHA:site/js/store.js" > /dev/null 2>&1 || true
           git diff --name-status "$BASE_SHA"...HEAD -- 'apps/*/reviews/*' \
-            | node scripts/build-app-reviews.mjs --pr "$AUTHOR"
+            | node /tmp/validate-reviews.mjs --pr "$AUTHOR"
 
   publish:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write   # to dispatch pages.yml after the push (see the header)
     steps:
       - uses: actions/checkout@v4
       - name: Regenerate site/apps/reviews.json and commit it
@@ -72,7 +85,11 @@ jobs:
               commit -m "store reviews: regenerate site/apps/reviews.json (app-reviews.yml)"
           # main moves; a losing race is a rebase, not a failure.
           for i in 1 2 3; do
-            git push && exit 0
+            git push && break
             git pull --rebase
           done
-          git push
+          # The push above was made with GITHUB_TOKEN and starts no workflow
+          # on its own; ask for the deploy by name.
+          gh workflow run pages.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
