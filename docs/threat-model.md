@@ -237,6 +237,9 @@ clients; a lost reply causes duplicate writes on reconnect.
   duplicate record.
 - **The relay is honest-but-curious-proof for content.** Clients derive the
   session id, join token, and password proof from the link secret by SHA-256
+  (a room PASSWORD is first stretched with PBKDF2-SHA256, 310k iterations,
+  room-salted — `gifos-net.js` `stretchPw` — so a proof or a ciphertext is not
+  an offline dictionary attack at hash speed)
   ("derive, don't send" — `site/js/gifos-net.js`) and seal every content frame
   with an AES-GCM key derived from the same secret, so a logging or subpoenaed
   relay holds only routing metadata and ciphertext. This does **not** defend

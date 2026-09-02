@@ -14,6 +14,20 @@ const check = (name, cond, extra) => { console.log((cond ? 'PASS' : 'FAIL') + ' 
   const addr = { peer: 'c_1a2b3c4d', coord: { pc: 0, r: 2, i: 3 }, v: 1 }; // a greeter's sealed address
 
   // Keys: unlocked, locked with the right pw, locked with a wrong pw.
+  // The proof and the key derive from a PBKDF2-stretched password, never from
+  // one plain hash of it — a proof the relay stores must not be a dictionary
+  // attack at hash speed. Guarded by construction: the proof differs from the
+  // single-hash form, and stretching costs real time.
+  {
+    const t0 = Date.now();
+    const proof = await net.meetPwProof(ROOM, AV, 'hunter2');
+    const took = Date.now() - t0;
+    const plain = await net.sha256hex('gifos-net-3|meet-pw|' + ROOM + '|' + AV + '|hunter2');
+    check('the password proof is not one plain SHA-256 of the password', proof && proof !== plain, { proof, plain });
+    check('stretching the password costs measurable work (PBKDF2)', took >= 20, took);
+    const again = await net.meetPwProof(ROOM, AV, 'hunter2');
+    check('the same password stretches to the same proof', again === proof);
+  }
   const kOpen = await net.deriveMeetKey(ROOM, AV, '');
   const kPw = await net.deriveMeetKey(ROOM, AV, 'hunter2');
   const kWrong = await net.deriveMeetKey(ROOM, AV, 'nope');

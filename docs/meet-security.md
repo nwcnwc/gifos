@@ -15,6 +15,13 @@ A LOCKED room's E2E key mixes the password into the derivation
 the room, no matter what you hold or which door you talk past. The lock is a
 property of the ciphertext, not a check someone enforces.
 
+The password is STRETCHED before it reaches either derivation: PBKDF2-SHA256,
+310k iterations, salted with the room and verifier (`stretchPw`). The relay
+holds every occupant's proof and every frame is ciphertext under the key, so
+with one plain SHA-256 both were an offline dictionary attack at native hash
+speed for any past link holder. Key and proof derive from the stretched bits
+under their own labels, so neither reveals the other. (DS `gifos-net-3`.)
+
 - `sid`/`token` stay password-FREE — routing identity must not move on re-key
   (url+pw must never become a *different room*).
 - Changing the password RE-KEYS the room (`rekeyRoom`): members learn the new
