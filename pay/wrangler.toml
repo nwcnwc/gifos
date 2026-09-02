@@ -1,6 +1,10 @@
 name = "gifos-pay"
 main = "src/pay.js"
 compatibility_date = "2026-01-01"
+# No *.workers.dev hostname: the zone's rate-limit and bot rules (scripts/
+# cloudflare-harden.sh) match the custom domain, and a second door would
+# sit outside them. A fork that wants workers.dev flips this.
+workers_dev = false
 
 # STATELESS — no Durable Objects, no KV, no database. Everything a receipt
 # needs rides inside the PayPal order itself; /receipt asks PayPal, never a

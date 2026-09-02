@@ -1,6 +1,10 @@
 name = "gifos-mirror"
 main = "src/mirror.js"
 compatibility_date = "2026-01-01"
+# No *.workers.dev hostname: the zone's rate-limit and bot rules (scripts/
+# cloudflare-harden.sh) match the custom domain, and a second door would
+# sit outside them. A fork that wants workers.dev flips this.
+workers_dev = false
 
 # EXPLICIT ALLOW-LIST of theme subdomains — one route each, never a
 # "*.gifos.app/*" wildcard. The enumeration IS the security boundary: requests

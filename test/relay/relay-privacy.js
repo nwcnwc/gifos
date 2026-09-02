@@ -46,6 +46,7 @@ function join(sid, peer) {
   check('roster carries NO ips field', !!last && last.ips === undefined);
   check('roster still carries the opaque device tag (client-salted) for ban/vote', !!last && last.devs && last.devs.alice === 'alicedevtag');
   check('each socket privately learns its OWN address via whoami', !!(a.whoami && typeof a.whoami.ip === 'string'));
+  check('no roster frame carries a ban entry with a name (a ban is a device tag only)', !/"n":/.test(allFrames) && !/"name":/.test(allFrames));
 
   try { a.close(); b.close(); } catch (e) {}
   console.log(failures ? ('\n' + failures + ' FAIL') : '\nALL PASS');

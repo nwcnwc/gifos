@@ -86,7 +86,7 @@
     // code, and only an explicit s.kick() (the app changed something: new
     // password, deliberate re-join) re-arms. CROWD codes (full / rate-limited /
     // no host yet) keep retrying on a longer leash.
-    const FATAL_CLOSES = [1008, 4000, 4001, 4003, 4004, 4007, 4008, 4009, 4010, 4011];
+    const FATAL_CLOSES = [1008, 4000, 4001, 4003, 4004, 4007, 4008, 4009, 4010, 4011, 4012];
     const SLOW_CLOSES = [1011, 1013];
     const setState = (st) => {
       if (s.state === st) return;
@@ -444,17 +444,20 @@
   const packJSON = (obj) => (GifOS.store && GifOS.store.packJSON ? GifOS.store.packJSON(obj) : JSON.stringify(obj));
   const unpackJSON = (str) => (GifOS.store && GifOS.store.unpackJSON ? GifOS.store.unpackJSON(str) : JSON.parse(str));
 
+  // Additional authenticated data: the derivation tag, so a ciphertext is
+  // only ever valid under this version's keys and labels.
+  const SEAL_AAD = enc(DS + '|seal');
   async function seal(key, obj) {
     const iv = new Uint8Array(12);
     root.crypto.getRandomValues(iv);
-    const ct = await root.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc(packJSON(obj)));
+    const ct = await root.crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: SEAL_AAD }, key, enc(packJSON(obj)));
     return { e: 1, iv: b64ofBuf(iv), ct: b64ofBuf(ct) };
   }
   const isSealed = (m) => !!(m && m.e === 1 && typeof m.iv === 'string' && typeof m.ct === 'string');
   async function open(key, m) {
     if (!isSealed(m) || !key) return null;
     try {
-      const pt = await root.crypto.subtle.decrypt({ name: 'AES-GCM', iv: bufOfB64(m.iv) }, key, bufOfB64(m.ct));
+      const pt = await root.crypto.subtle.decrypt({ name: 'AES-GCM', iv: bufOfB64(m.iv), additionalData: SEAL_AAD }, key, bufOfB64(m.ct));
       return unpackJSON(new TextDecoder().decode(pt));
     } catch (e) { return null; } // wrong key or tampered — drop silently
   }

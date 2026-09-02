@@ -19,7 +19,7 @@ const check = (name, cond, extra) => { console.log((cond ? 'PASS' : 'FAIL') + ' 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function open(sid, peer, gk) {
-  const url = RELAY + '/s/' + sid + '?role=mesh&token=T&peer=' + peer + (gk ? '&gk=' + gk : '');
+  const url = RELAY + '/s/' + sid + '?role=mesh&token=T&peer=' + peer + '&dev=' + peer + 'dev' + (gk ? '&gk=' + gk : '');
   const ws = new WebSocket(url);
   ws.greets = [];
   ws.ready = new Promise((res) => ws.addEventListener('open', () => res()));
