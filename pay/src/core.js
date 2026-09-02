@@ -169,7 +169,8 @@ export function makeCore(cfg) {
     }
     const e = registryCache.reg[identity.id];
     if (!e) throw new Error('"' + identity.id + '" is not registered for the fee-free rails — see gifos.app/pay (registration is annual; the PayPal and USDC rails need no registration)');
-    if (e.until != null && Date.now() > Date.parse(e.until)) {
+    const untilMs = e.until == null ? null : Date.parse(e.until);
+    if (untilMs != null && (Number.isNaN(untilMs) || Date.now() > untilMs)) {
       throw new Error('the rails registration for "' + identity.id + '" expired on ' + e.until + ' — renew it, or use the PayPal / USDC rails, which need no registration');
     }
   }
@@ -228,6 +229,12 @@ export function makeCore(cfg) {
     let value; try { value = usdValue(body.amount); } catch (e) { return bad(e.message); }
     const reason = String(body.reason || '').slice(0, 140);
     const sku = body.sku == null ? null : String(body.sku).slice(0, 64);
+    if (sku != null && !/^[\w.\-:]{1,64}$/.test(sku)) return bad('bad sku');
+    // custom_id is what the receipt is rebuilt from after capture; PayPal
+    // cuts it at 127 chars, and a cut JSON is a receipt with no app and no
+    // sku — money taken, nothing granted. Refuse BEFORE an order exists.
+    const customId = JSON.stringify({ a: appId, s: sku });
+    if (customId.length > 127) return bad('appId and sku are too long together for a PayPal order (' + customId.length + ' > 127 chars)');
 
     let payee;
     try {
@@ -241,7 +248,7 @@ export function makeCore(cfg) {
     const feeCents = (cents * BigInt(cfg.feeBps)) / 10000n;
     const unit = {
       reference_id: appId,
-      custom_id: JSON.stringify({ a: appId, s: sku }).slice(0, 127),
+      custom_id: customId,
       description: reason || ('GifOS: ' + appId),
       amount: { currency_code: 'USD', value },
       payee: { email_address: payee },
@@ -324,6 +331,8 @@ export function makeCore(cfg) {
   // Naming: GifOS pins the chain as CAIP-2 (eip155:84532) everywhere; the
   // facilitator wire speaks x402 v1's names ('base-sepolia'). The mapping
   // lives HERE, at the one boundary where both worlds meet.
+  // The one asset every USDC rail is pinned to (Base Sepolia USDC), lower-case.
+  const USDC_SEPOLIA = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   const FACILITATOR_NETWORKS = { 'eip155:84532': 'base-sepolia' };
 
   async function facilitator(path, body) {
@@ -354,6 +363,28 @@ export function makeCore(cfg) {
         return bad('transfer 0 pays ' + transfers[0].to + ' but the catalog names ' + authoritative + ' for "' + appId + '"', 403);
       }
     } catch (e) { return bad(String(e.message || e), 403); }
+    // THE RECEIPT SAYS body.amount, SO THE TRANSFERS MUST ADD UP TO IT — in
+    // the pinned asset, split as the fee rule says, with the fee leg at the
+    // treasury, and each signed authorization naming exactly its transfer's
+    // payee and value. Without this the Worker signed whatever amount the
+    // client claimed after settling whatever it actually paid.
+    const amount = BigInt(body.amount);
+    const fee = (amount * BigInt(cfg.feeBps)) / 10000n;
+    const legs = fee > 0n ? 2 : 1;
+    if (transfers.length !== legs) return bad('expected ' + legs + ' transfer(s) for this fee rule, got ' + transfers.length);
+    if (fee > 0n && !cfg.treasuryAddress) return bad('no treasury address is configured for the fee leg on this deployment', 501);
+    const expectAmounts = fee > 0n ? [amount - fee, fee] : [amount];
+    for (let i = 0; i < transfers.length; i++) {
+      const t = transfers[i], pl = payloads[i];
+      if (!t || typeof t.amount !== 'string' || !/^[0-9]+$/.test(t.amount)) return bad('transfer ' + i + ': bad amount');
+      if (BigInt(t.amount) !== expectAmounts[i]) return bad('transfer ' + i + ' carries ' + t.amount + ' but the fee rule requires ' + String(expectAmounts[i]));
+      if (String(t.asset || '').toLowerCase() !== USDC_SEPOLIA) return bad('transfer ' + i + ': asset must be ' + USDC_SEPOLIA);
+      if (i === 1 && String(t.to || '').toLowerCase() !== String(cfg.treasuryAddress).toLowerCase()) return bad('transfer 1 must pay the treasury');
+      const auth = pl && pl.authorization;
+      if (!auth || String(auth.to || '').toLowerCase() !== String(t.to).toLowerCase() || String(auth.value) !== String(t.amount)) {
+        return bad('payload ' + i + ' does not authorize transfer ' + i + ' (to/value differ)');
+      }
+    }
     const txs = [];
     for (let i = 0; i < transfers.length; i++) {
       const t = transfers[i], pl = payloads[i];
@@ -411,7 +442,6 @@ export function makeCore(cfg) {
   // routing it through a GifOS account would be custody) — the receipt says
   // so: feeCollected:false. Honest bookkeeping beats silent fiction.
   const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'; // keccak(Transfer(address,address,uint256))
-  const USDC_SEPOLIA = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   const INVOICE_TTL_MS = 30 * 60 * 1000;
 
   async function transferInvoice(req) {
@@ -568,7 +598,6 @@ export function makeCore(cfg) {
     if (cents < STRIPE_MIN_CENTS) return bad('Stripe takes nothing under $0.50 on this rail — $' + value + ' is too small; the USDC rails have no minimum');
     const skuRaw = url.searchParams.get('sku');
     const sku = skuRaw == null || skuRaw === '' ? null : String(skuRaw).slice(0, 64);
-    const reason = String(url.searchParams.get('reason') || '').slice(0, 140);
     let app, identity;
     try { ({ app, identity } = await identityFor(appId)); } catch (e) { return bad(String(e.message || e), 403); }
     // Onboarded authors only: a destination charge needs a connected account,
@@ -587,7 +616,9 @@ export function makeCore(cfg) {
       externalId: JSON.stringify({ a: appId, s: sku, u: amount }),
       methodDetails: { networkId: cfg.stripeProfileId, paymentMethodTypes: ['card', 'link'] },
     };
-    const fresh = async () => MPP.serializeChallenge(await MPP.challenge({ secret: cfg.mppSecret, realm, request, description: reason || request.description }));
+    // The challenge description is the app and sku — derived from the route,
+    // never from a query string a link could put words into.
+    const fresh = async () => MPP.serializeChallenge(await MPP.challenge({ secret: cfg.mppSecret, realm, request, description: request.description }));
     // Every not-yet-paid answer is a 402 WITH a fresh challenge (the spec's
     // table): plain when nothing was sent, a problem+json body when a
     // credential was sent and failed.

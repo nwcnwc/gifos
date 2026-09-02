@@ -8,6 +8,8 @@
  *   PAYPAL_CLIENT_ID       PayPal REST app credentials (secret: wrangler secret)
  *   PAYPAL_CLIENT_SECRET
  *   TREASURY_EMAIL         payments@gifos.app — where the 3% platform fee lands
+ *   TREASURY_ADDRESS       the Base address the x402 fee leg must pay (the
+ *                          broker's TREASURY; settle refuses any other)
  *   FEE_BPS                300
  *   CATALOG_URL            https://gifos.app/apps/index.json
  *   RETURN_BASE            https://pay.gifos.app
@@ -52,6 +54,7 @@ async function init(env) {
     paypalClientId: env.PAYPAL_CLIENT_ID,
     paypalClientSecret: env.PAYPAL_CLIENT_SECRET,
     treasuryEmail: env.TREASURY_EMAIL,
+    treasuryAddress: env.TREASURY_ADDRESS || null,
     feeBps: Number(env.FEE_BPS || 300),
     catalogUrl: env.CATALOG_URL,
     returnBase: env.RETURN_BASE,
@@ -71,13 +74,55 @@ async function init(env) {
   });
 }
 
+// Best-effort per-IP damper (per-isolate memory, like the relay's edge
+// limiter): every route here spends a metered third-party call — a PayPal
+// order, an eth_getLogs, a Stripe intent — under the PLATFORM's single
+// identity, so one looping client could get everyone throttled. Polls run at
+// one call per 1.5–3 s per purchase, well inside the budget.
+const REQ_PER_MIN_PER_IP = 240;
+const CREATES_PER_MIN_PER_IP = 40;   // order/invoice/settle/rfp creation
+const CREATE_PATHS = new Set(['/checkout', '/x402/settle', '/transfer/invoice', '/fednow/rfp', '/receipt/file']);
+const ipHits = new Map();
+function ipKey(ip) {
+  ip = String(ip || '');
+  if (ip.indexOf(':') < 0) return ip;
+  const halves = ip.split('::');
+  let groups = halves[0] ? halves[0].split(':') : [];
+  if (halves.length > 1) {
+    const tail = halves[1] ? halves[1].split(':') : [];
+    while (groups.length + tail.length < 8) groups.push('0');
+    groups = groups.concat(tail);
+  }
+  return groups.slice(0, 4).map((g) => g.toLowerCase().replace(/^0+(?=.)/, '')).join(':') + '::/64';
+}
+function limited(ip, path, method) {
+  const now = Date.now();
+  const k = ipKey(ip);
+  const e = ipHits.get(k) || { all: [], creates: [] };
+  e.all = e.all.filter((t) => now - t < 60000); e.all.push(now);
+  const create = method === 'POST' && CREATE_PATHS.has(path) || path.startsWith('/mpp/');
+  if (create) { e.creates = e.creates.filter((t) => now - t < 60000); e.creates.push(now); }
+  ipHits.set(k, e);
+  if (ipHits.size > 10000) ipHits.clear();
+  return e.all.length > REQ_PER_MIN_PER_IP || e.creates.length > CREATES_PER_MIN_PER_IP;
+}
+
 export default {
   async fetch(request, env) {
     try {
+      const url = new URL(request.url);
+      if (request.method !== 'OPTIONS' && limited(request.headers.get('CF-Connecting-IP') || 'unknown', url.pathname, request.method)) {
+        return new Response(JSON.stringify({ error: 'too many requests — slow down' }), {
+          status: 429, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Retry-After': '30' },
+        });
+      }
       if (!handler) handler = await init(env);
       return await handler(request);
     } catch (e) {
-      return new Response(JSON.stringify({ error: String(e && e.message || e) }), {
+      // The message can name a misconfigured secret or an upstream account;
+      // it goes to the log, not to the caller.
+      try { console.log('pay: unhandled', String(e && e.message || e).slice(0, 200)); } catch (e2) {}
+      return new Response(JSON.stringify({ error: 'internal error' }), {
         status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       });
     }

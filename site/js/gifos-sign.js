@@ -291,6 +291,18 @@
   }
 
   // ---- TOFU key pinning (first key seen for an identity wins) ---------------
+  // The pinned fingerprint for an id, as bytes when it is a raw key (domain
+  // pins are hex of the 32-byte Ed25519 key); null when unknown.
+  function pinnedKey(id) {
+    try {
+      const pins = JSON.parse(localStorage.getItem('gifos_sig_pins') || '{}');
+      const f = pins[id];
+      if (typeof f !== 'string' || !/^[0-9a-f]{64}$/.test(f)) return null;
+      const out = new Uint8Array(32);
+      for (let i = 0; i < 32; i++) out[i] = parseInt(f.slice(i * 2, i * 2 + 2), 16);
+      return out;
+    } catch (e) { return null; }
+  }
   function pinKey(id, fingerprint) {
     try {
       const pins = JSON.parse(localStorage.getItem('gifos_sig_pins') || '{}');
@@ -301,11 +313,26 @@
   }
 
   // ---- fetch keys (network — desktop shell only, never the app sandbox) -----
+  // A key file is a few dozen bytes; read at most a few KB of whatever answers
+  // so a hostile host cannot make Verify buffer a large body.
+  const KEY_READ_MAX = 4096;
+  async function readCapped(r, max) {
+    if (!r.body || typeof r.body.getReader !== 'function') { const t = await r.text(); if (t.length > max) throw new Error('key file too large'); return t; }
+    const reader = r.body.getReader(); const chunks = []; let n = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      n += value.length; if (n > max) { try { reader.cancel(); } catch (e) {} throw new Error('key file too large'); }
+      chunks.push(value);
+    }
+    const all = new Uint8Array(n); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+    return new TextDecoder().decode(all);
+  }
   async function fetchDomainKey(domain) {
     const url = 'https://' + domain + '/gifos.key';
     const r = await fetch(url, { mode: 'cors', redirect: 'error' });
     if (!r.ok) throw new Error('no gifos.key at ' + domain + ' (HTTP ' + r.status + ')');
-    const txt = (await r.text()).trim();
+    const txt = (await readCapped(r, KEY_READ_MAX)).trim();
     const b64 = txt.replace(/^-----BEGIN[^-]*-----/, '').replace(/-----END[^-]*-----$/, '').trim();
     const key = b64ToBytes(b64);
     if (key.length !== 32) throw new Error('gifos.key is not a 32-byte Ed25519 key');
@@ -329,23 +356,46 @@
   async function verify(bytes) {
     const sig = readSig(bytes);
     if (!sig) return { status: 'unsigned' };
-    const { type, id, alg } = sig;
+    const { type, alg } = sig;
+    // A host name is case-insensitive; the fetch, the pin and the label must
+    // agree on one spelling or a re-cased id would dodge a key-change warning.
+    const id = type === 'domain' && typeof sig.id === 'string' ? sig.id.toLowerCase() : sig.id;
     if (!id || (type === 'domain' && !isDomain(id)) || (type === 'email' && !isEmail(id))) {
       return { status: 'tampered', detail: 'malformed signature identity' };
+    }
+    // A signature that is not even the right shape is a broken block, not a
+    // key we could not reach: say TAMPERED before any network, so a GIF
+    // cannot wear "signed by <brand>" on the strength of a claim alone.
+    let sigBytes = null;
+    try { sigBytes = typeof sig.sig === 'string' && sig.sig ? b64ToBytes(sig.sig) : null; } catch (e) { sigBytes = null; }
+    if (!sigBytes || !sigBytes.length || (type === 'domain' && sigBytes.length !== 64)) {
+      return { status: 'tampered', id, type, ts: sig.ts, detail: 'malformed signature' };
     }
     const chHex = hex(await contentHash(bytes));
     const msg = statement(type, id, chHex);
     try {
       if (type === 'domain') {
-        const pub = await fetchDomainKey(id);
-        const ok = await ed25519Verify(pub, b64ToBytes(sig.sig), msg);
+        let pub;
+        try { pub = await fetchDomainKey(id); }
+        catch (e) {
+          // Offline, or the host is down: the pin IS the key we saw before
+          // (hex of the raw public key), so a GIF from an identity this
+          // computer already trusts still verifies. A mismatch here is not
+          // called tampered — it may be a rotation we cannot confirm yet.
+          const pinned = pinnedKey('domain:' + id);
+          if (!pinned) throw e;
+          const okPinned = await ed25519Verify(pinned, sigBytes, msg);
+          if (!okPinned) throw e;
+          return { status: 'valid', id, type, ts: sig.ts, keyChanged: false, offline: true };
+        }
+        const ok = await ed25519Verify(pub, sigBytes, msg);
         if (!ok) return { status: 'tampered', id, type, ts: sig.ts, detail: 'signature does not match these contents' };
         const pin = pinKey('domain:' + id, hex(pub));
         return { status: 'valid', id, type, ts: sig.ts, keyChanged: pin.changed };
       }
       if (type === 'email') {
         const keyBytes = await fetchEmailKey(id);
-        const ok = await pgpVerify(msg, b64ToBytes(sig.sig), keyBytes);
+        const ok = await pgpVerify(msg, sigBytes, keyBytes);
         if (!ok) return { status: 'tampered', id, type, ts: sig.ts, detail: 'signature does not match these contents' };
         const pin = pinKey('email:' + id, hex(await sha256(keyBytes)).slice(0, 40));
         return { status: 'valid', id, type, ts: sig.ts, keyChanged: pin.changed };

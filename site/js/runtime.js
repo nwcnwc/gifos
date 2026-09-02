@@ -3126,11 +3126,11 @@
           .then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       }
       else if (d.type === 'entitled') {
-        (GifOS.payBroker ? GifOS.payBroker.entitled(manifest, d.sku) : Promise.reject(new Error('Payments are not available on this computer.')))
+        (GifOS.payBroker ? GifOS.payBroker.entitled(manifest, d.sku, originalBytes) : Promise.reject(new Error('Payments are not available on this computer.')))
           .then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       }
       else if (d.type === 'license') {
-        (GifOS.payBroker ? GifOS.payBroker.license(manifest, d.sku) : Promise.reject(new Error('Payments are not available on this computer.')))
+        (GifOS.payBroker ? GifOS.payBroker.license(manifest, d.sku, originalBytes) : Promise.reject(new Error('Payments are not available on this computer.')))
           .then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       }
       else if (d.type === 'storage') {

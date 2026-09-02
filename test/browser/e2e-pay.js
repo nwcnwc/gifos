@@ -119,7 +119,7 @@ async function until(url, ms) {
     '<button id="buy">Buy pro</button><button id="tip">Tip</button>' +
     '<div id="out">-</div><div id="ent">-</div><div id="lic">-</div>' +
     '<script>(function(){' +
-    'function ent(){ return gifos.entitled("pro").then(function(v){ document.getElementById("ent").textContent = "ent:" + v; }); }' +
+    'function ent(){ return gifos.entitled("pro").then(function(v){ document.getElementById("ent").textContent = "ent:" + v; }, function(e){ document.getElementById("ent").textContent = "ent-err:" + e.message; }); }' +
     'document.getElementById("buy").onclick = function(){ document.getElementById("out").textContent="…";' +
     '  gifos.charge({ sku:"pro", amount:"5000000", reason:"Unlock pro" })' +
     '  .then(function(r){ document.getElementById("out").textContent = "ok:" + r.rail + ":" + r.amount; ' +
@@ -144,10 +144,13 @@ async function until(url, ms) {
     const signed = await GifOS.sign.signDomain(raw, domain, keyPair, Date.now());
     // Unsigned seller: same shape, no signature — must be refused outright.
     const unsigned = await mk('paynot', {});
-    for (const [nm, bytes] of [['PayTest.gif', signed], ['PayNot.gif', unsigned]]) {
+    // An IMPOSTOR: unsigned, but wearing the real seller's appId. The purse is
+    // keyed by appId, so this is the one that must not read the purchases.
+    const impostor = await mk('paytest', {});
+    for (const [nm, bytes, appId, x] of [['PayTest.gif', signed, 'paytest', 620], ['PayNot.gif', unsigned, 'paynot', 700], ['PayFake.gif', impostor, 'paytest', 780]]) {
       const fid = GifOS.store.uid('file');
-      await GifOS.store.putFile({ id: fid, name: nm, bytes, kind: 'gif', isApp: true, appId: nm === 'PayTest.gif' ? 'paytest' : 'paynot', mime: 'image/gif' });
-      await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: nm, parent: null, x: nm === 'PayTest.gif' ? 620 : 700, y: 320, iconSize: 64 });
+      await GifOS.store.putFile({ id: fid, name: nm, bytes, kind: 'gif', isApp: true, appId, mime: 'image/gif' });
+      await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: nm, parent: null, x, y: 320, iconSize: 64 });
     }
     await GifOS.desktop.load(); await GifOS.desktop.render();
     return publicKeyB64;
@@ -262,6 +265,26 @@ async function until(url, ms) {
     && signedTds[0].message.value === '2910000' && signedTds[0].message.to === CHAIN_PAYEE
     && signedTds[1].message.value === '90000' && signedTds[1].message.to === TREASURY,
     JSON.stringify(signedTds.map((t) => t.message && t.message.value)));
+
+  // ---- settle takes nobody's word for the amount ----------------------------
+  // The receipt says body.amount; the Worker now requires the transfers to
+  // add up to it, in the pinned asset, with the fee leg at the treasury, each
+  // authorization naming its own transfer. A dishonest body dies before the
+  // facilitator is asked.
+  const settlePost = (body) => fetch(PAY + '/x402/settle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
+  const leg = (to, amount) => ({ to, amount, asset: USDC, network: 'eip155:84532' });
+  const auth = (to, value) => ({ signature: '0x00', authorization: { to, value } });
+  const short = await settlePost({ appId: 'paytest', sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '1'), leg(TREASURY, '1')], payloads: [auth(CHAIN_PAYEE, '1'), auth(TREASURY, '1')] });
+  check('settle refuses transfers that do not add up to the receipt amount', short.status === 400 && /fee rule requires/.test((await short.json()).error));
+  const noFee = await settlePost({ appId: 'paytest', sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '5000000')], payloads: [auth(CHAIN_PAYEE, '5000000')] });
+  check('settle refuses a body with no treasury leg', noFee.status === 400 && /expected 2 transfer/.test((await noFee.json()).error));
+  const wrongTreasury = await settlePost({ appId: 'paytest', sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '4850000'), leg(CHAIN_PAYEE, '150000')], payloads: [auth(CHAIN_PAYEE, '4850000'), auth(CHAIN_PAYEE, '150000')] });
+  check('settle refuses a fee leg that does not pay the treasury', wrongTreasury.status === 400 && /treasury/.test((await wrongTreasury.json()).error));
+  const otherAsset = await settlePost({ appId: 'paytest', sku: 'pro', amount: '5000000', transfers: [Object.assign(leg(CHAIN_PAYEE, '4850000'), { asset: '0x' + '2'.repeat(40) }), leg(TREASURY, '150000')], payloads: [auth(CHAIN_PAYEE, '4850000'), auth(TREASURY, '150000')] });
+  check('settle refuses any asset but the pinned USDC', otherAsset.status === 400 && /asset must be/.test((await otherAsset.json()).error));
+  const mismatch = await settlePost({ appId: 'paytest', sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '4850000'), leg(TREASURY, '150000')], payloads: [auth(CHAIN_PAYEE, '1'), auth(TREASURY, '150000')] });
+  check('settle refuses an authorization that does not name its transfer', mismatch.status === 400 && /does not authorize/.test((await mismatch.json()).error));
 
   // ---- the WALLET-TRANSFER rail (RockWallet and every other wallet) ---------
   // No connection, no adapter: the sheet shows exactly-this-much to
@@ -514,6 +537,20 @@ async function until(url, ms) {
     await fr2.locator('#out').textContent());
   check('no sheet ever appeared for the unsigned app',
     await app2.evaluate(() => !document.getElementById('gifos-pay-sheet')));
+
+  // An unsigned GIF that merely COPIED the seller's appId asks entitled() —
+  // it must be refused like a charge, not handed the seller's purchases.
+  await app2.close();
+  const [app3] = await Promise.all([
+    context.waitForEvent('page'),
+    page.locator('.icon', { hasText: 'PayFake.gif' }).dblclick(),
+  ]);
+  await app3.waitForSelector('iframe', { timeout: 8000 });
+  const fr3 = app3.frameLocator('iframe');
+  await app3.locator('.perm-modal .done').first().click({ timeout: 5000 }).catch(() => {});
+  await fr3.locator('#ent').filter({ hasText: /ent/ }).waitFor({ timeout: 8000 });
+  const fakeEnt = await fr3.locator('#ent').textContent();
+  check('an unsigned impostor wearing the paid appId cannot read its entitlement', /^ent-err:.*not signed/.test(fakeEnt), fakeEnt);
 
   await browser.close();
   catalog.close();
