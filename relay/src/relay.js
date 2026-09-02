@@ -69,19 +69,41 @@ async function sha256hex(s) {
 // the salt raises the bar exactly against the storage/log-only adversary this
 // is meant to stop.) Set ABUSE_SALT in the environment to make it a real
 // secret; the default keeps dev and tests working.
+// Per-IP caps key on the NETWORK, not the address: an IPv6 host holds a /64
+// (or more) and would otherwise present 2^64 distinct "IPs" to every cap.
+// IPv4 keys as itself. The compressed `::` form is expanded first so the
+// first four hextets are the real prefix.
+function ipKey(ip) {
+  ip = String(ip || '');
+  if (ip.indexOf(':') < 0) return ip;
+  const halves = ip.split('::');
+  let groups = halves[0] ? halves[0].split(':') : [];
+  if (halves.length > 1) {
+    const tail = halves[1] ? halves[1].split(':') : [];
+    while (groups.length + tail.length < 8) groups.push('0');
+    groups = groups.concat(tail);
+  }
+  return groups.slice(0, 4).map((g) => g.toLowerCase().replace(/^0+(?=.)/, '')).join(':') + '::/64';
+}
 async function ipTag(ip, env) {
   const salt = (env && env.ABUSE_SALT) || 'gifos-relay-ip-tag';
-  return (await sha256hex(salt + '|' + ip)).slice(0, 24);
+  // Say so, once per isolate, when production runs on the public default:
+  // the privacy property this hash promises does not exist until
+  // `wrangler secret put ABUSE_SALT` has been run (relay/README.md).
+  if (!(env && env.ABUSE_SALT) && !(env && env.ALLOWED_ORIGINS_DEV) && !ipTag.warned) { ipTag.warned = true; console.log('ABUSE_SALT unset: IP tags use the public default salt'); }
+  return (await sha256hex(salt + '|' + ipKey(ip))).slice(0, 24);
 }
 // A session id "<room>.<verifier>" carries its verifier after the LAST dot —
-// hex, 16–64 chars (24 now, legacy 64). ONE derivation, used by BOTH the app
+// hex, 24–64 chars (24 now, legacy 64). ONE derivation, used by BOTH the app
 // host gate and the meeting admin check: the id already holds it, so neither
 // needs a separate query param. A dotless id or non-hex tail → no verifier.
+// The floor is 24 because admProven compares the tail against a 24-char hash
+// prefix: a shorter tail could never be administered, only silently refused.
 function verifierOf(sid) {
   const dot = String(sid || '').lastIndexOf('.');
   if (dot <= 0) return '';
   const v = sid.slice(dot + 1);
-  return /^[a-f0-9]{16,64}$/.test(v) ? v : '';
+  return /^[a-f0-9]{24,64}$/.test(v) ? v : '';
 }
 // AUTHORITY IS A SIGNATURE (docs/meet-security.md §SIG). Privileged mesh orders
 // (setpw / ban / unban / banlist in verifier rooms) carry { sp, sig, pub }:
@@ -374,13 +396,19 @@ export class Session {
   // URL seal). The DO is single-threaded, so exactly one knocker can found.
   async knock(ws, gk, gblob) {
     const a = this.att(ws);
+    // Hash FIRST, then read the registry: the read→write pair below is then
+    // synchronous whatever the digest primitive does, so two knocks cannot
+    // both meet an empty registry (R3's single-founder guarantee rests on the
+    // DO's single thread, and an await between the read and the write would
+    // be a hole in it).
+    const gkh = gk ? await sha256hex(gk) : null;
     const have = this.genesisHash();
     let founded = false, admitted = false;
     if (!have) {
-      a.gkh = gk ? await sha256hex(gk) : null;   // empty registry ⇒ found (R3)
+      a.gkh = gkh;                               // empty registry ⇒ found (R3)
       founded = admitted = !!a.gkh;
       if (founded) a.gmint = Date.now();         // the clock the mint must beat (see genesisHash)
-    } else if (gk && (await sha256hex(gk)) === have) {
+    } else if (gk && gkh === have) {
       a.gkh = have; admitted = true;             // matching key ⇒ join the pool
     }
     if (a.gkh) a.gseen = Date.now(); // a knock is proof of life — see genesisHash
@@ -405,6 +433,10 @@ export class Session {
   // failure that early is more likely our own bug on a poisoned input), and
   // it takes two strikes inside 60s so one transient hiccup restarts nobody.
   wedgeStrike(e) {
+    // An attachment that will not serialize is a bounds problem on one
+    // socket's input, never a wedged object; it must not be able to earn
+    // the restart that exists for platform failures.
+    if (e && /attachment/i.test(String(e.message || ''))) return;
     const now = Date.now();
     this.wedgeStrikes = (this.wedgeStrikes || []).filter((t) => now - t < 60000);
     this.wedgeStrikes.push(now);
@@ -424,7 +456,11 @@ export class Session {
     }
     const url = new URL(request.url);
     const role = url.searchParams.get('role') || 'client';
-    const token = url.searchParams.get('token') || '';
+    // Every query value that lands in the socket attachment is bounded: the
+    // attachment is capped at 2 KB by the platform, and serializeAttachment
+    // THROWS past it — after acceptWebSocket, i.e. with a live socket that
+    // carries no role. The client sends a 24-hex token and a 64-hex proof.
+    const token = (url.searchParams.get('token') || '').slice(0, 64);
     const peer = (url.searchParams.get('peer') || 'c_' + crypto.randomUUID().slice(0, 8)).slice(0, 64);
     // NOTE: no display name is read here. Participant names travel end-to-end
     // sealed (in status/offer/answer frames the relay only ever sees as
@@ -462,9 +498,11 @@ export class Session {
     for (const ws of sockets) if (this.att(ws).iph === iph) mine++;
     if (mine >= MAX_SOCKETS_PER_IP && !trusted) return reject('too many connections from your network', 1013);
     const now = Date.now();
-    const log = (this.joinLog.get(ip) || []).filter((t) => now - t < 60000);
+    const jk = ipKey(ip);
+    const log = (this.joinLog.get(jk) || []).filter((t) => now - t < 60000);
     log.push(now);
-    this.joinLog.set(ip, log);
+    if (this.joinLog.size > 2000) this.joinLog.clear(); // best-effort burst damper; bounded memory while awake
+    this.joinLog.set(jk, log);
     if (log.length > MAX_JOINS_PER_IP_MIN && !trusted) return reject('joining too fast — slow down', 1013);
 
     // ONE RUNTIME (docs/one-runtime.md step 6): the app-session STAR is DELETED.
@@ -509,7 +547,7 @@ export class Session {
       // public key, and this relay verifies each order exactly like any
       // peer would (admProven below). Nothing claimed, nothing stored.
       const av = verifierOf(sid);
-      const offeredPw = url.searchParams.get('pw') || '';
+      const offeredPw = (url.searchParams.get('pw') || '').slice(0, 64);
       // The door lock is OCCUPANCY STATE — re-seeded by whoever reconnects
       // FIRST after an eviction. In an ADMIN room only an admin may establish
       // it: a non-admin first-arriver must not be able to seize the room with a
@@ -559,7 +597,8 @@ export class Session {
         if (a.peer === peer || (dev && a.dev === dev)) { try { ws.close(4000, 'replaced'); } catch (e) {} }
       }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
-      server.serializeAttachment({ role: 'mesh', peer, iph, tok: token, pw: roomPw, av, dev, ban });
+      try { server.serializeAttachment({ role: 'mesh', peer, iph, tok: token, pw: roomPw, av, dev, ban }); }
+      catch (e) { try { server.close(1008, 'join state too large'); } catch (e2) {} return new Response(null, { status: 101, webSocket: client }); }
       this.send(server, { t: 'joined', peer });
       // Tell this socket its OWN address (privately, once). The relay can't
       // seal — it lacks the room key — so the client seals its IP into the
@@ -580,10 +619,12 @@ export class Session {
 
   // ---- hibernation handlers (the DO may have been asleep between any two) ----
   async webSocketMessage(ws, data) {
-    if (typeof data !== 'string') return;
+    // Meter BEFORE the type check: a binary frame bills a wake like any
+    // other and would otherwise ride unmetered and unstruck forever.
     let meter = this.meters.get(ws);
     if (!meter) { meter = makeMeter(); this.meters.set(ws, meter); }
-    if (overBudget(meter, data.length)) {
+    const size = typeof data === 'string' ? data.length : ((data && data.byteLength) || 0);
+    if (overBudget(meter, size)) {
       if (!meter.warned) {
         meter.warned = true;
         meter.strikes++;
@@ -595,7 +636,9 @@ export class Session {
       }
       return;
     }
+    if (typeof data !== 'string') return;
     let m; try { m = JSON.parse(data); } catch (e) { return; }
+    if (!m || typeof m !== 'object') return; // `null` parses; (null).t throws
     const a = this.att(ws);
     if (a.role === 'mesh') {
       if (m.t === 'peer') this.routePeer(a.peer, m); // signaling only — authority is a signature now (§9), never a stamp
@@ -618,7 +661,7 @@ export class Session {
           const a2 = this.att(ws2); a2.pw = pw;
           try { ws2.serializeAttachment(a2); } catch (e) {}
         }
-        this.broadcast({ t: 'pw', pw, by: (m.by || '').slice(0, 40) });
+        this.broadcast({ t: 'pw', pw, by: String(m.by || '').slice(0, 40) });
       } else if ((m.t === 'ban' || m.t === 'unban') && typeof m.dev === 'string') {
         // Signed admin orders only — verifier rooms are the only rooms with
         // a ban list, and the signature is the entire authority.
@@ -765,11 +808,6 @@ export class Session {
     this.meters.delete(ws);
     const a = this.att(ws);
     if (!a.role) return;
-    if (a.role === 'host') {
-      // only a host with no replacement leaves the session headless
-      if (!this.hostSock()) this.broadcast({ t: 'host-gone' });
-      return;
-    }
     // A reconnecting peer reuses its id; if a NEWER socket already replaced
     // this one, this stale close must not announce a departure.
     if (this.members().some((s) => s !== ws && this.att(s).peer === a.peer)) return;
@@ -784,9 +822,10 @@ export class Session {
 const ipHits = new Map(); // ip -> [timestamps]
 function edgeLimited(ip) {
   const now = Date.now();
-  const log = (ipHits.get(ip) || []).filter((t) => now - t < 60000);
+  const k = ipKey(ip);
+  const log = (ipHits.get(k) || []).filter((t) => now - t < 60000);
   log.push(now);
-  ipHits.set(ip, log);
+  ipHits.set(k, log);
   if (ipHits.size > 10000) ipHits.clear(); // cap memory; it's best-effort anyway
   return log.length > 300;
 }
