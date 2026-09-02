@@ -47,7 +47,9 @@ because that is MPP's wire.
 
 `./deploy-all.sh` at the repo root deploys this Worker with the other three
 (wrangler pinned) and refuses to start when `GIFOS_PAY_SIGN_JWK` or
-`PAYPAL_CLIENT_SECRET` is not set. Setting the secrets is a one-time,
+`PAYPAL_CLIENT_SECRET` is not set. `./deploy-all.sh --skip-pay` leaves this
+Worker out entirely — neither deployed nor checked — so the other three can be
+redeployed while payments are not set up. Setting the secrets is a one-time,
 by-hand step:
 
 ```bash
