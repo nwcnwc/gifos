@@ -92,8 +92,29 @@ if (!acorn) {
     'tic80/vendor/tic80.js',
     // A Worker script: it guards on globalThis.window?.prompt, and a Worker
     // has no window, so the branch is dead by construction.
-    'cascade-studio/vendor/cascade-worker.js'
+    'cascade-studio/vendor/cascade-worker.js',
+    // Blockly's dialog module defaults to window.prompt but takes a
+    // replacement; boot.js installs one that asks through gifosAsk before any
+    // workspace exists (HOOKS below checks that the install is really there).
+    'blockly-games/vendor/blockly_compressed.js',
+    // Pyodide's setDefaultStdin() is `stdin: () => prompt()` — the fallback
+    // when loadPyodide is given no stdin. kernel.js always passes one (and
+    // runs in a Worker, which has no prompt at all), so the default is never
+    // installed (HOOKS checks the option is passed).
+    'jupyterlite/vendor/pyodide.asm.js'
   ]);
+  // An "unreachable" that depends on the APP doing something is only
+  // unreachable while the app keeps doing it — so the hook is checked, not
+  // assumed. Each entry: the file that must contain the needle.
+  const HOOKS = {
+    'blockly-games/vendor/blockly_compressed.js': ['blockly-games/boot.js', 'Blockly.dialog.setPrompt('],
+    'jupyterlite/vendor/pyodide.asm.js': ['jupyterlite/kernel.js', /loadPyodide\(\{[^}]*\bstdin\s*:/],
+  };
+  for (const [vendor, [file, needle]] of Object.entries(HOOKS)) {
+    let src = ''; try { src = fs.readFileSync(path.join(APPS, file), 'utf8'); } catch (e) {}
+    const has = needle instanceof RegExp ? needle.test(src) : src.includes(needle);
+    check('the hook that makes ' + vendor + ' unreachable is present in ' + file, has);
+  }
   const offenders = [];
   let scanned = 0;
   for (const slug of fs.readdirSync(APPS)) {
