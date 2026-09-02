@@ -92,6 +92,20 @@ not a gate, and is not run by CI. It may only ever SHRINK. Moving a failing test
 into it is a deliberate, argued decision recorded in the commit — never a way to
 get a release out.
 
+## Before a cut: read the audit's open list
+
+`docs/audit-2026-09-02.md` is the index of the 2026-09-02 security, stability
+and performance audit: what was fixed (with its commit and guard), what was
+deferred and why, and **"What needs a person"** — the items a release agent
+must act on or consciously carry. Two of them decide whether a cut is even
+possible: `test/unit/app-modals.js` is RED by design until beepbox,
+blockly-games, jupyterlite and svg-edit are ported off `prompt()`, rebuilt and
+re-signed (the gate is green-or-no-cut, so that port is part of the next
+release, not something to explain around), and the Workers must be deployed
+with the site (`DS` is `gifos-net-4`; an old relay refuses new clients). Read
+that section before tagging the freeze, and update the file when an item
+closes — it is the one place the open list lives.
+
 ## Running the tests
 
 Suites live in `test/<environment>/` — see `test/README.md` for the full index
