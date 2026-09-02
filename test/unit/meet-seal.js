@@ -22,7 +22,7 @@ const check = (name, cond, extra) => { console.log((cond ? 'PASS' : 'FAIL') + ' 
     const t0 = Date.now();
     const proof = await net.meetPwProof(ROOM, AV, 'hunter2');
     const took = Date.now() - t0;
-    const plain = await net.sha256hex('gifos-net-3|meet-pw|' + ROOM + '|' + AV + '|hunter2');
+    const plain = await net.sha256hex('gifos-net-4|meet-pw|' + ROOM + '|' + AV + '|hunter2');
     check('the password proof is not one plain SHA-256 of the password', proof && proof !== plain, { proof, plain });
     check('stretching the password costs measurable work (PBKDF2)', took >= 20, took);
     const again = await net.meetPwProof(ROOM, AV, 'hunter2');

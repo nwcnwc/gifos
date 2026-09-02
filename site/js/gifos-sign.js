@@ -70,7 +70,7 @@
   // .assets/ files into the digest and call such a signed app tampered; no
   // signed app carried assets before this line existed.)
   function stripBlock(bytes, marker) {
-    const span = gif.findAppExtSpan(bytes, marker);
+    const span = gif.findAppExtSpan(bytes, marker, SIG_AUTH); // both blocks carry the 'GOS' code — the walk checks it
     if (!span) return bytes;
     const out = new Uint8Array(bytes.length - (span.end - span.start));
     out.set(bytes.subarray(0, span.start), 0);
@@ -105,7 +105,7 @@
 
   // ---- signature block read/write -------------------------------------------
   function readSig(bytes) {
-    const span = gif.findAppExtSpan(bytes, SIG_MARKER);
+    const span = gif.findAppExtSpan(bytes, SIG_MARKER, SIG_AUTH);
     if (!span) return null;
     const parts = [];
     let p = span.headerEnd;
@@ -179,91 +179,175 @@
   }
   const mpi = (b, o) => { const bits = (b[o] << 8) | b[o + 1]; const n = (bits + 7) >> 3; return { val: b.subarray(o + 2, o + 2 + n), next: o + 2 + n }; };
 
-  // Extract every signing-capable public key from a transferable public key.
+  const u32 = (b, o) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
+
+  // One v4 public key packet body -> a key we can verify with, or null.
   // Supported: EdDSA/Ed25519 (algo 22/27) and RSA >= 2048 bits (algo 1/3).
-  function pgpKeys(keyBytes) {
-    const keys = [];
-    for (const pk of pgpPackets(keyBytes)) {
-      if (pk.tag !== 6 && pk.tag !== 14) continue; // primary key / subkey
-      const b = pk.body;
-      if (b[0] !== 4) continue;                    // v4 only
-      const algo = b[5];
-      if (algo === 22 || algo === 27) {            // EdDSA / Ed25519
-        let o = 6;
-        const oidLen = b[o]; o += 1 + oidLen;      // curve OID (length-prefixed, not an MPI)
-        const pt = mpi(b, o);
-        keys.push({ kind: 'ed25519', pub: pt.val[0] === 0x40 ? pt.val.subarray(1) : pt.val });
-      } else if (algo === 1 || algo === 3) {       // RSA (encrypt+sign / sign-only)
-        const n = mpi(b, 6);
-        const e = mpi(b, n.next);
-        if (n.val.length * 8 >= 2048) keys.push({ kind: 'rsa', n: n.val, e: e.val });
-      }
+  function pgpKeyOf(body) {
+    if (!body || body[0] !== 4) return null;                    // v4 only
+    const algo = body[5];
+    let k = null;
+    if (algo === 22 || algo === 27) {            // EdDSA / Ed25519
+      let o = 6;
+      const oidLen = body[o]; o += 1 + oidLen;   // curve OID (length-prefixed, not an MPI)
+      const pt = mpi(body, o);
+      k = { kind: 'ed25519', pub: pt.val[0] === 0x40 ? pt.val.subarray(1) : pt.val };
+    } else if (algo === 1 || algo === 3) {       // RSA (encrypt+sign / sign-only)
+      const n = mpi(body, 6);
+      const e = mpi(body, n.next);
+      if (n.val.length * 8 >= 2048) k = { kind: 'rsa', n: n.val, e: e.val };
     }
-    return keys;
+    if (!k) return null;
+    k.algo = algo; k.created = u32(body, 1); k.body = body;
+    return k;
   }
-  // Parse a detached OpenPGP signature; return { pubAlgo, hashAlgo, hashedPortion, mpis }.
-  function pgpParseSig(sigBytes) {
-    for (const sp of pgpPackets(sigBytes)) {
-      if (sp.tag !== 2) continue;
-      const b = sp.body;
-      if (b[0] !== 4) return null;                 // v4 sigs only
-      const pubAlgo = b[2];
-      const hashAlgo = b[3];
-      const hashedLen = (b[4] << 8) | b[5];
-      const hashedEnd = 6 + hashedLen;
-      const hashedPortion = b.subarray(0, hashedEnd);
-      let o = hashedEnd;
-      const unhashedLen = (b[o] << 8) | b[o + 1]; o += 2 + unhashedLen;
-      o += 2;                                       // left 16 bits of hash
-      const mpis = [];
-      while (o < b.length - 1) { const m = mpi(b, o); mpis.push(m.val); o = m.next; }
-      return { pubAlgo, hashAlgo, hashedPortion, mpis };
+  // Signature subpackets (RFC 4880 §5.2.3.1) -> { type: body }; the last
+  // occurrence of a type wins, as the RFC asks.
+  function pgpSubpackets(area) {
+    const out = {};
+    let p = 0;
+    while (p < area.length) {
+      let len; const o = area[p++];
+      if (o < 192) len = o;
+      else if (o < 255) len = ((o - 192) << 8) + area[p++] + 192;
+      else { len = u32(area, p); p += 4; }
+      if (len < 1 || p + len > area.length) break;
+      out[area[p] & 0x7f] = area.subarray(p + 1, p + len);
+      p += len;
     }
+    return out;
+  }
+  // Parse a v4 signature packet body.
+  function pgpSigOf(b) {
+    if (!b || b[0] !== 4) return null;           // v4 sigs only
+    const type = b[1], pubAlgo = b[2], hashAlgo = b[3];
+    const hashedLen = (b[4] << 8) | b[5];
+    const hashedEnd = 6 + hashedLen;
+    if (hashedEnd + 2 > b.length) return null;
+    const hashedPortion = b.subarray(0, hashedEnd);
+    const hashed = pgpSubpackets(b.subarray(6, hashedEnd));
+    let o = hashedEnd;
+    const unhashedLen = (b[o] << 8) | b[o + 1];
+    const unhashed = pgpSubpackets(b.subarray(o + 2, o + 2 + unhashedLen));
+    o += 2 + unhashedLen;
+    o += 2;                                       // left 16 bits of hash
+    const mpis = [];
+    while (o < b.length - 1) { const m = mpi(b, o); mpis.push(m.val); o = m.next; }
+    const created = hashed[2] && hashed[2].length >= 4 ? u32(hashed[2], 0) : 0;
+    return { type, pubAlgo, hashAlgo, hashedPortion, hashed, unhashed, mpis, created };
+  }
+  // Parse a detached OpenPGP signature (the first signature packet in it).
+  function pgpParseSig(sigBytes) {
+    for (const sp of pgpPackets(sigBytes)) if (sp.tag === 2) return pgpSigOf(sp.body);
     return null;
   }
   const b64url = (a) => bytesToB64(a).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  // Verify a detached OpenPGP signature over `data` against a transferable key.
-  async function pgpVerify(data, sigBytes, keyBytes) {
-    const parsed = pgpParseSig(sigBytes);
-    if (!parsed) return false;
+  // Does `parsed` verify under key `k` over `data` (the bytes the signature
+  // covers, before its own hashed portion and trailer are appended)?
+  async function pgpCheck(parsed, k, data) {
     const hashName = OPENPGP_HASH[parsed.hashAlgo];
     if (!hashName || hashName === 'SHA-1') return false; // refuse weak hashes
     const tl = parsed.hashedPortion.length;
     const trailer = Uint8Array.from([0x04, 0xff, (tl >>> 24) & 255, (tl >>> 16) & 255, (tl >>> 8) & 255, tl & 255]);
     const message = concat([data, parsed.hashedPortion, trailer]);
-
-    if (parsed.pubAlgo === 22 || parsed.pubAlgo === 27) {
+    if ((parsed.pubAlgo === 22 || parsed.pubAlgo === 27) && k.kind === 'ed25519') {
       // EdDSA signs the digest; the signature is two 32-byte MPIs (R, S).
       if (parsed.mpis.length < 2) return false;
       const digest = new Uint8Array(await subtle.digest(hashName, message));
       const sig64 = new Uint8Array(64);
       sig64.set(parsed.mpis[0], 32 - parsed.mpis[0].length);
       sig64.set(parsed.mpis[1], 64 - parsed.mpis[1].length);
-      for (const k of pgpKeys(keyBytes)) {
-        if (k.kind === 'ed25519' && await ed25519Verify(k.pub, sig64, digest)) return true;
-      }
-      return false;
+      return ed25519Verify(k.pub, sig64, digest);
     }
-
-    if (parsed.pubAlgo === 1 || parsed.pubAlgo === 3) {
+    if ((parsed.pubAlgo === 1 || parsed.pubAlgo === 3) && k.kind === 'rsa') {
       // RSA: PGP uses EMSA-PKCS1-v1_5 — exactly WebCrypto's RSASSA-PKCS1-v1_5,
       // which hashes `message` itself. One MPI; left-pad to the modulus size.
-      if (!parsed.mpis.length) return false;
-      for (const k of pgpKeys(keyBytes)) {
-        if (k.kind !== 'rsa') continue;
-        const sig = new Uint8Array(k.n.length);
-        if (parsed.mpis[0].length > k.n.length) continue;
-        sig.set(parsed.mpis[0], k.n.length - parsed.mpis[0].length);
-        try {
-          const key = await subtle.importKey('jwk',
-            { kty: 'RSA', n: b64url(k.n), e: b64url(k.e), alg: undefined, ext: true },
-            { name: 'RSASSA-PKCS1-v1_5', hash: hashName }, false, ['verify']);
-          if (await subtle.verify({ name: 'RSASSA-PKCS1-v1_5' }, key, sig, message)) return true;
-        } catch (e) { /* malformed key material — try the next key */ }
-      }
-      return false;
+      if (!parsed.mpis.length || parsed.mpis[0].length > k.n.length) return false;
+      const sig = new Uint8Array(k.n.length);
+      sig.set(parsed.mpis[0], k.n.length - parsed.mpis[0].length);
+      try {
+        const key = await subtle.importKey('jwk',
+          { kty: 'RSA', n: b64url(k.n), e: b64url(k.e), alg: undefined, ext: true },
+          { name: 'RSASSA-PKCS1-v1_5', hash: hashName }, false, ['verify']);
+        return await subtle.verify({ name: 'RSASSA-PKCS1-v1_5' }, key, sig, message);
+      } catch (e) { return false; }                // malformed key material
     }
-    return false; // unsupported public-key algorithm
+    return false;                                 // unsupported public-key algorithm
+  }
+
+  // ---- the certificate, and which of its keys may sign ----------------------
+  // A transferable public key is a primary key, its user ids, its subkeys, and
+  // signatures that bind them together (RFC 4880 §11.1). Taking "every key
+  // packet in the file" as a signer, as this once did, trusted whatever was
+  // pasted after the primary: an attacker's subkey appended to a real
+  // certificate, a key the owner had REVOKED, an encryption-only subkey, a key
+  // long EXPIRED. So the certificate is walked and each key must earn its
+  // place — a verified self-signature carrying the sign flag, no verified
+  // revocation, and for a subkey a verified binding by the primary AND the
+  // subkey's own embedded back-signature (§5.2.1, 0x19), the proof the subkey
+  // holder agreed to be bound. Expiry is enforced against the SIGNATURE's
+  // creation time, as gpg does: an app signed while the key was valid stays
+  // verified, a signature dated after the key expired verifies nothing.
+  const keyPrefix = (body) => concat([Uint8Array.from([0x99, (body.length >> 8) & 255, body.length & 255]), body]);
+  const uidPrefix = (uid) => concat([Uint8Array.from([0xb4, (uid.length >>> 24) & 255, (uid.length >>> 16) & 255, (uid.length >>> 8) & 255, uid.length & 255]), uid]);
+  const flagsAllowSign = (sg) => { const f = sg.hashed[27]; return !f || !f.length || !!(f[0] & 0x02); }; // no key-flags subpacket: usable (§5.2.3.21)
+  const expiryOf = (sg, created) => { const e = sg.hashed[9]; return e && e.length >= 4 && u32(e, 0) ? created + u32(e, 0) : Infinity; };
+  function pgpCert(keyBytes) {
+    const cert = { primary: null, primarySigs: [], uids: [], subkeys: [] };
+    let cur = null;                               // where the next signature packet attaches
+    for (const pk of pgpPackets(keyBytes)) {
+      if (pk.tag === 6) { if (cert.primary) break; cert.primary = pgpKeyOf(pk.body); cur = { sigs: cert.primarySigs }; }
+      else if (pk.tag === 13) { const u = { uid: pk.body, sigs: [] }; cert.uids.push(u); cur = u; }
+      else if (pk.tag === 17) cur = { sigs: [] };  // user attribute — its certifications say nothing about signing
+      else if (pk.tag === 14) { const sk = { key: pgpKeyOf(pk.body), body: pk.body, sigs: [] }; cert.subkeys.push(sk); cur = sk; }
+      else if (pk.tag === 2 && cur) { const sg = pgpSigOf(pk.body); if (sg) cur.sigs.push(sg); }
+    }
+    return cert.primary ? cert : null;
+  }
+  // The keys of a certificate that may sign, each with its validity window
+  // (seconds since the epoch): [{ key, notBefore, notAfter }].
+  async function pgpSigningKeys(keyBytes) {
+    const cert = pgpCert(keyBytes);
+    if (!cert) return [];
+    const P = cert.primary, pfx = keyPrefix(P.body);
+    for (const sg of cert.primarySigs) if (sg.type === 0x20 && await pgpCheck(sg, P, pfx)) return []; // the owner revoked the whole certificate
+    const out = [];
+    let cert13 = null;                            // newest verified self-certification over any user id
+    for (const u of cert.uids) {
+      for (const sg of u.sigs) {
+        if (sg.type < 0x10 || sg.type > 0x13) continue;
+        if (cert13 && sg.created <= cert13.created) continue;
+        if (await pgpCheck(sg, P, concat([pfx, uidPrefix(u.uid)]))) cert13 = sg;
+      }
+    }
+    if (cert13 && flagsAllowSign(cert13)) out.push({ key: P, notBefore: P.created, notAfter: expiryOf(cert13, P.created) });
+    for (const sk of cert.subkeys) {
+      if (!sk.key) continue;
+      const skPfx = concat([pfx, keyPrefix(sk.body)]);
+      let revoked = false, bind = null;
+      for (const sg of sk.sigs) if (sg.type === 0x28 && await pgpCheck(sg, P, skPfx)) { revoked = true; break; }
+      if (revoked) continue;
+      for (const sg of sk.sigs) {
+        if (sg.type !== 0x18 || (bind && sg.created <= bind.created)) continue;
+        if (await pgpCheck(sg, P, skPfx)) bind = sg;
+      }
+      if (!bind || !flagsAllowSign(bind)) continue;
+      const embBytes = bind.hashed[32] || bind.unhashed[32];   // gpg keeps the back-signature in the unhashed area
+      const emb = embBytes ? pgpSigOf(embBytes) : null;
+      if (!emb || emb.type !== 0x19 || !(await pgpCheck(emb, sk.key, skPfx))) continue;
+      out.push({ key: sk.key, notBefore: sk.key.created, notAfter: Math.min(expiryOf(bind, sk.key.created), cert13 ? expiryOf(cert13, P.created) : Infinity) });
+    }
+    return out;
+  }
+  // Verify a detached OpenPGP signature over `data` against a transferable key.
+  async function pgpVerify(data, sigBytes, keyBytes) {
+    const parsed = pgpParseSig(sigBytes);
+    if (!parsed || (parsed.type !== 0x00 && parsed.type !== 0x01) || !parsed.created) return false; // a document signature with a creation time
+    for (const k of await pgpSigningKeys(keyBytes)) {
+      if (parsed.created < k.notBefore || parsed.created > k.notAfter) continue;
+      if (await pgpCheck(parsed, k.key, data)) return true;
+    }
+    return false;
   }
   // ASCII armor per RFC 4880 §6.2: BEGIN line, optional "Key: value" armor
   // headers, a blank line, base64 body, an optional "=XXXX" CRC24 line, END.
@@ -428,6 +512,6 @@
     generateDomainKey, signDomain, emailStatement, attachEmailSig,
     isDomain, isEmail,
     // exposed for tests
-    _pgpVerify: pgpVerify, _ed25519Verify: ed25519Verify, _b64ToBytes: b64ToBytes, _bytesToB64: bytesToB64, _dearmor: dearmor,
+    _pgpVerify: pgpVerify, _pgpSigningKeys: pgpSigningKeys, _ed25519Verify: ed25519Verify, _b64ToBytes: b64ToBytes, _bytesToB64: bytesToB64, _dearmor: dearmor,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

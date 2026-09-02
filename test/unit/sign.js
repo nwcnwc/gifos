@@ -111,6 +111,89 @@ function buildApp(indexHtml, state) {
     check('a different key does NOT verify the signature', !okWrong);
     fs.rmSync(badHome, { recursive: true, force: true });
 
+    // ---- THE CERTIFICATE IS WALKED, NOT SCRAPED FOR KEY PACKETS ----
+    // Every key in a certificate must earn its place: a verified self-signature
+    // carrying the sign flag, no verified revocation, a verified binding (and
+    // the subkey's own back-signature) for a subkey, and a validity window the
+    // SIGNATURE's creation time falls inside. Fixtures are real gpg output.
+    const gpgHome = () => { const h = fs.mkdtempSync(path.join(os.tmpdir(), 'gifos-gpg3-')); fs.chmodSync(h, 0o700); return h; };
+    const gpgIn = (home, args, input, extra) => execFileSync('gpg', ['--batch', '--yes', '--no-tty'].concat(args), Object.assign({ env: Object.assign({}, process.env, { GNUPGHOME: home }), input, stdio: ['pipe', 'pipe', 'ignore'] }, extra || {}));
+    const fprsOf = (home, email) => gpgIn(home, ['--with-colons', '--list-keys', email]).toString().split('\n').filter((l) => l.startsWith('fpr:')).map((l) => l.split(':')[9]);
+    const signWith = (home, who, extra) => { // detached signature over the statement bytes
+      const sp = path.join(home, 's.bin'); fs.writeFileSync(sp, Buffer.from(stmt));
+      gpgIn(home, (extra || []).concat(['--local-user', who, '--detach-sign', '--digest-algo', 'SHA256', '-o', sp + '.sig', sp]));
+      return new Uint8Array(fs.readFileSync(sp + '.sig'));
+    };
+    // (a) a SIGNING SUBKEY: binding by the primary + the subkey's embedded back-signature
+    {
+      const h = gpgHome();
+      fs.writeFileSync(path.join(h, 'params'), '%no-protection\nKey-Type: eddsa\nKey-Curve: ed25519\nKey-Usage: cert\nSubkey-Type: eddsa\nSubkey-Curve: ed25519\nSubkey-Usage: sign\nName-Real: Sub Signer\nName-Email: sub@example.com\nExpire-Date: 0\n%commit\n');
+      gpgIn(h, ['--gen-key', path.join(h, 'params')]);
+      const [primaryFpr, subFpr] = fprsOf(h, 'sub@example.com');
+      const sig = signWith(h, subFpr + '!');
+      const kb = new Uint8Array(gpgIn(h, ['--export', 'sub@example.com']));
+      check('a signature by a bound SIGNING SUBKEY verifies (binding + back-signature checked)', await sign._pgpVerify(stmt, sig, kb));
+      const usable = await sign._pgpSigningKeys(kb);
+      check('a cert-only primary is NOT offered as a signer; the signing subkey is', usable.length === 1 && usable[0].key.created > 0, usable.length);
+      // Drop the subkey's binding signature: the same subkey, unbound, must be refused.
+      const pkts = []; { // re-serialise the certificate without the signature packets that follow the subkey
+        const buf = kb; let q = 0, afterSub = false;
+        while (q < buf.length) {
+          const ctb = buf[q]; let tag, len, hdr;
+          if (ctb & 0x40) { tag = ctb & 0x3f; const o = buf[q + 1]; if (o < 192) { len = o; hdr = 2; } else if (o < 224) { len = ((o - 192) << 8) + buf[q + 2] + 192; hdr = 3; } else { len = (buf[q + 2] << 24 | buf[q + 3] << 16 | buf[q + 4] << 8 | buf[q + 5]) >>> 0; hdr = 6; } }
+          else { tag = (ctb >> 2) & 0x0f; const lt = ctb & 3; if (lt === 0) { len = buf[q + 1]; hdr = 2; } else if (lt === 1) { len = (buf[q + 1] << 8) | buf[q + 2]; hdr = 3; } else { len = (buf[q + 1] << 24 | buf[q + 2] << 16 | buf[q + 3] << 8 | buf[q + 4]) >>> 0; hdr = 5; } }
+          const whole = buf.subarray(q, q + hdr + len);
+          if (tag === 14) afterSub = true;
+          if (!(afterSub && tag === 2)) pkts.push(whole);
+          q += hdr + len;
+        }
+      }
+      const unbound = Buffer.concat(pkts.map((x) => Buffer.from(x)));
+      check('the same subkey with its binding signature STRIPPED verifies nothing', !(await sign._pgpVerify(stmt, sig, new Uint8Array(unbound))));
+      check('…and is not offered as a signer', (await sign._pgpSigningKeys(new Uint8Array(unbound))).length === 0);
+      // A foreign subkey pasted onto a real certificate is the same case: no binding the primary made.
+      void primaryFpr;
+      fs.rmSync(h, { recursive: true, force: true });
+    }
+    // (b) a REVOKED primary verifies nothing, even a signature it made before the revocation
+    {
+      const h = gpgHome();
+      fs.writeFileSync(path.join(h, 'params'), '%no-protection\nKey-Type: eddsa\nKey-Curve: ed25519\nKey-Usage: sign\nName-Real: Gone\nName-Email: gone@example.com\nExpire-Date: 0\n%commit\n');
+      gpgIn(h, ['--gen-key', path.join(h, 'params')]);
+      const [fpr] = fprsOf(h, 'gone@example.com');
+      const sig = signWith(h, fpr);
+      const before = new Uint8Array(gpgIn(h, ['--export', 'gone@example.com']));
+      check('before revocation the signature verifies', await sign._pgpVerify(stmt, sig, before));
+      // gpg 2.1+ writes a revocation certificate for every generated key into
+      // openpgp-revocs.d/, armoured with a leading ':' on the BEGIN line as a
+      // safety catch; removing the colon and importing it revokes the key.
+      const rev = fs.readFileSync(path.join(h, 'openpgp-revocs.d', fpr + '.rev'), 'utf8').replace(/^:(-----BEGIN)/m, '$1');
+      fs.writeFileSync(path.join(h, 'rev.asc'), rev);
+      gpgIn(h, ['--import', path.join(h, 'rev.asc')]);
+      const after = new Uint8Array(gpgIn(h, ['--export', 'gone@example.com']));
+      check('after the owner REVOKES the key, the same signature verifies nothing', !(await sign._pgpVerify(stmt, sig, after)));
+      fs.rmSync(h, { recursive: true, force: true });
+    }
+    // (c) EXPIRY is judged at the signature's creation time: a signature made
+    //     inside the key's window stays good, one dated after the key expired
+    //     verifies nothing. The key's whole life is played out with gpg's
+    //     --faked-system-time so the window is deterministic.
+    {
+      const h = gpgHome();
+      const at = (t) => ['--faked-system-time', t + '!'];
+      fs.writeFileSync(path.join(h, 'params'), '%no-protection\nKey-Type: eddsa\nKey-Curve: ed25519\nKey-Usage: sign\nName-Real: Timed\nName-Email: timed@example.com\nExpire-Date: 0\n%commit\n');
+      gpgIn(h, at('20200101T000000').concat(['--gen-key', path.join(h, 'params')]));
+      const [fpr] = fprsOf(h, 'timed@example.com');
+      const early = signWith(h, fpr, at('20200115T000000'));   // inside the window to come
+      const late = signWith(h, fpr, at('20200601T000000'));    // after it
+      // Now the owner sets the key to expire on 2020-03-01 (a newer self-signature, dated 2020-02-01).
+      gpgIn(h, at('20200201T000000').concat(['--quick-set-expire', fpr, '20200301T000000']));
+      const kb = new Uint8Array(gpgIn(h, ['--export', 'timed@example.com']));
+      check('a signature made INSIDE the key\'s validity window verifies', await sign._pgpVerify(stmt, early, kb));
+      check('a signature dated AFTER the key expired verifies nothing', !(await sign._pgpVerify(stmt, late, kb)));
+      fs.rmSync(h, { recursive: true, force: true });
+    }
+
     // ---- ASCII armor: what keyservers actually return ----
     const armored = execFileSync('gpg', ['--armor', '--export', 'alice@example.com'], { env }).toString();
     const armoredComment = execFileSync('gpg', ['--armor', '--comment', 'looked up via keyserver', '--export', 'alice@example.com'], { env }).toString();

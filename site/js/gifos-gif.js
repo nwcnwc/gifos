@@ -230,8 +230,12 @@
     return (function pump() {
       return reader.read().then(({ done, value }) => {
         if (done) {
+          // One chunk is the whole answer — return it, no copy at all. Otherwise
+          // drop each chunk's reference as it is copied, so the peak is the
+          // output plus the chunk in hand, not the output plus every chunk.
+          if (chunks.length === 1) return chunks[0];
           const out = new Uint8Array(total); let o = 0;
-          for (const c of chunks) { out.set(c, o); o += c.length; }
+          for (let i = 0; i < chunks.length; i++) { out.set(chunks[i], o); o += chunks[i].length; chunks[i] = null; }
           return out;
         }
         total += value.length;
@@ -425,31 +429,77 @@
   // ---- repack: replace ONLY the GifOS data block inside an existing GIF ----
   // Every pixel byte (header, palette, animation frames) stays identical — the
   // artwork survives. Used to save current app state into the same GIF.
-  // Find an Application Extension block by its 8-byte identifier. Returns the
-  // block's outer bounds ({start,end}) and where sub-blocks begin (headerEnd).
-  function findAppExtSpan(bytes, marker8) {
+  // Find an Application Extension block by its 8-byte identifier (and, when
+  // given, its 3-byte authentication code). Returns the block's outer bounds
+  // ({start,end}) and where sub-blocks begin (headerEnd).
+  //
+  // WALKED, NOT SEARCHED. The stream is followed block by block from the
+  // header — logical screen, colour tables, extensions, image data — so only a
+  // block that the GIF grammar actually places at that position can match. A
+  // byte-by-byte scan honoured the 14 marker bytes wherever they occurred:
+  // inside an image's LZW data, inside a comment, inside ANOTHER app's payload
+  // — so a crafted file could carry one payload where a decoder walks and a
+  // different one where a scanner looks, and two readers of the same bytes
+  // would disagree about what the app is. Every reader here uses this one
+  // walk (extractPayload, looksLikeGifosGif, the signer's stripBlock/readSig).
+  // The walk is also linear in the number of blocks rather than bytes, which
+  // is what stripForDisplay already needed for a 300 MB app.
+  //
+  // A stream this cannot follow (a truncated file, an introducer it does not
+  // know) yields nothing — there is no fallback scan, because a fallback is
+  // the ambiguity the walk exists to remove.
+  function findAppExtSpan(bytes, marker8, auth3) {
+    if (!bytes || bytes.length < 14) return null;
+    if (bytes[0] !== 0x47 || bytes[1] !== 0x49 || bytes[2] !== 0x46) return null;
     const marker = textToBytes(marker8);
-    let pos = 0;
-    while (pos < bytes.length - 14) {
-      if (bytes[pos] === 0x21 && bytes[pos + 1] === 0xff && bytes[pos + 2] === 0x0b) {
-        let match = true;
-        for (let i = 0; i < 8; i++) if (bytes[pos + 3 + i] !== marker[i]) { match = false; break; }
-        if (match) {
-          const headerEnd = pos + 3 + 11; // after identifier(8)+auth(3)
-          let p = headerEnd;
-          while (p < bytes.length) {
-            const size = bytes[p];
-            if (size === 0) return { start: pos, headerEnd, end: p + 1 };
-            p += 1 + size;
-          }
-          return null;
-        }
+    const auth = auth3 ? textToBytes(auth3) : null;
+    let p = 6;                                    // past "GIF89a"
+    const packed = bytes[p + 4];
+    p += 7;                                       // logical screen descriptor
+    if (packed & 0x80) p += 3 * (1 << ((packed & 0x07) + 1));   // global colour table
+    const skipSubBlocks = (q) => {
+      while (q < bytes.length) {
+        const size = bytes[q];
+        if (size === 0) return q + 1;
+        q += 1 + size;
       }
-      pos++;
+      return -1;
+    };
+    while (p < bytes.length) {
+      const introducer = bytes[p];
+      if (introducer === 0x3b) return null;       // trailer — end of the stream
+      if (introducer === 0x21) {                  // extension
+        const label = bytes[p + 1];
+        let q;
+        if (label === 0xff && bytes[p + 2] === 0x0b) {
+          let mine = p + 14 <= bytes.length;
+          for (let i = 0; mine && i < 8; i++) if (bytes[p + 3 + i] !== marker[i]) mine = false;
+          for (let i = 0; mine && auth && i < 3; i++) if (bytes[p + 11 + i] !== auth[i]) mine = false;
+          const headerEnd = p + 3 + 11;           // after identifier(8) + auth(3)
+          q = skipSubBlocks(headerEnd);
+          if (q < 0) return null;
+          if (mine) return { start: p, headerEnd, end: q };
+        } else {
+          q = skipSubBlocks(p + 2);
+          if (q < 0) return null;
+        }
+        p = q;
+      } else if (introducer === 0x2c) {           // image descriptor
+        if (p + 10 > bytes.length) return null;
+        const lp = bytes[p + 9];
+        let q = p + 10;
+        if (lp & 0x80) q += 3 * (1 << ((lp & 0x07) + 1));       // local colour table
+        q += 1;                                   // LZW minimum code size
+        q = skipSubBlocks(q);
+        if (q < 0) return null;
+        p = q;
+      } else {
+        return null;                              // not a shape we understand
+      }
     }
     return null;
   }
-  function findGifosSpan(bytes) { return findAppExtSpan(bytes, GIFOS_MARKER); }
+  function findGifosSpan(bytes) { return findAppExtSpan(bytes, GIFOS_MARKER, GIFOS_AUTH); }
 
   function repack(originalBytes, files) {
     return buildPayload(files).then((payload) => {
@@ -542,31 +592,19 @@
   // ---- decode: GIF89a bytes -> filesystem archive (async) ------------------
   // Returns Promise<{ files: { path: Uint8Array } } | null>.
   function extractPayload(bytes) {
-    const marker = textToBytes(GIFOS_MARKER);
-    let pos = 0;
-    while (pos < bytes.length - 14) {
-      if (bytes[pos] === 0x21 && bytes[pos + 1] === 0xff && bytes[pos + 2] === 0x0b) {
-        let match = true;
-        for (let i = 0; i < 8; i++) if (bytes[pos + 3 + i] !== marker[i]) { match = false; break; }
-        if (match) {
-          let p = pos + 3 + 11; // skip identifier(8) + auth(3)
-          const chunks = [];
-          while (p < bytes.length) {
-            const size = bytes[p];
-            if (size === 0) break;
-            chunks.push(bytes.subarray(p + 1, p + 1 + size));
-            p += 1 + size;
-          }
-          const total = chunks.reduce((s, c) => s + c.length, 0);
-          const assembled = new Uint8Array(total);
-          let off = 0;
-          for (const c of chunks) { assembled.set(c, off); off += c.length; }
-          return assembled;
-        }
-      }
-      pos++;
+    const span = findGifosSpan(bytes);
+    if (!span) return null;
+    let p = span.headerEnd, total = 0;
+    while (p < span.end) { const size = bytes[p]; if (size === 0) break; total += size; p += 1 + size; }
+    const assembled = new Uint8Array(total);
+    p = span.headerEnd; let off = 0;
+    while (p < span.end) {
+      const size = bytes[p];
+      if (size === 0) break;
+      assembled.set(bytes.subarray(p + 1, p + 1 + size), off); off += size;
+      p += 1 + size;
     }
-    return null;
+    return assembled;
   }
 
   // Async on purpose: decoding a big app used to be one synchronous block
@@ -709,7 +747,7 @@
   function stripForDisplay(bytes) {
     if (!bytes || bytes.length < 14) return bytes;
     if (bytes[0] !== 0x47 || bytes[1] !== 0x49 || bytes[2] !== 0x46) return bytes;
-    const marker = textToBytes(GIFOS_MARKER);
+    const marker = textToBytes(GIFOS_MARKER), auth = textToBytes(GIFOS_AUTH);
     const spans = [];
     let p = 6;                                    // past "GIF89a"
     const packed = bytes[p + 4];
@@ -734,6 +772,7 @@
         if (label === 0xff && bytes[p + 2] === 0x0b) {
           let mine = true;
           for (let i = 0; i < 8; i++) if (bytes[p + 3 + i] !== marker[i]) { mine = false; break; }
+          for (let i = 0; mine && i < 3; i++) if (bytes[p + 11 + i] !== auth[i]) mine = false;
           q = skipSubBlocks(p + 3 + 11);
           if (q < 0) return bytes;
           if (mine) spans.push({ start: p, end: q });

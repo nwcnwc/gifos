@@ -1502,7 +1502,7 @@
     } catch (e) {}
   }
   async function findMyMediaFileId() {
-    const files = await store.allFiles();
+    const files = await store.allFileMeta();
     const items = await store.allItems();
     const byId = {};
     for (let i = 0; i < files.length; i++) byId[files[i].id] = files[i];
@@ -2572,6 +2572,38 @@
     });
   }
 
+  // Has the person interacted with this tab at all (any tap or click since it
+  // opened, in the OS chrome or inside the app's frame — a frame's activation
+  // notifies its ancestors)? Browsers without navigator.userActivation say yes.
+  function gestured() {
+    try { const ua = root.navigator && root.navigator.userActivation; return !ua || !!ua.hasBeenActive; } catch (e) { return true; }
+  }
+  // The rename sheet: resolves true only when the person chooses the new name.
+  function confirmName(manifest, want) {
+    return new Promise(function (resolve) {
+      try {
+        const doc = root.document; if (!doc || !doc.body) return resolve(false);
+        const old = doc.getElementById('gifos-name-modal'); if (old) old.remove();
+        const app = escHtml((manifest && (manifest.shortName || manifest.name || manifest.appId)) || 'This app');
+        const bg = doc.createElement('div'); bg.id = 'gifos-name-modal'; bg.className = 'perm-modal';
+        bg.setAttribute('style', 'position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1.2rem;');
+        const box = doc.createElement('div'); box.className = 'perm-box';
+        box.setAttribute('style', 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.8rem;max-width:23rem;width:100%;padding:1.2rem;font:15px/1.55 system-ui,-apple-system,sans-serif;');
+        box.innerHTML = '<h3 style="margin:0 0 .5rem;font-size:1.1rem">' + app + ' wants to change your name</h3>' +
+          '<p style="color:#b6b6cf;font-size:.9rem;margin:0 0 .9rem">' + (want
+            ? 'Your name on this computer would become <b>' + escHtml(want) + '</b>. Every app and meeting here would see it.'
+            : 'It would clear the name you use on this computer. Every app and meeting here would see you as unnamed.') + '</p>' +
+          '<div style="display:flex;gap:.6rem;justify-content:flex-end"><button id="gifos-name-no" style="padding:.5rem 1.1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">Keep my name</button>' +
+          '<button id="gifos-name-yes" style="padding:.5rem 1.3rem;border-radius:.5rem;border:none;background:#7b5cff;color:#fff;cursor:pointer;font:inherit">' + (want ? 'Use “' + escHtml(want) + '”' : 'Clear it') + '</button></div>';
+        bg.appendChild(box); doc.body.appendChild(bg);
+        const done = function (yes) { bg.remove(); resolve(yes); };
+        box.querySelector('#gifos-name-yes').onclick = function () { done(true); };
+        box.querySelector('#gifos-name-no').onclick = function () { done(false); };
+        bg.addEventListener('click', function (e) { if (e.target === bg) done(false); });
+      } catch (e) { resolve(false); }
+    });
+  }
+
   function showSystemSetup(opts) {
     try {
       const doc = root.document; if (!doc || !doc.body) return;
@@ -3137,7 +3169,16 @@
           .then((r) => reply({ ok: true, result: r }))
           .catch((err) => reply({ ok: false, error: String(err.message || err) }));
       }
-      else if (d.type === 'save') downloadSnapshot(originalBytes, files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
+      // A download is the tab acting on the person's disk: it needs a gesture
+      // behind it. The gate is the STICKY form (any tap or click since the
+      // page opened, which a click inside the app's frame also sets), so an
+      // app cannot start saving files the moment it loads, and a save the
+      // person actually asked for is never refused for arriving a few seconds
+      // after their click. Where the API is absent the gate is open.
+      else if (d.type === 'save') {
+        if (!gestured()) reply({ ok: false, error: 'Saving needs a tap or click first.' });
+        else downloadSnapshot(originalBytes, files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
+      }
       else if (d.type === 'capture') {
         // Studio sessions stream every capture back as a 'shot' part so the
         // app can save each one as it lands — the reply carries only the last.
@@ -3153,7 +3194,8 @@
       // room or meeting the tab belongs to the room, and navigating away would
       // tear the user out of it.
       else if (d.type === 'libraryOpen') {
-        if (!/[#&]id=/.test(String(root.location.hash || ''))) reply({ ok: false, error: 'My Media can only be opened from an app running on its own.' });
+        if (!gestured()) reply({ ok: false, error: 'Opening My Media needs a tap or click first.' });
+        else if (!/[#&]id=/.test(String(root.location.hash || ''))) reply({ ok: false, error: 'My Media can only be opened from an app running on its own.' });
         else findMyMediaFileId().then((mmId) => {
           if (!mmId) { reply({ ok: false, error: "My Media isn't on this computer" }); return; }
           reply({ ok: true, result: true });
@@ -3194,7 +3236,24 @@
       // person has confirmed; null if nothing was asked, or if they declined.
       else if (d.type === 'launch') launchGate.then((result) => reply({ ok: true, result }));
       else if (d.type === 'asset') replyAsset(files, mountFileId, manifest, d, (p, t) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); });
-      else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
+      // A rename is the person's to make. The app proposes, the OS asks — a
+      // sheet naming the app and the exact new name — and only a Yes writes
+      // it; a No (or a dismissed sheet) answers with the identity unchanged,
+      // so the app learns nothing happened. Setting the name you already
+      // have needs no sheet. Rate-limited like the setup panels.
+      else if (d.type === 'setName') {
+        const want = String(d.name == null ? '' : d.name).trim().slice(0, 40);
+        const have = identity().name || '';
+        if (want === have) reply({ ok: true, result: identity() });
+        else {
+          const nowMs = Date.now();
+          if (nowMs - setupShownAt < 5000) reply({ ok: true, result: identity() });
+          else {
+            setupShownAt = nowMs;
+            confirmName(manifest, want).then((yes) => reply({ ok: true, result: yes ? setName(want) : identity() }));
+          }
+        }
+      }
       // App -> app handoff. Both directions are refused unless the manifest
       // declared this exact kind, and an offer always raises the sheet.
       else if (d.type === 'handoffOffer') brokerHandoffOffer(manifest, db, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));

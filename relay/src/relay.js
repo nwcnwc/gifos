@@ -59,6 +59,14 @@ async function sha256hex(s) {
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
   return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+// A key's id is SHA-256 over its RAW bytes (gifos-net.js keyId): base64 is
+// not canonical, and hashing the spelling gave one key many ids.
+async function keyHex(pubB64) {
+  const raw = Uint8Array.from(atob(String(pubB64).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+  if (raw.length !== 32) throw new Error('not a 32-byte key');
+  const d = await crypto.subtle.digest('SHA-256', raw);
+  return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 // The relay OBSERVES a socket's IP (Cloudflare terminates the connection) but
 // must never PERSIST it in readable form: a peer's network address is theirs
 // and their room-mates', not something a relay-state dump or log should hand
@@ -118,13 +126,13 @@ function verifierOf(sid) {
 // (setpw / ban / unban / banlist in verifier rooms) carry { sp, sig, pub }:
 // sp is the exact JSON string the admin signed, sig its Ed25519 signature,
 // pub the raw public key (base64). The relay checks the SAME proof any peer
-// checks — SHA-256(pub) starts with the room verifier, the signature covers
+// checks — SHA-256(raw pub bytes) starts with the room verifier, the signature covers
 // sp, the parsed order names the right action and is fresh. No stamp, no
 // stored authority, and the admin secret never reaches this code.
 async function admProvenGet(av, w, act) {
   try {
     if (!av || !w || typeof w.sp !== 'string' || w.sp.length > 8192 || !w.sig || !w.pub) return null;
-    if ((await sha256hex(w.pub)).slice(0, 24) !== String(av).toLowerCase().slice(0, 24)) return null;
+    if ((await keyHex(w.pub)).slice(0, 24) !== String(av).toLowerCase().slice(0, 24)) return null;
     const raw = (b) => Uint8Array.from(atob(b), (c) => c.charCodeAt(0));
     const pub = await crypto.subtle.importKey('raw', raw(w.pub), 'Ed25519', false, ['verify']);
     if (!(await crypto.subtle.verify('Ed25519', pub, raw(w.sig), new TextEncoder().encode(w.sp)))) return null;

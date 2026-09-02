@@ -286,10 +286,28 @@
     if (!(root.crypto && root.crypto.subtle)) return Promise.resolve('');
     return root.crypto.subtle.digest('SHA-256', enc(s)).then(hex);
   }
+  function sha256hexOfBytes(u8) {
+    if (!(root.crypto && root.crypto.subtle)) return Promise.resolve('');
+    return root.crypto.subtle.digest('SHA-256', u8).then(hex);
+  }
+  // THE ID OF A KEY IS A HASH OF THE KEY, NOT OF ITS SPELLING. A public key
+  // travels as base64, and base64 is not canonical: padding or no padding,
+  // '+/' or '-_', a stray newline — every spelling decodes to the same 32
+  // bytes, and hashing the STRING gave one key as many ids as it has
+  // spellings. So the peer id and the room verifier are SHA-256 over the raw
+  // bytes; a spelling that does not decode has no id at all. Every reader
+  // (peers, both relays, the tests) hashes the same 32 bytes.
+  function keyBytes(pubB64) {
+    const u = bufOfB64(String(pubB64 || '').replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+/=]/g, ''));
+    if (u.length !== 32) throw new Error('not a 32-byte public key');
+    return u;
+  }
+  async function keyId(pubB64) { return sha256hexOfBytes(keyBytes(pubB64)); }
+  async function keyVerifier(pubB64) { return (await keyId(pubB64)).slice(0, 24); }
 
   // ---- derive, don't send ----------------------------------------------------
   // DS is the derivation version tag. Bumping it is a FLAG DAY on purpose.
-  const DS = 'gifos-net-3'; // FLAG DAY 2026-09-02: the room password is STRETCHED (PBKDF2) before it reaches any derivation. (gifos-net-2, 2026-08-01: one derivation, app rooms on the mesh, star deleted.)
+  const DS = 'gifos-net-4'; // FLAG DAY 2026-09-02: key ids and room verifiers hash the RAW public key (keyId), and the room password is STRETCHED (PBKDF2) before any derivation. (gifos-net-2, 2026-08-01: one derivation, app rooms on the mesh, star deleted.)
   const dsHash = (label, data) => sha256hex(DS + '|' + label + '|' + data);
   async function aesKey(label, secret) {
     if (!(root.crypto && root.crypto.subtle)) return null;
@@ -402,7 +420,7 @@
     const k = await gifosEd().keysFromSeed(seed);
     // pub: the raw 32-byte public key (nothing consumed the old CryptoKey handle)
     const pubB64 = b64ofBuf(k.pubRaw);
-    const verifier = (await sha256hex(pubB64)).slice(0, 24);
+    const verifier = (await sha256hexOfBytes(k.pubRaw)).slice(0, 24); // = keyVerifier(pubB64)
     return { priv: k.priv, pub: k.pubRaw, pubB64, verifier };
   }
   async function edSign(priv, str) {
@@ -418,7 +436,7 @@
   // room's verifier, and did it sign these bytes?
   async function edProven(av, pubB64, sigB64, str) {
     if (!av || !pubB64 || !sigB64 || typeof str !== 'string') return false;
-    if ((await sha256hex(pubB64)).slice(0, 24) !== String(av).toLowerCase()) return false;
+    try { if ((await keyVerifier(pubB64)) !== String(av).toLowerCase()) return false; } catch (e) { return false; }
     return edVerify(pubB64, sigB64, str);
   }
 
@@ -574,7 +592,7 @@
     ICE_SERVERS, hasP2P, holdSessionLock,
     steadySocket,
     FRAG_PART, sendChunked, chunk, pumpChannel, makeDefrag,
-    shortCode, randHex, sha256hex,
+    shortCode, randHex, sha256hex, sha256hexOfBytes, keyId, keyVerifier,
     deriveMeet, deriveMeetKey, meetPwProof, mintGenesisKey,
     edKeysFromSeedHex, edSign, edVerify, edProven,
     seal, open, isSealed, makeChain,

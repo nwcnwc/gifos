@@ -149,30 +149,52 @@
     // may run, install, export, share, sign or verify from it — those all read
     // the real bytes through getFile(), as they always did. Deleting this whole
     // database costs a repaint and nothing else.
+    //
+    // Version 2 of this database adds the 'meta' store beside 'art': one row per
+    // FILE (every kind, not only gifs) holding the record minus its bytes. It
+    // exists because IndexedDB has no projection — getAll() on 'files' hands
+    // back every byte of every app to answer "which of these is a default app
+    // with this appId", and the reseed, two migrations, the meeting's app
+    // picker and My Media's lookup all asked exactly that on a desktop of
+    // hundreds of megabytes. allFileMeta() reads this store instead. It is
+    // written by putFile/deleteFile and self-heals: a count that disagrees
+    // with 'files' rebuilds it from the files once.
     let rdbp = null;
     function openArt() {
       if (rdbp) return rdbp;
       rdbp = new Promise((resolve, reject) => {
-        const req = indexedDB.open(dbName + '::art', 1);
+        const req = indexedDB.open(dbName + '::art', 2);
         req.onupgradeneeded = (e) => {
           const db = e.target.result;
           if (!db.objectStoreNames.contains('art')) db.createObjectStore('art', { keyPath: 'fileId' });
+          if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'id' });
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
       return rdbp;
     }
-    function rtx(mode, fn) {
+    function rtxOn(storeName, mode, fn) {
       return openArt().then((db) => new Promise((resolve, reject) => {
-        const t = db.transaction('art', mode);
-        const os = t.objectStore('art');
+        const t = db.transaction(storeName, mode);
+        const os = t.objectStore(storeName);
         let result;
         Promise.resolve(fn(os)).then((r) => { result = r; }, reject);
         t.oncomplete = () => resolve(result);
         t.onerror = () => reject(t.error);
         t.onabort = () => reject(t.error);
       }));
+    }
+    const rtx = (mode, fn) => rtxOn('art', mode, fn);
+    const mtx = (mode, fn) => rtxOn('meta', mode, fn);
+    // The record without its bytes, plus the size the bytes had. Every other
+    // field is copied as-is so a caller that only needs metadata sees exactly
+    // what getFile() would show it, minus the payload.
+    function metaOf(rec) {
+      const m = {};
+      for (const k in rec) if (k !== 'bytes' && Object.prototype.hasOwnProperty.call(rec, k)) m[k] = rec[k];
+      m.size = rec.bytes ? (rec.bytes.byteLength || rec.bytes.length || 0) : 0;
+      return m;
     }
     // Build the ornament record for a file. Returns null when there is nothing
     // to show (not a gif) or the codec is not loaded on this page — both mean
@@ -321,10 +343,28 @@
           if (!orn) return rtx('readwrite', (os) => reqP(os.delete(rec.id))).catch(() => {});
           return rtx('readwrite', (os) => reqP(os.put(orn))).catch(() => {});
         })
+        .then(() => mtx('readwrite', (os) => reqP(os.put(metaOf(rec)))).catch(() => {}))
         .then(() => rec),
       getFile: (id) => tx('files', 'readonly', (os) => reqP(os.get(id))),
       deleteFile: (id) => tx('files', 'readwrite', (os) => reqP(os.delete(id)))
-        .then(() => rtx('readwrite', (os) => reqP(os.delete(id))).catch(() => {})),
+        .then(() => rtx('readwrite', (os) => reqP(os.delete(id))).catch(() => {}))
+        .then(() => mtx('readwrite', (os) => reqP(os.delete(id))).catch(() => {})),
+      // Every file's record WITHOUT its bytes — the question most callers were
+      // really asking allFiles(). Reads the 'meta' index; when its row count
+      // disagrees with 'files' (a database written by a build before the index
+      // existed, or a write that lost its second transaction) it is rebuilt
+      // from the files once, and that one read is the last expensive one.
+      allFileMeta: () => Promise.all([
+        tx('files', 'readonly', (os) => reqP(os.count())),
+        mtx('readonly', (os) => reqP(os.getAll())).catch(() => null),
+      ]).then(([n, metas]) => {
+        if (metas && metas.length === n) return metas;
+        return tx('files', 'readonly', (os) => reqP(os.getAll())).then((files) => {
+          const out = (files || []).map(metaOf);
+          return mtx('readwrite', (os) => { os.clear(); for (const m of out) os.put(m); return true; })
+            .catch(() => {}).then(() => out);
+        });
+      }),
       // ---- the icon's ornament: the animation, and the few fields an icon
       // needs, WITHOUT deserialising the app it was cut from. Display only.
       getArt: (id) => rtx('readonly', (os) => reqP(os.get(id))).catch(() => null),
@@ -475,6 +515,7 @@
           tx(s, 'readwrite', (os) => reqP(os.clear()))))),
         atx('readwrite', (os) => reqP(os.clear())).catch(() => {}), // erase wipes the model cache too
         rtx('readwrite', (os) => reqP(os.clear())).catch(() => {}), // …and the ornament cache (an icon of an erased app is still its picture)
+        mtx('readwrite', (os) => reqP(os.clear())).catch(() => {}), // …and the file index
       ]),
     };
 
