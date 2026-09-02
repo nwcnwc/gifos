@@ -166,7 +166,13 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   // stager's DIRECT tracks are parked (stagers live on the Stage only), so the
   // sender that ends up carrying the screen is the 'stg:' one the sweep ships.
   // Wait for a carrier to exist rather than reading the instant of the click.
-  await a.waitForFunction(() => (window.__gifosVideo.screenInfo().senders || []).length > 0, null, { timeout: 30000 }).catch(() => {});
+  // …and then for adapt() to have VISITED it: a freshly re-shipped 'stg:'
+  // sender reports zero encodings until its m-line negotiates, and adapt()
+  // deliberately skips those (a fabricated encoding hits a renderer-killing
+  // CHECK) and catches them on the next connect or sweep. Reading the instant
+  // the sender exists saw kbps 0 / deg '' on both gate boxes; the lane is what
+  // is asserted, so wait for the lane.
+  await a.waitForFunction(() => (window.__gifosVideo.screenInfo().senders || []).some((x) => (x.stage || !x.aux) && x.kbps > 0), null, { timeout: 45000 }).catch(() => {});
   const carry = ((await info(a)).senders || []).filter((x) => x.stage || !x.aux);
   check('a sender is actually carrying the screen', carry.length > 0, JSON.stringify((await info(a)).senders));
   check('…on the screen bitrate lane, not the camera ladder rung',
