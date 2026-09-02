@@ -93,7 +93,9 @@ async function claimVerifies(bytes) {
   let sig; try { sig = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch (e) { return false; }
   if (!sig || sig.type !== 'domain' || sig.id !== 'gifos.app' || typeof sig.sig !== 'string') return false;
   try {
-    const chHex = Buffer.from(await signMod.contentHash(new Uint8Array(bytes))).toString('hex');
+    // Read the digest the way the block was written (v1 skipped every
+    // .assets/ file; v2 signs the author's own) — verify() does the same.
+    const chHex = Buffer.from(await signMod.contentHash(new Uint8Array(bytes), signMod.rulesOfSig(sig))).toString('hex');
     const st = signMod.statement('domain', 'gifos.app', chHex);
     return await signMod._ed25519Verify(new Uint8Array(sitePub), signMod._b64ToBytes(sig.sig), st);
   } catch (e) { return false; }

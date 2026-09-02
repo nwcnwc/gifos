@@ -576,7 +576,7 @@
   }
 
   GifOS.sign = {
-    verify, readSig, writeSig, contentHash, statement, unpinnedAssets, RULES_CURRENT,
+    verify, readSig, writeSig, contentHash, statement, unpinnedAssets, rulesOfSig, RULES_CURRENT,
     generateDomainKey, signDomain, emailStatement, attachEmailSig,
     isDomain, isEmail,
     // exposed for tests
