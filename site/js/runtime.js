@@ -130,8 +130,9 @@
   const setName = store.setName;
 
   // ---- app-facing shim injected into the sandboxed iframe -----------------
-  function clientShim() {
+  function clientShim(gen, nonce) {
     return `(function(){
+      var GEN = ${Number(gen) || 1}, NONCE = ${JSON.stringify(String(nonce || ''))};
       // Neuter WebRTC: CSP's 'webrtc' directive is not universally supported,
       // so hard-remove the constructors before app code runs. connect-src 'none'
       // already blocks fetch/XHR/WebSocket/EventSource/beacons; this closes the
@@ -155,7 +156,8 @@
       //    appears is removed before it can load (the sweep runs as a
       //    microtask, ahead of the child's navigation task).
       var toOS = parent.postMessage.bind(parent);
-      window.addEventListener('pagehide', function(){ try { toOS({ ns:'gifos', type:'unloading' }, '*'); } catch(e){} }, true);
+      window.addEventListener('pagehide', function(){ try { toOS({ ns:'gifos', type:'unloading', gen: GEN, nonce: NONCE }, '*'); } catch(e){} }, true);
+      try { toOS({ ns:'gifos', type:'hello', gen: GEN }, '*'); } catch(e){}
       (function(){
         var KILL = { IFRAME:1, FRAME:1, FENCEDFRAME:1, PORTAL:1, OBJECT:1, EMBED:1 };
         function sweep(n){
@@ -622,7 +624,7 @@
   const baseTag = (doc) => { const b = doc.createElement('base'); b.setAttribute('href', 'about:srcdoc'); return b; };
 
   // ---- build a runnable, self-contained HTML doc from the archive ----------
-  function buildAppHtml(files, manifest) {
+  function buildAppHtml(files, manifest, gen, nonce) {
     const withAgent = hasCap(manifest, 'agent');
     const CSP = appCsp(manifest);
     let html = gif.bytesToText(files['index.html']);
@@ -646,7 +648,7 @@
       meta.setAttribute('http-equiv', 'Content-Security-Policy');
       meta.setAttribute('content', CSP);
       const shim = doc.createElement('script');
-      shim.textContent = clientShim();
+      shim.textContent = clientShim(gen, nonce);
       doc.head.insertBefore(shim, doc.head.firstChild);
       doc.head.insertBefore(baseTag(doc), doc.head.firstChild);
       doc.head.insertBefore(meta, doc.head.firstChild);
@@ -655,7 +657,7 @@
     }
     // Non-DOM fallback (tooling): best-effort inject into <head> if present.
     const head = '<meta http-equiv="Content-Security-Policy" content="' + CSP + '">' +
-      APP_BASE_TAG + '<script>' + clientShim() + '</script>';
+      APP_BASE_TAG + '<script>' + clientShim(gen, nonce) + '</script>';
     const tail = withAgent ? '<script>' + agentBootstrap() + '</script>' : '';
     const withHead = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + head) : head + html;
     return withHead + tail;
@@ -1757,12 +1759,11 @@
       // and clientShim: the replacement document would keep every consumer's
       // provider-request while carrying no CSP). It is simply dropped — the
       // next call re-mounts it from its bytes.
-      let loads = 0;
-      iframe.addEventListener('load', () => { if (++loads > 1) fail(new Error(label + ' left its frame and was stopped.')); });
+      const nonce = mountNonce();
       const handler = (e) => {
-        if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
         const d = e.data; if (!d || d.ns !== 'gifos') return;
-        if (d.type === 'unloading') { fail(new Error(label + ' left its frame and was stopped.')); return; }
+        if (d.type === 'unloading') { if (d.nonce === nonce) fail(new Error(label + ' left its frame and was stopped.')); return; }
+        if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
         if (d.type === 'provider-ready') { ready = true; clearTimeout(bootTimer); resolve(service); }
         // A provider that is still generating says so; each ping re-arms the
         // idle clock. Cheap (one postMessage per token) and it cannot mask a
@@ -1817,7 +1818,7 @@
       };
       root.addEventListener('message', handler);
       doc.body.appendChild(iframe);
-      iframe.srcdoc = buildAppHtml(files, manifest);
+      iframe.srcdoc = buildAppHtml(files, manifest, 1, nonce);
     });
     providerServices.set(fileId, p);
     p.catch(() => providerServices.delete(fileId)); // a failed boot may be retried
@@ -3005,29 +3006,49 @@
     // re-mounts the ORIGINAL document, so a reload still boots and a
     // replacement document never gets served. An app that keeps leaving is
     // stopped for good after a few tries.
-    let frozen = false, ownLoad = false, frameLoads = 0, remounts = 0, torn = false;
-    const html = buildAppHtml(files, manifest);
+    //
+    // Documents are told apart by a GENERATION the shim is built with: the
+    // shim says `hello` with it first thing and `unloading` with it last
+    // thing. Only the generation of the LAST document mounted is served
+    // (`live`); a beacon from the live document re-mounts the next
+    // generation; a hello or beacon from any other generation is a stale
+    // document being superseded and is ignored. The shim's two listeners are
+    // registered before app code and cannot be removed by it.
+    //
+    // The frame's `load` event is no clock: it lands before or after the
+    // beacon's message task, and before or after the next document's hello.
+    // The one hazard the beacon alone leaves is a refused navigation whose
+    // error page commits AFTER the re-mount was issued and clobbers it; a
+    // single timed retry per beacon covers that (a re-mount whose hello
+    // never came is issued once more, then left alone).
+    let gen = 1, live = 0, remounts = 0, torn = false, retry = false;
+    const nonce = mountNonce();
     const teardown = () => {
-      if (torn) return; torn = true; frozen = true;
+      if (torn) return; torn = true; live = 0;
       root.removeEventListener('message', handler);
       try { iframe.srcdoc = LEFT_FRAME_HTML; } catch (e) {}
     };
     const remount = () => {
-      if (++remounts > 3) { teardown(); return; }
-      frozen = false; ownLoad = true;
-      try { iframe.srcdoc = html; } catch (e) { teardown(); }
-    };
-    iframe.addEventListener('load', () => {
-      frameLoads++;
       if (torn) return;
-      if (ownLoad) { ownLoad = false; frozen = false; return; }
-      if (frameLoads > 1 || frozen) remount();
-    });
+      if (++remounts > 6) { teardown(); return; }
+      const g = ++gen;
+      try { iframe.srcdoc = buildAppHtml(files, manifest, g, nonce); } catch (e) { teardown(); return; }
+      if (retry) setTimeout(() => { if (retry && !torn && gen === g && live !== g) { retry = false; remount(); } }, 5000);
+    };
     const handler = (e) => {
-      if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
       const d = e.data; if (!d || d.ns !== 'gifos') return;
-      if (d.type === 'unloading') { frozen = true; return; }
-      if (frozen) return;
+      // The beacon is posted during pagehide, and by the time it is
+      // dispatched its document is gone, so e.source is null (per spec) and
+      // the source check below cannot authenticate it. The per-mount nonce
+      // baked into the shim does: nothing outside that document ever sees
+      // it (the app's origin is opaque, so no popup can read its scripts).
+      if (d.type === 'unloading') {
+        if (d.nonce === nonce && d.gen === live && live) { live = 0; retry = true; remount(); }
+        return;
+      }
+      if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
+      if (d.type === 'hello') { if (d.gen === gen) { live = gen; retry = false; } return; }
+      if (!live) return;
       // Guard at REPLY time, not just receipt: async ops (db/fetch/…) can
       // resolve after the iframe was torn out of the DOM (app takeover /
       // stop), when contentWindow is null — a reply then must be a no-op,
@@ -3255,8 +3276,15 @@
       sandboxToken(iframe, 'allow-popups');
       sandboxToken(iframe, 'allow-popups-to-escape-sandbox');
     }
-    iframe.srcdoc = html;
+    iframe.srcdoc = buildAppHtml(files, manifest, gen, nonce);
     return () => root.removeEventListener('message', handler);
+  }
+
+  // A per-mount secret the shim's unload beacon carries (see mountApp).
+  function mountNonce() {
+    const b = new Uint8Array(16);
+    try { root.crypto.getRandomValues(b); } catch (e) { for (let i = 0; i < 16; i++) b[i] = (Math.random() * 256) | 0; }
+    return Array.from(b, (x) => ('0' + x.toString(16)).slice(-2)).join('');
   }
 
   // What an app frame shows once its bridge has been withdrawn for good.
