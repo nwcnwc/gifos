@@ -479,7 +479,11 @@
     // smaller depth = closer to the home; a compacting leaf moves only to a
     // STRICTLY shallower row, so depth is a monotone-decreasing potential.
     // (test/sim/topo.h pcDepth)
-    const pcDepth = (pc) => { let d = 0; while (pc) { pc = parentPath(pc); d++; } return d; };
+    // A peer's frame can carry ANY pc. For a negative or fractional one
+    // parentPath is a fixed point (floor((-1-1)/6) = -1), so a bare `while
+    // (pc)` never ends — on the receiver's main thread. Anything that is not
+    // a natural number reads as deeper than any real seat (MAXDEPTH is 12).
+    const pcDepth = (pc) => { if (!Number.isInteger(pc) || pc < 0) return 99; let d = 0; while (pc > 0) { pc = parentPath(pc); d++; } return d; };
     const isRoot = (c) => c.pc === 0;
     const ckey = (c) => c.pc + '_' + c.r + '_' + c.i;                 // Map key (string, not uint64)
     const unck = (k) => { const p = k.split('_'); return { pc: +p[0], r: +p[1], i: +p[2] }; };

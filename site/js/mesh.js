@@ -1377,7 +1377,7 @@
         return topo.crossLink(c);                          // hop 2: transpose across to row t.r (then row-mate to t.i)
       }
       // DIFFERENT section: climb to the common ancestor, or descend toward t.
-      const digs = (pc) => { const v = []; while (pc) { v.push(topo.lastDigit(pc)); pc = topo.parentPath(pc); } v.reverse(); return v; };
+      const digs = (pc) => { const v = []; if (!Number.isInteger(pc) || pc < 0) return v; while (pc > 0) { v.push(topo.lastDigit(pc)); pc = topo.parentPath(pc); } v.reverse(); return v; };
       const pa = digs(c.pc), pb = digs(t.pc);
       let l = 0; while (l < pa.length && l < pb.length && pa[l] === pb[l]) l++;
       if (l < pa.length) { if (c.i !== 0) return { pc: c.pc, r: c.r, i: 0 }; return topo.up(c); } // climb: to col 0, then up
@@ -1846,6 +1846,16 @@
     // ---- message dispatch ----
     recv(m) {
       if (!this.alive) return;
+      // Coordinates ride unsigned frames (ROUTE, FIND, S1SYNC, …) and index
+      // the topology arithmetic: a pc that is not a natural number, or an r/i
+      // that is not, is a hostile or corrupt frame, never a seat. Dropped at
+      // the door so no handler has to re-check (topo.pcDepth guards itself
+      // too — see gifos-net.js).
+      for (const k of ['coord', 'target', 'hole']) {
+        const c = m[k];
+        if (c == null) continue;
+        if (typeof c !== 'object' || !Number.isInteger(c.pc) || c.pc < 0 || !Number.isInteger(c.r) || c.r < 0 || !Number.isInteger(c.i) || c.i < 0) return;
+      }
       if (m.routing && !this.routeStep(m)) return; // Option A: in-transit routing frame — forward (or drop); fall through only when FOR me
       if (this.moving && this.state === 3 && this.moveEvidence(m)) this.confirmMove(); // T1: a new-neighbourhood frame is the claim's CONFIRMATION — vacate the old seat now
       const TICK = this.TICK, HEALING = this.env.HEALING;
