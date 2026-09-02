@@ -45,6 +45,11 @@ because that is MPP's wire.
 
 ## Deploy
 
+`./deploy-all.sh` at the repo root deploys this Worker with the other three
+(wrangler pinned) and refuses to start when `GIFOS_PAY_SIGN_JWK` or
+`PAYPAL_CLIENT_SECRET` is not set. Setting the secrets is a one-time,
+by-hand step:
+
 ```bash
 cd pay
 npx wrangler deploy
