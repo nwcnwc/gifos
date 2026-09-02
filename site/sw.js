@@ -41,8 +41,20 @@
  */
 'use strict';
 
-var SHELL_VERSION = 'v11';
+var SHELL_VERSION = 'v12';
 var CACHE = 'gifos-shell-' + SHELL_VERSION;
+
+// ONE CACHE KEY PER FILE. pages.yml stamps `?v=<sha>` onto every local css/js
+// reference in the published HTML, so each deploy asks for the same file under
+// a new URL. Caching by full URL (the Cache API default) therefore minted a new
+// entry per deploy and never evicted one — and the offline fallback, matching
+// with ignoreSearch, answered from the FIRST entry it found: the precache from
+// the day the worker installed. An edge computer that had run build 2237 all
+// week booted in airplane mode as build 1845, and every app whose minBuild was
+// newer refused to run. The key is the PATHNAME: a successful fetch overwrites
+// the one entry, so offline always serves the newest copy this device has
+// actually run, and the cache is bounded by the number of files, not deploys.
+function keyOf(url) { return url.pathname; }
 
 // The universal shell — identical on gifos.app and every theme subdomain. Per-
 // computer extras (archived builds under /versions/) are runtime-cached on first
@@ -126,13 +138,13 @@ self.addEventListener('message', function (e) {
 // up and resolve null (a stalled airplane-mode socket must not block a parser-
 // blocking <script> request forever). Successful responses are cached; failures
 // and timeouts resolve null so the caller can fall back.
-function raceNetwork(req, cache, ms) {
+function raceNetwork(req, cache, ms, key) {
   return new Promise(function (resolve) {
     var settled = false;
     var t = setTimeout(function () { if (!settled) { settled = true; resolve(null); } }, ms);
     fetch(req).then(function (res) {
       if (res && res.ok && (res.type === 'basic' || res.type === 'default')) {
-        cache.put(req, res.clone()).catch(function () {});
+        cache.put(key || req, res.clone()).catch(function () {});
       }
       if (!settled) { settled = true; clearTimeout(t); resolve(res); }
     }, function () { if (!settled) { settled = true; clearTimeout(t); resolve(null); } });
@@ -169,7 +181,15 @@ function raceNetwork(req, cache, ms) {
 //
 // Only those pass through, so a transient 5xx still falls back to the last good
 // build as intended.
-function revalidate(req, cache, ms, passRouted) {
+//
+// A 404 for an ASSET is also the answer, and it is delivered as one. The server
+// said the file is gone; turning that into the cached copy would serve a
+// deleted file forever, and turning it into degrade()'s empty 200 (which used
+// to happen ONLINE, for any missing script or stylesheet) told a fetch() caller
+// "ok" with nothing in it. The cached copy is dropped at the same time. The
+// empty 200 remains what an offline, uncached parser-blocking load gets — that
+// is a stall averted, not a lie about the server.
+function revalidate(req, cache, ms, passRouted, key) {
   return new Promise(function (resolve) {
     var settled = false;
     var t = setTimeout(function () { if (!settled) { settled = true; resolve(null); } }, ms);
@@ -177,9 +197,11 @@ function revalidate(req, cache, ms, passRouted) {
     try { rr = new Request(req, { cache: 'no-cache' }); } catch (e) { rr = req; }
     fetch(rr).then(function (res) {
       var ok = res && res.ok && (res.type === 'basic' || res.type === 'default');
-      if (ok) cache.put(req, res.clone()).catch(function () {});
+      if (ok) cache.put(key || req, res.clone()).catch(function () {});
       var redirected = res && (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400));
-      var routed = !ok && passRouted && res && (res.status === 404 || redirected);
+      var gone = !ok && res && res.status === 404;
+      if (gone && key) cache.delete(key).catch(function () {});
+      var routed = !ok && res && (redirected ? passRouted : gone);
       if (!settled) { settled = true; clearTimeout(t); resolve(ok || routed ? res : null); }
     }, function () { if (!settled) { settled = true; clearTimeout(t); resolve(null); } });
   });
@@ -244,16 +266,16 @@ self.addEventListener('activate', function (e) {
     await Promise.all(keys.map(function (k) {
       if (k.indexOf('gifos-shell-') === 0 && k !== CACHE) return caches.delete(k);
     }));
-    // Sweep the catalog twins the old cache-busted launch fetch left behind (see
-    // the /apps/index.json rule above). The rule stops new ones landing; this
-    // reclaims the ones already sitting on a device — one per app launch since
-    // the nudge shipped. The bare key is kept, so an offline store still opens.
+    // Sweep any entry keyed with a query string. Every key is a bare pathname
+    // now (keyOf); a queried key is a twin left by a caller or a worker that
+    // cached by full URL — the shape that answered offline from the oldest
+    // copy — and the bare key beside it is the one that is kept current.
     try {
       var shell = await caches.open(CACHE);
       var reqs = await shell.keys();
       await Promise.all(reqs.map(function (r) {
         var u; try { u = new URL(r.url); } catch (err) { return; }
-        if (u.pathname === '/apps/index.json' && u.search) return shell.delete(r);
+        if (u.search) return shell.delete(r);
       }));
     } catch (err) { /* a cache that won't open just keeps its twins */ }
     await self.clients.claim();
@@ -318,9 +340,9 @@ self.addEventListener('fetch', function (e) {
   if (url.pathname.lastIndexOf('/versions/', 0) === 0) {
     e.respondWith((async function () {
       var cache = await caches.open(CACHE);
-      var cached = await cache.match(req, { ignoreSearch: true });
+      var cached = await cache.match(keyOf(url));
       if (cached) return cached;                   // immutable snapshot wins; no silent refresh
-      var fresh = await raceNetwork(req, cache, 4000);
+      var fresh = await raceNetwork(req, cache, 4000, keyOf(url));
       if (fresh) return fresh;
       return degrade(req, url, cache);
     })());
@@ -345,12 +367,13 @@ self.addEventListener('fetch', function (e) {
   // still boots and airplane mode still works.
   e.respondWith((async function () {
     var cache = await caches.open(CACHE);
-    // Navigations let a 404 through: on Pages that body is 404.html, the
-    // pretty-link router. See revalidate()'s note.
-    var fresh = await revalidate(req, cache, 4000, req.mode === 'navigate');
+    // Navigations let a redirect through: on Pages a directory URL without
+    // its slash is a 301, and the 404 body is 404.html, the pretty-link
+    // router. See revalidate()'s note. The key is the bare path — see keyOf.
+    var fresh = await revalidate(req, cache, 4000, req.mode === 'navigate', keyOf(url));
     if (fresh) return fresh;
-    var cached = await cache.match(req, { ignoreSearch: true });
-    if (cached) return cached;                      // offline / stalled → last good build
+    var cached = await cache.match(keyOf(url));
+    if (cached) return cached;                      // offline / stalled → the newest copy this device ran
     return degrade(req, url, cache);
   })());
 });

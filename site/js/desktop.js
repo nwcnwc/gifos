@@ -2530,8 +2530,12 @@
   // behind: the relay override, saved AI/API keys and meeting admin/room secrets
   // (a privacy leak on a shared or handed-on browser), per-app permission
   // opt-offs and signed-app trust pins, invite history, and the saved name/uid
-  // — a fresh computer regenerates those. The version channel is intentionally
-  // NOT erased so the user stays on their chosen build.
+  // — a fresh computer regenerates those. The purse (pay.* — entitlements,
+  // ledger, policy) goes with it: "erase this computer" on a shared or
+  // handed-on browser must not leave the next person holding your purchases,
+  // and a signed receipt GIF re-grants an entitlement on any computer. The
+  // version channel is intentionally NOT erased so the user stays on their
+  // chosen build.
   // A per-desktop localStorage key: bare on the real computer, suffixed with
   // the database name inside a booted image, so an image never consumes the
   // host's reseed flag or marks the host's sweeps as done.
@@ -2541,7 +2545,7 @@
       const kill = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.indexOf('gifos_') === 0 && !ERASE_KEEP.has(k)) kill.push(k);
+        if (k && (k.indexOf('gifos_') === 0 || k.indexOf('pay.') === 0) && !ERASE_KEEP.has(k)) kill.push(k);
       }
       kill.forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
     } catch (e) { /* storage unavailable — nothing to sweep */ }
