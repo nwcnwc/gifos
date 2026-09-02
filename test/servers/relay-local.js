@@ -88,6 +88,9 @@ class Conn {
       this.buf = this.buf.slice(off + len);
       if (opcode === 0x8) { this.close(); return; }
       if (opcode === 0x9) { this.frame(0xA, payload); continue; } // ping -> pong
+      // A binary frame is metered like any other (it bills a wake in the
+      // Worker) and then dropped — the relay carries text only.
+      if (opcode === 0x2) { if (this.onbinary) this.onbinary(payload); continue; }
       // Browsers fragment big messages at the WS layer (FIN=0 + continuation
       // frames). Buffer pieces until FIN — real WS stacks (and the Worker) do.
       if (opcode === 0x1 || opcode === 0x0) {
@@ -134,7 +137,7 @@ function verifierOf(sid) {
   const dot = String(sid || '').lastIndexOf('.');
   if (dot <= 0) return '';
   const v = sid.slice(dot + 1);
-  return /^[a-f0-9]{16,64}$/.test(v) ? v : '';
+  return /^[a-f0-9]{24,64}$/.test(v) ? v : '';
 }
 
 // AUTHORITY IS A SIGNATURE (docs/meet-security.md §SIG) — mirrors relay/src/relay.js:
@@ -195,7 +198,7 @@ server.on('upgrade', (req, socket, head) => {
   if (parts[0] !== 's' || !parts[1]) { conn.send(JSON.stringify({ t: 'error', error: 'bad path' })); conn.close(); return; }
   const sess = getSession(parts[1]);
   const role = url.searchParams.get('role') || 'client';
-  const token = url.searchParams.get('token') || '';
+  const token = (url.searchParams.get('token') || '').slice(0, 64); // mirrors relay/src/relay.js: bounded before it lands in state
   const peer = url.searchParams.get('peer') || 'c_' + crypto.randomBytes(4).toString('hex');
   const ip = socket.remoteAddress || 'unknown';
 
@@ -448,10 +451,10 @@ server.on('upgrade', (req, socket, head) => {
       // join time): the admin re-asserts the lock with a SIGNED setpw right
       // after the roster. Plain rooms keep first-arriver seeding BY DESIGN —
       // the anarchy tier. Mirrors relay/src/relay.js.
-      sess.pw = av ? null : ((url.searchParams.get('pw') || '') || null);
+      sess.pw = av ? null : ((url.searchParams.get('pw') || '').slice(0, 64) || null);
     }
     if (sess.meshToken !== token) { conn.send(JSON.stringify({ t: 'error', error: 'bad room token' })); conn.close(); return; }
-    if (sess.pw && (url.searchParams.get('pw') || '') !== sess.pw) { rejectConn('password required'); return; }
+    if (sess.pw && (url.searchParams.get('pw') || '').slice(0, 64) !== sess.pw) { rejectConn('password required'); return; }
     const dev = (url.searchParams.get('dev') || '').slice(0, 16);
     const gk = (url.searchParams.get('gk') || '').slice(0, 128); // genesis-key token (R3)
     if (dev && (sess.ban || []).some((b) => b.d === dev)) { rejectConn('banned'); return; }
@@ -479,9 +482,11 @@ server.on('upgrade', (req, socket, head) => {
       }
     }
     conn.peer = peer; sess.clients.set(peer, conn);
+    conn.onbinary = (payload) => { allow(payload); }; // metered, never dispatched
     conn.onmessage = async (data) => {
       if (!allow(data)) return;
       let m; try { m = JSON.parse(data); } catch (e) { return; }
+      if (!m || typeof m !== 'object') return; // `null` parses; mirrors relay/src/relay.js
       if (process.env.RELAY_DEBUG) typeRate.set(m.t, (typeRate.get(m.t) || 0) + 1); // what is actually flooding the relay?
       if (m.t === 'peer') routePeer(peer, m);
       else if (m.t === 'knock') knock(conn, m.gk, m.gblob); // (re)register greeter / take-over empty room (R2/R3/R6)
@@ -493,7 +498,7 @@ server.on('upgrade', (req, socket, head) => {
           conn.send(JSON.stringify({ t: 'error', error: 'admins only: this room\'s password is managed by its admin' })); return;
         }
         sess.pw = m.pw.slice(0, 64) || null;
-        const s = JSON.stringify({ t: 'pw', pw: sess.pw || '', by: (m.by || '').slice(0, 40) });
+        const s = JSON.stringify({ t: 'pw', pw: sess.pw || '', by: String(m.by || '').slice(0, 40) });
         for (const c of sess.clients.values()) c.send(s);
       } else if ((m.t === 'ban' || m.t === 'unban') && typeof m.dev === 'string') {
         if (!sess.av || !(await admProven(sess.av, m.w, m.t, (o) => o.dev === m.dev))) return;

@@ -27,11 +27,28 @@ const ORIGIN = 'https://gifos.app';
 // real page load is dozens of asset requests, so the ceiling is generous.
 const REQ_PER_MIN_PER_IP = 600;
 const ipHits = new Map();
+// Per-IP caps key on the NETWORK, not the address: an IPv6 host holds a /64
+// (or more) and would otherwise present 2^64 distinct "IPs" to every cap.
+// IPv4 keys as itself. The compressed `::` form is expanded first so the
+// first four hextets are the real prefix.
+function ipKey(ip) {
+  ip = String(ip || '');
+  if (ip.indexOf(':') < 0) return ip;
+  const halves = ip.split('::');
+  let groups = halves[0] ? halves[0].split(':') : [];
+  if (halves.length > 1) {
+    const tail = halves[1] ? halves[1].split(':') : [];
+    while (groups.length + tail.length < 8) groups.push('0');
+    groups = groups.concat(tail);
+  }
+  return groups.slice(0, 4).map((g) => g.toLowerCase().replace(/^0+(?=.)/, '')).join(':') + '::/64';
+}
 function rateLimited(ip) {
   const now = Date.now();
-  const log = (ipHits.get(ip) || []).filter((t) => now - t < 60000);
+  const k = ipKey(ip);
+  const log = (ipHits.get(k) || []).filter((t) => now - t < 60000);
   log.push(now);
-  ipHits.set(ip, log);
+  ipHits.set(k, log);
   if (ipHits.size > 10000) ipHits.clear();
   return log.length > REQ_PER_MIN_PER_IP;
 }

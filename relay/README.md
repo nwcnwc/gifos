@@ -18,6 +18,13 @@ npm install -g wrangler        # if you don't have it
 wrangler login                 # authorize your Cloudflare account
 wrangler deploy
 # → https://gifos-relay.<your-subdomain>.workers.dev
+
+# Once per deployment, and BEFORE the first real room: the per-IP abuse
+# caps key on a salted hash of each socket's address (relay.js ipTag).
+# Without this secret the salt is a public constant from the source, so a
+# state or log dump is brute-forceable back to IPv4 addresses. The Worker
+# logs "ABUSE_SALT unset" once per isolate while it is missing.
+openssl rand -hex 32 | wrangler secret put ABUSE_SALT
 ```
 
 Then point the app at it — edit `site/js/relay-config.js`:

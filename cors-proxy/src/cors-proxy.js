@@ -56,17 +56,37 @@ const ALLOW_HOSTS = new Set([
 // Abuse/cost guards. Cloudflare bills request-count + CPU-ms (never bandwidth),
 // so the two ways this Worker costs money are: (a) request floods, and (b)
 // buffering giant bodies. Cap both.
+// The hosts whose GET responses may be cached at the edge: keyless, public
+// text only (see `cacheable` below).
+const CACHE_HOSTS = new Set(['text.recoveryversion.bible']);
 const MAX_BODY_BYTES = 25 * 1024 * 1024;  // 25 MB — real request bodies here are KBs of JSON
 const REQ_PER_MIN_PER_IP = 240;           // generous for a chatty app; hostile to loops
 // Best-effort per-IP limiter: per-isolate memory, so it's a burst damper at
 // each edge PoP, not a global ledger. The real global cap is a Cloudflare
 // dashboard Rate-Limiting rule on cors-proxy.gifos.app (see repo README).
-const ipHits = new Map(); // ip -> [timestamps]
+// Per-IP caps key on the NETWORK, not the address: an IPv6 host holds a /64
+// (or more) and would otherwise present 2^64 distinct "IPs" to every cap.
+// IPv4 keys as itself. The compressed `::` form is expanded first so the
+// first four hextets are the real prefix.
+function ipKey(ip) {
+  ip = String(ip || '');
+  if (ip.indexOf(':') < 0) return ip;
+  const halves = ip.split('::');
+  let groups = halves[0] ? halves[0].split(':') : [];
+  if (halves.length > 1) {
+    const tail = halves[1] ? halves[1].split(':') : [];
+    while (groups.length + tail.length < 8) groups.push('0');
+    groups = groups.concat(tail);
+  }
+  return groups.slice(0, 4).map((g) => g.toLowerCase().replace(/^0+(?=.)/, '')).join(':') + '::/64';
+}
+const ipHits = new Map(); // network key -> [timestamps]
 function rateLimited(ip) {
   const now = Date.now();
-  const log = (ipHits.get(ip) || []).filter((t) => now - t < 60000);
+  const k = ipKey(ip);
+  const log = (ipHits.get(k) || []).filter((t) => now - t < 60000);
   log.push(now);
-  ipHits.set(ip, log);
+  ipHits.set(k, log);
   if (ipHits.size > 10000) ipHits.clear(); // cap memory; best-effort anyway
   return log.length > REQ_PER_MIN_PER_IP;
 }
@@ -123,6 +143,7 @@ export default {
     let u;
     try { u = new URL(target); } catch (e) { return fail(400, 'Missing or invalid x-gifos-target header.', origin); }
     if (u.protocol !== 'https:') return fail(400, 'x-gifos-target must be https.', origin);
+    if (u.port && u.port !== '443') return fail(400, 'x-gifos-target must use the default https port.', origin);
     if (!ALLOW_HOSTS.has(u.hostname)) {
       return fail(403, 'cors-proxy.gifos.app does not forward to ' + u.hostname +
         '. Run your own proxy for it (Settings → Third-party APIs → set a custom proxy URL); the one-file Worker is in cors-proxy/ in the repo.', origin);
@@ -135,12 +156,19 @@ export default {
     fwd.delete('host');
     fwd.delete('origin');
     fwd.delete('referer');
+    // Nothing that names the caller goes upstream: Cloudflare's own headers
+    // carry the real IP and country, and a cookie for this proxy's origin is
+    // never the upstream's business.
+    for (const k of Array.from(fwd.keys())) { if (k.startsWith('cf-') || k.startsWith('x-forwarded-') || k === 'x-real-ip' || k === 'cookie') fwd.delete(k); }
 
     const method = req.method;
     const hasBody = method !== 'GET' && method !== 'HEAD';
     // Buffer the body (audio clips are small — seconds of speech is a few
     // hundred KB, well under the isolate's memory limit). Avoids request-stream
     // duplex quirks and keeps the forward simple.
+    // A body without a Content-Length would skip the cap above and be
+    // buffered whole; browsers always send one for a buffered body.
+    if (hasBody && !req.headers.get('Content-Length')) return fail(411, 'Content-Length required.', origin);
     const body = hasBody ? await req.arrayBuffer() : undefined;
 
     // GETs to the allow-listed public hosts are cacheable at Cloudflare's edge,
@@ -148,7 +176,12 @@ export default {
     // so a flood of identical Bible-text reads collapses to one upstream fetch
     // and near-zero CPU. Never cache authenticated calls (they carry per-user
     // headers and go through as-is).
-    const cacheable = !hasBody && (method === 'GET' || method === 'HEAD') && !req.headers.get('authorization');
+    // Only the KEYLESS host is ever cached: cacheEverything ignores upstream
+    // Cache-Control and keys on the target URL, so a GET authenticated by any
+    // header but Authorization (x-api-key, a cookie, a query key) on a keyed
+    // host would be served to the next user for an hour.
+    const cacheable = !hasBody && (method === 'GET' || method === 'HEAD') && CACHE_HOSTS.has(u.hostname)
+      && !req.headers.get('authorization') && !req.headers.get('cookie') && !req.headers.get('x-api-key');
     const init = { method, headers: fwd, body };
     if (cacheable) init.cf = { cacheEverything: true, cacheTtl: 3600 };
 
@@ -156,10 +189,18 @@ export default {
     try {
       resp = await fetch(u.toString(), init);
     } catch (e) {
-      return fail(502, 'Upstream request failed: ' + (e && e.message || e), origin);
+      return fail(502, 'Upstream request failed.', origin);
+    }
+    // fetch() follows redirects: the host check above saw only the first
+    // hop. The FINAL URL must still be an allow-listed https host, or an
+    // open redirect on one of them turns this into an open proxy.
+    if (resp.url) {
+      let fin = null; try { fin = new URL(resp.url); } catch (e) {}
+      if (!fin || fin.protocol !== 'https:' || !ALLOW_HOSTS.has(fin.hostname)) return fail(502, 'Upstream redirected off the allow-list.', origin);
     }
 
     const out = new Headers(resp.headers);
+    out.delete('set-cookie'); // an upstream cookie has no business on this origin
     const c = cors(origin);
     for (const k in c) out.set(k, c[k]);
     // Every request reaches this Worker at the SAME URL (the proxy origin), with
