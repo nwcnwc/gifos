@@ -140,6 +140,34 @@
       ['RTCPeerConnection','webkitRTCPeerConnection','RTCDataChannel'].forEach(function(k){
         try { Object.defineProperty(window, k, { value: undefined, configurable: false, writable: false }); } catch(e){ try { window[k] = undefined; } catch(e2){} }
       });
+      // THE DOCUMENT UNDER THE BRIDGE MAY NEVER CHANGE. Two ways it could:
+      // 1. A sandboxed frame may always navigate ITSELF (the sandbox forbids
+      //    navigating others; CSP has no self-navigation directive). The
+      //    replacement document carries no CSP and no shim, yet it would keep
+      //    this bridge, because contentWindow is stable across navigations.
+      //    run.html's own frame-src refuses every non-about: target; this
+      //    beacon covers the rest. pagehide fires BEFORE the replacement
+      //    document exists, so the runtime freezes the bridge first and then
+      //    re-mounts the app fresh (a reload still works — it boots again).
+      // 2. A NESTED frame is a fresh window: frame-src 'none' does not reach
+      //    about:srcdoc children, and their RTCPeerConnection is untouched by
+      //    the deletion above. No app ships a nested frame, so any that
+      //    appears is removed before it can load (the sweep runs as a
+      //    microtask, ahead of the child's navigation task).
+      var toOS = parent.postMessage.bind(parent);
+      window.addEventListener('pagehide', function(){ try { toOS({ ns:'gifos', type:'unloading' }, '*'); } catch(e){} }, true);
+      (function(){
+        var KILL = { IFRAME:1, FRAME:1, FENCEDFRAME:1, PORTAL:1, OBJECT:1, EMBED:1 };
+        function sweep(n){
+          if (!n || n.nodeType !== 1) return;
+          if (KILL[n.tagName]) { try { n.remove(); } catch(e){} return; }
+          if (n.querySelectorAll) n.querySelectorAll('iframe,frame,fencedframe,portal,object,embed').forEach(function(x){ try { x.remove(); } catch(e){} });
+        }
+        try {
+          new MutationObserver(function(rs){ for (var i = 0; i < rs.length; i++) { var a = rs[i].addedNodes; for (var j = 0; j < a.length; j++) sweep(a[j]); } })
+            .observe(document, { childList: true, subtree: true });
+        } catch(e){}
+      })();
       var pending = {}, subs = {}, backCbs = [];
       // onPart: an OPTIONAL callback kept on THIS side of the wall. A function
       // cannot cross postMessage, so the app hands it to rpc() and the runtime
@@ -1723,11 +1751,18 @@
       if (hasCap(manifest, 'gpu') && !capDisabled(manifest, 'gpu')) { try { iframe.setAttribute('allow', 'webgpu'); } catch (e) {} }
       const pending = new Map();
       let ready = false, idSeq = 0;
-      const fail = (err) => { root.removeEventListener('message', handler); try { iframe.remove(); } catch (e) {} reject(err); };
+      const fail = (err) => { root.removeEventListener('message', handler); try { iframe.remove(); } catch (e) {} providerServices.delete(fileId); reject(err); };
       const bootTimer = setTimeout(() => { if (!ready) fail(new Error(label + ' did not start serving (no gifos.provider.serve call) — it may not be a working provider.')); }, PROVIDER_BOOT_MS);
+      // A provider that changes its document loses its mount (see mountApp
+      // and clientShim: the replacement document would keep every consumer's
+      // provider-request while carrying no CSP). It is simply dropped — the
+      // next call re-mounts it from its bytes.
+      let loads = 0;
+      iframe.addEventListener('load', () => { if (++loads > 1) fail(new Error(label + ' left its frame and was stopped.')); });
       const handler = (e) => {
         if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
         const d = e.data; if (!d || d.ns !== 'gifos') return;
+        if (d.type === 'unloading') { fail(new Error(label + ' left its frame and was stopped.')); return; }
         if (d.type === 'provider-ready') { ready = true; clearTimeout(bootTimer); resolve(service); }
         // A provider that is still generating says so; each ping re-arms the
         // idle clock. Cheap (one postMessage per token) and it cannot mask a
@@ -2962,9 +2997,37 @@
     if (manifest && manifest.receipt && GifOS.payBroker) {
       try { Promise.resolve(GifOS.payBroker.ingestReceiptFiles(files)).catch(() => {}); } catch (e) {}
     }
+    // THE DOCUMENT UNDER THE BRIDGE MAY NEVER CHANGE (see clientShim). The
+    // shim's pagehide beacon freezes the bridge the instant the app's
+    // document starts to go away; the frame's next load is then either the
+    // app reloading itself or a navigation the parent's frame-src already
+    // refused (an about: URL is all that is left) — either way the runtime
+    // re-mounts the ORIGINAL document, so a reload still boots and a
+    // replacement document never gets served. An app that keeps leaving is
+    // stopped for good after a few tries.
+    let frozen = false, ownLoad = false, frameLoads = 0, remounts = 0, torn = false;
+    const html = buildAppHtml(files, manifest);
+    const teardown = () => {
+      if (torn) return; torn = true; frozen = true;
+      root.removeEventListener('message', handler);
+      try { iframe.srcdoc = LEFT_FRAME_HTML; } catch (e) {}
+    };
+    const remount = () => {
+      if (++remounts > 3) { teardown(); return; }
+      frozen = false; ownLoad = true;
+      try { iframe.srcdoc = html; } catch (e) { teardown(); }
+    };
+    iframe.addEventListener('load', () => {
+      frameLoads++;
+      if (torn) return;
+      if (ownLoad) { ownLoad = false; frozen = false; return; }
+      if (frameLoads > 1 || frozen) remount();
+    });
     const handler = (e) => {
       if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
       const d = e.data; if (!d || d.ns !== 'gifos') return;
+      if (d.type === 'unloading') { frozen = true; return; }
+      if (frozen) return;
       // Guard at REPLY time, not just receipt: async ops (db/fetch/…) can
       // resolve after the iframe was torn out of the DOM (app takeover /
       // stop), when contentWindow is null — a reply then must be a no-op,
@@ -3192,9 +3255,12 @@
       sandboxToken(iframe, 'allow-popups');
       sandboxToken(iframe, 'allow-popups-to-escape-sandbox');
     }
-    iframe.srcdoc = buildAppHtml(files, manifest);
+    iframe.srcdoc = html;
     return () => root.removeEventListener('message', handler);
   }
+
+  // What an app frame shows once its bridge has been withdrawn for good.
+  const LEFT_FRAME_HTML = '<!doctype html><meta charset="utf-8"><body style="margin:0;padding:24px;font:14px system-ui,sans-serif;color:#333;background:#fff">This app kept trying to leave its frame, so it was stopped. Close this tab and open the app again.</body>';
 
   // Add one token to a frame's sandbox, once. Every caller is a capability, so
   // the token must never appear on a frame whose manifest did not ask for it —

@@ -2,6 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- The ONLY frames this page ever holds are srcdoc app mounts. A sandboxed
+     frame may still navigate ITSELF, and the replacement document would keep
+     the runtime's bridge with none of the app CSP (site/js/runtime.js,
+     clientShim / mountApp): this policy makes every non-about: target a
+     refused navigation, in the browser, before any script runs. Guarded by
+     test/browser/e2e-app-frame-navigate.js. -->
+<meta http-equiv="Content-Security-Policy" content="frame-src about:">
+<meta name="referrer" content="same-origin">
 <meta name="robots" content="noindex">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="manifest" href="/manifest.webmanifest">
