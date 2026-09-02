@@ -326,7 +326,7 @@
     return remixDoc().then((doc) => {
       if (!doc) return files;
       const out = {};
-      for (const p in files) out[p] = files[p];
+      for (const p in files) if (p !== '__proto__') out[p] = files[p];
       out[REMIX_DOC] = doc;
       return out;
     });
@@ -389,6 +389,7 @@
   function buildArchiveV1(files) {
     const archive = { v: 1, files: {} };
     for (const path in files) {
+      if (path === '__proto__') continue;
       const val = files[path];
       const bytes = typeof val === 'string' ? textToBytes(val) : val;
       archive.files[path] = b64encode(bytes);
@@ -593,10 +594,13 @@
     const out = { files: {} };
     let total = 0;
     for (const p in dir) {
-      const off = dir[p][0], len = dir[p][1];
-      // A directory entry that points outside the payload is a corrupt or
-      // hostile file, not a file we serve a truncated version of.
-      if (!(off >= 0 && len >= 0 && base + off + len <= all.length)) return null;
+      if (p === '__proto__') continue; // a bracket-assign of this name re-prototypes the map (see parseArchive)
+      const e = dir[p];
+      const off = Array.isArray(e) ? e[0] : -1, len = Array.isArray(e) ? e[1] : -1;
+      // A directory entry that points outside the payload — or one that is
+      // not two integers — is a corrupt or hostile file, not a file we serve
+      // a truncated version of.
+      if (!Number.isInteger(off) || !Number.isInteger(len) || !(off >= 0 && len >= 0 && base + off + len <= all.length)) return null;
       out.files[p] = all.subarray(base + off, base + off + len);
       total += len;
     }
@@ -605,13 +609,24 @@
   }
 
   function parseArchive(jsonBytes, onProgress) {
-    if (isArchiveV2(jsonBytes)) return Promise.resolve(parseArchiveV2(jsonBytes, onProgress));
+    if (isArchiveV2(jsonBytes)) { try { return Promise.resolve(parseArchiveV2(jsonBytes, onProgress)); } catch (e) { return Promise.resolve(null); } }
     let archive;
     try { archive = JSON.parse(bytesToText(jsonBytes)); } catch (e) { return Promise.resolve(null); }
-    const paths = Object.keys((archive && archive.files) || {});
+    // A file named "__proto__" is an OWN key after JSON.parse, but assigning
+    // it onto a plain object below would swap the map's prototype for the
+    // file's bytes, and every for…in over the files (save, export, remix)
+    // would then walk those bytes as keys. Such an entry is dropped.
+    const paths = Object.keys((archive && archive.files) || {}).filter((p) => p !== '__proto__');
     const out = { files: {} };
     let i = 0, done = 0, total = 0;
-    for (let k = 0; k < paths.length; k++) total += archive.files[paths[k]].length;
+    // Every entry must be a base64 STRING. b64decode sizes its output from
+    // .length before it reads a character, so an object with a huge .length
+    // would ask for gigabytes on the strength of a 60-byte archive.
+    for (let k = 0; k < paths.length; k++) {
+      const s = archive.files[paths[k]];
+      if (typeof s !== 'string') return Promise.resolve(null);
+      total += s.length;
+    }
     // 2 MB slices: frequent enough that the launch counter visibly ticks on a
     // throttled phone, and the first report lands BEFORE any slice is decoded
     // (a counter that only appears mid-unpack reads as a late start).
@@ -655,7 +670,8 @@
     if (payload[0] === COMPRESSED_FLAG) {
       return inflate(payload.subarray(1)).then((j) => parseArchive(j, onProgress)).catch(() => null);
     }
-    return parseArchive(payload, onProgress); // legacy uncompressed JSON
+    // legacy uncompressed JSON — still a promise, never a synchronous throw
+    return Promise.resolve().then(() => parseArchive(payload, onProgress)).catch(() => null);
   }
 
   // ---- display-only: the animation, without the filesystem ------------------
@@ -756,7 +772,7 @@
   // Cheap sync check: valid GIF header + GIFOS marker present (no payload parse).
   function looksLikeGifosGif(bytes) {
     if (bytes.length < 6 || bytes[0] !== 0x47 || bytes[1] !== 0x49 || bytes[2] !== 0x46) return false;
-    return extractPayload(bytes) !== null;
+    return findGifosSpan(bytes) !== null; // a span, never a copy of the payload
   }
 
   // readManifest takes a decoded archive (decode() is async now).
@@ -779,7 +795,7 @@
     encode, decode, repack, embed, looksLikeGifosGif, readManifest,
     b64encode, b64decode, textToBytes, bytesToText,
     findAppExtSpan, appExtBlock, stripForDisplay,
-    setRemixDoc, REMIX_DOC, inflateMaxBytes,
+    setRemixDoc, REMIX_DOC, inflateMaxBytes, inflate,
     setArchiveVersion, isArchiveV2,
     MARKER: GIFOS_MARKER,
   };
