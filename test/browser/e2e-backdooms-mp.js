@@ -245,6 +245,54 @@ async function waitInApp(p, fn, ms, what) {
     }
     await sleep(4000);   // let the roster settle through the owner
 
+    // GIVE EVERY PLAYER THE SCREEN. On a desktop profile the game stops its
+    // clock whenever something else owns the screen — document.hasFocus()
+    // false, or the pointer not locked on the canvas (boot.js: the OS
+    // permission sheet was eating players' health while they read it). A
+    // fleet actor is a headless page nobody has ever clicked into, so all
+    // four sat PAUSED: keys().w moved nobody and a shot hurt nobody, while
+    // every shared-state claim above still passed. Do what a person does —
+    // click the halls — and if the sandbox gives this page no pointer lock,
+    // hold the screen the honest way for a harness that IS the only thing
+    // on it: say the document has focus and un-pause, and print which lever
+    // it took, per player.
+    // (A real click on the halls was tried first: it did un-pause, but the
+    // pointer lock and fullscreen it asks for on the way re-mount the app —
+    // app-lane deliveries went to ZERO and the leave check went dark. Hold
+    // the screen without touching the page.)
+    const screen = [];
+    for (const p of players) {
+      const st = await inApp(p, () => {
+        const was = { focus: document.hasFocus(), paused: !!window.Backdooms.state().paused };
+        document.hasFocus = () => true;
+        window.Backdooms.setPaused(false);
+        return was;
+      });
+      screen.push(p.name + ':' + (st.focus ? 'focused' : 'held') + (st.paused ? '+unpaused' : ''));
+    }
+    const running = await Promise.all(players.map((p) => inApp(p, () => !window.Backdooms.state().paused)));
+    check('the clock runs for every player (the harness owns the screen)', running.every(Boolean), screen.join(' '));
+
+    // AND KEEP THEM ALIVE. With the clock running, a player who stands still
+    // is eaten: the things open 4.5 m out and reach an idle player in about
+    // fourteen seconds, and a dead player's loop stops — Net.tick rides the
+    // game loop, so the dead write no rows, take no shots and never see a
+    // friend leave. Measured on the fleet: idle 0.7/1.2/0.8/0.5 deliveries a
+    // second, then MOVING 0/0/0/0 — four corpses. So before every timed phase
+    // everyone presses Play again (Backdooms.start on the SAME seed keeps the
+    // shared maze; the harness re-holds the screen it already held).
+    const respawnAll = async (why) => {
+      const hp = await Promise.all(players.map((p) => inApp(p, () => {
+        const B = window.Backdooms, was = B.state().hp;
+        B.start({ seed: B.state().seed });
+        document.hasFocus = () => true;
+        B.setPaused(false);
+        return was;
+      })));
+      console.log('  [respawn] ' + why + ' — hp before: ' + hp.join('/'));
+      await sleep(1500);
+    };
+
     // THE MAZE IS SHARED. This is the listing's first clause and the whole
     // reason the seed rides on the row: whoever got there first defines the
     // halls, and everyone who follows wakes in the same building.
@@ -288,6 +336,8 @@ async function waitInApp(p, fn, ms, what) {
       before.every((b, i) => b && after[i] && b !== after[i]),
       before.map((b, i) => (b !== after[i] ? 'moved' : 'STILL')).join(' '));
 
+    await respawnAll('before the traffic count');
+
     // ---- THE TRAFFIC IT COSTS ---------------------------------------------
     // What is counted is the DELIVERY side: every db-change makes runtime.js
     // re-read the whole collection and hand it to the app, which is the cost
@@ -321,6 +371,8 @@ async function waitInApp(p, fn, ms, what) {
     check('idle is CHEAPER than moving — the app pays for motion, not for existing',
       idlePerSec.reduce((a, b) => a + b, 0) < busyPerSec.reduce((a, b) => a + b, 0),
       'idle ' + idlePerSec.join('/') + '  moving ' + busyPerSec.join('/'));
+
+    await respawnAll('before the shot');
 
     // ---- YOU CAN SHOOT THEM, ACROSS FOUR MACHINES -------------------------
     // Ada turns to face whoever is nearest and fires. The damage has to land
@@ -362,6 +414,8 @@ async function waitInApp(p, fn, ms, what) {
       check('a shot fired on one machine takes health off another', hurt.length > 0,
         hurt.length ? hurt.join(', ') : 'nobody on the other three boxes lost health');
     }
+
+    await respawnAll('before somebody leaves');
 
     // ---- SOMEBODY LEAVES ---------------------------------------------------
     // There is no lobby and no disconnect message: leaving is going quiet, and
