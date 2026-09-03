@@ -457,7 +457,14 @@ if want browser; then
       # was this suite's own broken wait, fixed in the same commit. Nothing
       # here softens an assertion; if it outgrows 900s, split the desktop
       # control leg into its own file rather than raising this again.
-      e2e|e2e-anyroad|e2e-anyroad-mp|e2e-away-holdover|e2e-vis-park|e2e-meet-mod|e2e-pip|e2e-fps-touch) run_one "$f" 900 browser ;;
+      # e2e-app-frame-escape joins the 900s list with the same signature as
+      # every suite above it: TIMED OUT TWICE at 600s with 160 passed and 0
+      # failed. It launches EVERY listed app in its own page and clicks its
+      # in-page links; the shelf held 156 apps when it last fit the clock and
+      # holds 201 now (~3.7s an app on the 8-core gate box, plus a fresh
+      # browser per eight). Nothing here softens an assertion; if it outgrows
+      # 900s, split the shelf into halves rather than raising this again.
+      e2e|e2e-anyroad|e2e-anyroad-mp|e2e-away-holdover|e2e-vis-park|e2e-meet-mod|e2e-pip|e2e-fps-touch|e2e-app-frame-escape) run_one "$f" 900 browser ;;
       *) run_one "$f" 600 browser ;;
     esac
   done
