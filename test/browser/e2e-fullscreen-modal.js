@@ -106,6 +106,12 @@ const HIT = (sel) => {
   // ---- go full ------------------------------------------------------------
   await p.click('#appfull');
   await p.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 5000 }).catch(() => {});
+  // fullscreenElement is set in the fullscreen steps; the fullscreenchange
+  // EVENT that hangs body.app-full (gifos-fullscreen paint()) is dispatched
+  // in a later animation-frame task. Reading between the two saw the root
+  // full-screen with no fill class — RED TWICE on an idle gate box, green the
+  // run before. The fill is what is asserted, so wait for the event's work.
+  await p.waitForFunction(() => document.body.classList.contains('app-full'), null, { timeout: 3000 }).catch(() => {});
   const full = await p.evaluate(() => {
     const pane = document.getElementById('apppane');
     const r = pane.getBoundingClientRect();
