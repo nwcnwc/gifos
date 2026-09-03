@@ -1,0 +1,417 @@
+{
+  "schema": "gifos-browser-support/1",
+  "updated": "2026-08-05",
+  "note": "THE SINGLE SOURCE OF TRUTH for which browsers can run which parts of GifOS. Two things read this file and nothing else may hard-code these numbers: (1) scripts/build-browser-support.mjs generates the ES5 copy table inlined in site/run.html's preflight — run it after any edit here, `--check` fails the gate on drift; (2) site/browser-support.html renders this file for humans. THE PREFLIGHT'S DECISION IS ALWAYS FEATURE DETECTION AND NEVER THIS TABLE — these numbers only choose the WORDS. A version here that is wrong makes a message slightly off; it can never wrongly admit or wrongly turn away a browser.",
+  "states": {
+    "supported": "Measured or verified against browser-compat data: this version and later work.",
+    "unsupported": "Verified NOT to work at any version — the engine never shipped what is needed.",
+    "unknown": "We have genuinely not measured it, and we say so rather than guess. For Chromium skins the honest answer lives in their own user-agent, which names the Chrome build they are made of — compare THAT against the Chrome row."
+  },
+  "confidence": {
+    "measured": "A build of that engine was actually RUN against the site and the result recorded in the row's note. The number is the OLDEST build we have run, not the oldest that works — older ones may work and simply have not been tried. This is the only state that outranks a reading of somebody's compat table.",
+    "verified": "Checked against MDN browser-compat-data and caniuse on the `updated` date.",
+    "derived": "Read off the requirement list and the engine's own history, not run.",
+    "unmeasured": "Nobody has run it. Reported as unknown.",
+    "conservative": "Deliberately HIGHER than the real floor. The number's original derivation was found void (see requirements.es6-baseline) and nobody has run the versions below it, so it is left where it was rather than replaced with a fresh guess. It is safe in one direction only, which is the direction that matters: the preflight's verdict is feature detection and never this table, so a too-high number can only make the sentence on a wall that is already being shown slightly pessimistic — it can never turn a working browser away."
+  },
+  "sources": [
+    "test/browser/e2e-pipe-engines.js and the 2026-08-07 old-engine runs — the `measured` rows below name their build",
+    "MDN browser-compat-data api/SubtleCrypto.json — ed25519 sign/verify/importKey/exportKey (the OLD floor, kept for the fallback boundary: native below Chrome 137 / Firefox 129 / Safari 17 is absent and the js engine engages)"
+  ],
+  "requirements": {
+    "es6-baseline": {
+      "label": "Modern JavaScript (Promise, Map, Set, async/await)",
+      "why": "The whole runtime is written on it. Missing means the page cannot even parse. NOW THE ONE THAT SETS THE TABLE: with the Ed25519 fallback signer in place (see webcrypto-ed25519), the newest thing a browser must have is the language the site is written in. THE ENFORCED LIST IS run.html's syncGaps() AND NOTHING ELSE: Promise/Map/Set, WebSocket, TextEncoder/TextDecoder, crypto.getRandomValues, crypto.subtle with importKey/exportKey/sign/verify/encrypt/decrypt/digest/deriveBits, RTCPeerConnection with createDataChannel. CORRECTION 2026-08-07: this row used to say globalThis (2019) was the youngest piece and the whole table was derived from that. It is not a requirement at all — every occurrence in site/js/*.js and run.html is inside `typeof window !== 'undefined' ? window : globalThis`, so in a browser the window branch always wins and globalThis is never evaluated; syncGaps() never tests for it either. MEASURED: Firefox 63.0 has NO globalThis, passes the preflight with an empty gap list, and boots run.html to a working meeting UI. A version floor read off a feature the product does not require is a guess with a citation."
+    },
+    "websocket": {
+      "label": "WebSocket",
+      "why": "The one socket to the relay, which introduces browsers to each other (site/js/gifos-net.js).",
+      "plain": "To find the other people in a meeting, browsers introduce themselves through one small doorway connection — and this browser cannot open that kind of connection."
+    },
+    "webcrypto-subtle": {
+      "label": "WebCrypto (crypto.subtle)",
+      "why": "Derive-don't-send: the room key is derived on the device from the link, and every frame is sealed with AES-GCM. Nothing about a room is ever sent to the relay.",
+      "plain": "Everything in a meeting is scrambled on your own device before it leaves, so nobody in the middle can read it — and this browser is missing tools from the box that does the scrambling."
+    },
+    "webcrypto-ed25519": {
+      "label": "WebCrypto Ed25519 signatures",
+      "why": "Every participant mints an Ed25519 identity the moment they join (site/js/mesh-wire.js, healing-laws S4 — there is no off switch) and signs every seat-authoring frame with it. The MANDATE is absolute; the ENGINE is not: browsers without native WebCrypto Ed25519 (Safari 16 and older, Chrome 136 and older, Firefox 128 and older) use the built-in byte-identical fallback signer (js/gifos-ed.js + the pinned js/vendor/nacl-fast.js) and interoperate in the same room. It therefore no longer sets any version floor."
+    },
+    "webrtc-peerconnection": {
+      "label": "WebRTC (RTCPeerConnection)",
+      "why": "Pictures and voice go straight between people. There is no media server to fall back to.",
+      "plain": "In a meeting here, sound, pictures and everything else travel straight between people's browsers — no company server in the middle. This browser is missing part of what makes those direct browser-to-browser connections work."
+    },
+    "webrtc-datachannel": {
+      "label": "WebRTC data channels",
+      "why": "The mesh talks to itself over them — seating, chat, files, shared apps."
+    },
+    "text-encoder": {
+      "label": "TextEncoder / TextDecoder",
+      "why": "The bytes-to-text boundary every sealed frame crosses."
+    },
+    "secure-context": {
+      "label": "A secure (https) address",
+      "why": "No browser will hand out crypto.subtle or a camera on a plain http:// page. This is about the LINK, not the browser — an http:// link fails on a brand-new browser too."
+    },
+    "indexeddb": {
+      "label": "IndexedDB",
+      "why": "Your Home Screen and every app's saved data live here, in your own browser. Nothing is on a server to fall back to."
+    },
+    "canvas2d": {
+      "label": "Canvas 2D",
+      "why": "Every app icon is a real GIF, decoded and drawn in the page."
+    }
+  },
+  "features": {
+    "meet": {
+      "label": "Meetings",
+      "plain": "Seeing and hearing each other on a shared link.",
+      "where": "run.html — /meet/<room>, or run.html#v=<room>",
+      "gatedBy": "es6-baseline",
+      "requires": [
+        "es6-baseline",
+        "websocket",
+        "webcrypto-subtle",
+        "webcrypto-ed25519",
+        "webrtc-peerconnection",
+        "webrtc-datachannel",
+        "text-encoder",
+        "secure-context"
+      ],
+      "notRequired": {
+        "getUserMedia": "A camera is optional. Joining to watch and listen is a supported, first-class state — the knock never waits on a camera prompt.",
+        "canvas-captureStream": "Only needed to SEND a picture, never to be in the room."
+      }
+    },
+    "cast": {
+      "label": "Broadcast",
+      "plain": "One person on stage, everyone else watching.",
+      "where": "run.html wearing its broadcast skin — /cast/<room>, or run.html#v=<room>&bc=1",
+      "gatedBy": "es6-baseline",
+      "sameAs": "meet",
+      "requires": [
+        "es6-baseline",
+        "websocket",
+        "webcrypto-subtle",
+        "webcrypto-ed25519",
+        "webrtc-peerconnection",
+        "webrtc-datachannel",
+        "text-encoder",
+        "secure-context"
+      ],
+      "note": "Broadcast is the SAME page as a meeting wearing a different skin, so it has exactly the same requirements. It is listed separately because people ask about it separately, not because the answer differs."
+    },
+    "desktop": {
+      "label": "Home Screen and App Store",
+      "plain": "Your computer of GIFs, and installing apps onto it.",
+      "where": "index.html, store.html",
+      "gatedBy": null,
+      "requires": [
+        "es6-baseline",
+        "indexeddb",
+        "canvas2d"
+      ],
+      "note": "The Home Screen needs NONE of the meeting stack — no WebRTC, no Ed25519 — so it keeps working on browsers that could never hold a meeting, and GifOS deliberately does not block it. Its true floor is much older than anything in this table, but nobody has measured it, so every row below says so honestly instead of inventing a number."
+    }
+  },
+  "copy": {
+    "genericOrder": [
+      "safari",
+      "chrome",
+      "firefox"
+    ],
+    "genericFeature": "meet",
+    "plainDoctrine": "requirements[*].plain is the ONE plain-language sentence the too-old wall shows under its verdict when that requirement is the telling gap (run.html whyLine picks it: WebCrypto first, then WebRTC, then WebSocket). Plain text only, no markup — it is injected via innerHTML. Every line must be TRUE for every browser it can be shown to. The ancient gaps (no Promise, no TextEncoder, no getRandomValues) deliberately carry no line: 'too old, update it' is already the whole truth for a browser that old. (Ed25519 no longer walls anyone — the fallback signer satisfies the mandate — so it has no line.)",
+    "note": "The order and set used when we cannot name the browser in hand: 'Meetings need Safari 12.1, Chrome 71 or Firefox 65 — and up.'"
+  },
+  "browsers": [
+    {
+      "id": "chrome",
+      "label": "Chrome",
+      "engine": "Blink",
+      "copyKey": "chrome",
+      "support": {
+        "meet": {
+          "state": "supported",
+          "min": "71",
+          "since": "2018-12",
+          "why": "es6-baseline",
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, NOT A MEASURED FLOOR. Chrome 71 was requirement arithmetic off globalThis, and globalThis is not a requirement (requirements.es6-baseline records the correction and the Firefox 63 run that exposed it). No Chrome below 137 has been run against the site by us; Chrome 137 was run 2026-08-07 (test/browser/e2e-pipe-engines.js: the site loads, mesh-pipe.js loads, no RTCRtpScriptTransform so the encoded lane correctly self-disables). The true floor is older than 71 and unmeasured."
+        },
+        "cast": {
+          "state": "supported",
+          "min": "71",
+          "since": "2018-12",
+          "why": "es6-baseline",
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, NOT A MEASURED FLOOR. Chrome 71 was requirement arithmetic off globalThis, and globalThis is not a requirement (requirements.es6-baseline records the correction and the Firefox 63 run that exposed it). No Chrome below 137 has been run against the site by us; Chrome 137 was run 2026-08-07 (test/browser/e2e-pipe-engines.js: the site loads, mesh-pipe.js loads, no RTCRtpScriptTransform so the encoded lane correctly self-disables). The true floor is older than 71 and unmeasured."
+        },
+        "desktop": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured",
+          "note": "Works on every Chrome we have ever run it on; the oldest that still works has never been measured."
+        }
+      }
+    },
+    {
+      "id": "edge",
+      "label": "Microsoft Edge",
+      "engine": "Blink",
+      "copyKey": "edge",
+      "support": {
+        "meet": {
+          "state": "supported",
+          "min": "79",
+          "since": "2020-01",
+          "why": "es6-baseline",
+          "confidence": "conservative",
+          "note": "CONSERVATIVE. 79 is the first CHROMIUM Edge, which is a real boundary — everything older is EdgeHTML, a different engine listed separately as unsupported — so this number survives the globalThis correction on its own merits. No Edge build has been run by us."
+        },
+        "cast": {
+          "state": "supported",
+          "min": "79",
+          "since": "2020-01",
+          "why": "es6-baseline",
+          "confidence": "conservative",
+          "note": "CONSERVATIVE. 79 is the first CHROMIUM Edge, which is a real boundary — everything older is EdgeHTML, a different engine listed separately as unsupported — so this number survives the globalThis correction on its own merits. No Edge build has been run by us."
+        },
+        "desktop": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        }
+      }
+    },
+    {
+      "id": "edge-legacy",
+      "label": "Edge (the old one, before 2020)",
+      "engine": "EdgeHTML",
+      "support": {
+        "meet": {
+          "state": "unsupported",
+          "min": null,
+          "confidence": "derived",
+          "note": "EdgeHTML was retired in 2020 and never shipped Ed25519 in WebCrypto. No version of it can hold a meeting. Today's Edge is a different engine entirely — updating is the whole fix."
+        },
+        "cast": {
+          "state": "unsupported",
+          "min": null,
+          "confidence": "derived"
+        },
+        "desktop": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        }
+      }
+    },
+    {
+      "id": "firefox",
+      "label": "Firefox",
+      "engine": "Gecko",
+      "copyKey": "firefox",
+      "support": {
+        "meet": {
+          "state": "supported",
+          "min": "65",
+          "since": "2019-01",
+          "why": "es6-baseline",
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, and now bracketed from BELOW by a run. Firefox 65 was requirement arithmetic off globalThis. MEASURED 2026-08-07: Firefox 63.0 (Milestone=63.0, headless, against a local copy of the site) has no globalThis, passes the preflight with an EMPTY gap list, paints no wall, and boots run.html to a working meeting UI with the fallback signer engaged (GifOS.ed.engine() === 'js'). Firefox 151 was run the same day and is a full participant including the encoded-passthrough lane. So the true floor is at or below 63; 65 is left standing because seating over a relay was not observed on 63 and we do not lower a number we have not fully run."
+        },
+        "cast": {
+          "state": "supported",
+          "min": "65",
+          "since": "2019-01",
+          "why": "es6-baseline",
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, and now bracketed from BELOW by a run. Firefox 65 was requirement arithmetic off globalThis. MEASURED 2026-08-07: Firefox 63.0 (Milestone=63.0, headless, against a local copy of the site) has no globalThis, passes the preflight with an EMPTY gap list, paints no wall, and boots run.html to a working meeting UI with the fallback signer engaged (GifOS.ed.engine() === 'js'). Firefox 151 was run the same day and is a full participant including the encoded-passthrough lane. So the true floor is at or below 63; 65 is left standing because seating over a relay was not observed on 63 and we do not lower a number we have not fully run."
+        },
+        "desktop": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        }
+      }
+    },
+    {
+      "id": "safari",
+      "label": "Safari",
+      "engine": "WebKit",
+      "copyKey": "safari",
+      "support": {
+        "meet": {
+          "state": "supported",
+          "min": "12.1",
+          "since": "2019-03",
+          "why": "es6-baseline",
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, AND THE ONE WE CANNOT RUN. Safari 12.1 was requirement arithmetic off globalThis, which is not a requirement. No Safari below the playwright WebKit build (UA Safari 26.5) has ever been run against the site on any machine here, and Linux cannot host an old one — stock WebKitGTK ships no WebRTC at all (test/README, 2026-08-05). The number stays where it is rather than moving on a fresh guess; real Apple hardware is the only thing that can replace it."
+        },
+        "cast": {
+          "state": "supported",
+          "min": "12.1",
+          "since": "2019-03",
+          "why": "es6-baseline",
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, AND THE ONE WE CANNOT RUN. Safari 12.1 was requirement arithmetic off globalThis, which is not a requirement. No Safari below the playwright WebKit build (UA Safari 26.5) has ever been run against the site on any machine here, and Linux cannot host an old one — stock WebKitGTK ships no WebRTC at all (test/README, 2026-08-05). The number stays where it is rather than moving on a fresh guess; real Apple hardware is the only thing that can replace it."
+        },
+        "desktop": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        }
+      }
+    },
+    {
+      "id": "safari-ios",
+      "label": "Safari on iPhone and iPad",
+      "engine": "WebKit",
+      "support": {
+        "meet": {
+          "state": "supported",
+          "min": "12.2",
+          "since": "2019-03",
+          "why": "es6-baseline",
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, AND THE ONE WE CANNOT RUN. Same correction as the desktop Safari row: iOS 12.2 was requirement arithmetic off globalThis, which is not a requirement, and no iOS Safari has been run by us. Only a real iPhone can settle this row."
+        },
+        "cast": {
+          "state": "supported",
+          "min": "12.2",
+          "since": "2019-03",
+          "why": "es6-baseline",
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, AND THE ONE WE CANNOT RUN. Same correction as the desktop Safari row: iOS 12.2 was requirement arithmetic off globalThis, which is not a requirement, and no iOS Safari has been run by us. Only a real iPhone can settle this row."
+        },
+        "desktop": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        }
+      }
+    },
+    {
+      "id": "opera",
+      "label": "Opera",
+      "engine": "Blink",
+      "chromiumSkin": true,
+      "support": {
+        "meet": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured",
+          "note": "Opera is Chrome underneath but numbers its releases its own way, and we have not checked which Opera carries which Chrome. Its own user-agent says which Chrome build it is made of — compare that against the Chrome row, which is what the message on the page does."
+        },
+        "cast": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        },
+        "desktop": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        }
+      }
+    },
+    {
+      "id": "samsung",
+      "label": "Samsung Internet",
+      "engine": "Blink",
+      "chromiumSkin": true,
+      "support": {
+        "meet": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured",
+          "note": "Chrome underneath, with its own version numbers we have not mapped. Its user-agent names the Chrome build it is made of; compare that against the Chrome row."
+        },
+        "cast": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        },
+        "desktop": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        }
+      }
+    },
+    {
+      "id": "uc",
+      "label": "UC Browser",
+      "engine": "varies",
+      "chromiumSkin": true,
+      "support": {
+        "meet": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured",
+          "note": "Never tested, and its engine differs by platform and release. If it cannot hold a meeting the page will say exactly which piece is missing."
+        },
+        "cast": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        },
+        "desktop": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        }
+      }
+    },
+    {
+      "id": "in-app",
+      "label": "The browser inside another app (Facebook, Instagram, WhatsApp, Line, WeChat…)",
+      "engine": "borrowed from the phone",
+      "support": {
+        "meet": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured",
+          "note": "These use whatever engine the phone provides, and each app cuts something different out of it. When one cannot hold a meeting, the page says so and offers the fix that actually works: open the same link in Safari or Chrome."
+        },
+        "cast": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        },
+        "desktop": {
+          "state": "unknown",
+          "min": null,
+          "confidence": "unmeasured"
+        }
+      }
+    },
+    {
+      "id": "ie",
+      "label": "Internet Explorer",
+      "engine": "Trident",
+      "support": {
+        "meet": {
+          "state": "unsupported",
+          "min": null,
+          "confidence": "derived",
+          "note": "No version of Internet Explorer has WebRTC or the modern crypto GifOS needs, and Microsoft retired it in 2022."
+        },
+        "cast": {
+          "state": "unsupported",
+          "min": null,
+          "confidence": "derived"
+        },
+        "desktop": {
+          "state": "unsupported",
+          "min": null,
+          "confidence": "derived",
+          "note": "Not even the Home Screen: the site is written in JavaScript that Internet Explorer cannot read."
+        }
+      }
+    }
+  ]
+}
