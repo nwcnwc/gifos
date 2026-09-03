@@ -112,14 +112,22 @@ async function seed(page, slugs) {
   // ---- the SWEEP -----------------------------------------------------------
   for (let i = 0; i < SLUGS.length; i += BATCH) {
     const batch = SLUGS.slice(i, i + BATCH);
-    const ctx = await browser.newContext({ acceptDownloads: false });
+    // A BROWSER PER BATCH, not one for the whole shelf. Every page and context
+    // here is closed, but the browser PROCESS behind them keeps a share of
+    // what each app opened — descriptors, sockets, helper processes — and on
+    // a 1024-fd box one Chromium ran out of room at the 161st app, twice at
+    // the same slug, on two boxes, while that slug alone was fine. The shelf
+    // passed this suite when it held 156 apps and died the day it held 201.
+    // A fresh browser per eight apps has a budget nothing before it can spend.
+    const bb = await chromium.launch({ executablePath: CHROME });
+    const ctx = await bb.newContext({ acceptDownloads: false });
     const desktop = await ctx.newPage();
     let ids;
     try {
       ids = await seed(desktop, batch);
     } catch (e) {
       for (const slug of batch) check(slug + ': installs on a desktop', false, String(e.message || e).slice(0, 90));
-      await ctx.close();
+      await ctx.close(); await bb.close();
       continue;
     }
     await desktop.close();
@@ -181,7 +189,7 @@ async function seed(page, slugs) {
       }
       await page.close();
     }
-    await ctx.close();
+    await ctx.close(); await bb.close();
   }
 
   await browser.close();
