@@ -93,8 +93,10 @@ check('the mx-kf keyframe walk exists and relays via kfNeed',
 // stalled the self-stream encoder 10-20s per hit and froze every receiver of
 // every copy at once. FIXED the test 2026-08-04, and deliberately: these pins
 // now assert the levers that replaced them.
+// …and RELATIVE (2026-09-04): "sr0 > 1 ? 1 : 1.25" flipped a stepped-down
+// encoder (sr0 = 2) to FULL size on every ask — that was freeze series E2.
 check('the producer fallback is a sender-side scaleResolutionDownBy jiggle — capture is never touched',
-  /scaleResolutionDownBy = sr0 > 1 \? 1 : 1\.25/.test(RUN)
+  /scaleResolutionDownBy = sr0 \* 1\.25/.test(RUN) && !/scaleResolutionDownBy = sr0 > 1 \? 1 : 1\.25/.test(RUN)
   && !/c\.width = c\.width > 2/.test(RUN)
   && !/width: \{ ideal: w - 2 \}/.test(RUN));
 check('keyframe recovery is hop-local: the tap asks its upstream via sendKeyFrameRequest',
