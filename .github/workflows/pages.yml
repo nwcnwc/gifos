@@ -26,10 +26,10 @@ jobs:
     steps:
       # Full history so the edge build number (count of site-touching commits) is
       # accurate — a shallow checkout would report 1.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       # Edge build number: a monotonic counter that bumps on every push touching
       # the site tree. DERIVED (git rev-list count), not a committed counter, so no
       # self-triggering commit loop and it always deploys.
@@ -90,7 +90,7 @@ jobs:
           # be what is committed, so they are excluded from the rewrite.
           find site -path site/versions -prune -o -name '*.html' -print0 \
             | xargs -0 sed -i -E "s/(href|src)=\"([^\":?]+\.(css|js))\"/\1=\"\2?v=${SHA}\"/g"
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: site
       # GitHub Pages' backend occasionally returns a transient
@@ -98,15 +98,15 @@ jobs:
       # uploaded fine. Retry the deploy a few times so a platform hiccup
       # never strands the live site on an old build.
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
         continue-on-error: true
       - id: deployment2
         if: steps.deployment.outcome == 'failure'
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
         continue-on-error: true
       - id: deployment3
         if: steps.deployment.outcome == 'failure' && steps.deployment2.outcome == 'failure'
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
       # Tell IndexNow-capable engines (Bing, Yandex, Seznam, Naver…) that the
       # site changed. Google doesn't use IndexNow — it discovers via the
       # sitemap + Search Console. Failures here must never fail a deploy.

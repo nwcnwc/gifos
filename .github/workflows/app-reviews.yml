@@ -41,7 +41,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Every touched review file is valid and owned by the PR author
@@ -70,7 +70,7 @@ jobs:
       contents: write
       actions: write   # to dispatch pages.yml after the push (see the header)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Regenerate site/apps/reviews.json and commit it
         run: |
           set -euo pipefail
