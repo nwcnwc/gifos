@@ -104,7 +104,19 @@ const N = 6;
 const MAX_BOXES = 3;          // 6 seats / 3 boxes = 2 each; 2 boxes = 3 each
 const MAX_PER_BOX = 3;        // the promise: never the 6-on-one-box the gate ran
 let failures = 0;
-const check = (name, cond, extra) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : '')); if (!cond) failures++; };
+// TWO SUITES, ONE ROOM. PIPE_LEG=freeze (set by e2e-pipe-freeze.js) runs the
+// same six-seat room, reports legs 1-2 as SETUP (printed, never scored) and
+// scores leg 3 — the stg bright-freeze guard, which is red on a real fleet at
+// a rate the product does not yet control (docs/bug-pipe-stg-freeze-2026-08-05.md).
+// Without it, this file scores legs 1-2 and skips leg 3. So the sixteen
+// deterministic checks gate every cut again, and the freeze has a file of its
+// own to be quarantined, measured and, one day, promoted.
+const LEG = process.env.PIPE_LEG === 'freeze' ? 'freeze' : 'mesh';
+let gate = LEG === 'mesh';
+const check = (name, cond, extra) => {
+  if (!gate) { console.log('  (setup) ' + (cond ? 'ok  ' : 'NOT ') + name + (extra !== undefined ? '  ' + JSON.stringify(extra).slice(0, 160) : '')); return; }
+  console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : '')); if (!cond) failures++;
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
@@ -704,7 +716,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     //    fires. That is what turned "some feeds freeze" into the real shape:
     //    25-50 kB arriving during a 13s freeze with keyFramesDecoded flat —
     //    bytes without a decodable frame, not a pipe that went quiet.
-    {
+    if (LEG === 'freeze') { gate = true;   // leg 3 is e2e-pipe-freeze.js's; e2e-pipe-mesh.js stops here
       const stalls = [];
       const brightSeen = new Set();   // (seat,feed) pairs the detector could judge
       const everSeen = new Set();     // (seat,feed) pairs that existed at all
@@ -899,7 +911,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                         fw: r.fw, fh: r.fh, qlim: r.qlim, impl: r.impl };
                     return o;
                   }, f.key).catch(() => ({}));
-                  rows.push({ seat: 'P' + s, me: seatIds[s], dec, pipes: mine, car, outr });
+                  // the producer's keyframe/pulse trail, only where it exists
+                  const kfLog = Object.keys(outr).length ? await pages[s].evaluate(() =>
+                    (window.__kfLog || []).slice(-30).map((e) => ({ dt: e.t, act: e.act, key: e.key, sr0: e.sr0, via: e.via }))).catch(() => null) : null;
+                  rows.push({ seat: 'P' + s, me: seatIds[s], dec, pipes: mine, car, outr, kfLog });
                 }
                 return rows;
               };
@@ -924,7 +939,27 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                     out: (r.outr && (r.outr[d] || r.outr[String(d).slice(0, 6)])) || null,
                     mintsS: (a.car && a.car[d] && r.car && r.car[d]) ? +(((r.car[d].mints - a.car[d].mints) / 2)).toFixed(1) : null };
                 }
-                return { seat: r.seat, me: r.me, fdec: r.dec && r.dec.fdec, kdec: r.dec && r.dec.kdec,
+                // THE PRODUCER'S OWN ENCODER. A hop with no pipes for this feed
+                // and outbound rows for it IS the stager: its stg senders are
+                // mosJobs, not pipes, so the map above never printed them —
+                // and every seat downstream froze at the same instant in both
+                // fleet reds of the 0.9.14 cut (frzMs 18.9/18.2/17.9/13.8/9.2
+                // s, PLIs sent, no key back), which is a statement about the
+                // origin, not about any hop. framesEncoded-per-second per
+                // destination, with the encoder's own quality-limitation
+                // reason, is the number that says whether the stager's
+                // encoder stopped — and the pulse/jiggle trail (__kfLog)
+                // says what was being asked of it when it did.
+                const origin = (!Object.keys(r.pipes).length && r.outr && Object.keys(r.outr).length) ? (() => {
+                  const o = {};
+                  for (const d in r.outr) {
+                    const b = a.outr && a.outr[d], z = r.outr[d];
+                    o[d] = { fencS: b ? +(((z.fenc - b.fenc) / 2)).toFixed(1) : null, kencS: b ? +(((z.kenc - b.kenc) / 2)).toFixed(1) : null,
+                      fenc: z.fenc, kenc: z.kenc, pliRx: z.pliRx, fps: z.fps, fw: z.fw, fh: z.fh, qlim: z.qlim, impl: z.impl, bytesTx: z.bytesTx };
+                  }
+                  return { out: o, kfLog: r.kfLog || null };
+                })() : null;
+                return { seat: r.seat, me: r.me, fdec: r.dec && r.dec.fdec, kdec: r.dec && r.dec.kdec, origin,
                   decS: (a.dec && r.dec) ? +(((r.dec.fdec - a.dec.fdec) / 2)).toFixed(1) : null,
                   // Rates for the receiver side too: assembled-per-second beside
                   // decoded-per-second is the assembled-vs-decoded split.

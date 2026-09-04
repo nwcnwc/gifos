@@ -243,6 +243,7 @@
 # stalls with bytes still arriving and no keyframe asked — while the suite's
 # other 16 checks were green 3 of 3. No commit since v0.9.13 touched
 # mesh-pipe.js's media path. This is a media-plane research problem, not a
-# release regression, and the cut does not wait on it. STANDING TODO: split
-# leg 3 into its own needFleet suite so the 16 deterministic checks gate again.
-e2e-pipe-mesh  NONDETERMINISTIC — leg 3 (the stg bright-freeze shape) red ~2/3 on the fleet; docs/bug-pipe-stg-freeze-2026-08-05.md
+# release regression, and the cut does not wait on it. Leg 3 now lives in
+# e2e-pipe-freeze.js (same room, only the freeze detector scored), so the 16
+# deterministic checks in e2e-pipe-mesh gate every cut again.
+e2e-pipe-freeze  NONDETERMINISTIC — the stg bright-freeze shape, red ~2/3 on the fleet; docs/bug-pipe-stg-freeze-2026-08-05.md
