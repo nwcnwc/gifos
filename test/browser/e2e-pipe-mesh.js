@@ -281,7 +281,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       // of the 48px one, which is the single knob that changes the encoder's
       // regime (a 48x48 near-static source was measured at the 30kbps floor).
       const carrier = process.env.CARRIER === 'big' ? `try{localStorage.setItem('gifos_pipe_carrier','big')}catch(e){};` : '';
-      await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; ${drain} ${lane} ${carrier} window.GIFOS_SCALE={C:2};` });
+      // PIPE_TUNE='{"pulse":0}' etc. — run.html's harness tune lever (tuneCfg),
+      // page-level, absent = exactly the shipped behavior. Attribution only.
+      const tuneJs = process.env.PIPE_TUNE ? `window.GIFOS_TUNE=${JSON.stringify(JSON.parse(process.env.PIPE_TUNE))};` : '';
+      await ctx.addInitScript({ content: `${tuneJs}try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; ${drain} ${lane} ${carrier} window.GIFOS_SCALE={C:2};` });
       const page = await ctx.newPage();
       page.on('pageerror', (e) => console.log(`  [P${i}] PAGEERROR`, String(e).slice(0, 200)));
       // THE TRANSPORT'S OWN VOICE. run.html's clog() is live on a DEBUG page

@@ -8619,22 +8619,45 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // producer has no cheap demand lever (packer canvases keep the 1px
     // demand resize). Cost: a key is ~5-10x a delta, so ~+30% stg bitrate
     // while staged — stage-grade budgets absorb it (§9a's own calibration).
+    // …AND NEVER ON AN ENCODER THAT IS ALREADY DOWN. A scaleResolutionDownBy
+    // change is an encoder re-init. On a healthy encoder that costs a frame;
+    // on one that is CPU-limited or has stopped producing frames it is a
+    // re-init stacked on a stall every three seconds — and the 0.9.14 cut's
+    // two fleet reds (docs/bug-pipe-stg-freeze-2026-08-05.md's shape: every
+    // receiver frozen at the same instant, PLIs answered by nothing) both had
+    // the stager on the busiest box in the room. So each pulse first reads
+    // the sender's own outbound row: framesEncoded flat since the last pulse
+    // means the encoder is stalled and the pulse is skipped (the stall is
+    // logged); qualityLimitationReason 'cpu' means it is starved and the
+    // pulse is skipped too. A consumer's worst-case key wait is unchanged
+    // when the encoder is healthy — that is the only case a pulse ever helped.
+    const pulseSeen = new WeakMap(); // sender -> framesEncoded at the last pulse
     setInterval(() => {
       if (!myStatus.stg) return;
+      const tn = tuneCfg(); if (tn && tn.pulse === 0) return;   // harness lever (measurement only): pulse OFF to attribute a freeze
       for (const [jk2, job2] of mosJobs) {
         if (job2.key.indexOf('stg:' + myId) !== 0 || pipeJobs.has(jk2) || !job2.active) continue;
         for (const sd of job2.senders || []) {
           if (!sd || !sd.track || sd.track.kind !== 'video') continue;
-          try {
-            const prm = sd.getParameters();
-            if (!prm.encodings || !prm.encodings.length) break;
-            const sr0 = prm.encodings[0].scaleResolutionDownBy || 1;
-            kfEv(job2.key, 'pulse', { sr0 }); // forensics: the trail a freeze is read against
-            prm.encodings[0].scaleResolutionDownBy = sr0 > 1 ? 1 : 1.25;
-            sd.setParameters(prm).then(() => setTimeout(() => {
-              try { const p2 = sd.getParameters(); if (p2.encodings && p2.encodings.length) { p2.encodings[0].scaleResolutionDownBy = sr0; sd.setParameters(p2).catch(() => {}); } } catch (e) {}
-            }, 250)).catch(() => {});
-          } catch (e) {}
+          const key2 = job2.key;
+          Promise.resolve(sd.getStats ? sd.getStats() : null).then((rep) => {
+            let fenc = null, qlim = null;
+            if (rep) rep.forEach((r) => { if (r.type === 'outbound-rtp' && r.kind === 'video') { fenc = r.framesEncoded || 0; qlim = r.qualityLimitationReason || null; } });
+            const was = pulseSeen.get(sd);
+            if (fenc != null) pulseSeen.set(sd, fenc);
+            if (fenc != null && was != null && fenc === was) { kfEv(key2, 'pulse-skip', { why: 'stalled', fenc, qlim }); return; }
+            if (qlim === 'cpu') { kfEv(key2, 'pulse-skip', { why: 'cpu', fenc }); return; }
+            try {
+              const prm = sd.getParameters();
+              if (!prm.encodings || !prm.encodings.length) return;
+              const sr0 = prm.encodings[0].scaleResolutionDownBy || 1;
+              kfEv(key2, 'pulse', { sr0, fenc, qlim }); // forensics: the trail a freeze is read against
+              prm.encodings[0].scaleResolutionDownBy = sr0 > 1 ? 1 : 1.25;
+              sd.setParameters(prm).then(() => setTimeout(() => {
+                try { const p2 = sd.getParameters(); if (p2.encodings && p2.encodings.length) { p2.encodings[0].scaleResolutionDownBy = sr0; sd.setParameters(p2).catch(() => {}); } } catch (e) {}
+              }, 250)).catch(() => {});
+            } catch (e) {}
+          }).catch(() => {});
           break; // one video sender carries the job
         }
       }
