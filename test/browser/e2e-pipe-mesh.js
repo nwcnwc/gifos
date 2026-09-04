@@ -1074,6 +1074,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       }).catch(() => null);
       check('the stager is still encoding its stg feed (fenc > 0 on a live stg sender)',
         !!stEnc && stEnc.some((r) => r.fenc > 0), stEnc);
+      // The pulse trail on a GREEN run too, so a run that saw no freeze still
+      // says whether the mechanism was pulsing, skipping, or silent.
+      const acts = await pages[deepIdx0].evaluate(() => {
+        const h = {}; for (const e of (window.__kfLog || [])) h[e.act] = (h[e.act] || 0) + 1; return h;
+      }).catch(() => null);
+      console.log('   MEASURE stager keyframe trail: ' + JSON.stringify(acts));
     }
   }
 
