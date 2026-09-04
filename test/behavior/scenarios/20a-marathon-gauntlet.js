@@ -89,5 +89,9 @@ scenario('20a-marathon-gauntlet', {
   await check.steady('FINALE: and it is quiet', async () => {
     const sts = await Promise.all(['sol', 'tess', 'uma'].map((r) => cast.get(r).state()));
     return sts.every((s) => s.participants === 3 && s.dups === 0);
-  }, { for: 45, allow: 2 }); // the first post-departure minute may settle a beat or two
+  }, { for: 45, allow: 4 }); // the first post-departure minute may settle a beat or two.
+  // MEASURED 2026-09-03, five fleet runs (three boxes, six actors): blips of
+  // 3, 0, 0, 0, 0 over the 45 s window. The allowance was 2 and the one run
+  // with 3 scored the whole marathon red; 4 is the measured worst case plus
+  // one. If a run needs more than that, the roster is not settling — hunt it.
 }, { relayDev: 'opportunistic', timeoutMin: 30 });
