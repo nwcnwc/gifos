@@ -8595,7 +8595,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             if (!prm.encodings || !prm.encodings.length) continue; // unnegotiated — the setParameters FATAL class, skip
             const sr0 = prm.encodings[0].scaleResolutionDownBy || 1;
             kfEv(key, 'jiggle', { sr0 });
-            prm.encodings[0].scaleResolutionDownBy = sr0 > 1 ? 1 : 1.25;
+            // RELATIVE, always: a held step-down (below) can leave sr0 at 2,
+            // and "sr0 > 1 ? 1 : 1.25" then flipped the encoder between half
+            // and full size on every ask — freeze series E2, 2026-09-03.
+            prm.encodings[0].scaleResolutionDownBy = sr0 * 1.25;
             sd.setParameters(prm).then(() => setTimeout(() => {
               try {
                 const p2 = sd.getParameters();
@@ -8652,16 +8655,30 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             try {
               const prm = sd.getParameters();
               if (!prm.encodings || !prm.encodings.length) return;
-              // (A picture-size step-down for a starving encoder was tried here
-              // on 2026-09-03 and REVERTED the same day: with the stager on an
-              // idle 8-core box, encoding fine at 12 fps, every receiver froze
-              // 15-26 s from the moment the size changed mid-stream — the piped
-              // lane forwards the origin's encoded frames, and a held resolution
-              // change is not the 250 ms jiggle it tolerates. Series E2.)
+              // A STARVING ENCODER GETS A SMALLER PICTURE BEFORE IT GETS
+              // ANOTHER KEY. Measured on a loaded 6-core stager (freeze series
+              // D6, E6, 2026-09-03): the stg encoder crawled at 1-3 fps and at
+              // that rate every forced key — pulses, PLIs, jiggles — was most
+              // of the stream (143 frames, 64 keys); its direct receiver froze
+              // 38 s and a seat two hops down decoded ONE frame in 124 s.
+              // Chromium's own quality limiter never said 'cpu'. So the pulse
+              // timer, which already holds the sender's row, halves the picture
+              // while the encoder is below 5 fps at more than 240 px wide and
+              // gives it back above 12 fps. The first attempt at this froze a
+              // room (E2) — not because of the step-down but because the pulse
+              // below still flipped a halved encoder to FULL size every 3 s;
+              // the jiggle is relative now.
               const enc0 = prm.encodings[0];
-              const sr0 = enc0.scaleResolutionDownBy || 1;
+              const sr = enc0.scaleResolutionDownBy || 1;
+              if (fps != null && fps < 5 && fw > 240 && sr < 2) {
+                enc0.scaleResolutionDownBy = 2; kfEv(key2, 'shrink', { fps, fw }); sd.setParameters(prm).catch(() => {}); return;
+              }
+              if (fps != null && fps > 12 && sr >= 2) {
+                enc0.scaleResolutionDownBy = 1; kfEv(key2, 'unshrink', { fps }); sd.setParameters(prm).catch(() => {}); return;
+              }
+              const sr0 = sr;
               kfEv(key2, 'pulse', { sr0, fenc, qlim }); // forensics: the trail a freeze is read against
-              prm.encodings[0].scaleResolutionDownBy = sr0 > 1 ? 1 : 1.25;
+              prm.encodings[0].scaleResolutionDownBy = sr0 * 1.25;
               sd.setParameters(prm).then(() => setTimeout(() => {
                 try { const p2 = sd.getParameters(); if (p2.encodings && p2.encodings.length) { p2.encodings[0].scaleResolutionDownBy = sr0; sd.setParameters(p2).catch(() => {}); } } catch (e) {}
               }, 250)).catch(() => {});
