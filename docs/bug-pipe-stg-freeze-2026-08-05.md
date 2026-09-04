@@ -972,10 +972,11 @@ and skip; the freeze suite is its own file (`e2e-pipe-freeze.js`) so the
 sixteen deterministic checks gate again; a harness lever `tune.pulse=0`
 (`PIPE_TUNE='{"pulse":0}'`) reproduces regime 1 on demand.
 
-**What remains (regime 2), designed and measured but not shipped:** an
-encoder-side step-down — halve the picture while the stg sender is under
-5 fps, restore above 12 — recovered D6's shape in E1/E3–E5 but froze an
-H264/VP8-mixed room the moment the held size change landed (E2). The piped
-lane tolerates the 250 ms jiggle, not a held resolution change under H264
-passthrough. Ship it gated to codec-homogeneous VP8/VP9 rooms, or teach the
-carrier a size change; measure both against series E's conditions first.
+**Regime 2, fixed (2026-09-04).** The encoder-side step-down — halve the
+picture while the stg sender is under 5 fps, restore above 12 — shipped
+once its real defect was found: the first attempt froze a room because both
+keyframe levers wrote `sr0 > 1 ? 1 : 1.25`, flipping a halved encoder to
+full size on every pulse and every on-demand ask (E2 was that, not the
+codec mix). With both jiggles relative, series F on the same loaded fleet
+in codec-mixed rooms went **6 of 6 green**, the step-down firing in four of
+them. `e2e-pipe-freeze` is back in the gate.
