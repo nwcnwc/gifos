@@ -8643,6 +8643,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           Promise.resolve(sd.getStats ? sd.getStats() : null).then((rep) => {
             let fenc = null, qlim = null;
             if (rep) rep.forEach((r) => { if (r.type === 'outbound-rtp' && r.kind === 'video') { fenc = r.framesEncoded || 0; qlim = r.qualityLimitationReason || null; } });
+            let fps = null, fw = 0;
+            if (rep) rep.forEach((r) => { if (r.type === 'outbound-rtp' && r.kind === 'video') { fps = r.framesPerSecond != null ? r.framesPerSecond : null; fw = r.frameWidth || 0; } });
             const was = pulseSeen.get(sd);
             if (fenc != null) pulseSeen.set(sd, fenc);
             if (fenc != null && was != null && fenc === was) { kfEv(key2, 'pulse-skip', { why: 'stalled', fenc, qlim }); return; }
@@ -8650,7 +8652,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             try {
               const prm = sd.getParameters();
               if (!prm.encodings || !prm.encodings.length) return;
-              const sr0 = prm.encodings[0].scaleResolutionDownBy || 1;
+              // A STARVING ENCODER GETS A SMALLER PICTURE BEFORE IT GETS
+              // ANOTHER KEY. Measured on a loaded 6-core stager (2026-09-03,
+              // freeze series D6): the stg encoder crawled at 2-3 fps, and at
+              // that rate every forced key — pulses, PLIs, jiggles — was most
+              // of the stream (143 frames, 64 keys); the direct receiver froze
+              // 38 s and a seat two hops down decoded ONE frame in 124 s.
+              // Chromium's own quality limiter never said 'cpu' for it. So the
+              // pulse timer, which already holds the sender's row, halves the
+              // picture while the encoder is below 5 fps at more than 240 px
+              // wide, and gives it back above 12 fps. Cheaper frames are the
+              // only thing that turns a key-only trickle back into video.
+              const enc0 = prm.encodings[0];
+              const sr = enc0.scaleResolutionDownBy || 1;
+              if (fps != null && fps < 5 && fw > 240 && sr < 2) {
+                enc0.scaleResolutionDownBy = 2; kfEv(key2, 'shrink', { fps, fw }); sd.setParameters(prm).catch(() => {}); return;
+              }
+              if (fps != null && fps > 12 && sr >= 2) {
+                enc0.scaleResolutionDownBy = 1; kfEv(key2, 'unshrink', { fps }); sd.setParameters(prm).catch(() => {}); return;
+              }
+              if (fps != null && fps < 5) { kfEv(key2, 'pulse-skip', { why: 'slow', fps, fenc }); return; } // a key is the last thing a 3 fps stream needs
+              const sr0 = enc0.scaleResolutionDownBy || 1;
               kfEv(key2, 'pulse', { sr0, fenc, qlim }); // forensics: the trail a freeze is read against
               prm.encodings[0].scaleResolutionDownBy = sr0 > 1 ? 1 : 1.25;
               sd.setParameters(prm).then(() => setTimeout(() => {

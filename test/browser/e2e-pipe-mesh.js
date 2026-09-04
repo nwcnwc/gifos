@@ -953,7 +953,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                 // reason, is the number that says whether the stager's
                 // encoder stopped — and the pulse/jiggle trail (__kfLog)
                 // says what was being asked of it when it did.
-                const origin = (!Object.keys(r.pipes).length && r.outr && Object.keys(r.outr).length) ? (() => {
+                // Only the hop that IS the producer: its id opens the feed key.
+                // (A relay whose x2 senders carry the key too has outbound rows
+                // and no pipes as well, and was read as the origin once.)
+                const producerId = String(f.key).replace(/^stg:/, '').slice(0, 6);
+                const isProducer = !!r.me && String(r.me).indexOf(producerId) === 0;
+                const origin = (isProducer && r.outr && Object.keys(r.outr).length) ? (() => {
                   const o = {};
                   for (const d in r.outr) {
                     const b = a.outr && a.outr[d], z = r.outr[d];
