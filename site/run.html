@@ -8629,6 +8629,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             const prm = sd.getParameters();
             if (!prm.encodings || !prm.encodings.length) break;
             const sr0 = prm.encodings[0].scaleResolutionDownBy || 1;
+            kfEv(job2.key, 'pulse', { sr0 }); // forensics: the trail a freeze is read against
             prm.encodings[0].scaleResolutionDownBy = sr0 > 1 ? 1 : 1.25;
             sd.setParameters(prm).then(() => setTimeout(() => {
               try { const p2 = sd.getParameters(); if (p2.encodings && p2.encodings.length) { p2.encodings[0].scaleResolutionDownBy = sr0; sd.setParameters(p2).catch(() => {}); } } catch (e) {}
