@@ -930,3 +930,52 @@ session could not verify it against the repro, so it is written down rather
 than guessed at. Note also that one red run recorded ZERO container swaps and
 still stalled, so this mechanism may explain some stalls and not all — verify
 before believing it is the whole story.
+
+## 2026-09-03 — the freeze measured at the origin, on the fleet
+
+The stall record now carries the producer's own encoder (framesEncoded and
+keyFramesEncoded per second per destination, Chromium's quality-limitation
+reason, and the keyframe trail `__kfLog`, in which every pulse and pulse-skip
+is logged). Twenty-two runs of `e2e-pipe-freeze` (leg 3 alone) on a real
+four-box fleet, six seats over two or three boxes, stager = the first deep
+seat:
+
+| series | condition | red / runs | what the origin showed |
+|---|---|---|---|
+| cut-day gate | pulse on, stager box at load 1.4–2.7 with workerd | 2 / 3 | not captured (the record predates this) |
+| A | pulse on, all boxes idle | 0 / 3 | — |
+| B | pulse on, stager box loaded; fleet.js excluded it | 0 / 3 | (stager elsewhere) |
+| C-on | pulse on, stager box eligible at load 2–6 | 0 / 3 | — |
+| C-off | **pulse off**, same | **2 / 3** | encoder healthy: 15–16 fps, `qlim none`, **0 keys/s** — the on-demand jiggle fired and `keyFramesEncoded` stayed flat; receivers PLI'd (8–51) and froze 17–18 s |
+| D | pulse on + stalled/cpu skip guard, loaded | 1 / 6 | D6: stager at **2–3 fps, 143 frames / 64 keys**; direct receiver froze 38 s, a seat two hops down decoded one frame in 124 s |
+| E | + picture step-down below 5 fps, loaded | 2 / 6 | E2: stager on the idle box, 12 fps, room codec-MIXED (H264 vs VP8-only boxes), every receiver froze 15–26 s starting after the held size change → **reverted**; E6: stager at **1 fps, half keys**, no step-down available |
+
+**The mechanism, as measured.** Two regimes, one shape:
+
+1. *Pulse absent* (C-off): the reactive walk is the only key source, and it is
+   slow — kfAsk climbs 30 frames before `kf-need`, the mx-kf relay pays 2 s
+   per hop, and the producer's jiggle answered with no keyframe within the
+   sampled window. 17–18 s bright freezes at every consumer that lost sync.
+   The 3 s pulse is what bounds this; it is the cure, not the cause.
+2. *Pulse present, stager CPU-starved* (D6, E6, and by shape the cut-day
+   reds): the software encoder on a loaded ARM box collapses to 1–3 fps, and
+   every forced key — pulses, PLIs, jiggles — is then most of the stream. A
+   key-only trickle is not video; every receiver freezes at once and a
+   consumer two hops down may never decode past its first frame. Chromium's
+   quality limiter reports `none` throughout, so nothing downstream of it
+   adapts.
+
+**What was shipped:** the pulse skips itself when the sender's
+`framesEncoded` did not advance since the last pulse or the limiter says
+`cpu` (a re-init on a stalled encoder helps nothing), and logs every pulse
+and skip; the freeze suite is its own file (`e2e-pipe-freeze.js`) so the
+sixteen deterministic checks gate again; a harness lever `tune.pulse=0`
+(`PIPE_TUNE='{"pulse":0}'`) reproduces regime 1 on demand.
+
+**What remains (regime 2), designed and measured but not shipped:** an
+encoder-side step-down — halve the picture while the stg sender is under
+5 fps, restore above 12 — recovered D6's shape in E1/E3–E5 but froze an
+H264/VP8-mixed room the moment the held size change landed (E2). The piped
+lane tolerates the 250 ms jiggle, not a held resolution change under H264
+passthrough. Ship it gated to codec-homogeneous VP8/VP9 rooms, or teach the
+carrier a size change; measure both against series E's conditions first.
