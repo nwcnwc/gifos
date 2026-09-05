@@ -112,8 +112,12 @@ async function assertServingThisTree() {
   const swRegOrig = fs.readFileSync(swRegPath, 'utf8');
   // 4b. RELEASE / versions: IMMUTABLE cache-first. Prime an archived asset into the
   // cache, change it on disk, reload, and prove the SW still served the OLD copy.
-  const VER_URL = '/versions/0.9.3/js/build.js';
-  const verPath = 'site/versions/0.9.3/js/build.js';
+  // The OLDEST release still on disk — version.json's minData — never a number
+  // written here (0.9.3 was, and the day it was retired this probe read a file
+  // that no longer existed).
+  const oldestRel = JSON.parse(fs.readFileSync('site/version.json', 'utf8')).minData;
+  const VER_URL = '/versions/' + oldestRel + '/js/build.js';
+  const verPath = 'site/versions/' + oldestRel + '/js/build.js';
   const verOrig = fs.readFileSync(verPath, 'utf8');
   const verMarker = '/* VERSIONS_IMMUTABLE_PROBE ' + stamp + ' */';
   // Prime the archived asset through the SW so it is cached BEFORE we mutate disk.
