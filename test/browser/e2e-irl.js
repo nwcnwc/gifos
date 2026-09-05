@@ -156,7 +156,12 @@ async function invite(page, lifetime, resilient) {
     await app.locator('main').waitFor({ timeout: 10000 });
     sbPhones.push({ app, page: run });
   }
-  await sbHost.locator('.chip').nth(2).waitFor({ timeout: 10000 });
+  // The third chip is the second guest's ROW arriving at the host over the
+  // app lane — the same mesh seat + snap + bytes-on-demand path the joins
+  // above already allow 40 s for. 10 s here went red twice on the 0.9.15
+  // gate box mid-tier (flaky once on 0.9.14's), while 3 of 3 idle runs took
+  // the whole suite in ~30 s. Same budget as the join it follows.
+  await sbHost.locator('.chip').nth(2).waitFor({ timeout: 40000 });
   await sbHost.locator('#start').click();
   for (const p of sbPhones) await p.app.locator('#inp').waitFor({ timeout: 10000 });
   // two think alike, one is left alone with the cow
