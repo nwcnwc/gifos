@@ -89,7 +89,10 @@ const check = (name, cond, d) => { console.log((cond ? 'PASS' : 'FAIL') + ' — 
     return { total: rows.length, openByDefault: rows.filter((d) => d.open).length };
   });
   check('release-note folds are collapsed by default', foldState.total >= 1 && foldState.openByDefault === 0, JSON.stringify(foldState));
-  const noteRow = page.locator('#set-version details.vrow', { hasText: 'v0.9.5' });
+  // The CURRENT release's row, read from version.json — v0.9.5 was written
+  // here and went red the day 0.9.0-0.9.11 were retired (2026-09-04).
+  const currentRel = await page.evaluate(() => fetch('/version.json?ts=' + Date.now(), { cache: 'no-store' }).then((r) => r.json()).then((v) => v.current));
+  const noteRow = page.locator('#set-version details.vrow', { hasText: 'v' + currentRel });
   await noteRow.locator('summary').click();
   await sleep(150);
   const expanded = await noteRow.evaluate((el) => el.open && !!el.querySelector('.vnotes .cl-notes, .vnotes .cl-headline'));
