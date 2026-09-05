@@ -4147,6 +4147,16 @@
       // row was gone for good — the app never re-sends it. A try is a send
       // the owner could have answered: before the first owner-signed frame
       // arrives, a pending act is re-sent every 3 s and its tries stay at 0.
+      // …AND FOUR TRIES WAS TOO FEW EVEN THEN. The first owner frame is the
+      // snap that mounted the app, and it can arrive over the relay while the
+      // guest's mesh seat is still WIRING — a seat has been measured still
+      // wiring at 26 s (e2e-pipe-mesh's header) — so four sends at 3 s can
+      // all leave before there is a path to answer them. With the owner heard
+      // and four tries spent, e2e-irl's third chip still went red on its
+      // first attempt (0.9.15 gate). A put is idempotent and a few bytes:
+      // forty tries — two minutes at 3 s — costs nothing and outlasts any
+      // wiring; the honest revert on the next snap still stands after that.
+      const ACT_TRIES = 40;
       let ownerHeard = false;
       const pendingActs = new Map(); // col\x00id -> { d, at, tries }
       const actKey = (c, id) => c + '\x00' + id;
@@ -4163,7 +4173,7 @@
         for (const [k, p] of pendingActs) {
           if (echoSatisfied(p)) { pendingActs.delete(k); continue; }
           if (now - p.at < 3000) continue;
-          if (ownerHeard && ++p.tries > 4) { pendingActs.delete(k); continue; }
+          if (ownerHeard && ++p.tries > ACT_TRIES) { pendingActs.delete(k); continue; }
           p.at = now;
           try { send('act', p.d); } catch (e) {}
         }
