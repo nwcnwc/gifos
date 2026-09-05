@@ -82,7 +82,11 @@ async function assertServingThisTree() {
   check('Version panel lists release rows', rowCount >= 1, 'rows=' + rowCount);
   // The live changelog now lives folded INSIDE each release row; expand one and
   // read its notes (this replaced the old wall-of-notes block above the picker).
-  const noteRow = page.locator('#set-version details.vrow', { hasText: 'v0.9.5' });
+  // The row for the CURRENT release — read from version.json, never a
+  // number written into the test: v0.9.5 was hard-coded here and went red the
+  // day 0.9.0-0.9.11 were retired (2026-09-04).
+  const currentRel = await page.evaluate(() => fetch('/version.json?ts=' + Date.now(), { cache: 'no-store' }).then((r) => r.json()).then((v) => v.current));
+  const noteRow = page.locator('#set-version details.vrow', { hasText: 'v' + currentRel });
   await noteRow.locator('summary').click().catch(() => {});
   await sleep(150);
   const clText = await noteRow.locator('.vnotes').innerText().catch(() => '');
