@@ -65,9 +65,19 @@ check('buildJoinUrl mints run.html hash links, never the dead name',
 // ---- 6. frozen snapshots are untouched (their meet.html is THEIRS) ---------
 const vdir = path.join(SITE, 'versions');
 const snaps = fs.existsSync(vdir) ? fs.readdirSync(vdir).filter((v) => fs.statSync(path.join(vdir, v)).isDirectory()) : [];
-const withMeet = snaps.filter((v) => fs.existsSync(path.join(vdir, v, 'meet.html')));
+// A pre-flag-day snapshot is one whose OWN pages still address meet.html —
+// measured from the snapshot, not assumed from its number. Each of those must
+// still carry the file. With 0.9.0-0.9.11 retired (2026-09-04) that set can be
+// empty; an empty set is a measured fact, printed, not a vacuous pass.
+const mentionsMeet = (v) => ['index.html', 'boot.html', 'run.html'].some((f) => {
+  const p = path.join(vdir, v, f); return fs.existsSync(p) && /\bmeet\.html\b/.test(fs.readFileSync(p, 'utf8'));
+});
+const preFlag = snaps.filter(mentionsMeet);
+const withMeet = preFlag.filter((v) => fs.existsSync(path.join(vdir, v, 'meet.html')));
 check('pre-flag-day snapshots still ship their own meet.html untouched (frozen means frozen)',
-  snaps.length === 0 || withMeet.length > 0, 'snapshots=' + snaps.length + ' with-meet=' + withMeet.length);
+  withMeet.length === preFlag.length,
+  'snapshots=' + snaps.length + ' pre-flag-day=' + preFlag.length + ' with-meet=' + withMeet.length
+  + (preFlag.length ? '' : ' (none left: every pre-flag-day release is retired)'));
 
 console.log(failures ? ('\n' + failures + ' FAIL') : '\nALL PASS');
 process.exit(failures ? 1 : 0);
