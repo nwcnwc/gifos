@@ -270,38 +270,42 @@
       '</p>';
   }
 
+  // THE STORE NEVER READS A FILE'S BYTES TO DRAW A CARD — the desktop's own
+  // law (desktop.js: the paint's critical path may never read a file), and
+  // the store broke it: refreshInstalled() called store.allFiles(), which
+  // pulls EVERY installed file's bytes out of IndexedDB, and then SHA-256'd
+  // every app that predates the storeSha field, all before the first card.
+  // On an edge desktop with a shelf of installed apps that is hundreds of
+  // megabytes read and hashed to answer "which of these are mine?". Reported
+  // as the store "loading SUPER SLOWLY on the edge" (2026-09-04).
+  //
+  // Now the installed set comes from allFileMeta() — every record, no bytes.
+  // An install that carries storeSha (every store install since the field)
+  // is compared by hash, as before. An older install is compared by SIZE:
+  // the catalog pins the slim GIF's byte count, a pre-storeSha install never
+  // sealed assets into its file, and a rebuilt app never lands on the same
+  // byte count. Hashing those bytes later, off the paint path, was tried
+  // first and still starved the lazy covers' intersection callbacks during
+  // a fast scroll (e2e-app-store, sixteen covers never asked for) — a
+  // structured clone of a multi-megabyte record is main-thread time however
+  // it is scheduled. A byte count is free.
   async function refreshInstalled() {
     installedByAppId = {};
     try {
-      for (const f of await store.allFiles()) {
+      const metas = store.allFileMeta ? await store.allFileMeta() : await store.allFiles();
+      for (const f of metas) {
         if (!f.isApp || !f.appId) continue;
-        // The catalog pins an app to its sha256; hashing the INSTALLED bytes is
-        // what lets a listing say "yours is older" instead of merely
-        // "installed". A store-installed copy is otherwise frozen at
-        // install-day code forever — the seeded-app reseed never touches it
-        // (it only knows sample apps) — so every fix shipped after the install
-        // simply never reached the player. Found by a player whose bugs had
-        // been fixed for a day.
-        // An install that sealed downloaded assets into the GIF no longer
-        // hashes to the catalog's sha256 (the catalog pins the SLIM file), so
-        // installs record the catalog hash they came from as storeSha and the
-        // comparison prefers it. Hashing the bytes stays as the fallback for
-        // installs that predate the field.
-        let sha = f.storeSha || null;
-        try {
-          if (!sha && f.bytes && root.crypto && root.crypto.subtle) {
-            const d = new Uint8Array(await root.crypto.subtle.digest('SHA-256', f.bytes));
-            sha = ''; for (const b of d) sha += b.toString(16).padStart(2, '0');
-          }
-        } catch (e) { /* insecure origin: worst case, no Update badge */ }
-        installedByAppId[f.appId] = { id: f.id, sha: sha, name: f.name };
+        const size = f.size != null ? f.size : (f.bytes ? (f.bytes.byteLength || f.bytes.length || 0) : null);
+        installedByAppId[f.appId] = { id: f.id, sha: f.storeSha || null, size, name: f.name };
       }
     } catch (e) { /* a store that won't open just means nothing shows as installed */ }
   }
   const installedOf = (app) => installedByAppId[app.appId] || null;
   const outdated = (app) => {
     const i = installedOf(app);
-    return !!(i && i.sha && app.sha256 && i.sha !== app.sha256);
+    if (!i) return false;
+    if (i.sha && app.sha256) return i.sha !== app.sha256;
+    return !!(i.size && app.bytes && i.size !== app.bytes);   // a pre-storeSha install: by byte count
   };
 
   // ---------- browse ----------
@@ -387,26 +391,42 @@
       '<button class="cat" data-cat="' + esc(c) + '" aria-pressed="' + (c === activeCat) + '">' + esc(c) + '</button>').join('');
   }
 
+  // ONE action per card, labelled by the player's state with this app:
+  // Install (not here yet), Update (here, catalog moved on), Open (here
+  // and current). Open is a plain link to the running app; Install and
+  // Update run the SAME install() the detail page uses, reporting into
+  // the card. No detail visit needed, and — the cover rule — still no
+  // GIF on the wire until the button is pressed: the click fetches the
+  // app.json record (a few KB) and only install() fetches the GIF.
+  function cardAct(a) {
+    const installed = installedOf(a);
+    return tooOld(a)
+      ? '<button class="btn ghost act" disabled>Needs a newer GifOS</button>'
+      : installed
+        ? (outdated(a)
+            ? '<button class="btn act" data-act="update">Update</button>'
+            : '<a class="btn act" data-act="open" href="' + BASE + 'run.html#id=' + encodeURIComponent(installed.id) + ns('&db=') + '">Open</a>')
+        : '<button class="btn act" data-act="install">Install</button>';
+  }
+  // The card says "needs a newer GifOS" INSTEAD of the size, because the size
+  // is an invitation and this app is not yet installable here. Learning it on
+  // the detail page only would mean finding out one press before Install,
+  // already sold on it.
+  function cardState(a) {
+    const installed = installedOf(a);
+    return tooOld(a)
+      ? '<span class="needs">Needs a newer GifOS</span>'
+      : installed
+        ? (outdated(a) ? '<span class="installed">↑ Update available</span>' : '<span class="installed">✓ Installed</span>')
+        : '<span>' + esc(human(a.bytes)) + '</span>';
+  }
   function renderGrid() {
     const q = ($('q').value || '').trim().toLowerCase();
     const list = catalog.apps.filter((a) => matches(a, q));
     $('empty').style.display = list.length ? 'none' : '';
     $('grid').innerHTML = list.map((a) => {
       const installed = installedOf(a);
-      // ONE action per card, labelled by the player's state with this app:
-      // Install (not here yet), Update (here, catalog moved on), Open (here
-      // and current). Open is a plain link to the running app; Install and
-      // Update run the SAME install() the detail page uses, reporting into
-      // the card. No detail visit needed, and — the cover rule — still no
-      // GIF on the wire until the button is pressed: the click fetches the
-      // app.json record (a few KB) and only install() fetches the GIF.
-      const act = tooOld(a)
-        ? '<button class="btn ghost act" disabled>Needs a newer GifOS</button>'
-        : installed
-          ? (outdated(a)
-              ? '<button class="btn act" data-act="update">Update</button>'
-              : '<a class="btn act" data-act="open" href="' + BASE + 'run.html#id=' + encodeURIComponent(installed.id) + ns('&db=') + '">Open</a>')
-          : '<button class="btn act" data-act="install">Install</button>';
+      const act = cardAct(a);
       // The card is a DIV, not a <button>: a button may not contain the action
       // button (interactive content inside interactive content), and browsers
       // flatten that in ways that swallow the inner click.
@@ -425,11 +445,7 @@
             // the size is an invitation and this app is not yet installable
             // here. Learning it on the detail page only would mean finding out
             // one press before Install, already sold on it.
-            (tooOld(a)
-              ? '<span class="needs">Needs a newer GifOS</span>'
-              : installed
-                ? (outdated(a) ? '<span class="installed">↑ Update available</span>' : '<span class="installed">✓ Installed</span>')
-                : '<span>' + esc(human(a.bytes)) + '</span>') +
+            cardState(a) +
             (revOf(a.slug)
               ? '<span class="stars" title="' + revOf(a.slug).count + ' review(s), by pull request">★ ' +
                 revOf(a.slug).stars + ' (' + revOf(a.slug).count + ')</span>'
@@ -952,7 +968,7 @@
       const rr = await fetch('/apps/reviews.json', { cache: 'no-cache' });
       if (rr.ok) reviews = await rr.json();
     } catch (e) { /* no stars painted, nothing else changes */ }
-    await refreshInstalled();
+    await refreshInstalled();      // the file INDEX only — no bytes, ever, to draw a card
     paintPayBar();
     renderCats();
     // Say it once at the top too, so nobody browses the whole catalog before

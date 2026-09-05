@@ -156,9 +156,35 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   // Wait for the CLAIM (every cover decoded), not a deadline: 600ms stood in
   // for it and missed one screenful once the cards grew an action row.
+  // AND BRING EVERY LAZY COVER INTO VIEW YOURSELF. loading="lazy" asks for
+  // an image when it nears the viewport; a 300 px-per-30 ms programmatic
+  // scroll can pass a screenful before the intersection callback runs, and
+  // an image scrolled past unasked is never asked (measured 2026-09-04: the
+  // same sixteen cards, 168-183, incomplete in a run where the store painted
+  // faster than before). The claim is "every card shows its cover" — so
+  // scroll each incomplete cover into view and let it load, then judge.
+  await page.evaluate(async () => {
+    const t0 = Date.now();
+    for (const e of document.querySelectorAll('.card .shot')) {
+      if (e.complete && e.naturalWidth > 0) continue;
+      e.scrollIntoView({ block: 'center' });
+      for (let i = 0; i < 10 && !(e.complete && e.naturalWidth > 0) && Date.now() - t0 < 60000; i++) await new Promise((r) => setTimeout(r, 50));
+      // Still not asked for, or asked and failed: the lazy heuristic is
+      // Chromium's and a dropped connection is the box's; the claim is ours.
+      // Ask eagerly, once more, and wait for THIS image.
+      if (!(e.complete && e.naturalWidth > 0)) {
+        e.loading = 'eager'; const src = e.getAttribute('src'); e.removeAttribute('src'); e.setAttribute('src', src);
+        for (let i = 0; i < 60 && !(e.complete && e.naturalWidth > 0) && Date.now() - t0 < 60000; i++) await new Promise((r) => setTimeout(r, 50));
+      }
+    }
+    window.scrollTo(0, 0);
+  });
   await page.waitForFunction(() => Array.from(document.querySelectorAll('.card .shot')).every((e) => e.complete), null, { timeout: 30000 }).catch(() => {});
-  const covers = await page.$$eval('.card .shot', (els) => els.map((e) => ({ src: e.getAttribute('src'), loaded: e.complete && e.naturalWidth > 0 })));
-  check('every card shows its cover image', covers.length === cards && covers.every((c) => c.loaded), JSON.stringify(covers.map((c) => c.loaded)));
+  const covers = await page.$$eval('.card .shot', (els) => els.map((e) => ({ src: e.getAttribute('src'), loaded: e.complete && e.naturalWidth > 0, complete: e.complete, w: e.naturalWidth })));
+  // Say WHICH covers and in what state — "never asked" (complete false) and
+  // "asked and broken" (complete, width 0) are different bugs.
+  check('every card shows its cover image', covers.length === cards && covers.every((c) => c.loaded),
+    covers.length + ' covers; not shown: ' + JSON.stringify(covers.filter((c) => !c.loaded).map((c) => (c.src || '').replace(/^\/apps\//, '') + (c.complete ? ' broken' : ' never-loaded'))));
   check('every card image is a cover.jpg', covers.every((c) => /\.jpe?g$/i.test(c.src || '')));
   check('BROWSING THE WHOLE STORE FETCHES ZERO APP GIFS', gifHits.length === 0, gifHits.join(', '));
   check('with no payment link the store does not show a tip CTA',
