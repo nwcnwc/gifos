@@ -4139,6 +4139,15 @@
       // canonical echo reflects it (or ~4 tries — then the next snap honestly
       // reverts the optimistic apply). Puts/deletes are idempotent, so a
       // false-negative echo check only costs a harmless duplicate.
+      // …AND THE TRIES ONLY COUNT ONCE THE OWNER HAS BEEN HEARD (2026-09-05,
+      // found by Same Brain's third chip never appearing on a loaded gate
+      // box): an app writes its player row the moment it boots, and its
+      // mesh seat and data channel to the owner can take longer than four
+      // tries to come up. Four sends into the dark gave up in ~15 s and the
+      // row was gone for good — the app never re-sends it. A try is a send
+      // the owner could have answered: before the first owner-signed frame
+      // arrives, a pending act is re-sent every 3 s and its tries stay at 0.
+      let ownerHeard = false;
       const pendingActs = new Map(); // col\x00id -> { d, at, tries }
       const actKey = (c, id) => c + '\x00' + id;
       const echoSatisfied = (p) => {
@@ -4154,7 +4163,7 @@
         for (const [k, p] of pendingActs) {
           if (echoSatisfied(p)) { pendingActs.delete(k); continue; }
           if (now - p.at < 3000) continue;
-          if (++p.tries > 4) { pendingActs.delete(k); continue; }
+          if (ownerHeard && ++p.tries > 4) { pendingActs.delete(k); continue; }
           p.at = now;
           try { send('act', p.d); } catch (e) {}
         }
@@ -4308,6 +4317,7 @@
         if (m.kind === 'pool') { poolOnFrame(m.d); return; }
         Promise.resolve(ver.verify(m.d)).then((r) => {
           if (!r.ok) { try { console.error('[bootClientBus] frame REJECTED kind=' + (m.kind || '?') + ' reason=' + (r && r.reason || '?')); } catch (e2) {} return; } // unsigned / impostor / tampered — NEVER canonical
+          ownerHeard = true; // a verified owner frame: from here on, a try is a real try
           takeLead(r.body); // the signed lead fence rides every canonical frame
           if (r.kind === 'app') return mountFromB64(r.body && r.body.app, r.body && r.body.name);
           if (r.kind === 'snap') return onSnap(r.body);
