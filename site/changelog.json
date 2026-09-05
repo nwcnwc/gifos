@@ -2,6 +2,21 @@
  "note": "Release notes shown in Settings → Advanced → Version. Newest first. SHORT, PLAIN bullets under \"features\" and \"fixes\" — a line or two each, no jargon, no filler; anyone who wants the long story can read the repo. Every release needs at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so the desktop calls it out.",
  "entries": [
   {
+   "version": "0.9.15",
+   "date": "2026-09-04",
+   "headline": "The Stage no longer freezes on a struggling computer, and the App Store opens at once",
+   "features": [
+    "The App Store opens as fast as its catalog loads: it no longer reads every installed app off the disk (and hashes it) before drawing the first card. Which apps are yours, and which have an update, is read from the file index."
+   ],
+   "fixes": [
+    "Meetings: when the person on Stage is on an overloaded computer their picture could freeze for everyone for 15–20 seconds at a time. Their encoder now sends a smaller picture while it is struggling instead of turning every frame into an expensive keyframe, and the keyframe nudge no longer flips the picture between sizes. Measured across four machines with the Stage computer deliberately overloaded: two freezes in six runs before, none in six after.",
+    "A pinned build that has been retired bounces you to the current one once and says so — unchanged, and exercised now that releases 0.9.0–0.9.11 are retired."
+   ],
+   "notes": [
+    "Releases 0.9.0 through 0.9.11 are retired; the three most recent releases stay available to pin. Your files, apps and settings are untouched by any of this."
+   ]
+  },
+  {
    "version": "0.9.14",
    "date": "2026-09-02",
    "critical": true,
