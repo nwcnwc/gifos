@@ -4,37 +4,13 @@
   "versions": [
     "0.9.14",
     "0.9.13",
-    "0.9.12",
-    "0.9.11",
-    "0.9.10",
-    "0.9.9",
-    "0.9.8",
-    "0.9.7",
-    "0.9.6",
-    "0.9.5",
-    "0.9.4",
-    "0.9.3",
-    "0.9.2",
-    "0.9.1",
-    "0.9.0"
+    "0.9.12"
   ],
   "builds": {
-    "0.9.0": 996,
-    "0.9.1": 1003,
-    "0.9.2": 1039,
-    "0.9.3": 1052,
-    "0.9.4": 1062,
-    "0.9.5": 1095,
-    "0.9.6": 1206,
-    "0.9.7": 1249,
-    "0.9.8": 1283,
-    "0.9.9": 1365,
-    "0.9.10": 1408,
-    "0.9.11": 1576,
-    "0.9.12": 1669,
+    "0.9.14": 2256,
     "0.9.13": 1814,
-    "0.9.14": 2256
+    "0.9.12": 1669
   },
-  "minData": "0.9.0",
+  "minData": "0.9.12",
   "note": "Data migrations are additive-only and the App-GIF window.gifos API is a stable, add-only contract, so any archived build under /versions/ can safely read the current desktop. 'current' is the live release — an immutable snapshot under /versions/. The site root (/) is the unreleased edge build, ahead of the release; 'edgeBuild' is its latest build number (baked at deploy by pages.yml). Edge builds are not archived — you can only move to the newest. 'builds' maps each release to the edge build number it was cut from (releases before build numbering are absent)."
 }

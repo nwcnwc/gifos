@@ -280,7 +280,9 @@ the desktop then says, once, which build was retired and which one it now
 runs (`desktop.js noteRetiredBuild`). Without that branch the visitor looped
 forever (`/` → loader → `/versions/<v>/` → `404.html` → `/` → …) — a JS
 redirect loop never trips the browser's limit. The 0.8.x line was retired
-2026-08-25; the floor is 0.9.0.
+2026-08-25; 0.9.0-0.9.11 on 2026-09-04 (every snapshot is ~16 MB of a checkout
+and a Pages deploy, and the last three shipped releases are what a pin needs);
+the floor is 0.9.12.
 
 ## How this de-risks the mesh rip-and-replace
 
