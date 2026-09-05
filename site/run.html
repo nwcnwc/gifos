@@ -8670,10 +8670,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               // the jiggle is relative now.
               const enc0 = prm.encodings[0];
               const sr = enc0.scaleResolutionDownBy || 1;
-              if (fps != null && fps < 5 && fw > 240 && sr < 2) {
+              // NOT FOR A SCREEN. A shared screen's frame rate is the content's,
+              // not the encoder's — a still desktop encodes a frame a second
+              // and that is health, not starvation — and its pixels are the
+              // whole point (40668d49: a shared screen keeps its pixels). The
+              // first cut of the step-down halved a share to 640x360
+              // (e2e-screen-share, 0.9.15 gate). The step-down is for a camera
+              // on the Stage; a screen keeps its size whatever its rate.
+              const sharingScreen = !!(myStatus.scr && screenStream && screenStream.getVideoTracks()[0]);
+              if (!sharingScreen && fps != null && fps < 5 && fw > 240 && sr < 2) {
                 enc0.scaleResolutionDownBy = 2; kfEv(key2, 'shrink', { fps, fw }); sd.setParameters(prm).catch(() => {}); return;
               }
-              if (fps != null && fps > 12 && sr >= 2) {
+              if (!sharingScreen && fps != null && fps > 12 && sr >= 2) {
                 enc0.scaleResolutionDownBy = 1; kfEv(key2, 'unshrink', { fps }); sd.setParameters(prm).catch(() => {}); return;
               }
               const sr0 = sr;
