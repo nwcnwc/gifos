@@ -65,14 +65,15 @@ check('buildJoinUrl mints run.html hash links, never the dead name',
 // ---- 6. frozen snapshots are untouched (their meet.html is THEIRS) ---------
 const vdir = path.join(SITE, 'versions');
 const snaps = fs.existsSync(vdir) ? fs.readdirSync(vdir).filter((v) => fs.statSync(path.join(vdir, v)).isDirectory()) : [];
-// A pre-flag-day snapshot is one whose OWN pages still address meet.html —
-// measured from the snapshot, not assumed from its number. Each of those must
-// still carry the file. With 0.9.0-0.9.11 retired (2026-09-04) that set can be
-// empty; an empty set is a measured fact, printed, not a vacuous pass.
-const mentionsMeet = (v) => ['index.html', 'boot.html', 'run.html'].some((f) => {
-  const p = path.join(vdir, v, f); return fs.existsSync(p) && /\bmeet\.html\b/.test(fs.readFileSync(p, 'utf8'));
-});
-const preFlag = snaps.filter(mentionsMeet);
+// A pre-flag-day snapshot is one cut before the shim went away: 0.9.0-0.9.2
+// shipped a meet.html (git ls-tree v0.9.14 — the last tree that held every
+// snapshot — lists exactly those three), and every later cut addresses the
+// name only to bounce it. Each snapshot below 0.9.3 that still exists must
+// still carry the file. With 0.9.0-0.9.11 retired (2026-09-04) that set is
+// empty; the counts are printed so an empty set reads as a measured fact.
+const FIRST_WITHOUT_MEET = [0, 9, 3];
+const below = (v) => { const a = v.split('.').map(Number); for (let i = 0; i < 3; i++) { if (a[i] < FIRST_WITHOUT_MEET[i]) return true; if (a[i] > FIRST_WITHOUT_MEET[i]) return false; } return false; };
+const preFlag = snaps.filter(below);
 const withMeet = preFlag.filter((v) => fs.existsSync(path.join(vdir, v, 'meet.html')));
 check('pre-flag-day snapshots still ship their own meet.html untouched (frozen means frozen)',
   withMeet.length === preFlag.length,
