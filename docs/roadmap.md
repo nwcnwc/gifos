@@ -3380,7 +3380,8 @@ admin's, the banlist still comes back the moment the admin's browser does.
    pays for `periods` of seal on `H(name)` (below) and presents
    `{ v: V, sig, pub }` — the same `admProven` proof as any door verb, so the
    relay learns `V` only from a signature that `V` itself commits to. Wrong key,
-   no seal.
+   no seal. **Every seal is the close of an auction (§24a)** — a name nobody
+   contests is simply a ten-minute auction with one bidder.
 2. **Resolve.** `verifierOf(sid)` gains one fallback: a dotless session id
    consults the seal registry, and if `H(name)` has an unexpired seal, the
    session behaves exactly as if `.<V>` had been on the URL — admin door rules,
@@ -3478,3 +3479,115 @@ admin's, the banlist still comes back the moment the admin's browser does.
 - **Discovery is NOT this feature.** A sealed name is findable only if you know
   it. A directory of sealed rooms is a separate product with its own privacy
   argument and should not be smuggled in here.
+
+### 24a. Buying the admin role in a live room: the ten-minute auction
+
+**What.** Anyone in an open room — a room with no admin — can offer to become
+its admin: **"Buy the admin role for $X."** The offer starts a **ten-minute
+countdown** that everyone in the room can see, and during it **anyone present
+can outbid**. When the clock runs out the highest bidder pays, their key is
+sealed to the name (§24), and the room becomes theirs. Nobody pays unless they
+win. A name with nobody else in the room is the degenerate case: one bid, ten
+quiet minutes, a seal — so §24's "seal" step is not a separate flow, it is this
+auction uncontested.
+
+**Why it fits.** The seal turns "/meet/<room> can NEVER have an admin" into "it
+can, for money," and a silent purchase would let one member change the
+constitution of a room the others are sitting in. The auction is the honest
+version of that moment: the change is **announced to the room before it
+happens**, everyone present gets the same ten minutes to **outbid or leave**,
+and the price is **discovered** by the people who actually value the name
+rather than set by us. It is also the only seal path that needs no accounts:
+a bid is a signed payment authorization, exactly the primitive the pay rails
+already speak.
+
+**Mechanism.**
+1. **A bid is an authorization, not a payment.** On the chain rail a bid is an
+   EIP-3009 `TransferWithAuthorization` for $X to the treasury with
+   `validBefore` = auction close + a short tail (`docs/payments.md`, the
+   broker's typed data); on the PayPal rail it is an authorization hold. The
+   relay (or the auction Worker) runs the facilitator's **verify** step at bid
+   time — funds exist, signature good — and **settles only the winner**. A
+   losing authorization simply expires; nothing to refund because nothing
+   moved. Bid-and-don't-pay is therefore impossible by construction, not by
+   policy.
+2. **The bid carries the key it is buying for.** `{ bid, auth, v: V, sig, pub }`
+   — the bidder proves the admin keypair they will be sealed under with the
+   same `admProven` shape as every door verb. Wallet identity and admin
+   identity are bound at bid time; no "who won?" ambiguity at close.
+3. **The countdown is room-wide and relay-anchored.** The bid gossips through
+   the room (a signed message on the status/gossip lane, like a hand raise)
+   so every seated phone shows the banner and the clock — and the relay
+   answers every knock during the window with **"auction in progress: high
+   bid, close time"** so a newcomer sees it before their first frame, not after.
+   The relay's clock is the clock: gossip can lag, the close cannot.
+4. **Outbid resets the clock — soft close.** A higher bid in the last N minutes
+   extends the close to N minutes from that bid (N = 10 by default, or a
+   shorter extension such as 2 — decide). Sniping at 9:59 buys nothing but a
+   fresh clock; the auction ends when nobody has raised for a full window.
+5. **Who may bid: presence, as the relay can see it.** The relay hears only
+   from joiners and greeters (deep seats run socketless — healing-laws R2), so
+   "anyone in the room" must be something the relay can verify without a
+   roster. Candidates: (a) anyone who **knocked** this session within the
+   window — cheap, and joining to bid is fine; (b) a bid carries a **fresh
+   greeter-signed admission** (the §4c seat assertion shape) proving a live
+   seat; (c) no presence test at all — anyone holding the link may bid. (a) is
+   the recommendation: it matches the sentence "anybody in the room," costs
+   the relay nothing, and a knock is the one act the relay already sees.
+6. **Close.** At the deadline the relay (or Worker) settles the winning
+   authorization, writes the seal `H(name) → V, paidUntil`, and the room flips
+   to sealed exactly as §24 step 2 — the winner's stored banlist and password
+   epoch apply from their next order onward. Members present see **"This room
+   is now sealed — run by its admin"**; nobody is evicted by the seal itself.
+7. **Floor and increments.** The floor is the plain seal price; a raise must
+   exceed the high bid by a minimum step (say 10% or $1, whichever is larger)
+   so two people cannot grind the clock forever a cent at a time.
+
+**What this buys us.**
+- **Consent made visible.** No member wakes up administered; the ten minutes
+  ARE the notice, and leaving is always free.
+- **Price discovery for names.** A name three groups want fetches what it is
+  worth; a name nobody wants costs the floor. We never have to guess which
+  names are "premium."
+- **A single seal path.** One auction flow covers empty names, contested names
+  and lapsed names; there is no separate "buy now" to keep consistent.
+
+**Consequences / hard edges.**
+- **The relay now keeps auction state for ten minutes.** High bid,
+  authorization, `V`, close time — per name, in the same Durable Object as the
+  session, gone at close. Short-lived, unreadable-content-free, but state:
+  fold it into the §24 promise amendment ("never anything it can read").
+- **Incumbents are never auctioned.** A sealed name renews by its admin's
+  right (§24 step 4); only open and lapsed names go under the hammer. A lapsed
+  name's former admin has the grace period, not a veto.
+- **An auction in a busy open room is a distraction by design.** The banner is
+  loud on purpose; cap it to one live auction per name, and rate-limit
+  repeated failed auctions on the same name (a bidder whose authorization
+  fails verify simply is not bidding).
+- **Collusion and shills are the registrar's problem, not the room's.** Two
+  wallets bidding each other up only cost themselves money; a shill bidding
+  against a stranger to inflate the price is the classic auction abuse and the
+  ten-minute soft close plus a public high bid is the standard, imperfect
+  answer. Say so; do not pretend it is solved.
+- **Chain-read and settle latency at close.** The winner's settle can take
+  seconds to a minute; the room flips to sealed on **successful settle**, not
+  on the deadline. A failed settle (funds gone since verify) falls through to
+  the next-highest valid authorization still inside its `validBefore` — which
+  is why bids carry a tail beyond close.
+
+**Open questions.**
+- **Window and extension** — ten minutes flat, or ten to open and two to
+  extend? A very short room (a one-off game night) may want a shorter window;
+  a church with a keeper running does not care.
+- **Presence rule** (5 above) — knock-in-window is the recommendation; decide
+  whether a socketless seat that has been present for an hour but did not
+  knock in the window should be able to bid without rejoining (it can always
+  rejoin).
+- **Does the room's app host or greeter get any say?** Proposed: no — the
+  open room's founding was arrival order, and the auction gives every member
+  the same lever. A "founder's veto" recreates the admin we said the room does
+  not have.
+- **Proceeds.** 100% treasury as in §24, or a slice to the room's current
+  members as a reason to be present? Probably not — it invites shilling with
+  our own money — but it is the obvious question and should be answered in
+  the doc, not in a support thread.
