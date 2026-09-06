@@ -850,7 +850,11 @@ Roughly three families in one directory:
   runtime — `e2e-app-frame-escape` already boots this GIF for real).
 - **meeting** — `e2e-meet-lobby`, `e2e-meet-invite`, `e2e-meet-prettyurl`,
   `e2e-meet-quiet`, `e2e-meet-record-app`, `e2e-meet-mod` (blur/mute/undo,
-  stage, vote, admin rooms — 48 checks), `e2e-meet-password`, `e2e-video`,
+  stage, vote, admin rooms — 48 checks), `e2e-meet-backup` (the durable
+  mirror: an admin's banlist lands in a `meet::<room>.<V>` IndexedDB record —
+  what a computer backup packs — holds no secret, a guest writes none, and a
+  fresh device holding only the record hydrates its banlist before the
+  knock — 13 checks), `e2e-meet-password`, `e2e-video`,
   `e2e-sing`, `e2e-mosaic`, `e2e-media-recovery`, `e2e-handq`,
   `e2e-pipe` (the encoded-passthrough lane's DETERMINISTIC half: the module
   chain, and the one-tap fan-out that guards the detached-buffer bug — one box,

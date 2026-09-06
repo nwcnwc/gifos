@@ -5594,6 +5594,69 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const roomKey = () => room + (av ? '.' + av : ''); // storage + session identity
     const admStoreKey = () => 'gifos_vadm_' + roomKey();
     const banStoreKey = () => 'gifos_vban_' + roomKey();
+    // ---- THE DURABLE MIRROR: a room's non-secret admin state rides the computer.
+    // localStorage is the hot path (every reader below is synchronous) but it
+    // is DEVICE state: the whole-computer backup GIF packs IndexedDB and
+    // nothing else (desktop.js backupDesktopInner), so a banlist kept only
+    // here dies with the browser's site data and a restored computer arrives
+    // with an empty room. A room's banlist, banned names and password
+    // GENERATION are COMPUTER state (docs/roadmap.md §24b): every write below
+    // mirrors into one GifOS.store state record per administered room,
+    // 'meet::<room>.<V>', and hydrateRoomState() reads it back BEFORE the
+    // knock so the re-seed after an eviction (roster handler) sees it. Only
+    // this device's own writes flow out (the record is stamped; the newer
+    // side wins, generations only ever rise), and only while this device
+    // holds the room's admin key — a guest's copy of a room's epoch is not
+    // this computer's to keep. SECRETS STAY OUT: the admin key and the guest
+    // password never enter the record. An unlocked computer image is a
+    // shareable file, and whoever held it would hold the room (§8's computer
+    // half is the honest fix; until then the admin retypes the password once).
+    const MEET_STATE_PREFIX = 'meet::';
+    const MIRROR_AT_PFX = 'gifos_vmirror_';
+    let mirrorQ = Promise.resolve(); // one writer at a time — bans and epochs land together
+    function mirrorRoomState(patch, base) {
+      const st = window.GifOS && GifOS.store;
+      if (!st || !patch) return Promise.resolve();
+      if (!base) { if (!admKey || !room || !av) return Promise.resolve(); base = roomKey(); }
+      const key = MEET_STATE_PREFIX + base, dot = base.lastIndexOf('.');
+      mirrorQ = mirrorQ
+        .then(() => st.getState(key).catch(() => null))
+        .then((cur) => {
+          const at = Date.now();
+          const next = Object.assign({ v: 1, room: dot > 0 ? base.slice(0, dot) : base, av: dot > 0 ? base.slice(dot + 1) : '' },
+            (cur && !cur.collections) ? cur : {}, patch, { v: 1, updatedAt: at });
+          delete next.collections; // never the per-record app shape
+          return st.setState(key, next).then(() => { try { localStorage.setItem(MIRROR_AT_PFX + base, String(at)); } catch (e) {} });
+        })
+        .catch(() => {});
+      return mirrorQ;
+    }
+    // Before the knock: if this computer carries a record for the room that is
+    // NEWER than what this browser last mirrored (a restored image on a fresh
+    // device; a second browser on the same computer), adopt it. The epoch is
+    // the exception — it is a max, never an adoption (§LOCK generations are
+    // monotonic for the room's whole life). Bounded: the knock waits for
+    // nobody, so a wedged IndexedDB costs 1.5s and nothing else.
+    function hydrateRoomState(r, a) {
+      const st = window.GifOS && GifOS.store;
+      a = /^[a-f0-9]{16,64}$/.test(String(a || '')) ? String(a).toLowerCase() : '';
+      if (!st || !r || !a) return Promise.resolve(false); // only admin rooms carry admin state
+      const base = r + '.' + a;
+      const read = st.getState(MEET_STATE_PREFIX + base).then((rec) => {
+        if (!rec || rec.v !== 1 || rec.collections) return false;
+        let localAt = 0; try { localAt = parseInt(localStorage.getItem(MIRROR_AT_PFX + base), 10) || 0; } catch (e) {}
+        const newer = (rec.updatedAt || 0) > localAt;
+        try {
+          if (newer && Array.isArray(rec.bans)) localStorage.setItem('gifos_vban_' + base, JSON.stringify(rec.bans.slice(0, 100)));
+          if (newer && rec.banNames && typeof rec.banNames === 'object') localStorage.setItem('gifos_vbannames_' + base, JSON.stringify(rec.banNames));
+          const localEp = parseInt(localStorage.getItem('gifos_vpwep_' + base), 10) || 0;
+          if (typeof rec.pwEp === 'number' && rec.pwEp > localEp) localStorage.setItem('gifos_vpwep_' + base, String(rec.pwEp));
+          if (newer) localStorage.setItem(MIRROR_AT_PFX + base, String(rec.updatedAt || 0));
+        } catch (e) {}
+        return newer;
+      });
+      return Promise.race([read, new Promise((res) => setTimeout(() => res(false), 1500))]).catch(() => false);
+    }
     // Admin rooms only: the admin carries the ban list in their own storage
     // and re-seeds an emptied room from it (the relay stores nothing).
     function loadBans() { try { return JSON.parse(localStorage.getItem(banStoreKey()) || '[]') || []; } catch (e) { return []; } }
@@ -5607,6 +5670,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const m = banNames(); m[dev] = String(name).slice(0, 40);
       const keys = Object.keys(m); if (keys.length > 100) delete m[keys[0]];
       try { localStorage.setItem(banNamesKey(), JSON.stringify(m)); } catch (e) {}
+      mirrorRoomState({ banNames: m });
     }
     function nameForDev(dev) {
       for (const pid of Object.keys(devOf)) if (devOf[pid] === dev) return (peers.get(pid) || {}).name || rosterNames[pid] || '';
@@ -5615,7 +5679,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // The `by` on a relay-authored ban/unban/pw frame is the signed order's
     // author — a PEER ID — or the vote marker; a name is looked up here.
     function nameForPeer(pid) { return pid === 'the room (vote)' ? pid : ((peers.get(pid) || {}).name || rosterNames[pid] || ''); }
-    function saveBans(list) { try { localStorage.setItem(banStoreKey(), JSON.stringify(list.slice(0, 100))); } catch (e) {} }
+    function saveBans(list) {
+      try { localStorage.setItem(banStoreKey(), JSON.stringify(list.slice(0, 100))); } catch (e) {}
+      mirrorRoomState({ bans: list.slice(0, 100) });
+    }
     function loadAdm() {
       try { admKey = localStorage.getItem(admStoreKey()); } catch (e) { admKey = null; }
     }
@@ -5655,7 +5722,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // generations are monotonic for the room's whole life, or clearing
     // would re-arm every grant that preceded it.
     const pwEpochKey = () => 'gifos_vpwep_' + roomKey();
-    function storePwEpoch(ep) { pwEpoch = ep; try { myStatus.pwEp = ep; } catch (e) {} try { localStorage.setItem(pwEpochKey(), String(ep)); } catch (e) {} }
+    function storePwEpoch(ep) { pwEpoch = ep; try { myStatus.pwEp = ep; } catch (e) {} try { localStorage.setItem(pwEpochKey(), String(ep)); } catch (e) {} mirrorRoomState({ pwEp: ep }); }
     // §LOCK EXPIRY (2026-08-06). The password store is a LAST-USED cache, not a
     // permanent property of a room name. Its clock lives beside it (same idiom
     // as the epoch above) and is refreshed every time the password is actually
@@ -6772,6 +6839,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // is local, instant, and needs no relay round-trip.
       if (!(await adoptAdmKey(K))) { setStatus('🛡 Wrong admin password.'); return; }
       try { localStorage.setItem(admStoreKey(), admKey); } catch (e) {}
+      mirrorRoomState({ admin: true });
       admModal.style.display = 'none';
       setStatus('🛡 You are signed in as admin.');
       applyAdminUi();
@@ -7157,6 +7225,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const K = await deriveAdminKey(chosen, pass);
           const V = (await net.edKeysFromSeedHex(K)).verifier; // V commits to the PUBLIC key (§9)
           try { localStorage.setItem('gifos_vadm_' + chosen + '.' + V, K); } catch (e) {}
+          mirrorRoomState({ admin: true }, chosen + '.' + V);
           // The GUEST password (optional): pre-seed the room-password store —
           // exactly what the Password button writes — and the admin's normal
           // §LOCK re-assert locks the door + seals the key the moment they
@@ -7240,6 +7309,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // transceiver path lateMedia uses for a camera granted mid-call.
     function bootIntoRoom() {
       return ensureName()
+        // The computer's record of this room (banlist, names, generation) lands
+        // in localStorage before joinRoom() reads it — bounded, never blocking.
+        .then(() => hydrateRoomState(params.get('v'), params.get('av')))
         .then(() => {
           meTile = makeTile('me', myName() + ' (you)', true);
           updateTile('me');
@@ -12250,6 +12322,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const K = await deriveAdminKey(chosen, pass);
       const V = (await net.edKeysFromSeedHex(K)).verifier; // V commits to the PUBLIC key K seeds (§9) — 96-bit, short link, preimage-safe
       try { localStorage.setItem('gifos_vadm_' + chosen + '.' + V, K); } catch (e) {}
+      mirrorRoomState({ admin: true }, chosen + '.' + V);
       // Optional GUEST password: pre-seed the room-password store (what the
       // Password button writes) — the §LOCK re-assert locks the new room the
       // moment its admin arrives. Session state, never part of the link.

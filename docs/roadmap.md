@@ -3594,6 +3594,15 @@ already speak.
 
 ### 24b. The backup carries your rooms — REQUIRED before a seal is sold
 
+*(Step 1 SHIPPED 2026-09-06: `run.html`'s durable mirror — `saveBans`,
+`rememberBanName` and `storePwEpoch` write through to one `GifOS.store` state
+record per administered room, `meet::<room>.<V>`, gated on this device holding
+the room's admin key; `hydrateRoomState()` adopts a newer record into
+localStorage before the knock, epoch as a max; the admin key and guest
+password stay out. Gate: `test/browser/e2e-meet-backup.js`. Still open: the
+locked-backup tier for secrets (step 2), the epoch floor in the seal registry
+(step 3), the keeper (step 4), "Rooms I run" (step 5).)*
+
 **What.** Backing up the computer (GifOS menu → Backup, the whole-desktop GIF
 — the Meeting icon on the Home Screen is a stub that opens `run.html`, so "the
 meet GIF" in practice IS the computer image) must carry **the complete state
