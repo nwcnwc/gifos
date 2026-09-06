@@ -3692,3 +3692,146 @@ receipt present, the room listed in the lobby.
   device id for a room's banlist) — same mechanism, lower priority, and the
   device id is the one thing that must NOT travel between two computers that
   are both live, or one ban hits both.
+
+## 25. Browser storage tiers: decide the rule, then enshrine it (DECISION PENDING)
+
+**Status.** Opened 2026-09-06 after §24b found every piece of meeting admin
+state in the wrong tier. The durable mirror (§24b step 1) fixed that one case.
+This item is the RULE — what goes where in the browser and why — and it is
+deliberately NOT yet in `CLAUDE.md`, `docs/architecture.md` or the threat
+model. Sort it out here first; enshrine it once (Nathan's call).
+
+**What.** GifOS keeps a whole computer inside a browser, and a browser offers
+half a dozen places to keep state. Today the choice between them is by habit,
+and the one rule we have ("localStorage stays home, IndexedDB travels") was
+never decided — it was noticed. Decide the tiers, write down every other
+mechanism a browser can hold state in and where each stands, and pick the
+enforcement that keeps the next feature from landing in the wrong tier.
+
+**How the current rule came to be (so we do not enshrine an accident).**
+The whole-computer backup (`desktop.js` `backupDesktopInner`) packs three
+IndexedDB tables — items, files, states — because that is what the desktop
+is; localStorage was never in scope, so it never traveled. On 2026-08-25 the
+Payments panel wrote that down as policy: the purse lives in localStorage
+*because* the backup packs IndexedDB and nothing else, so a purse can never
+ride a shared GIF. The AI and third-party API keys had been placed the same
+way for the same reason. That reasoning is sound — a backup GIF is a shareable,
+bootable, still-unlockable computer image (§8's computer half is open) — but
+it is a reason for SECRETS to stay out of the backup, not a reason for
+everything in localStorage to. Meeting admin state (banlist, banned names,
+password generation, admin key, guest password, vote-offs, invite history,
+"rooms I run") landed in localStorage because `run.html` kept everything
+there, and only the ban-that-walked-back-in made the tier visible. Note the
+counter-precedent: an app room's invite SECRET already rides the backup in
+IndexedDB state (`<fileId>::room`), so "room secrets never travel" is not the
+current rule either — the current rule is accidental in both directions.
+
+**The proposed rule — tier by what the data IS, not by which API was handy.**
+
+| Tier | Where | In a backup GIF | Survives site-data clear | Examples today |
+|---|---|---|---|---|
+| **Computer** | IndexedDB, via `GifOS.store` only | yes | no (that is what the backup is for) | icons, files, app states, `meet::<room>.<V>` room records, purchase receipts (files) |
+| **Device** | localStorage | never | no | admin keys, guest passwords, purse + pay policy, AI/API keys, device id (`gifos_vdev`), camera facing, mixer faders, version pin/channel, mirror stamps |
+| **Tab** | sessionStorage | never | n/a | the debug-tree flag |
+| **Cache** | Cache API (service worker, asset packs) | never | rebuildable from the network | site versions, sealed packs (`gifos-assets`) |
+
+Corollaries the table implies:
+- **Anything a user would expect to survive "restore my computer" is Computer
+  state.** If it is in localStorage, it is in the wrong tier — §24b is the
+  worked example.
+- **Secrets are Device state until a LOCKED computer image exists (§8), and
+  then travel only inside a locked one.** The admin key, the guest password,
+  the purse, every API key. (Open: see the app-room secret below.)
+- **Device identity never travels.** Two live computers sharing one
+  `gifos_vdev` means one ban hits both and one vote counts twice.
+- **Caches hold only public, rebuildable bytes.** Never user data, never a
+  key — a cache is something we are allowed to lose.
+- **Keys are hex strings in the Device tier, never `CryptoKey` objects in
+  IndexedDB.** IndexedDB will happily store a non-extractable `CryptoKey`; the
+  backup packs JSON (`store.packJSON`) and would drop it silently — the worst
+  failure shape, a backup that restores everything except the thing.
+- **Every write site names its tier in a comment**, the way the mirror and
+  the purse do now.
+
+**Every other place a browser can hold state — and where each stands.**
+- **Cookies.** Unused anywhere (`document.cookie` appears in no file), and
+  that is load-bearing: a cookie rides to `relay.gifos.app` and the proxy
+  Workers on every request, so the relay's zero-knowledge posture
+  (`docs/threat-model.md`) silently depends on no Worker ever sending
+  `Set-Cookie`. Promote from accident to rule: **no cookies, ever, on any
+  GifOS origin or Worker.**
+- **Cache API + service worker** (`sw-register.js`, `gifos-assets.js`). Site
+  versions and sealed asset packs; already excluded from backups on purpose.
+  Fits the Cache tier as-is.
+- **WebAuthn passkeys** (`gifos-lock.js`, PRF). The key lives in the OS
+  authenticator or a synced keychain — outside anything GifOS can back up. A
+  locked GIF opens only where that passkey syncs; §8's computer half inherits
+  this constraint and should say so in its unlock UI.
+- **URLs and history** (`history.replaceState` in the shell, runtime and
+  `run.html`). Room ids, admin verifiers and invite links live in links, and
+  links leak through history sync, referrers and screenshots. Verifiers are
+  public commitments (§SIG), so that is fine; **passwords never in a URL** is
+  already the rule and belongs beside the tier table, not in a security doc
+  nobody reads at write time.
+- **Origins are partitions.** Every subdomain computer (`0.gifos.app` …) is
+  its own storage; the app sandbox is an opaque origin with NO storage except
+  the runtime's `gifos.db()`; and a `run.html` opened inside another app's
+  in-app viewer may get **partitioned** storage — a different `gifos_vdev`,
+  therefore a different ban identity and a different vote. The backup GIF is
+  the only bridge between partitions, which is the point, but the partitioned-
+  embed case should be named in the meeting docs.
+- **BroadcastChannel** (desktop, runtime, lock). Cross-tab sync, ephemeral.
+  No tier; nothing persists.
+- **Eviction is the tier nobody chose.** Safari purges ALL script-writable
+  storage — IndexedDB included — after seven days of Safari use without a
+  visit to the site (ITP), unless the site is installed to the home screen.
+  Chrome and Firefox evict under storage pressure unless persisted, which the
+  desktop already requests (`navigator.storage.persist()`). Private windows
+  drop everything at close. No tier survives this except a backup GIF, so a
+  **"changed since your last backup" nudge** is part of the rule, not a
+  nicety — and the meeting's room records (§24b) are exactly the state whose
+  loss a user would not notice until the next meeting.
+- **Unused and should stay unused:** Push subscriptions (no accounts, no
+  server to push from), OPFS, File System Access handles, IndexedDB from
+  Workers or the service worker, Storage Buckets. Each is a new place for
+  state to hide from the backup.
+
+**Enforcement — the part that keeps this from happening again.** Comments and
+a doc did not stop the banlist landing in the wrong tier; a gate would have.
+Proposed: `test/unit/storage-tiers.js` holds a **registry of every
+localStorage key** (literal keys and prefixes — `gifos_vban_`, `gifos_vadm_`,
+`pay.*`, …) with its tier, its reason and whether it is a secret; the test
+walks `site/js/*.js` and `run.html` for `localStorage.setItem(`/`getItem(`
+and **fails on any key not in the registry**. Same shape as the provenance
+and pin gates: a new key is a one-line registry entry that forces the author
+to say which tier and why. A second, smaller check refuses `CryptoKey`
+values headed for `GifOS.store` (or documents why it cannot be checked
+statically).
+
+**Open questions — decide these, then enshrine.**
+- **Does the admin key ride an UNLOCKED backup?** The app-room precedent says
+  a room secret already does. Recommendation: no — a sealed name (§24) is
+  worth more than an invite link, a plaintext computer image is a shareable
+  file, and §8 is the honest fix. If yes, say why the two secrets differ from
+  the purse and the API keys, which stay out.
+- **The app-room secret in `<fileId>::room`** — move it to the Device tier to
+  match the rule, or accept it as the one documented exception (an app room
+  has no door; the link IS the capability; losing it on restore means a dead
+  invite, not a stolen room)?
+- **Mirror stamps** (`gifos_vmirror_*`) are Device state that exists only to
+  reconcile with Computer state — is a third "reconciliation" sub-tier worth
+  naming, or is "device" enough?
+- **Registry granularity** — one entry per literal key, or per prefix with a
+  reason? Prefixes match how `run.html` scopes per room; literal keys catch
+  typos.
+- **The eviction nudge** — where it lives (system bar? the meeting lobby?),
+  what "changed" means (any Computer-tier write since the last backup
+  timestamp), and whether a sealed-room admin gets a louder one.
+- **Where the rule finally lands** — a "Storage" section in
+  `docs/architecture.md` with the table, a one-paragraph pointer in
+  `CLAUDE.md`, the cookie rule in `docs/threat-model.md`, and the tier named
+  in every write-site comment. Not before the questions above are answered.
+
+Related: §8 (locked computer images — the precondition for secrets ever
+traveling), §24b (the worked example and the first mirror), §22/§23
+(anything an ad or a brand asset may cache is Cache tier, never Computer).
