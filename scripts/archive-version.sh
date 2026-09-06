@@ -119,7 +119,7 @@ cp -r "$SITE/themes" "$DEST/"
 # 1849. ANCHOR_BUILD carries a permanent +210 offset so the published counter
 # never moves backward. Keep this in step with .github/workflows/pages.yml.
 ANCHOR_SHA=ae79e96            # the "release: cut v0.8.4" commit (post-rewrite)
-ANCHOR_BUILD=1035            # 825 the 0.8.4 cut + 210 rewrite offset (see above)
+ANCHOR_BUILD=1220            # 825 the 0.8.4 cut + 210 rewrite offset (see above)
 if ! git -C "$ROOT" cat-file -e "${ANCHOR_SHA}^{commit}" 2>/dev/null; then
   echo "ANCHOR_SHA ${ANCHOR_SHA} is not in this repo — re-anchor archive-version.sh (and pages.yml) to a pushed commit." >&2
   exit 1

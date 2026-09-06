@@ -60,7 +60,7 @@ jobs:
           # +210 offset so the counter never moves BACKWARD past that published
           # 2059. The count itself is unchanged; only the origin of the number is.
           ANCHOR_SHA=ae79e96            # the "release: cut v0.8.4" commit (post-rewrite)
-          ANCHOR_BUILD=1035            # 825 the 0.8.4 cut + 210 rewrite offset (see above)
+          ANCHOR_BUILD=1220            # 825 the 0.8.4 cut + 210 rewrite offset (see above)
           # The anchor MUST exist in CI's checkout. The previous anchor (3d84267)
           # was a dangling object that lived only in one local clone — it resolved
           # on that machine and was absent here, so `rev-list` failed, the old
