@@ -21,6 +21,9 @@ Connectivity without our media servers: P1 friend-relay and better ICE.
 - **§4c** — admin room points at a **customer-chosen** relay (corp brings the pipe).
 - **§5b** — host **rents** a media-assist path via x402 when P2P fails (GifOS or
   partner operates assist; room is labeled; free/open rooms stay STUN-only).
+- **§24** — **sealed rooms**: an admin pays to bind a plain room name to their
+  verifier in the relay (no `V` in the URL); the room's memory stays in the
+  admin's browser, optionally kept alive by their own keeper tab.
 
 ## 2. General x402 support (HTTP-native, account-free payments)
 
@@ -3327,3 +3330,151 @@ the brand mark separate honestly — the copy is no longer "by &lt;brand&gt;".
 - **Kids' brands** bring COPPA-shaped obligations, and the store has no rating
   vocabulary at all yet. §22's untargeted-only rule helps; it is not the whole
   answer.
+
+## 24. Sealed rooms: pay to make a plain room name yours (the relay remembers ONE verifier)
+
+**What.** A third way for a room to have an admin. Today there are two room
+shapes: an **open** room (`/meet/<room>`) that whoever arrives first founds by
+genesis and that can NEVER have an admin, and an **admin** room
+(`/meet/<room>/<V>`) whose verifier `V` — the SHA-256 commitment to the admin's
+Ed25519 public key — rides in the URL as part of the room's identity
+(`docs/meet-security.md` §SIG). A **sealed** room is a plain name whose
+verifier lives in the relay instead of the URL: an admin pays to bind
+`H(name) → V` for a period, and from then on `/meet/<room>` IS an admin room
+under that key. Nothing else changes. The password never leaves the admin's
+device, every privileged order is still individually signed and verified by
+`admProven`, and the relay still holds no content, no key, and no roster — it
+holds thirty-two bytes and an expiry per sealed name.
+
+**Why it fits.** The relay's spine is "derive/verify, don't keep server state"
+(healing-laws R2, §5b-1). A seal is the smallest possible exception and it is
+not really one: the relay keeps a *commitment*, exactly the thing the URL keeps
+today, and it remains a zero-knowledge greeter that cannot read a frame. What
+we sell is the **name** — the one scarce thing in the system, the same thing
+Discord sells as a vanity invite and registrars sell as a domain — not
+storage, not accounts, not the room's history. The room's memory stays where
+it already is: the banlist, banned names and password epoch are per-room
+`localStorage` in the admin's browser (`loadBans`/`storePwEpoch` in
+`site/run.html`), chat and app state ride the gossip backlog of whoever is
+present, and a shared app is host-authoritative (`docs/app-mesh.md`). A sealed
+room adds no place for any of that to live server-side, on purpose.
+
+**The keeper — the admin's own server, not ours.** A "savvy admin" keeps a
+browser tab in the room forever: a headless Chromium on any five-dollar box,
+joined with the admin password, never leaving. This is not a new role in the
+protocol — it is a seat like any other — but an always-present seat naturally
+becomes the room's **Section-1 greeter**, the **friend-relay** (E5) for
+members behind hard NATs, the holder of the **chat backlog** for anti-entropy
+on join, the **host** of the pinned app's database, and a **recorder** if the
+admin wants one. In other words the room gets a server, and it is the
+customer's server — the same posture as §4c's customer-chosen relay, and the
+opposite of the rejected always-on GifOS media relay (§1). The swarm harness
+(`test/swarm/meet.js`, Playwright, `--engine`/`--chrome`) already drives a
+browser into a room and holds it there; a keeper is that script with admin
+credentials and no exit condition. **GifOS ships the keeper script and never
+runs one.** A room with no keeper is still sealed: the name is still the
+admin's, the banlist still comes back the moment the admin's browser does.
+
+**Mechanism.**
+1. **Seal.** The admin, holding the admin password for a plain-named room,
+   pays for `periods` of seal on `H(name)` (below) and presents
+   `{ v: V, sig, pub }` — the same `admProven` proof as any door verb, so the
+   relay learns `V` only from a signature that `V` itself commits to. Wrong key,
+   no seal.
+2. **Resolve.** `verifierOf(sid)` gains one fallback: a dotless session id
+   consults the seal registry, and if `H(name)` has an unexpired seal, the
+   session behaves exactly as if `.<V>` had been on the URL — admin door rules,
+   signed orders, `adm:true` stamping, the lot. One derivation, one code path,
+   one new lookup.
+3. **Lobby honesty.** The lobby and the room header say **Sealed room — run by
+   its admin** before the first frame, the way admin rooms are labeled now.
+   Joining a sealed name is the same structural consent to be administered as
+   joining an admin link. Every unsealed plain name stays an open room with
+   exactly today's promise.
+4. **Expiry.** At `paidUntil` plus a **renewal grace** (domains use 30–90
+   days; pick one and print it), the seal lapses and the name reverts to open —
+   and, like a lapsed domain, anyone can then seal it. Renewal is idempotent:
+   another payment pushes `paidUntil` further, no subscription state machine.
+
+**Where the registry lives — two candidates, decide in design.**
+- **Durable Object storage (simple).** One key per `H(name)`:
+  `{ v, paidUntil }`. Written only on a proven seal, read on a dotless knock,
+  deleted by the alarm on expiry. This is the first data at rest the relay has
+  ever kept, so `README.md`, `docs/threat-model.md` and `docs/meeting.md` ("the
+  relay persists nothing") must be amended to the honest new promise: **the
+  relay never holds anything it can read** — a commitment and a timestamp are
+  all it keeps, and only for names whose admin asked.
+- **On-chain (stateless, preferred if the chain rail ships first).** Register
+  `H(name) → V` with expiry in a tiny contract on Base, the §5b-1 shape
+  (`paidUntil[commit]`), and let the relay be a cached *reader* of that
+  mapping — nothing at rest at all, the seal publicly auditable, the name an
+  asset the admin can transfer or sell. PayPal buyers (the fiat rail,
+  `docs/payments.md`) would need the GifOS treasury to register on their
+  behalf, which reintroduces a DB for exactly those rows; either accept that or
+  make the chain rail the only seal rail.
+
+**What this buys us.**
+- **A permanent home without a server.** A study group, a church, a class gets
+  a name nobody can take, a banlist that survives an empty room, and — if they
+  run a keeper — a room that is simply always there. This is the one thing
+  Discord has that a GifOS room lacked, delivered without GifOS storing a word
+  of anyone's conversation.
+- **A real security fix, free.** Today a banned device waits for the room to
+  empty and walks back in through genesis. With a seal the next founder is
+  bound to the admin key and the admin's stored banlist re-applies.
+- **Revenue that costs nothing to serve.** A seal is bytes; the price is the
+  value of the name. Something near a dollar a month or ten a year undercuts a
+  Discord boost several times over and still funds the project; the keeper is
+  free and is the admin's own electricity.
+
+**Consequences / hard edges to state up front.**
+- **The relay can withhold or forget a seal; it can never forge one.** A seal
+  is only honored when the admin's proof verifies against it, so a corrupted
+  or malicious registry can at worst turn a sealed name back into an open room
+  — never hand it to someone else. The admin's browser keeps its own copy of
+  the seal receipt (a receipt FILE, `docs/payments.md`) to prove and re-assert
+  it.
+- **Reverting to open is a visible event.** A member who arrives at a lapsed
+  name must be told the room is now open and admin-less — never silently
+  seated in a room with a different constitution than the one they left.
+- **Names are a registry, and registries get letters.** Reserve short names,
+  brand names and the obvious profanity; publish a dispute path; expect
+  takedown requests for a name even though the relay holds nothing behind it.
+  This is domain-registrar territory and needs the boring parts written down
+  before the first sale.
+- **The keeper sees everything.** It is a full member holding the room key —
+  the E2E model is unchanged (members were always the trust boundary), but the
+  lobby copy should say that a sealed room may have a permanent member run by
+  its admin, so nobody imagines the room empties when the humans leave.
+- **A keeper is a single point of failure the admin chose.** Its death loses
+  nothing the mesh did not already tolerate losing (history is gossip, the app
+  DB hands off — `docs/app-handoff.md`), but a group that leaned on it for
+  "always there" gets an empty room until it restarts. Ship it with a
+  systemd unit and a health line, not as a bare script.
+- **Squatting at scale is rate-limited by price, not by policy.** If seals are
+  cheap, someone seals a dictionary. Either price short names higher, cap
+  seals per payer identity, or accept it as registrars do.
+
+**Sketch.**
+- Relay: `verifierOf` fallback to a seal lookup; a signed `seal` door verb
+  gated by payment proof; alarm-driven expiry; the three docs amended.
+- Lobby: **Seal this room** in the Invite sheet of an open room the user holds
+  an admin password for (mint the keypair here if they have none — this is the
+  moment a plain room acquires an admin); the **Sealed** badge; the lapse
+  notice.
+- Keeper: `scripts/keeper.js` built from the swarm harness — join, hold, log,
+  restart on drop; documented as "your room's server, on your box".
+- Payments: a seal SKU on both rails, receipt file in Purchases, 100% to
+  treasury (there is no author to pay).
+
+**Open questions.**
+- **Price and periods.** Monthly vs yearly only; premium for short names or
+  none; does a seal include anything else (a rented-assist allowance, §5b-1)
+  or stay pure?
+- **Registry choice** as above — Durable Object now and migrate to chain, or
+  wait for the chain rail and ship stateless from day one.
+- **Transfer.** Can an admin hand a sealed name to a new key without lapsing
+  it? On-chain this is a transfer call; in DO storage it is a signed re-bind.
+- **Discovery is NOT this feature.** A sealed name is findable only if you know
+  it. A directory of sealed rooms is a separate product with its own privacy
+  argument and should not be smuggled in here.
