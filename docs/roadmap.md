@@ -3591,3 +3591,95 @@ already speak.
   members as a reason to be present? Probably not — it invites shilling with
   our own money — but it is the obvious question and should be answered in
   the doc, not in a support thread.
+
+### 24b. The backup carries your rooms — REQUIRED before a seal is sold
+
+**What.** Backing up the computer (GifOS menu → Backup, the whole-desktop GIF
+— the Meeting icon on the Home Screen is a stub that opens `run.html`, so "the
+meet GIF" in practice IS the computer image) must carry **the complete state
+of every room you administer**, and restoring that image on another device
+must make you that room's admin again with nothing lost: banlist, banned
+names, password generation, guest password, the seal receipt, and the list of
+rooms you run. A keeper (§24) must be able to **boot from that same image**.
+Selling a permanent name to someone whose adminship evaporates with a
+browser's site data would be selling something we cannot deliver.
+
+**Where it stands today — the gap, precisely.** The backup GIF packs
+IndexedDB (items, files, states) and NOTHING else, by deliberate policy
+(`desktop.js` `backupDesktopInner`; the purse and AI keys live in localStorage
+*so that* they never travel — `gifos-pay-broker.js`). Every piece of meeting
+admin state is in `run.html`'s localStorage, so **none of it is in a backup**:
+
+| State | Key | Lives in | In backup? |
+|---|---|---|---|
+| Admin key `K` (cache of the password derivation) | `gifos_vadm_<room>.<V>` | localStorage | no |
+| Banlist (device ids) / banned names | `gifos_vban_…` / `gifos_vbannames_…` | localStorage | no |
+| Password generation (`pwEp`, the §LOCK replay floor) | `gifos_vpwep_…` | localStorage | no |
+| Guest password + its clock | `gifos_vpw_…` / `gifos_vpwat_…` | localStorage | no |
+| Vote-offs, invite history | `gifos_voteoff`, `gifos_invite_history` | localStorage | no |
+| Mod table | gossip only | nowhere | no |
+| App-room invite secret | `<fileId>::room` state | IndexedDB | **yes** |
+| Purchase / seal receipts | Purchases folder files | IndexedDB | **yes** |
+
+Restore a computer on a fresh device today and you can retype the password and
+be admin again — admin power IS the password (§SIG), so the key is only a
+cache — but the banlist is gone (banned devices walk back in), the password
+generation is gone (see the epoch hazard below), and the lobby has no idea
+which rooms you run. Note the precedent in the last two rows: an **app room's
+secret already rides the backup** in IndexedDB state, so "room secrets never
+travel" is not the current rule — the current rule is *accidental*.
+
+**Mechanism.**
+1. **One state record per administered room.** `meet::<room>.<V>` in
+   `GifOS.store` states (the same shape as `<fileId>::room`), written
+   write-through from the existing setters (`saveBans`, `setBanNames`,
+   `storePwEpoch`, the guest-password store, admin sign-in) so localStorage
+   stays the hot path and IndexedDB is the durable mirror. On boot of
+   `run.html`, hydrate localStorage from the records (records win when newer).
+   Because the backup already packs `states`, **this alone puts everything
+   non-secret into every backup** with no change to `backupDesktopInner`.
+2. **Secrets: two tiers.** Non-secrets (room list, banlist, banned names,
+   epoch, vote-offs) go in unconditionally. `K` and the guest password go in
+   **only when the backup is locked** (§8's still-open computer-backup half)
+   — an unlocked computer image is a shareable file, and whoever holds it
+   would hold the room. In an unlocked backup the record carries the room and
+   `V` but not `K`: restore, retype the password once, and you are admin with
+   your banlist intact. (Decision for Nathan: whether to follow the app-room
+   precedent and let `K` ride unlocked backups too. Recommendation: no — a
+   sealed name is worth more than an invite link, and §8 is the honest fix.)
+3. **The epoch must never go backwards on restore.** An admin restoring from a
+   week-old image carries a stale `pwEp`; if the room is empty when they
+   arrive they are the only source, and a re-key at or below the room's real
+   generation is a replay every member rejects (§LOCK, the 2026-08-02
+   generation-counter incident) — the admin would wedge their own room. So:
+   on restore take `max(backup, observed)` from the first status pulse, and
+   let the **seal registry hold the current generation number** alongside `V`
+   (an integer, leaks nothing) so an empty-room restore learns the floor from
+   the relay before issuing anything.
+4. **The keeper boots the image.** Computer images already boot
+   (`README.md` "Computer images"); a keeper is a headless boot of your backup
+   GIF that opens `run.html` for each sealed room in its records and never
+   leaves. Your backup is your server's disk — there is no second config to
+   keep in step, and "restore from backup" and "start my keeper" are the same
+   file. A keeper needs `K` without a human typing, so it runs from a locked
+   image plus its passcode, or is handed the admin password by its own
+   environment (systemd credential) — never a plaintext image on a shared box.
+5. **"Rooms I run" in the lobby**, derived from the records: name, sealed or
+   not, paid-until, banlist size, last visited, and a Backup-now nudge when a
+   record has changed since the last computer backup.
+
+**Gate.** `e2e-meet-backup.js`: create an admin room, ban a device, rotate the
+password, seal it; back up; erase the computer; restore on a fresh context;
+rejoin — admin after one password entry (unlocked) or none (locked), the
+banned device still refused, the epoch at or above the room's, the seal
+receipt present, the room listed in the lobby.
+
+**Open questions.**
+- Whether `K` rides unlocked backups (step 2) — the one real decision here.
+- The mod table is gossip-only today; if it should survive an empty room it
+  becomes admin-signed state in the same record, and the seal doc should say
+  whether a keeper-less sealed room keeps its mods.
+- Records for rooms you *attend* but do not run (your guest password, your
+  device id for a room's banlist) — same mechanism, lower priority, and the
+  device id is the one thing that must NOT travel between two computers that
+  are both live, or one ban hits both.
