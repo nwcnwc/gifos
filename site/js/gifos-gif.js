@@ -222,28 +222,38 @@
     const ceiling = Math.max(INFLATE_FLOOR, byRatio);
     return ceiling > INFLATE_HARD_MAX ? INFLATE_HARD_MAX : ceiling;
   }
+  // THE OUTPUT LANDS IN A BLOB, NOT IN A LIST OF CHUNKS. Collecting the
+  // decompressed chunks in a JS array and concatenating them at the end holds
+  // the whole answer TWICE at the moment of the copy. On a half-gigabyte app
+  // that second buffer is a second half-gigabyte, and on a phone it is what
+  // kills the tab (Install died at "Checking…" on a 549 MiB app for exactly
+  // this reason). Blob storage lives outside the JS heap and spills to disk,
+  // so the peak here is one buffer — the answer itself.
+  //
+  // `source` is a ReadableStream of the COMPRESSED bytes; compressedLen only
+  // sizes the bomb ceiling. See payloadStream() for the caller that never
+  // materialises the compressed side either.
+  function inflateFrom(source, compressedLen) {
+    const cap = inflateMaxBytes(compressedLen);
+    let total = 0;
+    // The ceiling has to fire mid-stream: past it there is no answer worth
+    // finishing, and the point is to never allocate what a bomb asks for.
+    const counted = new root.TransformStream({
+      transform(chunk, ctl) {
+        total += chunk.length;
+        if (total > cap) { ctl.error(new Error('decompressed payload too large')); return; }
+        ctl.enqueue(chunk);
+      },
+    });
+    const out = source
+      .pipeThrough(new root.DecompressionStream('deflate-raw'))
+      .pipeThrough(counted);
+    return new root.Response(out).blob()
+      .then((b) => b.arrayBuffer())
+      .then((buf) => new Uint8Array(buf));
+  }
   function inflate(bytes) {
-    const cap = inflateMaxBytes(bytes && bytes.length);
-    const stream = new Blob([bytes]).stream().pipeThrough(new root.DecompressionStream('deflate-raw'));
-    const reader = stream.getReader();
-    const chunks = []; let total = 0;
-    return (function pump() {
-      return reader.read().then(({ done, value }) => {
-        if (done) {
-          // One chunk is the whole answer — return it, no copy at all. Otherwise
-          // drop each chunk's reference as it is copied, so the peak is the
-          // output plus the chunk in hand, not the output plus every chunk.
-          if (chunks.length === 1) return chunks[0];
-          const out = new Uint8Array(total); let o = 0;
-          for (let i = 0; i < chunks.length; i++) { out.set(chunks[i], o); o += chunks[i].length; chunks[i] = null; }
-          return out;
-        }
-        total += value.length;
-        if (total > cap) { try { reader.cancel(); } catch (e) {} throw new Error('decompressed payload too large'); }
-        chunks.push(value);
-        return pump();
-      });
-    })();
+    return inflateFrom(new Blob([bytes]).stream(), bytes && bytes.length);
   }
 
   // ---- the remix doc: a packed app carries its own build guide -------------
@@ -591,13 +601,74 @@
 
   // ---- decode: GIF89a bytes -> filesystem archive (async) ------------------
   // Returns Promise<{ files: { path: Uint8Array } } | null>.
-  function extractPayload(bytes) {
+  // Where the payload is and how big it is — a measurement, never a copy.
+  // `first` is the payload's first byte (the COMPRESSED_FLAG, or '{' on a
+  // legacy uncompressed archive).
+  function payloadSpan(bytes) {
     const span = findGifosSpan(bytes);
     if (!span) return null;
     let p = span.headerEnd, total = 0;
     while (p < span.end) { const size = bytes[p]; if (size === 0) break; total += size; p += 1 + size; }
+    if (!total) return null;
+    return { span, total, first: bytes[span.headerEnd + 1] };
+  }
+
+  // The payload as a STREAM, re-joined from its sub-blocks a megabyte at a
+  // time. A GIF sub-block holds at most 255 bytes, so a half-gigabyte payload
+  // is over two million of them: handing them to the decompressor one by one
+  // would cost a stream chunk and a microtask each, and assembling them into
+  // one buffer first (what extractPayload does) costs a full second copy of
+  // the file — the copy that, stacked on the file itself and the unpacked
+  // archive, is what a phone cannot survive. So: fill a fixed buffer with
+  // whole sub-blocks and enqueue that. Peak cost is one megabyte.
+  // `skip` drops that many bytes from the FRONT of the payload (the flag).
+  // `limit`, when given, stops after that many bytes — a reader that wants
+  // only the front of the archive must be able to say so. NOT the same as
+  // reading a few chunks and cancelling: a decompressor is free to drain its
+  // source as fast as it can, and Node's does, so a cancel that arrives one
+  // microtask late has already walked the whole file.
+  const PAYLOAD_CHUNK = 1 << 20;
+  function payloadStream(bytes, span, skip, limit) {
+    let p = span.headerEnd, dropped = 0, sent = 0;
+    const cap = limit > 0 ? limit : Infinity;
+    return new root.ReadableStream({
+      pull(ctl) {
+        // Room for a whole sub-block or nothing: a limit is a stopping point,
+        // not a byte-exact truncation, and a pull that can enqueue nothing
+        // would spin.
+        const room = Math.min(PAYLOAD_CHUNK, cap - sent);
+        if (p >= span.end || room < 255) { ctl.close(); return; }
+        const buf = new Uint8Array(room);
+        let off = 0;
+        // Stop short of the end of the buffer so every sub-block lands whole —
+        // no partial copies, no carry between pulls.
+        while (p < span.end && room - off >= 255) {
+          const size = bytes[p];
+          if (size === 0) { p = span.end; break; }
+          let start = p + 1;
+          const end = start + size;
+          if (dropped < (skip || 0)) {
+            const d = Math.min(skip - dropped, size);
+            start += d; dropped += d;
+          }
+          if (end > start) { buf.set(bytes.subarray(start, end), off); off += end - start; }
+          p = end;
+        }
+        sent += off;
+        if (off) ctl.enqueue(off === room ? buf : buf.subarray(0, off));
+        if (p >= span.end || sent >= cap) ctl.close();
+      },
+    });
+  }
+
+  // The legacy uncompressed path still wants one buffer (parseArchive reads a
+  // JSON document out of it). Those archives are the small, old ones.
+  function extractPayload(bytes) {
+    const info = payloadSpan(bytes);
+    if (!info) return null;
+    const { span, total } = info;
     const assembled = new Uint8Array(total);
-    p = span.headerEnd; let off = 0;
+    let p = span.headerEnd, off = 0;
     while (p < span.end) {
       const size = bytes[p];
       if (size === 0) break;
@@ -703,12 +774,17 @@
   // failed the launch on exactly that). Optional and additive.
   function decode(bytes, opts) {
     const onProgress = opts && opts.onProgress;
-    const payload = extractPayload(bytes);
-    if (!payload || payload.length === 0) return Promise.resolve(null);
-    if (payload[0] === COMPRESSED_FLAG) {
-      return inflate(payload.subarray(1)).then((j) => parseArchive(j, onProgress)).catch(() => null);
+    const info = payloadSpan(bytes);
+    if (!info) return Promise.resolve(null);
+    if (info.first === COMPRESSED_FLAG) {
+      // Straight from the sub-blocks into the decompressor: between the file
+      // in hand and the unpacked archive nothing else holds the whole payload.
+      return inflateFrom(payloadStream(bytes, info.span, 1), info.total - 1)
+        .then((j) => parseArchive(j, onProgress)).catch(() => null);
     }
     // legacy uncompressed JSON — still a promise, never a synchronous throw
+    const payload = extractPayload(bytes);
+    if (!payload || payload.length === 0) return Promise.resolve(null);
     return Promise.resolve().then(() => parseArchive(payload, onProgress)).catch(() => null);
   }
 
@@ -821,6 +897,87 @@
     catch (e) { return null; }
   }
 
+  // THE MANIFEST WITHOUT THE ARCHIVE. Installing an app asks one question of
+  // the bytes that just landed — "is this the app the listing says it is?" —
+  // and the answer is the few hundred bytes of manifest.json at the front of
+  // the payload. Unpacking the whole archive to read it costs the entire
+  // decompressed size in memory (592 MB for the Bible study) on top of the
+  // file already in hand, and that is what crashed Install on a phone.
+  //
+  // This walks forward from the start of the payload and stops the
+  // decompressor the moment manifest.json is covered: the v2 header says where
+  // it is, and every app we build writes it first, so in practice this reads
+  // about 24 KB of a half-gigabyte file.
+  //
+  // Resolves null when it CANNOT answer cheaply — a v1 archive (no directory
+  // to seek with), a manifest buried past the scan ceiling, or a malformed
+  // file. Null means "read it the long way", not "this is not an app": the
+  // caller falls back to decode() + readManifest(), which is also where a
+  // genuinely broken file fails.
+  const MANIFEST_SCAN_MAX = 32 * 1024 * 1024;
+  function readManifestFrom(bytes) {
+    let info, reader;
+    try {
+      info = payloadSpan(bytes);
+      if (!info || info.first !== COMPRESSED_FLAG) return Promise.resolve(null);
+      // Only the FRONT of the payload is fed in. Reading a few chunks and
+      // cancelling is not enough: a decompressor may drain its source as fast
+      // as it can (Node's does — a cancel one microtask late had already
+      // walked all 549 MB and left half a gigabyte of garbage behind it).
+      // Bounding the input is the guarantee. Deflated scripture runs near 1:1,
+      // so this covers a manifest anywhere in the first ~32 MB; past that,
+      // resolving null and letting decode() do it is the honest answer.
+      reader = payloadStream(bytes, info.span, 1, MANIFEST_SCAN_MAX)
+        .pipeThrough(new root.DecompressionStream('deflate-raw')).getReader();
+    } catch (e) { return Promise.resolve(null); }
+
+    const chunks = [];
+    let have = 0, need = 8, hlen = -1, at = -1, len = -1;
+    const prefix = () => {
+      const out = new Uint8Array(have);
+      let o = 0;
+      for (let i = 0; i < chunks.length; i++) { out.set(chunks[i], o); o += chunks[i].length; }
+      return out;
+    };
+    // Reading stops here whatever the answer — the rest of the payload is
+    // hundreds of megabytes nobody asked for.
+    const stop = (v) => { try { reader.cancel(); } catch (e) {} return v; };
+
+    return (function pump() {
+      return reader.read().then(({ done, value }) => {
+        if (value) { chunks.push(value); have += value.length; }
+        // Three stops on the way in: the 8-byte v2 header, the file directory,
+        // then manifest.json's own bytes.
+        while (have >= need) {
+          const buf = prefix();
+          if (hlen < 0) {
+            if (!isArchiveV2(buf)) return stop(null);
+            hlen = buf[4] | (buf[5] << 8) | (buf[6] << 16) | (buf[7] * 0x1000000);
+            if (!(hlen > 0)) return stop(null);
+            need = 8 + hlen;
+            if (need > MANIFEST_SCAN_MAX) return stop(null);
+            continue;
+          }
+          if (at < 0) {
+            let dir;
+            try { dir = JSON.parse(bytesToText(buf.subarray(8, 8 + hlen))); } catch (e) { return stop(null); }
+            const e = dir && dir.files && dir.files['manifest.json'];
+            if (!Array.isArray(e) || !Number.isInteger(e[0]) || !Number.isInteger(e[1]) ||
+                e[0] < 0 || e[1] < 0) return stop(null);
+            at = 8 + hlen + e[0]; len = e[1];
+            need = at + len;
+            if (need > MANIFEST_SCAN_MAX) return stop(null);
+            continue;
+          }
+          try { return stop(JSON.parse(bytesToText(buf.subarray(at, at + len)))); }
+          catch (e) { return stop(null); }
+        }
+        if (done) return null;   // the payload ended before the manifest did
+        return pump();
+      });
+    })().catch(() => null);
+  }
+
   // Writer helper exposed so the signing module can build/splice its own
   // application-extension block with the identical sub-block framing.
   function appExtBlock(marker8, auth3, payload) {
@@ -831,7 +988,7 @@
   }
 
   GifOS.gif = {
-    encode, decode, repack, embed, looksLikeGifosGif, readManifest,
+    encode, decode, repack, embed, looksLikeGifosGif, readManifest, readManifestFrom,
     b64encode, b64decode, textToBytes, bytesToText,
     findAppExtSpan, appExtBlock, stripForDisplay,
     setRemixDoc, REMIX_DOC, inflateMaxBytes, inflate,

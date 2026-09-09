@@ -796,17 +796,36 @@
       // Stream it so an 8 MB app shows real progress instead of a dead button.
       const total = Number(r.headers.get('content-length')) || app.bytes || 0;
       if (r.body && r.body.getReader) {
-        const reader = r.body.getReader(), chunks = [];
+        const reader = r.body.getReader();
+        // A DECLARED LENGTH LETS THE DOWNLOAD LAND IN ONE BUFFER. Keeping every
+        // chunk and concatenating at the end holds the whole file twice at the
+        // moment of the copy: a half-gigabyte app spikes to a gigabyte before
+        // anything is even checked, and a phone's tab does not survive it.
+        // content-length is a hint, not a promise, so an overrun falls back to
+        // the chunk list rather than throwing on a full buffer.
+        let fixed = total > 0 ? new Uint8Array(total) : null;
+        let chunks = fixed ? null : [];
         let got = 0;
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
-          chunks.push(value); got += value.length;
+          if (fixed && got + value.length > fixed.length) {
+            chunks = [fixed.subarray(0, got)];
+            fixed = null;
+          }
+          if (fixed) fixed.set(value, got); else chunks.push(value);
+          got += value.length;
           if (total) prog.firstChild.style.width = Math.min(100, Math.round(got * 100 / total)) + '%';
         }
-        bytes = new Uint8Array(got);
-        let off = 0;
-        for (const c of chunks) { bytes.set(c, off); off += c.length; }
+        if (fixed) {
+          // Short of the declared length means a truncated download; the hash
+          // below is what refuses it.
+          bytes = got === fixed.length ? fixed : fixed.subarray(0, got);
+        } else {
+          bytes = new Uint8Array(got);
+          let off = 0;
+          for (const c of chunks) { bytes.set(c, off); off += c.length; }
+        }
       } else {
         bytes = new Uint8Array(await r.arrayBuffer());
         prog.firstChild.style.width = '100%';
@@ -825,8 +844,24 @@
       } catch (e) { /* no subtle crypto (insecure origin): fall through to the structural checks */ }
     }
 
-    const archive = await gif.decode(bytes).catch(() => null);
-    const m = archive ? (gif.readManifest(archive) || {}) : null;
+    // IDENTITY WITHOUT THE UNPACK. All this needs to know is which app just
+    // landed, and that is manifest.json at the front of the payload —
+    // readManifestFrom reads a few kilobytes and stops the decompressor.
+    // Unpacking the whole archive here cost the entire decompressed size in
+    // memory on top of the file already in hand (592 MB for the Bible study),
+    // which is what crashed Install on a phone. The archive itself is only
+    // needed by fetchAssets below, and only for an app that declares assets,
+    // so it is decoded there, lazily. Nothing is lost by not unpacking: the
+    // sha256 above already pinned these bytes to the catalog, and a manifest
+    // that reads at all means the payload inflated and its directory parsed.
+    let archive = null;
+    let m = await gif.readManifestFrom(bytes).catch(() => null);
+    if (!m) {
+      // Null means "couldn't read it cheaply" (a v1 archive, or a broken
+      // file) — the long way is also where a broken file fails.
+      archive = await gif.decode(bytes).catch(() => null);
+      m = archive ? (gif.readManifest(archive) || {}) : null;
+    }
     if (!m || !m.appId) return fail('That file isn’t a GifOS app.');
     if (m.appId !== app.appId) return fail('That file is a different app than the listing. Nothing was installed.');
 
@@ -857,7 +892,14 @@
       // case the asset download reports through the card's note instead.
       const dl2 = $('dl2'), note2 = $('note2') || note, bar2 = $('prog2') || prog;
       try {
+        // Install only chases the REQUIRED pins, and whether there are any is
+        // a question about the manifest, which is already in hand. An app with
+        // none — nothing declared at all, or only the optional extras that
+        // arrive when the app asks for them — never needs the archive unpacked.
+        if (!A.list(m).some((a) => !a.optional)) return;
         const cache = A.assetCache(store, fid);
+        if (!archive) archive = await gif.decode(bytes).catch(() => null);
+        if (!archive) throw new Error('couldn’t read the app’s files');
         const need = await A.missing(archive.files, m, cache, { requiredOnly: true });
         if (!need.length) return;
         // The first line has finished its job; let it say so, so the moving

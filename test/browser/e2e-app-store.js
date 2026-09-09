@@ -51,11 +51,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   for (const a of index.apps) {
     const dir = path.join(SITE, 'apps', a.slug);
     const rec = JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8'));
+    // A listing either hosts its GIF here (/apps/<slug>/<slug>.gif) or pins the
+    // author's release with an absolute https gifUrl. Only the first has a file
+    // on disk to measure; for the second the catalog build is what fetched the
+    // release and pinned it, so what is checkable here is the pin itself.
+    const hosted = !/^https:\/\//.test(rec.gif);
+    const gifPath = hosted ? path.join(SITE, rec.gif.replace(/^\//, '')) : null;
     check(a.slug + ': every asset the listing points at exists',
-      fs.existsSync(path.join(SITE, rec.cover.replace(/^\//, ''))) && fs.existsSync(path.join(SITE, rec.gif.replace(/^\//, ''))));
+      fs.existsSync(path.join(SITE, rec.cover.replace(/^\//, ''))) && (hosted ? fs.existsSync(gifPath) : true));
     check(a.slug + ': the cover is a JPEG, not the App GIF', /\.jpe?g$/i.test(rec.cover));
     check(a.slug + ': byte count and hash describe the real file',
-      fs.statSync(path.join(SITE, rec.gif.replace(/^\//, ''))).size === rec.bytes && /^[a-f0-9]{64}$/.test(rec.sha256));
+      (hosted ? fs.statSync(gifPath).size === rec.bytes : rec.bytes > 0) && /^[a-f0-9]{64}$/.test(rec.sha256));
     check(a.slug + ': sits in at least one category, all of them known',
       (rec.categories || []).length > 0 && rec.categories.every((c) => index.categories.includes(c)));
     check(a.slug + ': carries the long and short descriptions a listing needs',

@@ -26,7 +26,7 @@ function load() {
   const g = {
     Uint8Array, TextEncoder, TextDecoder, console, Promise, setTimeout, Blob,
     Response, CompressionStream, DecompressionStream, Error, JSON, Math, Object,
-    ArrayBuffer, Number, String,
+    ArrayBuffer, Number, String, ReadableStream, TransformStream,
   };
   g.window = g; g.globalThis = g; g.self = g;
   vm.createContext(g);
