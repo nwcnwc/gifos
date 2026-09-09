@@ -1,0 +1,32 @@
+{
+  "tagline": "The library is the page. Scripture sits beside it.",
+  "description": "Most Bible apps read scripture and hide the commentary behind a tap. This one is the other way round: the page you are reading is a book from the library — Henry, Calvin, the Glossa, Haydock, the Hebrew — open at your chapter, and scripture sits in a panel beside it.\n\nThe library is grouped by epoch, from the Apostolic Fathers through the nineteenth century, and tells you what each work has at your chapter before you open it. Schaff's Ante-Nicene and Nicene fathers, Aquinas, the Latin Glossa, Geneva and Challoner, Calvin, Luther in the English we can keep, Henry complete, Poole, Haydock, Clarke, Barnes, and the rest of the public-domain stack. Dictionaries, topics, a gazetteer, and the Hebrew and Greek word by word with Strong's numbers. World English and King James come with it. Search finds a phrase by meaning as well as by words.\n\nA few works are in the language they were written, because no public-domain English exists. They are in the library anyway. The Didache now carries our own machine-made English beside its Greek: a switch on the page crosses between the two, it is labelled as ours every time, and Schaff's translation of the same text is one work away for comparison.\n\nAll of it is already in the file. The first open is the last download, and it works on a plane. Highlight, write a note, invite someone to the same page. Press Save and the marks travel with the app. No account.\n\nEvery text is in the public domain (or a licence that allows this use). Place data © OpenBible.info (CC BY 4.0). The Hebrew interlinear is the Open Scriptures Hebrew Bible (CC BY 4.0).",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-09-06",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "bible",
+    "commentary",
+    "library",
+    "offline",
+    "study",
+    "scripture"
+  ],
+  "license": "MIT",
+  "homepage": "https://biblestudy.gifos.app/gifos/",
+  "cover": "screenshot.png",
+  "coverCrop": {
+    "top": 0
+  },
+  "screenshots": [],
+  "gifUrl": "https://biblestudy.gifos.app/gifos/offline-bible-study/v0.7.11.gif",
+  "gifSha256": "4a3b98129dfe06bb407c1b7d4bb222a6252421d96233fdeed978b5d5320490c5",
+  "gifBytes": 575923774,
+  "copyright": "Copyright (c) 2026 GifOS",
+  "updated": "2026-09-09"
+}

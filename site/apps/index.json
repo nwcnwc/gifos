@@ -5331,6 +5331,48 @@
       "sha256": "482ce1c3ecb6a9e1dc08bf39cc460f76d8f297069948b2ce9bd8804d2029ecbf"
     },
     {
+      "slug": "offline-bible-study",
+      "appId": "offline-bible-study",
+      "name": "Bible Study",
+      "shortName": "Study",
+      "version": "0.7.11",
+      "tagline": "The library is the page. Scripture sits beside it.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "minBuild": 2255,
+      "offline": true,
+      "releaseDate": "2026-09-06",
+      "updated": "2026-09-09",
+      "categories": [
+        "Learning"
+      ],
+      "tags": [
+        "bible",
+        "commentary",
+        "library",
+        "offline",
+        "study",
+        "scripture"
+      ],
+      "accent": [
+        201,
+        162,
+        39
+      ],
+      "cover": "/apps/offline-bible-study/cover.jpg",
+      "bytes": 575923774,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-09-09"
+      },
+      "sha256": "4a3b98129dfe06bb407c1b7d4bb222a6252421d96233fdeed978b5d5320490c5"
+    },
+    {
       "slug": "offline-llm-bitnet",
       "appId": "offline-llm-bitnet",
       "name": "Offline Cheap Text LLM BitNet",

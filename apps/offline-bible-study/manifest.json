@@ -1,0 +1,38 @@
+{
+  "gifos": "1.0",
+  "appId": "offline-bible-study",
+  "name": "Bible Study",
+  "shortName": "Study",
+  "version": "0.7.11",
+  "minBuild": 2255,
+  "entry": "index.html",
+  "accent": [201, 162, 39],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "microphone": true,
+    "wasm": true,
+    "ai": ["tts"],
+    "links": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "marks": { "visibility": "private" },
+    "voicenotes": { "visibility": "private" },
+    "plans": { "visibility": "private" },
+    "cache": { "visibility": "private" },
+    "nav": { "visibility": "read-write" }
+  },
+  "lead": [{ "collection": "nav", "id": "cursor" }],
+  "launch": {
+    "ref": {
+      "label": "Open at a verse the link picked",
+      "detail": "A reference like John 3:16."
+    },
+    "trans": {
+      "label": "Open in a particular translation",
+      "detail": "One of the app's translation ids."
+    }
+  },
+  "assets": []
+}
