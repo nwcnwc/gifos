@@ -2262,6 +2262,27 @@
     bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
     document.body.appendChild(bg);
   }
+  // A modal that REPORTS while something long runs, and closes itself when it
+  // is done. No OK button and no click-away: there is nothing yet to accept,
+  // and dismissing it would hide the only sign that the tab is still working.
+  // say() replaces the line; the bar is fed a fraction, or null for a phase
+  // with nothing to count (which MOVES rather than parking at a number).
+  function showBusy(title, msgHtml) {
+    const bg = document.createElement('div'); bg.className = 'modal-bg';
+    bg.innerHTML = '<div class="modal"><h3>' + escapeHtml(title) + '</h3><p class="busy-say">' + (msgHtml || '') +
+      '</p><div class="busy-bar busy"><i></i></div></div>';
+    const line = bg.querySelector('.busy-say'), bar = bg.querySelector('.busy-bar');
+    document.body.appendChild(bg);
+    return {
+      say(html, frac) {
+        line.innerHTML = html;
+        if (frac == null) { bar.classList.add('busy'); bar.firstChild.style.width = '100%'; }
+        else { bar.classList.remove('busy'); bar.firstChild.style.width = Math.max(0, Math.min(100, Math.round(frac * 100))) + '%'; }
+      },
+      close() { bg.remove(); },
+    };
+  }
+
   // Confirm with explicit action buttons. Cancel is always present.
   function showConfirm(title, msgHtml, buttons, onCancel) {
     const bg = document.createElement('div'); bg.className = 'modal-bg';
@@ -3518,7 +3539,11 @@
   // human error string to show inline (CORS/404/not-a-GIF).
   // Fetch + validate a GIF from a web URL. Returns { bytes, name } or { error }.
   const RUN_MAX_BYTES = 1024 * 1024 * 1024; // 1 GB: the ?run= / add-by-URL download ceiling
-  async function fetchGifFromUrl(raw) {
+  // onProgress(got, total) — optional, called as the bytes land. A run-link to
+  // a half-gigabyte app is minutes of downloading, and this used to report
+  // NOTHING for all of it: the desktop sat there looking idle, which is what a
+  // dead link looks like too. Every caller now says something.
+  async function fetchGifFromUrl(raw, onProgress) {
     let url;
     try { url = new URL(raw); } catch (e) { return { error: 'That doesn’t look like a web link.' }; }
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return { error: 'Only http(s) links work.' };
@@ -3533,15 +3558,28 @@
       const cl = Number(r.headers.get('content-length'));
       if (cl > RUN_MAX_BYTES) { try { r.body && r.body.cancel(); } catch (e) {} return { error: 'That file is bigger than ' + Math.round(RUN_MAX_BYTES / 1048576) + ' MB — too large to open here.' }; }
       if (r.body && typeof r.body.getReader === 'function') {
-        const reader = r.body.getReader(); const chunks = []; let total = 0;
+        const reader = r.body.getReader();
+        // One buffer when the length is declared. Keeping every chunk and
+        // concatenating at the end holds the download TWICE at the moment of
+        // the copy, and half a gigabyte doubled is where the tab dies. A
+        // content-length that turns out to be a lie falls back to the list.
+        let fixed = cl > 0 && cl <= RUN_MAX_BYTES ? new Uint8Array(cl) : null;
+        let chunks = fixed ? null : [];
+        let total = 0;
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
           total += value.length;
           if (total > RUN_MAX_BYTES) { try { reader.cancel(); } catch (e) {} return { error: 'That file is bigger than ' + Math.round(RUN_MAX_BYTES / 1048576) + ' MB — too large to open here.' }; }
-          chunks.push(value);
+          if (fixed && total > fixed.length) { chunks = [fixed.subarray(0, total - value.length)]; fixed = null; }
+          if (fixed) fixed.set(value, total - value.length); else chunks.push(value);
+          if (onProgress) { try { onProgress(total, cl > 0 ? cl : 0); } catch (e) {} }
         }
-        buf = new Uint8Array(total); let o = 0; for (const c of chunks) { buf.set(c, o); o += c.length; }
+        if (fixed) {
+          buf = total === fixed.length ? fixed : fixed.subarray(0, total);
+        } else {
+          buf = new Uint8Array(total); let o = 0; for (const c of chunks) { buf.set(c, o); o += c.length; }
+        }
       } else {
         buf = new Uint8Array(await r.arrayBuffer());
         if (buf.length > RUN_MAX_BYTES) return { error: 'That file is bigger than ' + Math.round(RUN_MAX_BYTES / 1048576) + ' MB — too large to open here.' };
@@ -3566,8 +3604,8 @@
     return { bytes: buf, name };
   }
 
-  async function addFromUrl(raw) {
-    const r = await fetchGifFromUrl(raw);
+  async function addFromUrl(raw, onProgress) {
+    const r = await fetchGifFromUrl(raw, onProgress);
     if (r.error) return r.error;
     await importFiles([new File([r.bytes], r.name, { type: 'image/gif' })], 60, 60);
     return null;
@@ -3632,13 +3670,19 @@
       }
       history.replaceState(null, '', location.pathname + rest);
     } catch (e) {}
-    const r = await fetchGifFromUrl(raw);
-    if (r.error) { showModal('Couldn’t run that link', escapeHtml(r.error)); return; }
+    const mb = (n) => (n >= 1048576 ? Math.round(n / 1048576) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+    const busy = showBusy('Opening this app', 'Downloading…');
+    const r = await fetchGifFromUrl(raw, (got, total) => {
+      busy.say(total ? 'Downloading — ' + mb(got) + ' of ' + mb(total) : 'Downloading — ' + mb(got),
+        total ? got / total : null);
+    });
+    if (r.error) { busy.close(); showModal('Couldn’t run that link', escapeHtml(r.error)); return; }
     // Storing a half-gigabyte app is where a private/incognito window gives
     // up (tiny storage quota) — that failure must name itself, not vanish as
     // an unhandled rejection while the desktop sits there looking idle.
     let archive, m, isApp, fileId;
     try {
+      busy.say('Unpacking ' + escapeHtml(r.name) + '…', null);
       archive = await gif.decode(r.bytes).catch(() => null);
       m = archive ? (gif.readManifest(archive) || {}) : {};
       isApp = !!(archive && (m.appId || m.entry));
@@ -3648,11 +3692,13 @@
       await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: r.name, parent: 'sys_stolen', iconSize: 64 });
       await load();
     } catch (e) {
+      busy.close();
       showModal('Couldn’t save that app',
         escapeHtml((e && e.name ? e.name + ': ' : '') + ((e && e.message) || 'unknown error')) +
         '<br>Saving a very large app usually fails in a private/incognito window — open gifos.app in a normal window and tap the link again.');
       return;
     }
+    busy.close();
     if (isApp) {
       const go = launch.map(([k, v]) => '&' + encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('');
       location.href = 'run.html#id=' + encodeURIComponent(fileId) + nsParam('&db=') + go;
@@ -3775,7 +3821,10 @@
       const v = urlInput.value.trim();
       if (!v) { urlInput.focus(); return; }
       urlBtn.disabled = true; urlMsg.textContent = 'Fetching…'; urlMsg.className = 'add-help';
-      const err = await addFromUrl(v);
+      const err = await addFromUrl(v, (got, total) => {
+        const mb = (n) => (n >= 1048576 ? Math.round(n / 1048576) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+        urlMsg.textContent = total ? 'Fetching — ' + mb(got) + ' of ' + mb(total) : 'Fetching — ' + mb(got);
+      });
       if (err) { urlBtn.disabled = false; urlMsg.textContent = err; urlMsg.className = 'add-help bad'; return; }
       bg.remove();
     };

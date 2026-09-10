@@ -20,11 +20,44 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const page = await context.newPage();
     page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
 
+    // WHAT THE PAGE SAYS WHILE IT WORKS. A run-link to a large app is minutes
+    // of downloading, and this path used to report nothing for all of it: the
+    // desktop sat there looking idle, which is exactly what a dead link looks
+    // like — the reason "Open in GifOS" on biblestudy.gifos.app read as a
+    // button that did nothing. The GIF here is small, so the response is held
+    // back to make the working state observable at all.
+    await page.route('**/__run-test.gif', async (route) => {
+      const r = await route.fetch();
+      const body = await r.body();
+      await sleep(900);
+      await route.fulfill({ status: 200, headers: { 'content-type': 'image/gif', 'content-length': String(body.length) }, body });
+    });
+    // Recorded IN THE PAGE, into sessionStorage: polling from here races the
+    // navigation Playwright is already driving, and sessionStorage survives
+    // the same-origin hop to run.html, so the record is still there to read
+    // after the app has opened.
+    await page.addInitScript(() => {
+      const note = () => {
+        const el = document.querySelector('.busy-say');
+        if (!el || !el.textContent) return;
+        let seen = [];
+        try { seen = JSON.parse(sessionStorage.getItem('__busy') || '[]'); } catch (e) {}
+        if (seen[seen.length - 1] !== el.textContent) {
+          seen.push(el.textContent);
+          try { sessionStorage.setItem('__busy', JSON.stringify(seen)); } catch (e) {}
+        }
+      };
+      addEventListener('DOMContentLoaded', () => new MutationObserver(note).observe(document.body, { childList: true, subtree: true, characterData: true }));
+    });
+
     const runUrl = BASE + '/index.html?run=' + encodeURIComponent(BASE + '/__run-test.gif');
     await page.goto(runUrl);
     // It should run the app: same-tab redirect to the room page.
     await page.waitForURL(/run\.html/, { timeout: 10000 }).catch(() => {});
     check('?run=<url> launches the app (redirect to the room page)', /run\.html#id=/.test(page.url()), page.url());
+    const seen = await page.evaluate(() => { try { return JSON.parse(sessionStorage.getItem('__busy') || '[]'); } catch (e) { return []; } });
+    check('the wait is not silent — the page says it is working', seen.length > 0, JSON.stringify(seen));
+    await page.unroute('**/__run-test.gif');
 
     // The address bar dropped ?run= (so a refresh won't re-run) — the hash now
     // points at the stored file, not the original query.
