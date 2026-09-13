@@ -45,7 +45,9 @@ async function appFrame(run) {
 function drive(frame, secs) {
   return frame.evaluate(async (SECS) => {
     const mine = owner ? 'host' : 'guest';
-    const MAXV = 0.06, REACT = 150;
+    // Two equally sharp players rally for ever, which is true of real players
+    // too — so these two also miss the way people miss.
+    const MAXV = 0.05, REACT = 165;
     let maxRally = 0, was = false, until = 0, err = 0, tx = 0, ty = 0, stance = null;
     let last = Date.now();
     const t0 = last;
@@ -60,7 +62,7 @@ function drive(frame, secs) {
       }
       const here = owner ? game.hostY : gst.y;
       const toward = owner ? game.vy < 0 : game.vy > 0;
-      if (toward && !was) { until = now + REACT + Math.random() * 70; err = (Math.random() - 0.5) * 1.1; stance = null; }
+      if (toward && !was) { until = now + REACT + Math.random() * 70; err = (Math.random() - 0.5) * 2.2; stance = null; }
       was = toward;
       if (!toward) { tx = game.bx * 0.2; ty = owner ? -1 : TL + 1; }
       else if (now >= until) {

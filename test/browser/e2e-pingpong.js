@@ -159,17 +159,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---- the clock -----------------------------------------------------------
   const clock = await frame.evaluate(async () => {
-    const s0 = timeSimmed, d0 = timeDropped, t0 = Date.now();
-    await new Promise((r) => setTimeout(r, 4000));
-    return { real: Date.now() - t0, sim: Math.round(timeSimmed - s0), dropped: Math.round(timeDropped - d0), frames: frames };
+    const s0 = timeSimmed, d0 = timeDropped, a0 = acc, t0 = Date.now();
+    await new Promise((r) => setTimeout(r, 6000));
+    return {
+      real: Date.now() - t0,
+      sim: Math.round(timeSimmed - s0),
+      dropped: Math.round(timeDropped - d0),
+      // whatever is banked but not yet stepped, so the books balance exactly
+      banked: Math.round(acc - a0),
+    };
   });
   // Time is either simulated or explicitly refused (a frame so late that
   // catching up would teleport the ball). What must never happen is time
   // vanishing into a clamp, which is how the whole game ran at 40% speed.
-  const accounted = (clock.sim + clock.dropped) / clock.real;
+  const accounted = (clock.sim + clock.dropped + clock.banked) / clock.real;
   check('no simulated time vanishes into a clamp',
-    accounted > 0.9 && accounted < 1.12,
-    'sim ' + clock.sim + ' + dropped ' + clock.dropped + ' of ' + clock.real + 'ms = ' + accounted.toFixed(3));
+    accounted > 0.94 && accounted < 1.06,
+    'sim ' + clock.sim + ' + dropped ' + clock.dropped + ' + banked ' + clock.banked
+      + ' of ' + clock.real + 'ms = ' + accounted.toFixed(3));
 
   // ---- the hall is painted once, not sixty times a second ------------------
   const paints = await frame.evaluate(async () => {
@@ -193,19 +200,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // section on a fresh one.
   await frame.evaluate(() => { newMatch(); });
   await sleep(1200);
-  await frame.evaluate(() => { window._pp = { max: 0, ends: [], pt: game.pt }; });
+  await frame.evaluate(() => { window._pp = { max: 0, ends: [], pt: game.pt, was: false, until: 0, err: 0 }; });
   const watch = () => frame.evaluate(() => {
     if ((game.rally || 0) > _pp.max) _pp.max = game.rally;
     if (game.pt !== _pp.pt) { _pp.pt = game.pt; _pp.ends.push({ to: game.msgWho, why: game.why }); }
     if (game.serving === 'host') return { serve: true };
-    if (game.vy >= 0 || game.paused) return { sx: CX, sy: padBot - 12 };
+    const toward = game.vy < 0;
+    // A person has to LOOK before they know where it is going, and does not put
+    // the bat exactly where they meant to. Aiming perfectly from the instant of
+    // contact rallies for ever and proves nothing about the game.
+    if (toward && !_pp.was) { _pp.until = Date.now() + 160 + Math.random() * 70; _pp.err = (Math.random() - 0.5) * 2.0; }
+    _pp.was = toward;
+    if (!toward || game.paused || Date.now() < _pp.until) return { sx: CX, sy: padBot - 12 };
     // where the ball will arrive, and how far up the table to stand for it
     const r = fly(game.hostY, false);
     const land = fly(null, true);
     const vy = clamp(land.bounced ? land.y * 0.5 - 1.2 : 0, HOST_MIN, STEP_IN);
     const f = (STEP_IN - vy) / (STEP_IN - HOST_MIN);
     const s = scaleAt(vy);
-    return { sx: CX + clampX(r.x) * s * K, sy: padTop + f * (padBot - padTop) };
+    return { sx: CX + clampX(r.x + _pp.err) * s * K, sy: padTop + f * (padBot - padTop) };
   });
   const deadline = Date.now() + 40000;
   while (Date.now() < deadline) {

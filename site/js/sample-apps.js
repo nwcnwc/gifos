@@ -3728,8 +3728,11 @@ function syncDebug(){
     // Widen the reach by how far the paddle could have travelled inside the
     // unknown, and no further.
     if (owner && !isHost && guestLive()) {
-      var slack = clamp(half() * 0.014, 0, 0.8);
-      ex += slack; ey += slack; ez += slack;
+      // Exactly the uncertainty and no more: a paddle that is not moving is not
+      // uncertain, so the allowance is how far it could have travelled in the
+      // unknown interval. A flat allowance made the far end unmissable.
+      var slack = clamp(Math.abs(gst.vx || 0) * half() * 0.5, 0, 0.32);
+      ex += slack; ey += slack;
     }
     var a = (mx * mx) / (ex * ex) + (my * my) / (ey * ey) + (mz * mz) / (ez * ez);
     var b = 2 * ((dx0 * mx) / (ex * ex) + (dy0 * my) / (ey * ey) + (dz0 * mz) / (ez * ez));
