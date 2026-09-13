@@ -3055,6 +3055,20 @@ function syncDebug(){
   }
   #serveDot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: #ffd56a; box-shadow: 0 0 8px #ffd56a; display: none; }
   #serveDot.on { display: block; }
+  #board {
+    flex: 0 0 auto; display: flex; align-items: baseline; gap: 4px; padding: 3px 9px;
+    border-radius: 9px; background: rgba(0,0,0,.42); border: 1px solid rgba(255,255,255,.16);
+    font-variant-numeric: tabular-nums; letter-spacing: .02em;
+  }
+  #board b { font-size: 15px; font-weight: 800; color: #fff; }
+  #board b.lead { color: #7dffb0; }
+  #board s { text-decoration: none; font-size: 11px; color: rgba(255,255,255,.4); }
+  @media (max-width: 430px) {
+    #bar { gap: 6px; padding-left: 7px; padding-right: 7px; }
+    #status { font-size: 11px; letter-spacing: .02em; }
+    #reset { padding: 6px 9px; }
+    #hint { font-size: 12px; padding: 7px 11px; }
+  }
   #reset {
     flex: 0 0 auto; pointer-events: auto; padding: 6px 11px; border-radius: 9px;
     background: rgba(0,0,0,.42); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer;
@@ -3085,7 +3099,10 @@ function syncDebug(){
   #readyBtn:active { transform: scale(0.97); }
 </style>
 <div id="wrap"><canvas id="game"></canvas></div>
-<div id="bar"><div id="serveDot"></div><div id="status">First to 11</div><button id="reset">New game</button></div>
+<div id="bar">
+  <div id="board"><b id="myPts">0</b><s id="dash">-</s><b id="thPts">0</b></div>
+  <div id="serveDot"></div><div id="status">First to 11</div><button id="reset">New game</button>
+</div>
 <div id="banner"><h2 id="bt"></h2><p id="bp"></p></div>
 <div id="hint">Drag anywhere — your paddle goes where your finger is, side to side <b>and</b> up the table. It hits for you. Tap to serve.</div>
 <div id="overlay">
@@ -3114,6 +3131,8 @@ function syncDebug(){
   var banner = document.getElementById('banner');
   var bt = document.getElementById('bt');
   var bp = document.getElementById('bp');
+  var myPts = document.getElementById('myPts');
+  var thPts = document.getElementById('thPts');
 
   // ---- the table, in decimetres and milliseconds -----------------------------
   // A real table is 152.5 x 274 cm with a 15.25 cm net, so these are the true
@@ -3129,7 +3148,7 @@ function syncDebug(){
   var PADR = 0.9;                // paddle blade radius, dm
   var REACH_X = 1.45, REACH_Y = 1.5, REACH_Z = 1.5;
   // How far up and back a player may stand. y is measured from THEIR end line.
-  var STEP_IN = 2.2, STEP_BACK = 2.4, SIDE_REACH = 1.0;
+  var STEP_IN = 2.6, STEP_BACK = 4.0, SIDE_REACH = 1.0;
   var HOST_HOME = -1.5, GUEST_HOME = TL + 1.5;
   var HOST_MIN = -STEP_BACK, HOST_MAX = STEP_IN;
   var SIM = 8, FSTEP = 20;       // physics step, and the coarser step prediction uses
@@ -3156,7 +3175,7 @@ function syncDebug(){
   var bannerUntil = 0, overlayMode = '';
   var sparks = [], marks = [], trail = [];
   var _W = 0, _H = 0, dpr = 1;
-  var CB = 15, CH = 14, K = 40, CX = 0, TY = 0;
+  var CB = 15, CH = 14, K = 40, CX = 0, TY = 0, padTop = 0, padBot = 0;
   var hoverOk = false;
   try { hoverOk = window.matchMedia('(hover:hover) and (pointer:fine)').matches; } catch (e) {}
 
@@ -3177,7 +3196,7 @@ function syncDebug(){
       tsp: 0, ssp: 0, sp: 0,
       hostX: 0, hostY: HOST_HOME, hostZ: 1,
       guestX: 0, guestY: GUEST_HOME, guestZ: 1,
-      hostScore: 0, guestScore: 0, pt: 0,
+      hostScore: 0, guestScore: 0, pt: 0, hostName: '',
       serving: 'host', lastHitter: null,
       paused: false, pausedBy: null, pausedAt: 0, t: 0,
       rally: 0, why: '', msgWho: null
@@ -3266,7 +3285,19 @@ function syncDebug(){
     });
     lastNow = Date.now();
     requestAnimationFrame(loop);
-    showBanner('PING PONG', 'first to 11 - win by 2', 1500);
+    // The GIF kept the match. Say so, instead of replaying the title card.
+    setTimeout(function () {
+      var played = game.hostScore + game.guestScore;
+      if (matchOver()) return;
+      if (played > 0) {
+        var my = owner ? game.hostScore : game.guestScore;
+        var th = owner ? game.guestScore : game.hostScore;
+        showBanner('STILL ' + my + ' - ' + th, 'right where you left it', 1900);
+        hint.classList.add('hide');
+      } else {
+        showBanner('PING PONG', 'first to 11 - win by 2', 1500);
+      }
+    }, 260);
   }
 
   function syncLocalToState() {
@@ -3294,10 +3325,13 @@ function syncDebug(){
   }
   function guestLive() { return owner && everHadGuest && Date.now() - lastGuestBeat <= GUEST_TIMEOUT; }
 
+  // Whoever is at the OTHER end. The guest's own record carries the guest's
+  // name, so a guest asking it who it is playing gets told itself.
   function themName() {
-    if (isCpu()) return 'Computer';
-    return (gst && gst.name) ? gst.name : (owner ? 'Friend' : 'Host');
+    if (owner) return isCpu() ? 'Computer' : ((gst && gst.name) || 'Your friend');
+    return game.hostName || 'Your friend';
   }
+  function myName() { return me.name || 'You'; }
 
   function serverFor(h, g) {
     var tot = h + g;
@@ -3345,6 +3379,7 @@ function syncDebug(){
       cpu.vx = gst.vx || 0; cpu.vy = gst.vy || 0;
     }
     game.hvx = padVX; game.hvy = padVY; game.ack = gSeq;
+    if (game.hostName !== me.name) game.hostName = me.name;
     if (pendingServer && now >= freezeUntil && !matchOver()) {
       resetBall(pendingServer);
       pendingServer = null;
@@ -3454,7 +3489,7 @@ function syncDebug(){
     game.sp += (Math.abs(game.tsp) + Math.abs(game.ssp)) * dt * 0.02 + sp * dt * 0.05;
     game.tsp *= 0.99965; game.ssp *= 0.99965;
 
-    if (trail.length > 26) trail.shift();
+    if (trail.length > 15) trail.shift();
     trail.push({ x: game.bx, y: game.by, z: game.bz });
 
     // the net
@@ -3734,12 +3769,9 @@ function syncDebug(){
     if (mine && why === 'miss') label = 'PAST THEM';
     var big = mine ? 'YOUR POINT' : (isCpu() ? 'COMPUTER' : 'THEIR POINT');
     if ((game.rally || 0) >= 6) label = game.rally + ' SHOT RALLY - ' + label;
-    if (matchOver()) {
-      var iWin = owner ? matchWinner() === 'host' : matchWinner() === 'guest';
-      showBanner(iWin ? 'YOU WIN' : (isCpu() ? 'COMPUTER WINS' : 'THEY WIN'), game.hostScore + '  -  ' + game.guestScore, 4000);
-    } else {
-      showBanner(big, label, 1000);
-    }
+    // The match-over card is the overlay's job; a banner underneath it is two
+    // of the same announcement fighting through a scrim.
+    if (!matchOver()) showBanner(big, label, 1000);
   }
 
   function onPointSeen() {
@@ -3845,10 +3877,15 @@ function syncDebug(){
   }
 
   // ---- input -----------------------------------------------------------------
+  // Depth is a band, not a point. The true projected positions of the furthest
+  // forward and furthest back stance are the two ends; the band is then STRETCHED
+  // outward to reach the bottom of the screen, because a thumb rests low and the
+  // honest projection squeezes the whole reach into a couple of hundred pixels.
+  // Across is exact perspective at whatever depth you land on.
   function screenToTable(sx, sy) {
-    var ry = (sy - TY) / K;
-    var vy = CH * CB / Math.max(0.6, ry) - CB;
-    var s = CB / (vy + CB);
+    var f = clamp((sy - padTop) / Math.max(1, padBot - padTop), 0, 1);
+    var vy = STEP_IN + f * (HOST_MIN - STEP_IN);
+    var s = scaleAt(vy);
     var vx = (sx - CX) / K / s;
     return owner ? { x: vx, y: vy } : { x: -vx, y: TL - vy };
   }
@@ -3965,17 +4002,25 @@ function syncDebug(){
     if (show) { ot.textContent = title; ob.textContent = body; readyBtn.textContent = btn; }
   }
 
+  function short() { return _W < 430; }
+
   function updateHud() {
     var mine = owner ? 'host' : 'guest';
     var servingMe = game.serving === mine;
     var servingThem = game.serving && !servingMe;
+    var my = owner ? game.hostScore : game.guestScore;
+    var th = owner ? game.guestScore : game.hostScore;
+    myPts.textContent = my; thPts.textContent = th;
+    myPts.className = my > th ? 'lead' : '';
+    thPts.className = th > my ? 'lead' : '';
     serveDot.classList.toggle('on', !!game.serving && !matchOver());
-    if (matchOver()) statusEl.textContent = 'Match over';
-    else if (game.paused) statusEl.textContent = 'Paused - waiting for ' + themName();
-    else if (servingMe) statusEl.textContent = 'Your serve - tap or swipe';
+    if (matchOver()) statusEl.textContent = my > th ? 'You win' : themName() + ' wins';
+    else if (game.paused) statusEl.textContent = 'Waiting for ' + themName();
+    else if (servingMe) statusEl.textContent = short() ? 'Your serve - tap' : 'Your serve - tap or swipe';
     else if (servingThem) statusEl.textContent = themName() + ' to serve';
-    else if (isCpu()) statusEl.textContent = 'Computer - press Invite up top to play a friend';
-    else statusEl.textContent = themName() + '  -  first to 11';
+    else if (isCpu()) statusEl.textContent = short() ? 'Invite a friend' : 'Invite a friend to play';
+    else statusEl.textContent = short() ? themName() : 'Playing ' + themName();
+    resetBtn.textContent = short() ? 'New' : 'New game';
     canvas.dataset.score = game.hostScore + '-' + game.guestScore;
     canvas.dataset.rally = String(game.rally || 0);
     canvas.dataset.phase = matchOver() ? 'match' : (game.serving ? 'serve' : 'rally');
@@ -4047,18 +4092,38 @@ function syncDebug(){
     CX = _W / 2;
     TY = 0.90 * _H - bot * K;
     if (TY + top * K < 0.085 * _H) TY = 0.085 * _H - top * K;
+    padTop = Math.min(TY + CH * scaleAt(STEP_IN) * K, 0.40 * _H);
+    padBot = Math.max(TY + CH * scaleAt(HOST_MIN) * K, 0.99 * _H);
   }
 
   // ---- render ----------------------------------------------------------------
   var reticle = null, reticleAge = 0;
+
+  var bg = document.createElement('canvas'), bgx = bg.getContext('2d');
+  var nt = document.createElement('canvas'), ntx = nt.getContext('2d');
+
+  // The hall and the table never move. Painting their gradients, grids and net
+  // mesh into two bitmaps at resize and blitting them is the difference between
+  // a drawn frame costing tens of milliseconds and costing one.
+  function buildStatic() {
+    var real = ctx;
+    [bg, nt].forEach(function (c) {
+      c.width = Math.max(1, _W * dpr); c.height = Math.max(1, _H * dpr);
+      c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+    });
+    ctx = bgx; ctx.clearRect(0, 0, _W, _H); drawArena(); drawTable();
+    ctx = ntx; ctx.clearRect(0, 0, _W, _H); paintNet();
+    ctx = real;
+  }
+
+  function drawNet() { ctx.drawImage(nt, 0, 0, _W, _H); }
 
   function render() {
     if (Date.now() > bannerUntil) banner.classList.remove('on');
     hitFlash *= 0.86;
     swingAnim *= 0.88;
     ctx.clearRect(0, 0, _W, _H);
-    drawArena();
-    drawTable();
+    ctx.drawImage(bg, 0, 0, _W, _H);
     drawMarks();
     if (++reticleAge % 5 === 0) reticle = computeReticle();
     drawReticle();
@@ -4102,13 +4167,14 @@ function syncDebug(){
   function drawReticle() {
     if (!reticle) return;
     var q = p(reticle.x, reticle.y, 0.02);
-    var a = clamp(1 - reticle.t / 900, 0.15, 0.6);
+    var a = clamp(1 - reticle.t / 900, 0.25, 0.85);
+    var rr = Math.max(9, 26 * q.sc);
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,214,110,' + a + ')';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(q.x, q.y, 22 * q.sc, 8 * q.sc, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,214,110,' + (a * 0.16).toFixed(3) + ')';
+    ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.34, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,222,130,' + a.toFixed(3) + ')';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.34, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
 
@@ -4125,18 +4191,41 @@ function syncDebug(){
     spot.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = spot;
     ctx.fillRect(0, 0, _W, _H);
-    // floor: lines running away from the player, so the hall has a depth of its own
-    ctx.strokeStyle = 'rgba(255,255,255,0.028)';
-    ctx.lineWidth = 1;
-    for (var i = -3; i <= 3; i++) {
-      var a = p(i * 7, HOST_MIN - 1.2, -0.02), b = p(i * 7, TL + 5, -0.02);
+    // the floor of the hall, and the court it runs to
+    var FZ = -7.6, FX = TW / 2 + 6.2, FB = TL + 8, FF = HOST_MIN - 7;
+    var fl = ctx.createLinearGradient(0, p(0, FB, FZ).y, 0, p(0, FF, FZ).y);
+    fl.addColorStop(0, '#0b1422');
+    fl.addColorStop(1, '#131d2c');
+    ctx.fillStyle = fl;
+    var c1 = p(-FX, FF, FZ), c2 = p(FX, FF, FZ), c3 = p(FX, FB, FZ), c4 = p(-FX, FB, FZ);
+    ctx.beginPath(); ctx.moveTo(c1.x, c1.y); ctx.lineTo(c2.x, c2.y); ctx.lineTo(c3.x, c3.y); ctx.lineTo(c4.x, c4.y); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 1;
+    for (var i = -4; i <= 4; i++) {
+      var a = p(i * 3.4, FF, FZ), b = p(i * 3.4, FB, FZ);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
-    for (var j = 0; j <= 8; j++) {
-      var yy = HOST_MIN - 1.2 + j * 4.6;
-      var c = p(-21, yy, -0.02), d = p(21, yy, -0.02);
+    for (var j = 0; j <= 10; j++) {
+      var yy = FF + j * (FB - FF) / 10;
+      var c = p(-FX, yy, FZ), d = p(FX, yy, FZ);
       ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.stroke();
     }
+    barrier(-FX, FF, -FX, FB, FZ);
+    barrier(FX, FF, FX, FB, FZ);
+    barrier(-FX, FB, FX, FB, FZ);
+  }
+
+  // The low surround boards a table tennis court is fenced with. They are the
+  // cheapest honest depth cue there is: two long straight edges converging.
+  function barrier(x0, y0, x1, y1, z0) {
+    var h = 7.2;
+    var a = p(x0, y0, z0), b = p(x1, y1, z0), c = p(x1, y1, z0 + h), d = p(x0, y0, z0 + h);
+    var g = ctx.createLinearGradient(0, Math.min(d.y, c.y), 0, Math.max(a.y, b.y));
+    g.addColorStop(0, '#16304a');
+    g.addColorStop(1, '#0a1726');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(150,190,240,0.16)'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(c.x, c.y); ctx.stroke();
   }
 
   function drawTable() {
@@ -4195,7 +4284,7 @@ function syncDebug(){
     }
   }
 
-  function drawNet() {
+  function paintNet() {
     var n0 = p(-TW / 2 - NOVER, TL / 2, 0), n1 = p(TW / 2 + NOVER, TL / 2, 0);
     var n2 = p(TW / 2 + NOVER, TL / 2, NH), n3 = p(-TW / 2 - NOVER, TL / 2, NH);
     var pl0 = p(-TW / 2 - NOVER, TL / 2, 0), pl1 = p(-TW / 2 - NOVER, TL / 2, NH + 0.1);
@@ -4223,11 +4312,12 @@ function syncDebug(){
     var pos = p(x, y, z);
     var sh = p(x, y, 0);
     var sc = pos.sc;
-    var rx = Math.max(9, PADR * K * sc);
+    var rx = Math.max(near ? 14 : 13, PADR * K * sc);
     var ry = rx * 1.12;
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,' + (0.3 * clamp(1.6 - z / 3, 0.25, 1)) + ')';
     ctx.beginPath(); ctx.ellipse(sh.x, sh.y, rx * 0.92, ry * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    drawArm(pos.x, pos.y, rx, near);
     ctx.translate(pos.x, pos.y);
     var vx = near ? padVX : (owner ? cpu.vx : (game.hvx || 0));
     var tilt = clamp(vx * 7, -0.45, 0.45) + (near ? swingAnim * swingKind * -0.3 : 0);
@@ -4255,10 +4345,35 @@ function syncDebug(){
     ctx.restore();
   }
 
+  // A forearm running off the bottom of the frame. Without it the bat is a
+  // lollipop floating in a hall, and nothing about reaching reads.
+  function drawArm(px, py, rx, near) {
+    var dirY = near ? 1 : -1;
+    var wx = px + rx * (near ? 0.35 : -0.3), wy = py + rx * 1.3 * dirY;
+    var reach = rx * (near ? 6.2 : 4.2);
+    var ex = px + rx * (near ? 2.0 : -1.5), ey = wy + reach * dirY;
+    var w0 = rx * 0.5, w1 = rx * (near ? 1.5 : 1.15);
+    var dx = ex - wx, dy = ey - wy, len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var nx = -dy / len, ny = dx / len;
+    var g = ctx.createLinearGradient(wx, wy, ex, ey);
+    g.addColorStop(0, '#c98f63');
+    g.addColorStop(1, '#8d5b3a');
+    ctx.save();
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(wx + nx * w0, wy + ny * w0);
+    ctx.lineTo(ex + nx * w1, ey + ny * w1);
+    ctx.lineTo(ex - nx * w1, ey - ny * w1);
+    ctx.lineTo(wx - nx * w0, wy - ny * w0);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.arc(wx, wy, w0 * 1.15, 0, Math.PI * 2); ctx.fillStyle = near ? '#cf9568' : '#8a5c3c'; ctx.fill();
+    ctx.restore();
+  }
+
   function drawBall() {
     var b = p(game.bx, game.by, game.bz);
     var s = p(game.bx, game.by, 0);
-    var r = Math.max(3.2, BR * 2.4 * K * b.sc);
+    var r = Math.max(3.4, BR * 1.9 * K * b.sc);
     // trail, coloured by the spin on the ball: warm for topspin, cool for chop
     if (trail.length > 2 && !game.serving) {
       var warm = game.tsp * (game.vy > 0 ? 1 : -1);
@@ -4267,9 +4382,9 @@ function syncDebug(){
       for (var i = 1; i < trail.length; i++) {
         var q0 = p(trail[i - 1].x, trail[i - 1].y, trail[i - 1].z);
         var q1 = p(trail[i].x, trail[i].y, trail[i].z);
-        var a = (i / trail.length) * 0.4;
+        var a = (i / trail.length) * 0.22;
         ctx.strokeStyle = 'rgba(' + col + ',' + a.toFixed(3) + ')';
-        ctx.lineWidth = Math.max(1, r * (i / trail.length) * 0.7);
+        ctx.lineWidth = Math.max(0.8, r * (i / trail.length) * 0.5);
         ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke();
       }
@@ -4286,8 +4401,8 @@ function syncDebug(){
     ctx.save();
     ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.clip();
     ctx.translate(b.x, b.y); ctx.rotate(game.sp);
-    ctx.fillStyle = 'rgba(215,60,45,0.8)';
-    ctx.fillRect(-r, -r * 0.15, r * 2, r * 0.3);
+    ctx.fillStyle = 'rgba(210,70,55,0.55)';
+    ctx.fillRect(-r, -r * 0.11, r * 2, r * 0.22);
     ctx.restore();
     ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1; ctx.stroke();
@@ -4295,26 +4410,31 @@ function syncDebug(){
 
   // Painted on the cloth at each end, in perspective, so the number belongs to
   // the half it counts for and never fights the net for the middle of the frame.
+  // Positions are given in VIEW depth (0 = the end you are standing at), so the
+  // far number really is on the far half for both players. p() flips the world
+  // for the guest; giving it world coordinates put the opponent's score on the
+  // guest's own side of the net.
+  function vy2world(vy) { return owner ? vy : TL - vy; }
+
   function drawScores() {
     var my = owner ? game.hostScore : game.guestScore;
     var th = owner ? game.guestScore : game.hostScore;
     var mine = owner ? 'host' : 'guest';
-    drawHalfScore(TL * 0.70, TL * 0.88, th, themName().toUpperCase(), 0.13, !!game.serving && game.serving !== mine);
-    drawHalfScore(TL * 0.22, TL * 0.05, my, 'YOU', 0.17, game.serving === mine);
-    ctx.restore();
+    drawHalfScore(TL * 0.66, TL * 0.82, th, themName().toUpperCase(), 0.11, !!game.serving && game.serving !== mine);
+    drawHalfScore(TL * 0.30, TL * 0.16, my, myName().toUpperCase(), 0.13, game.serving === mine);
   }
 
-  function drawHalfScore(numY, labY, value, label, size, serving) {
-    var a = p(0, numY, 0.03), b = p(0, labY, 0.03);
+  function drawHalfScore(numVY, labVY, value, label, size, serving) {
+    var a = p(0, vy2world(numVY), 0.03), b = p(0, vy2world(labVY), 0.03);
     var base = Math.min(_W, _H * 0.8);
     ctx.save();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(255,255,255,' + (serving ? 0.3 : 0.17) + ')';
     ctx.font = '800 ' + Math.round(base * size) + 'px system-ui, sans-serif';
     ctx.fillText(String(value), a.x, a.y);
-    ctx.font = '700 ' + clamp(Math.round(base * size * 0.16), 9, 15) + 'px system-ui, sans-serif';
-    ctx.fillStyle = serving ? 'rgba(255,213,106,0.6)' : 'rgba(255,255,255,0.3)';
-    ctx.letterSpacing = '0.12em';
+    ctx.font = '700 ' + clamp(Math.round(base * size * 0.15), 9, 13) + 'px system-ui, sans-serif';
+    ctx.fillStyle = serving ? 'rgba(255,213,106,0.45)' : 'rgba(255,255,255,0.24)';
+    ctx.letterSpacing = '0.14em';
     ctx.fillText(serving ? label + ' - SERVING' : label, b.x, b.y);
     ctx.letterSpacing = '0px';
     ctx.restore();
@@ -4343,6 +4463,7 @@ function syncDebug(){
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     _W = box.width; _H = box.height;
     setCam();
+    buildStatic();
   }
 </script>
 `;
