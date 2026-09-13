@@ -122,6 +122,37 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('a served ball is never un-served by a stale echo of the host’s own write',
     serve.every((s) => s.served && !s.resurrected), JSON.stringify(serve));
 
+  // ---- serving the way the app tells you to ---------------------------------
+  // The hint says: drag, the paddle goes where your finger is, tap to serve. So
+  // a real serve is a long tracking drag ending in a release. pointerup used to
+  // measure the swipe from pointerdown, which read that whole journey as the
+  // flick: every spin and pace value hit its clamp and the serve flew long,
+  // four times out of four.
+  const served = [];
+  for (let i = 0; i < 4; i++) {
+    await frame.evaluate(async () => {
+      while (!game.serving || game.serving !== 'host' || Date.now() < freezeUntil) {
+        await new Promise((r) => setTimeout(r, 60));
+      }
+    });
+    await app.mouse.move(cx - 60, box.y + box.height * 0.88);
+    await app.mouse.down();
+    for (let k = 0; k < 12; k++) {
+      await app.mouse.move(cx - 60 + k * 12, box.y + box.height * (0.88 - k * 0.012));
+      await sleep(35);
+    }
+    await app.mouse.up();
+    await sleep(700);
+    served.push(await frame.evaluate(() => ({
+      tsp: +game.tsp.toFixed(2), ssp: +game.ssp.toFixed(2), why: game.why, rally: game.rally,
+    })));
+    await sleep(900);
+  }
+  check('a tracking drag does not saturate the swing on release',
+    served.every((v) => Math.abs(v.tsp) < 0.85 && Math.abs(v.ssp) < 0.75), JSON.stringify(served));
+  check('serving as instructed does not lose the point every time',
+    served.filter((v) => v.why === 'out' && v.rally <= 1).length <= 1, JSON.stringify(served));
+
   // ---- the clock -----------------------------------------------------------
   const clock = await frame.evaluate(async () => {
     const s0 = timeSimmed, d0 = timeDropped, t0 = Date.now();

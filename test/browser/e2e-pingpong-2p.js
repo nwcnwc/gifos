@@ -106,6 +106,14 @@ function drive(frame, secs) {
     return el && el.value;
   }, null, { timeout: 60000 });
   const url = await aRun.evaluate(() => document.getElementById('share-url').value);
+  // Dismiss the share card the way a host does — with its own Close button.
+  // Hiding it with an inline style leaves it in the layout, intercepting every
+  // later click on the app's own buttons.
+  await aRun.waitForFunction(() => {
+    const m = document.getElementById('inv-modal');
+    return m && getComputedStyle(m).display !== 'none';
+  }, null, { timeout: 25000 }).catch(() => {});
+  await aRun.locator('#inv-done').click({ timeout: 8000 }).catch(() => {});
   await aRun.evaluate(() => { const m = document.getElementById('inv-modal'); if (m) m.style.display = 'none'; });
   aFrame = await appFrame(aRun);
   check('Invite produces a link to share', /#j=/.test(url), url.slice(0, 48) + '…');
@@ -165,6 +173,31 @@ function drive(frame, secs) {
     ra.gs >= 2, 'host ' + ra.hs + ' — guest ' + ra.gs);
   check('the host wins points too', ra.hs >= 2, 'host ' + ra.hs + ' — guest ' + ra.gs);
 
+  // ---- the two screens are in the SAME game, especially between points ----
+  // The serve indicator is the thing both players act on. If it disagrees,
+  // both of them sit there waiting for the other one to tap.
+  const agree = await (async () => {
+    let samples = 0, disagree = 0, worstBall = 0;
+    for (let i = 0; i < 70; i++) {
+      const [a, b] = await Promise.all([
+        aFrame.evaluate(() => ({ s: game.serving, by: game.by, pt: game.pt })),
+        bFrame.evaluate(() => ({ s: game.serving, by: game.by, pt: game.pt })),
+      ]);
+      if (a.pt === b.pt) {
+        samples++;
+        if (a.s !== b.s) disagree++;
+        worstBall = Math.max(worstBall, Math.abs(a.by - b.by));
+      }
+      await sleep(90);
+    }
+    return { samples, disagree, worstBall };
+  })();
+  check('the two screens name the same server',
+    agree.samples > 20 && agree.disagree / agree.samples < 0.08,
+    agree.disagree + ' of ' + agree.samples + ' samples disagreed');
+  check('the ball never jumps most of a table out of place on the guest',
+    agree.worstBall < 9, 'worst divergence ' + agree.worstBall.toFixed(2) + ' dm of ' + 27.4);
+
   // ---- latency is measured, and compensated -------------------------------
   const lag = await bFrame.evaluate(() => ({ rtt: Math.round(rtt) }));
   check('the guest measures the round trip instead of assuming it',
@@ -193,8 +226,10 @@ function drive(frame, secs) {
     drift < 4.5, drift.toFixed(2) + ' dm apart (table is ' + 27.4 + ' dm long)');
 
   // ---- the guest drops out ------------------------------------------------
+  // Every host write re-broadcasts the whole collection, guest record included.
+  // Counting that as a heartbeat left a vanished friend looking alive forever.
   await bCtx.setOffline(true);
-  await sleep(5000);
+  await sleep(6000);
   const away = await aFrame.evaluate(() => ({
     paused: game.paused,
     status: document.getElementById('status').textContent,
@@ -235,14 +270,25 @@ function drive(frame, secs) {
     b: await bFrame.evaluate(() => ({
       on: document.getElementById('overlay').classList.contains('on'),
       title: document.getElementById('ot').textContent,
+      body: document.getElementById('ob').textContent,
+      btn: document.getElementById('readyBtn').textContent,
       shown: getComputedStyle(document.getElementById('readyBtn')).display !== 'none',
+      board: document.getElementById('board').textContent,
     })),
   };
   check('both screens show the result', over.a.on && over.b.on, JSON.stringify(over));
-  check('the winner is the winner on both screens',
-    /win/i.test(over.a.title) && /win/i.test(over.b.title), JSON.stringify(over));
-  check('only the host is offered Play again', over.a.shown === true && over.b.shown === false,
-    JSON.stringify(over));
+  check('the winner is named, not called "they"',
+    /you win/i.test(over.a.title) && /Alice/.test(over.b.title), JSON.stringify(over));
+  check('the guest reads its own score first, the way its scoreboard does',
+    /^\s*4\s+-\s+11/.test(over.b.body) && /4/.test(over.b.board),
+    JSON.stringify({ body: over.b.body, board: over.b.board }));
+  check('the guest is not a spectator — it can ask for a rematch',
+    over.b.shown === true && /rematch/i.test(over.b.btn), JSON.stringify(over.b));
+
+  await bRun.frameLocator('iframe').locator('#readyBtn').click();
+  await sleep(1800);
+  const asked = await aFrame.evaluate(() => document.getElementById('readyBtn').textContent);
+  check('and the host is told they asked', /Bob/.test(asked), asked);
 
   await aRun.frameLocator('iframe').locator('#readyBtn').click();
   await sleep(2500);

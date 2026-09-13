@@ -3069,11 +3069,12 @@ function syncDebug(){
     #reset { padding: 6px 9px; }
     #hint { font-size: 12px; padding: 7px 11px; }
   }
-  #reset {
+  #reset, #howto {
     flex: 0 0 auto; pointer-events: auto; padding: 6px 11px; border-radius: 9px;
     background: rgba(0,0,0,.42); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer;
     border: 1px solid rgba(255,255,255,.2);
   }
+  #howto { padding: 6px 10px; }
   #banner {
     position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%);
     z-index: 8; pointer-events: none; text-align: center; opacity: 0; transition: opacity .14s;
@@ -3083,8 +3084,8 @@ function syncDebug(){
   #banner h2 { margin: 0; font-size: clamp(26px, 7.4vw, 50px); font-weight: 900; letter-spacing: .02em; }
   #banner p { margin: 6px 0 0; font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #ffd56a; }
   #hint {
-    position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-    transform: translateX(-50%); z-index: 6; pointer-events: none; max-width: 92%;
+    position: fixed; left: 50%; bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%); z-index: 6; pointer-events: none; max-width: min(23rem, 90%);
     font-size: 13px; font-weight: 650; color: #eef0f6; background: rgba(0,0,0,.58);
     padding: 8px 14px; border-radius: 12px; text-align: center; line-height: 1.4;
     border: 1px solid rgba(255,255,255,.1);
@@ -3101,10 +3102,11 @@ function syncDebug(){
 <div id="wrap"><canvas id="game"></canvas></div>
 <div id="bar">
   <div id="board"><b id="myPts">0</b><s id="dash">-</s><b id="thPts">0</b></div>
-  <div id="serveDot"></div><div id="status">First to 11</div><button id="reset">New game</button>
+  <div id="serveDot"></div><div id="status">First to 11</div>
+  <button id="howto" title="How to play">?</button><button id="reset">New game</button>
 </div>
 <div id="banner"><h2 id="bt"></h2><p id="bp"></p></div>
-<div id="hint">Drag anywhere — your paddle goes where your finger is, side to side <b>and</b> up the table. It hits for you. Tap to serve.</div>
+<div id="hint">Drag <b>across</b> the table and <b>up</b> it — it hits for you. Tap to serve.</div>
 <div id="overlay">
   <h2 id="ot">Ready?</h2>
   <p id="ob">Tap the button when you are back so you can return the next ball.</p>
@@ -3134,6 +3136,7 @@ function syncDebug(){
   var ob = document.getElementById('ob');
   var readyBtn = document.getElementById('readyBtn');
   var resetBtn = document.getElementById('reset');
+  var howBtn = document.getElementById('howto');
   var hint = document.getElementById('hint');
   var banner = document.getElementById('banner');
   var bt = document.getElementById('bt');
@@ -3153,7 +3156,7 @@ function syncDebug(){
   var MAGZ = 0.0016, MAGX = 0.0009;
   var REST = 0.86;               // table restitution
   var PADR = 0.9;                // paddle blade radius, dm
-  var REACH_X = 1.45, REACH_Y = 1.5, REACH_Z = 1.5;
+  var REACH_X = 1.45, REACH_FWD = 1.9, REACH_BACK = 0.95, REACH_Z = 1.5;
   // How far up and back a player may stand. y is measured from THEIR end line.
   var STEP_IN = 2.6, STEP_BACK = 4.0, SIDE_REACH = 1.0;
   var HOST_HOME = -1.5, GUEST_HOME = TL + 1.5;
@@ -3161,6 +3164,9 @@ function syncDebug(){
   var SIM = 8, FSTEP = 20;       // physics step, and the coarser step prediction uses
   var GUEST_TIMEOUT = 3500, STATE_TIMEOUT = 3000, CPU_TIMEOUT = 7000;
   var WIN = 11;
+  // Where the two painted numbers sit, in VIEW depth. The near one is up past
+  // the furthest you can stand, so your own bat is never on top of your score.
+  var SCORE_NEAR = TL * 0.40, SCORE_FAR = TL * 0.70;
 
   var game = freshGame();
   var gst = freshGuest();
@@ -3461,7 +3467,7 @@ function syncDebug(){
     if (owner) zThem = targetCpuZ();
     var steps = 0;
     while (acc >= SIM && steps < 34) { acc -= SIM; timeSimmed += SIM; if (owner) hostTick(SIM); else guestTick(SIM); steps++; }
-    if (now - hudAt > 140) { hudAt = now; updateHud(); updateOverlay(); }
+    if (now - hudAt > 140) { hudAt = now; updateHud(); updateOverlay(); attract(now); }
     render();
     requestAnimationFrame(loop);
   }
@@ -3563,7 +3569,7 @@ function syncDebug(){
     var isHost = who === 'host';
     var px = isHost ? game.hostX : game.guestX;
     var py = serveY(who);
-    game.bx = px + (isHost ? 0.5 : -0.5);
+    game.bx = clamp(px + (isHost ? 0.5 : -0.5), -TW / 2 + 0.7, TW / 2 - 0.7);
     game.by = py + (isHost ? 0.85 : -0.85);
     game.bz = 1.9 + Math.sin(Date.now() / 190) * 0.28;
     game.vx = 0; game.vy = 0; game.vz = 0;
@@ -3650,7 +3656,10 @@ function syncDebug(){
     // Friction on the cloth turns spin into travel: topspin kicks on, backspin
     // sits down and can even check back.
     game.vy *= 1 + clamp(game.tsp, -0.9, 0.9) * 0.34;
-    game.vx += game.ssp * 0.22;
+    // Sideways kick off the cloth, sized against the ball's own speed. At 0.22
+    // a single bounce added five times the ball's entire forward velocity
+    // sideways, and a wide shot left the table at x = 16 on a table 7.6 wide.
+    game.vx += game.ssp * 0.011;
     game.ssp *= 0.55; game.tsp *= 0.45;
     addMark(game.bx, game.by);
     playSound('table');
@@ -3693,25 +3702,37 @@ function syncDebug(){
     var dx0 = pX - px, dy0 = pY - py, dz0 = pZ - pz;
     var dx1 = game.bx - px, dy1 = game.by - py, dz1 = game.bz - pz;
     var mx = dx1 - dx0, my = dy1 - dy0, mz = dz1 - dz0;
-    var ex = REACH_X, ey = REACH_Y, ez = REACH_Z;
+    var ex = REACH_X, ez = REACH_Z;
+    // A ball that has got BEHIND you is most of the way to gone. That is the
+    // price of standing up over the table when a deep one arrives.
+    var behind = isHost ? (dy0 + dy1) / 2 < 0 : (dy0 + dy1) / 2 > 0;
+    var ey = behind ? REACH_BACK : REACH_FWD;
     var a = (mx * mx) / (ex * ex) + (my * my) / (ey * ey) + (mz * mz) / (ez * ez);
     var b = 2 * ((dx0 * mx) / (ex * ex) + (dy0 * my) / (ey * ey) + (dz0 * mz) / (ez * ez));
     var c = (dx0 * dx0) / (ex * ex) + (dy0 * dy0) / (ey * ey) + (dz0 * dz0) / (ez * ez) - 1;
-    var tHit = -1;
-    if (c <= 0) tHit = 0;
-    else if (a > 1e-9) {
-      var disc = b * b - 4 * a * c;
-      if (disc >= 0) {
-        var r = (-b - Math.sqrt(disc)) / (2 * a);
-        if (r >= 0 && r <= 1) tHit = r;
-      }
-    }
-    if (tHit < 0) return;
+    // Contact is the CLOSEST APPROACH of the ball's path to the middle of the
+    // blade, not the moment it grazes the edge of your reach. Measuring quality
+    // at the entry point scored every single contact at the boundary — average
+    // 0.26 out of 1 — so every ball came off as if it had been scraped.
+    var tStar = a > 1e-9 ? clamp(-b / (2 * a), 0, 1) : 0;
+    var fMin = a * tStar * tStar + b * tStar + c + 1;    // normalised distance^2
+    if (fMin > 1) return;
+    // The closest point is at the END of this step, so the ball is still coming:
+    // wait. Striking on the first step that merely touches the reach is striking
+    // at the edge of the blade every single time.
+    if (tStar > 0.999 && a > 1e-9) return;
+    var tHit = tStar;
     var contactX = px + dx0 + mx * tHit;
     var contactY = py + dy0 + my * tHit;
     var contactZ = pz + dz0 + mz * tHit;
     if (contactZ < 0.12) return;
     if (who === 'guest' && isCpu() && cpu.miss) { cpu.miss = false; return; }
+
+    // How well you met it: 1 through the middle of the blade, 0 at the very
+    // edge of your reach. This is the number the depth axis is FOR — stand in
+    // the right place and you strike it cleanly, stand in the wrong one and you
+    // are stretching, and a stretch makes a worse ball.
+    var quality = clamp(1.12 - Math.sqrt(Math.max(0, fMin)), 0.1, 1);
 
     var swing = consumeSwing(who);
     var vX, vY;
@@ -3719,37 +3740,53 @@ function syncDebug(){
     else if (owner) { vX = guestLive() ? (gst.vx || 0) : cpu.vx; vY = guestLive() ? (gst.vy || 0) : cpu.vy; }
     else { vX = game.hvx || 0; vY = game.hvy || 0; }
     game.bx = contactX; game.by = contactY; game.bz = contactZ;
-    strike(who, contactX, contactY, contactZ, swing, vX, vY);
+    strike(who, contactX, contactY, contactZ, swing, vX, vY, quality);
   }
 
-  function strike(who, cx, cy, cz, swing, padvx, padvy) {
+  function strike(who, cx, cy, cz, swing, padvx, padvy, quality) {
     var isHost = who === 'host';
     var dir = isHost ? 1 : -1;
-    var endY = isHost ? 0 : TL;
-    // Depth of contact decides the shot. Taken early, over the table, the ball
-    // goes flat, fast and short; taken deep behind the line it loops high.
+    quality = quality == null ? 1 : quality;
+    // WHERE YOU TAKE THE BALL IS THE SHOT.
+    //   Up over the table, early: flat, fast, deep — and the net is right there,
+    //   so a ball met low from here goes into it.
+    //   Back behind the line, late: a slow heavy loop with metres of clearance,
+    //   landing short, which drags the other player in.
     var depth = (isHost ? cy : TL - cy);            // negative = behind the line
     var early = clamp((depth + STEP_BACK) / (STEP_BACK + STEP_IN), 0, 1);
     var flick = swing ? clamp(-swing.dy / 90, -1, 1) : clamp(padvy * dir * 9, -1, 1);
+    var incoming = Math.abs(game.vy);
     var force = swing ? clamp(swing.force, 0.22, 1) : clamp(0.42 + early * 0.3 + Math.abs(padvx) * 14, 0.22, 1);
     var lat = (swing ? swing.dx * 0.012 : 0) + padvx * 26;
 
-    var speed = 0.052 + force * 0.052 + early * 0.02;
-    speed = clamp(speed, 0.045, 0.125);
-    var top = clamp(flick * 0.55 + early * 0.5 + force * 0.25, -0.85, 1.1);
+    // Pace carries: a ball taken early off a fast one comes back faster still.
+    // Pace CARRIES. Take a fast ball early and it comes back faster still, so a
+    // rally escalates until somebody is rushed — which is what ends a rally in
+    // table tennis, and what stopped these ones running to a hundred shots.
+    var speed = 0.050 + early * 0.040 + force * 0.026 + incoming * early * 0.62;
+    speed = clamp(speed * (0.72 + quality * 0.28), 0.042, 0.152);
+    var top = clamp(flick * 0.55 + early * 0.45 + force * 0.25, -0.85, 1.1);
     var side = clamp(lat * 0.05 + (swing ? swing.dx * 0.004 : 0), -0.9, 0.9);
 
-    // Aim: where the ball crosses the far half. Steeper when hit early.
     var aimX = clamp(-(cx - (isHost ? game.hostX : game.guestX)) * 2.2 + lat * 0.9 + (swing ? swing.dx * 0.02 : 0), -TW / 2 + 0.6, TW / 2 - 0.6);
+    var landDepth = 2.2 + (1 - early) * 2.6 + force * 4.6 + clamp(flick, 0, 1) * 2.4;
     if (who === 'guest' && isCpu()) {
       aimX = cpu.aimX != null ? cpu.aimX : aimX;
-      if (cpu.risk) { force = clamp(force + 0.3, 0, 1); }
-    }
-    else if (Math.abs(aimX) < 0.5) aimX += (Math.random() - 0.5) * 1.6;
-    var landDepth = 2.0 + (1 - early) * 4.5 + force * 4.0 + clamp(flick, 0, 1) * 3.0;
-    var landY = isHost ? clamp(TL - landDepth, TL / 2 + 1.6, TL - 0.7) : clamp(landDepth, 0.7, TL / 2 - 1.6);
+      if (cpu.aimDepth != null) landDepth = cpu.aimDepth;
+      if (cpu.risk) { force = clamp(force + 0.3, 0, 1); speed = clamp(speed * 1.12, 0.042, 0.135); }
+    } else if (Math.abs(aimX) < 0.5) aimX += (Math.random() - 0.5) * 1.6;
+    // A stretch does not place the ball where you meant it to go.
+    var scatter = (1 - quality) * 3.4;
+    aimX = clamp(aimX + (Math.random() - 0.5) * scatter * 1.6, -TW / 2 - 0.9, TW / 2 + 0.9);
+    landDepth = clamp(landDepth + (Math.random() - 0.5) * scatter * 1.5, 1.2, 10.8);
+    var landY = isHost ? TL - landDepth : landDepth;
 
-    launchShot(cx, cy, Math.max(cz, 0.3), aimX, landY, speed, top);
+    // The arc is chosen, not solved for safety. Deep and lifted buys clearance;
+    // flat and early does not, and that is the risk you take for the pace.
+    // The default is FLAT. Lifting the ball over the cord is something you earn
+    // by meeting it cleanly, not something the game does for you.
+    var arc = 0.92 + (1 - early) * 0.42 + clamp(flick, 0, 1) * 0.26;
+    launchShot(cx, cy, Math.max(cz, 0.12), aimX, landY, speed, top, arc, quality, isHost ? TL + 1 : -1);
     game.tsp = top;
     game.ssp = side * dir;
     game.lastHitter = who;
@@ -3763,36 +3800,55 @@ function syncDebug(){
     playSound(force > 0.8 ? 'smash' : 'paddle');
   }
 
-  // Solve a launch that lands on a chosen spot and clears the cord on the way.
-  // The flat, fast line is tried first; if it would hit the net — which is what
-  // happens whenever you take the ball early and low — the flight is lengthened
-  // until it clears, which IS the loop a player would have to play from there.
-  // Four fixed attempts used to give up and fire into the net anyway.
-  function launchShot(fromX, fromY, fromZ, toX, toY, speed, top) {
+  // Aim at a spot with a chosen arc, and let the net be where it is.
+  //
+  // This used to lengthen the flight until the cord was cleared, retrying up to
+  // sixteen times. It worked: an independent pass played roughly a hundred and
+  // sixty points and NEVER ONCE hit the net — the most common mistake in table
+  // tennis had been engineered out, so the only way to lose a point was to hit
+  // it long, and standing up over the table carried no risk at all. The arc is
+  // now decided by where you took the ball and how well you met it. Take one
+  // early and low with the net a foot away and you will put it in the net, and
+  // you should.
+  function launchShot(fromX, fromY, fromZ, toX, toY, speed, top, arc, quality, aimAtY) {
     var dy = toY - fromY;
-    var T0 = clamp(Math.abs(dy) / speed, 170, 880);
-    var best = trial(T0);
-    if (!best.ok) {
-      for (var i = 1; i <= 16; i++) {
-        var r = trial(T0 + (900 - T0) * i / 16);
-        if (r.ok) { best = r; break; }
-        best = r;
+    var want = clamp(Math.abs(dy) / speed * (arc || 1), 150, 1000);
+    var T = want;
+    if (!clears(want)) {
+      // The ball must be lifted over the cord, and lifting it means a longer,
+      // slower, higher flight — the shot turns from a drive into a loop. How
+      // much of that lift you can find is your SKILL BUDGET: met cleanly you
+      // always get it, stretched for you do not, and the ball goes in the net.
+      var need = want;
+      for (var i = 1; i <= 14; i++) {
+        need = want * (1 + i * 0.09);
+        if (clears(need)) break;
       }
+      T = want + (need - want) * clamp(((quality == null ? 1 : quality) - 0.35) * 1.6, 0, 1);
     }
-    game.vx = best.vx; game.vy = best.vy; game.vz = Math.max(best.vz, 0.004);
+    T = clamp(T, 150, 1250);
+    apply(T);
 
-    function trial(T) {
+    function grav(T) { return clamp(G - MAGZ * top * Math.abs(dy / T), -0.00048, -0.00003); }
+    function apply(T) {
+      var g = grav(T);
+      game.vy = dy / T;
+      // Aim ACROSS at where the other player has to stand, not at the bounce.
+      // Solving the sideways speed over the flight to the bounce left the ball
+      // still sliding at that speed afterwards, so a wide shot carried on off
+      // the side of the table — measured landing at x = -13.6 on a table 7.6
+      // wide.
+      var reachT = aimAtY == null ? T : T * clamp((aimAtY - fromY) / dy, 1, 3.2);
+      game.vx = (toX - fromX) / reachT;
+      game.vz = (BR - fromZ - 0.5 * g * T * T) / T;
+    }
+    function clears(T) {
       var vy = dy / T;
-      var vx = (toX - fromX) / T;
-      var g = clamp(G - MAGZ * top * Math.abs(vy), -0.00045, -0.00003);
+      var g = grav(T);
       var vz = (BR - fromZ - 0.5 * g * T * T) / T;
-      var ok = true;
       var tNet = (TL / 2 - fromY) / vy;
-      if (tNet > 0 && tNet < T) {
-        var zNet = fromZ + vz * tNet + 0.5 * g * tNet * tNet;
-        if (zNet < NH + BR + 0.26) ok = false;
-      }
-      return { vx: vx, vy: vy, vz: vz, ok: ok };
+      if (tNet <= 0 || tNet >= T) return true;
+      return fromZ + vz * tNet + 0.5 * g * tNet * tNet >= NH + BR + 0.1;
     }
   }
 
@@ -3828,6 +3884,10 @@ function syncDebug(){
     }
     game.vy = vy;
     game.vz = vz;
+    // Total time to the far bounce, so the sideways aim can be solved against it.
+    var vImp = vz - g * hi;
+    var vzb = REST * Math.max(0.0005, -vImp);
+    return hi + 2 * vzb / g;
   }
 
   function doServe(who, force, dx, dy) {
@@ -3837,17 +3897,27 @@ function syncDebug(){
     var dir = who === 'host' ? 1 : -1;
     var px = who === 'host' ? game.hostX : game.guestX;
     var py = serveY(who);
-    game.bx = px + dir * 0.5;
+    // Wherever your bat is, the toss is over the table — a serve that starts
+    // past the sideline just falls off it.
+    game.bx = clamp(px + dir * 0.5, -TW / 2 + 0.7, TW / 2 - 0.7);
     game.by = py + dir * 0.85;
     game.bz = 2.0;
-    var top = clamp((dy ? -dy / 130 : 0) + 0.15, -0.7, 0.9);
+    // The gesture IS the serve. Flick up and it goes long and heavy; flick down
+    // and it drops short with backspin; flick across and it swerves — across
+    // the table, not off the side of it, which is what an unbounded sideways
+    // velocity used to do to every sideways swipe.
+    var lift = clamp(-(dy || 0) / 130, -1, 1);
+    var top = clamp(lift * 0.55 + 0.15, -0.7, 0.9);
     var side = clamp((dx || 0) * 0.006, -0.8, 0.8);
-    var reach = 3.0 + force * 3.2;                    // how far up your own half it pitches
-    var over = 4.0 + force * 6.5;                     // how deep past the net it lands
+    var reach = 3.0 + force * 3.0 - lift * 1.0;       // how far up your own half it pitches
+    var over = 4.0 + force * 4.5 + clamp(lift, 0, 1) * 4.5 + clamp(-lift, 0, 1) * -2.0;
     var ownY = who === 'host' ? reach : TL - reach;
-    var oppY = who === 'host' ? clamp(TL / 2 + over, TL / 2 + 1.5, TL - 0.8) : clamp(TL / 2 - over, 0.8, TL / 2 - 1.5);
-    serveLaunch(ownY, oppY, top);
-    game.vx = clamp((dx || 0) * 0.00016, -0.012, 0.012);
+    var oppY = who === 'host' ? clamp(TL / 2 + over, TL / 2 + 1.4, TL - 0.7) : clamp(TL / 2 - over, 0.7, TL / 2 - 1.4);
+    var flight = serveLaunch(ownY, oppY, top);
+    var toX = clamp(game.bx + (dx || 0) * 0.035, -TW / 2 + 0.7, TW / 2 - 0.7);
+    var span = Math.abs(oppY - game.by) || 1;
+    var toEnd = Math.abs((who === 'host' ? TL + 1 : -1) - game.by);
+    game.vx = (toX - game.bx) / Math.max(140, flight * clamp(toEnd / span, 1, 3));
     game.tsp = top;
     game.ssp = side * dir;
     game.sp = 0;
@@ -3876,7 +3946,7 @@ function syncDebug(){
     game.msgWho = to;
     game.pt = (game.pt || 0) + 1;
     game.vx = 0; game.vy = 0; game.vz = 0;
-    playSound('score');
+    playSound(why === 'net' ? 'netted' : (why === 'out' ? 'out' : 'score'));
     announce(to, why);
     freezeUntil = Date.now() + 1000;
     if (matchOver()) {
@@ -3967,14 +4037,24 @@ function syncDebug(){
       cpu.reactUntil = now + 80 + Math.random() * 110;
       var f = fly(null, true);
       var go = Math.random();
-      cpu.aimX = clampX((Math.random() < 0.5 ? -1 : 1) * (1.4 + Math.random() * 5.6));
-      // Roughly one ball in six is a mistake and one in seven is a swing for a
+      cpu.aimX = clampX((Math.random() < 0.5 ? -1 : 1) * (0.8 + Math.random() * 4.8));
+      // It plays the TABLE: a short ball to drag you in, a deep one to push you
+      // back, and a length in between. Always landing mid-court is what let a
+      // player stand in one place for a hundred and ten shots.
+      var pick = Math.random();
+      cpu.aimDepth = pick < 0.4 ? 2.0 + Math.random() * 2.2
+        : pick < 0.75 ? 5.0 + Math.random() * 3.0
+        : 8.2 + Math.random() * 2.0;
+      // Roughly one ball in eight is a mistake and one in seven is a swing for a
       // winner that may itself go long. A machine that never errs is not an
       // opponent, it is a wall.
-      cpu.miss = go < 0.13;
-      cpu.risk = go > 0.86;
-      if (cpu.risk) cpu.aimX = clampX(cpu.aimX * 1.35);
-      cpu.depth = clamp((f.bounced ? (TL - f.y) : 4) * 0.34 - 1.4, -STEP_BACK + 0.4, STEP_IN - 0.4);
+      cpu.miss = go < 0.07;
+      cpu.risk = go > 0.90;
+      if (cpu.risk) { cpu.aimX = clampX(cpu.aimX * 1.35); cpu.aimDepth = 1.6 + Math.random() * 1.8; }
+      // Where the ball is going to pitch decides where it stands: in for a short
+      // one, back for a deep one. Same decision the player has to make.
+      var pitch = f.bounced ? (TL - f.y) : 5;
+      cpu.depth = clamp(pitch * 0.42 - 2.4, -STEP_BACK + 0.3, STEP_IN - 0.3);
     }
     cpu.lastToward = toward;
     var tx = game.guestX, ty = game.guestY;
@@ -3989,7 +4069,7 @@ function syncDebug(){
       ty = clampY(TL + 1.3, false);
       cpu.err *= 0.9;
     }
-    var maxV = (Math.abs(game.vy) > 0.085 ? 0.0135 : 0.017);
+    var maxV = (Math.abs(game.vy) > 0.085 ? 0.0165 : 0.021);
     var sx = clamp(tx - game.guestX, -maxV * dt, maxV * dt);
     var sy = clamp(ty - game.guestY, -maxV * 0.75 * dt, maxV * 0.75 * dt);
     cpu.vx = sx / dt; cpu.vy = sy / dt;
@@ -4109,6 +4189,12 @@ function syncDebug(){
       overlay.classList.remove('on');
     });
     resetBtn.addEventListener('click', function () { if (owner) newMatch(); });
+    // The hint hides itself after two rallies and there was no way to get it
+    // back; the shell's Help button explains app rooms, not table tennis.
+    howBtn.addEventListener('click', function () {
+      hint.classList.toggle('hide');
+      if (!hint.classList.contains('hide')) hitsDone = 0;
+    });
   }
 
   function newMatch() {
@@ -4184,6 +4270,21 @@ function syncDebug(){
     canvas.dataset.depth = (owner ? game.hostY : gst.y).toFixed(2);
   }
 
+  // Nothing happening for a while, on your own serve: show the ball breathing
+  // and put the instruction back. A screen that is byte-identical after twenty
+  // seconds tells a stranger nothing.
+  var idleSince = Date.now(), lastPt2 = -1;
+  function attract(now) {
+    if (game.pt !== lastPt2 || pointer) { lastPt2 = game.pt; idleSince = now; return; }
+    var mine = owner ? 'host' : 'guest';
+    if (game.serving !== mine || matchOver() || game.paused) { idleSince = now; return; }
+    if (now - idleSince > 9000) {
+      idleSince = now;
+      hint.classList.remove('hide');
+      showBanner('YOUR SERVE', 'tap to start - drag to move', 1600);
+    }
+  }
+
   function showBanner(title, sub, ms) {
     bt.textContent = title;
     bp.textContent = sub || '';
@@ -4215,7 +4316,13 @@ function syncDebug(){
     if (kind === 'paddle') blip('sine', 1150, 320, 0.2, 0.06);
     else if (kind === 'smash') blip('triangle', 620, 150, 0.3, 0.1);
     else if (kind === 'serve') blip('sine', 900, 420, 0.15, 0.05);
-    else if (kind === 'table') blip('triangle', 300, 95, 0.15, 0.075);
+    else if (kind === 'table') {
+      // A hard ball hits the cloth higher and harder than a soft one.
+      var hard = clamp(Math.abs(game.vz) * 9, 0, 1);
+      blip('triangle', 250 + hard * 220, 80 + hard * 40, 0.09 + hard * 0.13, 0.06 + hard * 0.05);
+    }
+    else if (kind === 'out') blip('sine', 300, 150, 0.1, 0.22);
+    else if (kind === 'netted') blip('triangle', 170, 70, 0.14, 0.16);
     else if (kind === 'cord') blip('square', 1700, 900, 0.07, 0.045);
     else if (kind === 'score') { blip('sine', 620, 930, 0.12, 0.2); }
   }
@@ -4249,8 +4356,11 @@ function syncDebug(){
     CX = _W / 2;
     TY = 0.90 * _H - bot * K;
     if (TY + top * K < 0.085 * _H) TY = 0.085 * _H - top * K;
-    padTop = Math.min(TY + CH * scaleAt(STEP_IN) * K, 0.40 * _H);
-    padBot = Math.max(TY + CH * scaleAt(HOST_MIN) * K, 0.99 * _H);
+    // Stretch the reach across three quarters of the screen. At 0.40-0.99 the
+    // top 40% of a phone did nothing and the deepest stance sat 8 px from the
+    // bottom edge — inside the home indicator.
+    padTop = Math.min(TY + CH * scaleAt(STEP_IN) * K, 0.22 * _H);
+    padBot = Math.max(TY + CH * scaleAt(HOST_MIN) * K, 0.955 * _H);
   }
 
   // ---- render ----------------------------------------------------------------
@@ -4475,7 +4585,12 @@ function syncDebug(){
     var sh = p(x, y, 0);
     var sc = pos.sc;
     var rx = Math.max(near ? 14 : 13, PADR * K * sc);
-    var ry = rx * 1.12;
+    // The blade turns. Closed over the ball for topspin, opened underneath it
+    // for a chop — drawn by foreshortening the face, so you can see the stroke
+    // rather than a coin held flat at the screen.
+    var face = near ? clamp(swingAnim * swingKind * 0.9 + (game.tsp || 0) * 0.25, -0.85, 0.85)
+      : clamp(-(game.tsp || 0) * 0.2, -0.5, 0.5);
+    var ry = rx * 1.12 * (0.45 + 0.55 * Math.cos(face));
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,' + (0.3 * clamp(1.6 - z / 3, 0.25, 1)) + ')';
     ctx.beginPath(); ctx.ellipse(sh.x, sh.y, rx * 0.92, ry * 0.3, 0, 0, Math.PI * 2); ctx.fill();
@@ -4512,23 +4627,32 @@ function syncDebug(){
   function drawArm(px, py, rx, near) {
     var dirY = near ? 1 : -1;
     var wx = px + rx * (near ? 0.35 : -0.3), wy = py + rx * 1.3 * dirY;
-    var reach = rx * (near ? 6.2 : 4.2);
+    var reach = rx * (near ? 6.2 : 2.6);
     var ex = px + rx * (near ? 2.0 : -1.5), ey = wy + reach * dirY;
-    var w0 = rx * 0.5, w1 = rx * (near ? 1.5 : 1.15);
+    var w0 = rx * 0.34, w1 = rx * (near ? 0.82 : 0.6);
     var dx = ex - wx, dy = ey - wy, len = Math.sqrt(dx * dx + dy * dy) || 1;
-    var nx = -dy / len, ny = dx / len;
-    var g = ctx.createLinearGradient(wx, wy, ex, ey);
-    g.addColorStop(0, '#c98f63');
-    g.addColorStop(1, '#8d5b3a');
+    var ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+    var g = ctx.createLinearGradient(wx - nx * w0, wy - ny * w0, wx + nx * w1, wy + ny * w1);
+    g.addColorStop(0, near ? '#e0a978' : '#a06c46');
+    g.addColorStop(0.45, near ? '#c98f63' : '#8a5c3c');
+    g.addColorStop(1, near ? '#8a5c3c' : '#5d3d27');
     ctx.save();
+    // forearm: a taper, with the elbow end wider, drawn as a curve not a slab
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.moveTo(wx + nx * w0, wy + ny * w0);
-    ctx.lineTo(ex + nx * w1, ey + ny * w1);
+    ctx.quadraticCurveTo(wx + ux * len * 0.5 + nx * w0 * 1.5, wy + uy * len * 0.5 + ny * w0 * 1.5,
+      ex + nx * w1, ey + ny * w1);
     ctx.lineTo(ex - nx * w1, ey - ny * w1);
-    ctx.lineTo(wx - nx * w0, wy - ny * w0);
+    ctx.quadraticCurveTo(wx + ux * len * 0.5 - nx * w0 * 1.3, wy + uy * len * 0.5 - ny * w0 * 1.3,
+      wx - nx * w0, wy - ny * w0);
     ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.arc(wx, wy, w0 * 1.15, 0, Math.PI * 2); ctx.fillStyle = near ? '#cf9568' : '#8a5c3c'; ctx.fill();
+    // the hand that holds the handle: palm, then a thumb over the blade
+    ctx.fillStyle = near ? '#d89b6e' : '#96633f';
+    ctx.beginPath(); ctx.ellipse(wx, wy, w0 * 1.35, w0 * 1.05, Math.atan2(uy, ux), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(wx - ux * w0 * 0.9, wy - uy * w0 * 0.9, w0 * 0.72, w0 * 0.4, Math.atan2(uy, ux) + 0.5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 
@@ -4583,8 +4707,8 @@ function syncDebug(){
     var my = owner ? game.hostScore : game.guestScore;
     var th = owner ? game.guestScore : game.hostScore;
     var mine = owner ? 'host' : 'guest';
-    drawHalfScore(TL * 0.66, TL * 0.82, th, themName().toUpperCase(), 0.11, !!game.serving && game.serving !== mine);
-    drawHalfScore(TL * 0.30, TL * 0.16, my, myName().toUpperCase(), 0.13, game.serving === mine);
+    drawHalfScore(SCORE_FAR, TL * 0.84, th, themName().toUpperCase(), 0.105, !!game.serving && game.serving !== mine);
+    drawHalfScore(SCORE_NEAR, TL * 0.24, my, myName().toUpperCase(), 0.10, game.serving === mine);
   }
 
   function drawHalfScore(numVY, labVY, value, label, size, serving) {
