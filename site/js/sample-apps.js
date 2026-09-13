@@ -3140,7 +3140,12 @@ function syncDebug(){
   var gst = freshGuest();
   var pointer = null;
   var tick = 0, lastGuestBeat = 0, lastStateAt = 0, lastNow = 0, everHadGuest = false;
-  var mySeq = 1, lastSeen = 0, swingSeq = 0, seenSwingSeq = 0, lastPt = -1;
+  var mySeq = 1, swingSeq = 0, seenSwingSeq = 0;
+  // Latency, measured rather than assumed. The guest stamps every paddle write
+  // with a sequence; the host echoes the last one it used as game.ack; the guest
+  // turns that round trip into a number. Both ends then aim at where the other
+  // player IS, not where they were a quarter of a second ago.
+  var pSeq = 0, sentAt = {}, rtt = 0, gRecvAt = 0, gSeq = -1;
   var nextSwing = { host: null, guest: null };
   var cpu = { err: 0, serveAt: 0, vx: 0, vy: 0, reactUntil: 0, lastToward: false, depth: 0, style: 0 };
   var rules = { needOwn: false, needOpp: false, letBall: false };
@@ -3180,8 +3185,10 @@ function syncDebug(){
   }
 
   function freshGuest() {
-    return { id: 'guest', x: 0, y: GUEST_HOME, z: 1, vx: 0, vy: 0, heartbeat: 0, ready: false, swing: null, t: 0, name: '' };
+    return { id: 'guest', x: 0, y: GUEST_HOME, z: 1, vx: 0, vy: 0, heartbeat: 0, ready: false, swing: null, t: 0, name: '', seq: 0, rtt: 0 };
   }
+
+  function half() { return clamp(rtt / 2, 0, 260); }
 
   // Old saves carry the 2-D shape (no depth, no spin split). Fill the gaps so a
   // match in progress survives the update instead of throwing.
@@ -3219,18 +3226,34 @@ function syncDebug(){
         var mine = g.wr === me.id && g.seq <= mySeq;
         if (!owner || !mine || lastStateAt === 0) {
           var prevPt = game.pt;
+          var keepX = gst.x, keepY = gst.y, keepZ = gst.z;
           game = adopt(g);
           if (owner) { mySeq = Math.max(mySeq, game.seq || 0); }
-          if (!owner && game.pt !== prevPt) onPointSeen();
-          if (!owner) syncLocalToState();
+          if (!owner) {
+            if (g.ack != null && sentAt[g.ack]) {
+              rtt = rtt ? rtt * 0.7 + (Date.now() - sentAt[g.ack]) * 0.3 : (Date.now() - sentAt[g.ack]);
+              for (var k in sentAt) { if (+k <= g.ack) delete sentAt[k]; }
+            }
+            // The record left the host one delay ago. Run the same physics
+            // forward by that much so the ball on this screen is where the ball
+            // actually is, then keep running it until the next word arrives.
+            game.guestX = keepX; game.guestY = keepY; game.guestZ = keepZ;
+            game.hostX = clampX(game.hostX + (game.hvx || 0) * half());
+            game.hostY = clampY(game.hostY + (game.hvy || 0) * half(), true);
+            catchUp(half());
+            if (game.pt !== prevPt) onPointSeen();
+            syncLocalToState();
+          }
         }
         lastStateAt = Date.now();
       }
       if (owner) {
         var n = items.find(function (x) { return x.id === 'guest'; });
         if (n) {
+          if ((n.seq || 0) !== gSeq) { gSeq = n.seq || 0; gRecvAt = Date.now(); }
           gst = n;
           everHadGuest = true;
+          rtt = n.rtt || rtt;
           lastGuestBeat = n.heartbeat || n.t || 0;
           if (n.swing && (n.swing.seq || 0) > seenSwingSeq) {
             seenSwingSeq = n.swing.seq || 0;
@@ -3249,6 +3272,19 @@ function syncDebug(){
   function syncLocalToState() {
     // A guest that just joined mid-match adopts the paddle the host has for it.
     if (!gst.heartbeat) { gst.x = game.guestX; gst.y = game.guestY; }
+  }
+
+  // Replay the host's physics locally for ms milliseconds. Used to close the
+  // gap on arrival, and again every frame between arrivals.
+  function catchUp(ms) {
+    var left = clamp(ms, 0, 320);
+    var guard = 0;
+    while (left > 0.5 && guard++ < 44) {
+      var d = Math.min(SIM, left);
+      left -= d;
+      if (game.paused || matchOver() || Date.now() < freezeUntil) break;
+      step(d);
+    }
   }
 
   function isCpu() {
@@ -3302,11 +3338,13 @@ function syncDebug(){
     movePaddle('host', dt);
     if (isCpu()) runCpu(dt, now);
     else if (guestLive()) {
-      game.guestX = clampX(gst.x != null ? gst.x : game.guestX);
-      game.guestY = clampY(gst.y != null ? gst.y : game.guestY, false);
+      var lead = clamp((now - gRecvAt) + half(), 0, 260);
+      game.guestX = clampX((gst.x != null ? gst.x : game.guestX) + (gst.vx || 0) * lead);
+      game.guestY = clampY((gst.y != null ? gst.y : game.guestY) + (gst.vy || 0) * lead, false);
       game.guestZ = gst.z != null ? gst.z : 1;
       cpu.vx = gst.vx || 0; cpu.vy = gst.vy || 0;
     }
+    game.hvx = padVX; game.hvy = padVY; game.ack = gSeq;
     if (pendingServer && now >= freezeUntil && !matchOver()) {
       resetBall(pendingServer);
       pendingServer = null;
@@ -3322,9 +3360,18 @@ function syncDebug(){
   function guestTick(dt) {
     var now = Date.now();
     movePaddle('guest', dt);
-    gst.heartbeat = now; gst.t = now; gst.name = me.name;
+    // Locally the guest's own paddle is the truth — no delay on your own hand.
+    game.guestX = gst.x; game.guestY = gst.y; game.guestZ = gst.z;
+    if (!game.paused && now >= freezeUntil && !matchOver()) step(dt);
+    gst.heartbeat = now; gst.t = now; gst.name = me.name; gst.rtt = Math.round(rtt);
     if (!game.paused) gst.ready = false;
-    if (now - putAt >= 60) { putAt = now; db.put(gst); }
+    if (now - putAt >= 45) {
+      putAt = now;
+      gst.seq = ++pSeq;
+      sentAt[pSeq] = now;
+      if (pSeq % 64 === 0) { for (var k in sentAt) { if (+k < pSeq - 80) delete sentAt[k]; } }
+      db.put(gst);
+    }
   }
 
   // One finger drives two axes: across the table and up or back from the net.
@@ -3516,9 +3563,10 @@ function syncDebug(){
     if (who === 'guest' && isCpu() && cpu.miss) { cpu.miss = false; return; }
 
     var swing = consumeSwing(who);
-    var vX = isHost ? padVX : (guestLive() ? (gst.vx || 0) : cpu.vx);
-    var vY = isHost ? padVY : (guestLive() ? (gst.vy || 0) : cpu.vy);
-    if (!isHost && !owner) { vX = 0; vY = 0; }
+    var vX, vY;
+    if (isHost === owner) { vX = padVX; vY = padVY; }          // your own hand, no delay
+    else if (owner) { vX = guestLive() ? (gst.vx || 0) : cpu.vx; vY = guestLive() ? (gst.vy || 0) : cpu.vy; }
+    else { vX = game.hvx || 0; vY = game.hvy || 0; }
     game.bx = contactX; game.by = contactY; game.bz = contactZ;
     strike(who, contactX, contactY, contactZ, swing, vX, vY);
   }
@@ -3651,6 +3699,11 @@ function syncDebug(){
   function endPoint(to, why) {
     if (pointOver) return;
     pointOver = true;
+    if (!owner) {
+      // A predicted point is only a guess. Hold the ball and let the host say.
+      game.vx = 0; game.vy = 0; game.vz = 0;
+      return;
+    }
     if (to === 'host') game.hostScore++; else game.guestScore++;
     game.why = why || '';
     game.msgWho = to;
@@ -4176,7 +4229,7 @@ function syncDebug(){
     ctx.fillStyle = 'rgba(0,0,0,' + (0.3 * clamp(1.6 - z / 3, 0.25, 1)) + ')';
     ctx.beginPath(); ctx.ellipse(sh.x, sh.y, rx * 0.92, ry * 0.3, 0, 0, Math.PI * 2); ctx.fill();
     ctx.translate(pos.x, pos.y);
-    var vx = near ? padVX : cpu.vx;
+    var vx = near ? padVX : (owner ? cpu.vx : (game.hvx || 0));
     var tilt = clamp(vx * 7, -0.45, 0.45) + (near ? swingAnim * swingKind * -0.3 : 0);
     ctx.rotate(tilt);
     ctx.scale(1, 0.82);
