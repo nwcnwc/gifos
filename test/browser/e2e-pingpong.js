@@ -79,7 +79,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await app.mouse.down();
   const back = await depth(0.95);
   const mid = await depth(0.72);
-  const fwd = await depth(0.45);
+  const fwd = await depth(0.25);
   await app.mouse.move(cx + box.width * 0.22, box.y + box.height * 0.72, { steps: 6 });
   await sleep(120);
   const side = await frame.evaluate(() => ({ y: game.hostY, x: game.hostX }));
@@ -106,16 +106,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       doServe(who, 0.55, 0, -30);
       const served = game.serving === null;
       const t0 = Date.now();
-      let resurrected = false;
+      let resurrected = false, diag = null;
       while (Date.now() - t0 < 400) {
         await new Promise((r) => setTimeout(r, 25));
         // Coming back to "serving" without a point having been scored means the
         // serve was undone by a stale record, not played.
         // A net-cord serve is a let and is deliberately replayed; that is not
         // the same thing as a serve being undone.
-        if (game.serving === who && game.pt === pt0 && (game.lets || 0) === lets0) resurrected = true;
+        if (game.serving === who && game.pt === pt0 && (game.lets || 0) === lets0) {
+          resurrected = true;
+          if (!diag) diag = { wr: game.wr, seq: game.seq, mySeq: mySeq, meId: me.id, lh: game.lastHitter,
+            by: +game.by.toFixed(2), pend: pendingServer, fz: Math.max(0, freezeUntil - Date.now()) };
+        }
       }
-      out.push({ who, served, resurrected });
+      out.push({ who, served, resurrected, diag });
     }
     return out;
   });
@@ -157,7 +161,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const clock = await frame.evaluate(async () => {
     const s0 = timeSimmed, d0 = timeDropped, t0 = Date.now();
     await new Promise((r) => setTimeout(r, 4000));
-    return { real: Date.now() - t0, sim: Math.round(timeSimmed - s0), dropped: Math.round(timeDropped - d0) };
+    return { real: Date.now() - t0, sim: Math.round(timeSimmed - s0), dropped: Math.round(timeDropped - d0), frames: frames };
   });
   // Time is either simulated or explicitly refused (a frame so late that
   // catching up would teleport the ball). What must never happen is time
@@ -185,6 +189,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // The paddle is driven by MOVING THE MOUSE, not by writing game.hostX: the
   // whole point is that a finger position becomes a place on the table in two
   // axes. Poking the state would test the physics and skip the game.
+  // Earlier phases can run the computer out to a finished match; play the rally
+  // section on a fresh one.
+  await frame.evaluate(() => { newMatch(); });
+  await sleep(1200);
   await frame.evaluate(() => { window._pp = { max: 0, ends: [], pt: game.pt }; });
   const watch = () => frame.evaluate(() => {
     if ((game.rally || 0) > _pp.max) _pp.max = game.rally;
@@ -228,6 +236,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // closing the window.
   const before = await frame.evaluate(() => {
     freezeUntil = Date.now() + 9e5;
+    // Hand the serve to the player as well: the computer serves itself, so a
+    // reopened app could win a point before the test had read the score.
+    game.serving = 'host';
+    pendingServer = null;
+    pushGame();
     return { hs: game.hostScore, gs: game.guestScore };
   });
   await sleep(600);

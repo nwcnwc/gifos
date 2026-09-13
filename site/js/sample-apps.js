@@ -3106,7 +3106,7 @@ function syncDebug(){
   <button id="howto" title="How to play">?</button><button id="reset">New game</button>
 </div>
 <div id="banner"><h2 id="bt"></h2><p id="bp"></p></div>
-<div id="hint">Drag <b>across</b> the table and <b>up</b> it — it hits for you. Tap to serve.</div>
+<div id="hint">Drag <b>across</b> the table — and <b>up it, toward the net</b>. It hits for you. Tap to serve.</div>
 <div id="overlay">
   <h2 id="ot">Ready?</h2>
   <p id="ob">Tap the button when you are back so you can return the next ball.</p>
@@ -3181,7 +3181,7 @@ function syncDebug(){
   var nextSwing = { host: null, guest: null };
   var cpu = { err: 0, serveAt: 0, vx: 0, vy: 0, reactUntil: 0, lastToward: false, depth: 0, style: 0 };
   var rules = { needOwn: false, needOpp: false, letBall: false };
-  var pointOver = false;
+  var pointOver = false, soloChosen = false, adoptedOnce = false;
   var freezeUntil = 0, pendingServer = null;
   var padVX = 0, padVY = 0, hitFlash = 0, hitsDone = 0, swingAnim = 0, swingKind = 0;
   var myZ = 1.0, remote = { x: 0, y: GUEST_HOME, z: 1 }, frameMs = 16;
@@ -3265,12 +3265,23 @@ function syncDebug(){
         // is an echo tens of milliseconds stale: adopting it rewinds the ball,
         // and a rewound serve bounces twice and loses the point. Take a record
         // only from someone else (a promoted host), or once at first load.
+        // "Mine and not newer than my own latest write" is an ECHO, whatever
+        // else is true of it. The old escape hatch here — adopt unconditionally
+        // on the first record, so a saved match resumes — let the subscription's
+        // opening snapshot rewind a serve that had already been played: it
+        // arrives after the app has been running and writing for a moment. A
+        // genuinely saved match carries a sequence far past ours, so it is
+        // adopted by the same rule and needs no exception.
         var mine = g.wr === me.id && g.seq <= mySeq;
-        if (!owner || !mine || lastStateAt === 0) {
+        if (!owner || !mine) {
           var prevPt = game.pt;
           var keepX = gst.x, keepY = gst.y, keepZ = gst.z;
           game = adopt(g);
-          if (owner) { mySeq = Math.max(mySeq, game.seq || 0); if (lastStateAt === 0) promoteIfWasGuest(); }
+          if (owner) {
+            var first = !adoptedOnce; adoptedOnce = true;
+            mySeq = Math.max(mySeq, game.seq || 0);
+            if (first) promoteIfWasGuest();
+          }
           if (!owner) {
             if (g.ack != null && sentAt[g.ack]) {
               rtt = rtt ? rtt * 0.7 + (Date.now() - sentAt[g.ack]) * 0.3 : (Date.now() - sentAt[g.ack]);
@@ -3301,7 +3312,7 @@ function syncDebug(){
           // included. Treating that as a heartbeat meant a friend whose phone
           // had gone looked alive to the millisecond, forever.
           var fresh = (n.seq || 0) !== gSeq;
-          if (fresh) { gSeq = n.seq || 0; gRecvAt = lastGuestBeat = Date.now(); }
+          if (fresh) { gSeq = n.seq || 0; gRecvAt = lastGuestBeat = Date.now(); soloChosen = false; }
           if (fresh && !everHadGuest) onGuestArrived(n);
           gst = n;
           if (fresh) everHadGuest = true;
@@ -3411,10 +3422,13 @@ function syncDebug(){
     }
   }
 
+  // Once a person has taken the far end, the computer does not quietly take it
+  // back. Their phone died mid-match; the ball waits, and whether to give up on
+  // them is the host's call, not a seven-second timer's.
   function isCpu() {
     if (!owner) return false;
     if (!everHadGuest) return true;
-    return Date.now() - lastGuestBeat > CPU_TIMEOUT;
+    return soloChosen && Date.now() - lastGuestBeat > GUEST_TIMEOUT;
   }
   function guestLive() { return owner && everHadGuest && Date.now() - lastGuestBeat <= GUEST_TIMEOUT; }
 
@@ -3477,7 +3491,7 @@ function syncDebug(){
     if (everHadGuest && !isCpu() && now - lastGuestBeat > GUEST_TIMEOUT && !game.paused) {
       game.paused = true; game.pausedBy = 'guest'; game.pausedAt = now;
     }
-    if ((isCpu() || guestLive()) && game.paused) { game.paused = false; game.pausedBy = null; }
+    if ((!everHadGuest || guestLive() || soloChosen) && game.paused) { game.paused = false; game.pausedBy = null; }
     movePaddle('host', dt);
     if (isCpu()) runCpu(dt, now);
     else if (guestLive()) {
@@ -3707,6 +3721,16 @@ function syncDebug(){
     // price of standing up over the table when a deep one arrives.
     var behind = isHost ? (dy0 + dy1) / 2 < 0 : (dy0 + dy1) / 2 > 0;
     var ey = behind ? REACH_BACK : REACH_FWD;
+    // THE BENEFIT OF THE DOUBT, SIZED BY THE MEASURED LAG. The host judges the
+    // guest's contact from a paddle position it can only extrapolate, so the
+    // guest was being charged for the host's uncertainty: it reached balls it
+    // then got no credit for, and lost every point of a forty-second match.
+    // Widen the reach by how far the paddle could have travelled inside the
+    // unknown, and no further.
+    if (owner && !isHost && guestLive()) {
+      var slack = clamp(half() * 0.014, 0, 0.8);
+      ex += slack; ey += slack; ez += slack;
+    }
     var a = (mx * mx) / (ex * ex) + (my * my) / (ey * ey) + (mz * mz) / (ez * ez);
     var b = 2 * ((dx0 * mx) / (ex * ex) + (dy0 * my) / (ey * ey) + (dz0 * mz) / (ez * ez));
     var c = (dx0 * dx0) / (ex * ex) + (dy0 * dy0) / (ey * ey) + (dz0 * dz0) / (ez * ez) - 1;
@@ -3893,6 +3917,11 @@ function syncDebug(){
   function doServe(who, force, dx, dy) {
     if (!game.serving || game.serving !== who) return;
     if (Date.now() < freezeUntil) return;   // the point just ended; let it be read
+    // The ball placement queued at the end of the point has not run yet, and
+    // doServe places the ball itself. Leaving it queued meant a player who
+    // tapped the instant the freeze lifted had their serve reset out from under
+    // them a frame later — served, then un-served, with nothing to show for it.
+    pendingServer = null;
     force = clamp(force == null ? 0.5 : force, 0.22, 1);
     var dir = who === 'host' ? 1 : -1;
     var px = who === 'host' ? game.hostX : game.guestX;
@@ -4184,6 +4213,14 @@ function syncDebug(){
     readyBtn.addEventListener('click', function () {
       if (overlayMode === 'match' && owner) { newMatch(); return; }
       if (overlayMode === 'rematch') { gst.rematch = true; put(gst); updateOverlay(); return; }
+      if (overlayMode === 'away') {
+        soloChosen = true;
+        game.paused = false; game.pausedBy = null;
+        showBanner('PLAYING THE COMPUTER', 'your friend can still come back', 1800);
+        pushGame();
+        overlay.classList.remove('on');
+        return;
+      }
       if (!owner) { gst.ready = true; put(gst); }
       else { game.paused = false; game.pausedBy = null; pushGame(); }
       overlay.classList.remove('on');
@@ -4237,9 +4274,11 @@ function syncDebug(){
       body = 'No word from the other end. The ball is held exactly where it is — tap when you are both back.';
       readyBtn.style.display = ''; readyBtn.disabled = false;
     } else if (owner && game.paused && !isCpu()) {
-      show = true; title = themName() + ' dropped out';
-      body = 'The ball is held mid-flight. It starts again the moment they are back.';
-      readyBtn.style.display = 'none'; readyBtn.disabled = false;
+      show = true; overlayMode = 'away';
+      title = themName() + ' dropped out';
+      body = 'The ball is held exactly where it was. It starts again the moment they are back.';
+      btn = 'Play the computer instead';
+      readyBtn.style.display = ''; readyBtn.disabled = false;
     }
     overlay.classList.toggle('on', show);
     if (show) { ot.textContent = title; ob.textContent = body; readyBtn.textContent = btn; }

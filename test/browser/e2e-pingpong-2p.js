@@ -37,29 +37,47 @@ async function appFrame(run) {
   return fr;
 }
 
-// Both sides are played the way a person plays them: the paddle is put where
-// the ball is going, in both axes, by moving a real pointer.
+// Both sides are played the way a PERSON plays them, which matters: a bot that
+// knows where the ball is going the instant it is struck, and moves its paddle
+// there in one frame, rallies for ever against anything and measures nothing.
+// This one has to look before it knows, cannot move its hand faster than a hand
+// moves, and does not put the bat exactly where it meant to.
 function drive(frame, secs) {
   return frame.evaluate(async (SECS) => {
     const mine = owner ? 'host' : 'guest';
-    let maxRally = 0;
-    const t0 = Date.now();
+    const MAXV = 0.06, REACT = 150;
+    let maxRally = 0, was = false, until = 0, err = 0, tx = 0, ty = 0, stance = null;
+    let last = Date.now();
+    const t0 = last;
     const bot = setInterval(function () {
+      const now = Date.now(), dt = Math.min(50, now - last); last = now;
       if ((game.rally || 0) > maxRally) maxRally = game.rally;
       if (game.serving === mine) {
-        if (Date.now() < freezeUntil) return;
+        if (now < freezeUntil) return;
         if (owner) doServe('host', 0.55 + Math.random() * 0.25, (Math.random() - 0.5) * 50, -30);
         else sendSwing(0.55 + Math.random() * 0.25, (Math.random() - 0.5) * 50, -30);
         return;
       }
-      const toward = owner ? game.vy < 0 : game.vy > 0;
-      if (!toward) return;
       const here = owner ? game.hostY : gst.y;
-      const r = fly(here, false);
-      const land = fly(null, true);
-      const depth = land.bounced ? clamp((owner ? land.y : TL - land.y) * 0.5 - 1.2, HOST_MIN, STEP_IN) : 0;
-      if (owner) { game.hostX = clampX(r.x); game.hostY = clampY(depth, true); }
-      else { gst.x = clampX(r.x); gst.y = clampY(TL - depth, false); }
+      const toward = owner ? game.vy < 0 : game.vy > 0;
+      if (toward && !was) { until = now + REACT + Math.random() * 70; err = (Math.random() - 0.5) * 1.1; stance = null; }
+      was = toward;
+      if (!toward) { tx = game.bx * 0.2; ty = owner ? -1 : TL + 1; }
+      else if (now >= until) {
+        tx = clampX(fly(here, false).x + err);
+        const land = fly(null, true);
+        if (land.bounced) stance = clamp((owner ? land.y : TL - land.y) * 0.55 - 1.6, HOST_MIN, STEP_IN);
+        if (stance != null) ty = owner ? stance : TL - stance;
+      }
+      const cx = owner ? game.hostX : gst.x, cy = here;
+      const nx = clampX(cx + clamp(tx - cx, -MAXV * dt, MAXV * dt));
+      const ny = clampY(cy + clamp(ty - cy, -MAXV * 0.8 * dt, MAXV * 0.8 * dt), owner);
+      // Report the hand's SPEED as well as its position — that is what
+      // movePaddle does for a real finger, and it is what the host extrapolates
+      // with. A bot that moves without reporting speed is a guest whose paddle
+      // the host can only ever see where it used to be.
+      if (owner) { game.hostX = nx; game.hostY = ny; }
+      else { gst.vx = (nx - cx) / dt; gst.vy = (ny - cy) / dt; gst.x = nx; gst.y = ny; }
     }, 16);
     await new Promise((r) => setTimeout(r, SECS * 1000));
     clearInterval(bot);
@@ -148,8 +166,8 @@ function drive(frame, secs) {
 
   // ---- each player's own score is on their own half ------------------------
   const halves = async (fr) => fr.evaluate(() => {
-    const mineY = p(0, vy2world(TL * 0.30), 0.03).y;   // where drawScores puts YOUR number
-    const theirY = p(0, vy2world(TL * 0.66), 0.03).y;  // and theirs
+    const mineY = p(0, vy2world(SCORE_NEAR), 0.03).y;   // where drawScores puts YOUR number
+    const theirY = p(0, vy2world(SCORE_FAR), 0.03).y;  // and theirs
     const nearPaddle = p(0, owner ? game.hostY : gst.y, 0).y;
     const farPaddle = p(0, owner ? game.guestY : game.hostY, 0).y;
     return { mineY, theirY, nearPaddle, farPaddle };
@@ -226,32 +244,41 @@ function drive(frame, secs) {
     drift < 4.5, drift.toFixed(2) + ' dm apart (table is ' + 27.4 + ' dm long)');
 
   // ---- the guest drops out ------------------------------------------------
-  // Every host write re-broadcasts the whole collection, guest record included.
-  // Counting that as a heartbeat left a vanished friend looking alive forever.
-  await bCtx.setOffline(true);
-  await sleep(6000);
+  // The phone is CLOSED, not put into Playwright's offline mode: an established
+  // data channel carries on through that, so offline mode tests nothing here.
+  // Every host write re-broadcasts the whole collection, guest record included,
+  // and counting that as a heartbeat left a vanished friend looking alive to
+  // the millisecond, forever.
+  const guestUrl = bRun.url();
+  await bRun.close();
+  await sleep(7000);
   const away = await aFrame.evaluate(() => ({
     paused: game.paused,
     status: document.getElementById('status').textContent,
     overlay: document.getElementById('overlay').classList.contains('on'),
     title: document.getElementById('ot').textContent,
+    btn: document.getElementById('readyBtn').textContent,
+    cpu: isCpu(),
   }));
   check('the host notices the guest is gone and holds the ball',
-    away.paused === true, JSON.stringify(away));
+    away.paused === true && away.overlay === true, JSON.stringify(away));
   check('and says who, rather than blaming the network',
     /Bob/.test(away.title + away.status), JSON.stringify(away));
-  const guestSeesIt = await bFrame.evaluate(() => ({
-    overlay: document.getElementById('overlay').classList.contains('on'),
-    title: document.getElementById('ot').textContent,
-  }));
-  check('the guest is told the game is paused, not left guessing',
-    guestSeesIt.overlay === true, JSON.stringify(guestSeesIt));
-
-  await bCtx.setOffline(false);
-  await sleep(6000);
-  const back = await aFrame.evaluate(() => ({ paused: game.paused, cpu: isCpu() }));
+  check('the computer does not quietly take a missing friend’s place',
+    away.cpu === false && /computer/i.test(away.btn), JSON.stringify(away));
+  // ---- and comes back on the same link ------------------------------------
+  const bRun2 = await bCtx.newPage();
+  bRun2.on('pageerror', (e) => console.log('  [Bob app]', e.message));
+  await bRun2.goto(guestUrl);
+  const bFrame2 = await appFrame(bRun2);
+  await sleep(5000);
+  const back = await aFrame.evaluate(() => ({ paused: game.paused, cpu: isCpu(), them: themName() }));
   check('play resumes when the guest comes back', back.paused === false, JSON.stringify(back));
   check('and the computer never quietly took their place', back.cpu === false, JSON.stringify(back));
+  check('the returning guest is still the same person', back.them === 'Bob', JSON.stringify(back));
+  const rejoined = await bFrame2.evaluate(() => ({ them: themName(), hs: game.hostScore, gs: game.guestScore }));
+  check('and lands back in the same match, still playing Alice',
+    rejoined.them === 'Alice', JSON.stringify(rejoined));
 
   // ---- the match ends, and starts again -----------------------------------
   await aFrame.evaluate(() => {
@@ -267,7 +294,7 @@ function drive(frame, secs) {
       btn: document.getElementById('readyBtn').textContent,
       shown: getComputedStyle(document.getElementById('readyBtn')).display !== 'none',
     })),
-    b: await bFrame.evaluate(() => ({
+    b: await bFrame2.evaluate(() => ({
       on: document.getElementById('overlay').classList.contains('on'),
       title: document.getElementById('ot').textContent,
       body: document.getElementById('ob').textContent,
@@ -285,7 +312,7 @@ function drive(frame, secs) {
   check('the guest is not a spectator — it can ask for a rematch',
     over.b.shown === true && /rematch/i.test(over.b.btn), JSON.stringify(over.b));
 
-  await bRun.frameLocator('iframe').locator('#readyBtn').click();
+  await bRun2.frameLocator('iframe').locator('#readyBtn').click();
   await sleep(1800);
   const asked = await aFrame.evaluate(() => document.getElementById('readyBtn').textContent);
   check('and the host is told they asked', /Bob/.test(asked), asked);
@@ -294,7 +321,7 @@ function drive(frame, secs) {
   await sleep(2500);
   const fresh = {
     a: await aFrame.evaluate(() => ({ hs: game.hostScore, gs: game.guestScore, on: document.getElementById('overlay').classList.contains('on') })),
-    b: await bFrame.evaluate(() => ({ hs: game.hostScore, gs: game.guestScore, on: document.getElementById('overlay').classList.contains('on') })),
+    b: await bFrame2.evaluate(() => ({ hs: game.hostScore, gs: game.guestScore, on: document.getElementById('overlay').classList.contains('on') })),
   };
   check('Play again clears the result on the GUEST’s screen too',
     fresh.b.on === false && fresh.b.hs === 0 && fresh.b.gs === 0, JSON.stringify(fresh));
