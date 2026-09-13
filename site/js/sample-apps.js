@@ -3039,47 +3039,55 @@ function syncDebug(){
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <style>
   * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; margin: 0; overflow: hidden; background: #070b14; color: #f4f4f8; font-family: system-ui, sans-serif; touch-action: none; }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: #05070d; color: #f4f4f8; font-family: system-ui, sans-serif; touch-action: none; }
   #wrap { position: fixed; inset: 0; }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-  #reset {
-    position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); right: 10px;
-    z-index: 6; pointer-events: auto; padding: 7px 11px; border: 0; border-radius: 9px;
-    background: rgba(0,0,0,.45); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer;
-    border: 1px solid rgba(255,255,255,.18);
+  #bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 6;
+    padding: calc(7px + env(safe-area-inset-top, 0px)) 10px 7px;
+    display: flex; align-items: center; gap: 8px; pointer-events: none;
+    background: linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,0));
   }
   #status {
-    position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); left: 10px; right: 88px;
-    z-index: 6; pointer-events: none; font-size: 12px; font-weight: 700; letter-spacing: .04em;
-    text-transform: uppercase; color: rgba(255,255,255,.72); text-shadow: 0 1px 6px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 700; letter-spacing: .045em;
+    text-transform: uppercase; color: rgba(255,255,255,.78); text-shadow: 0 1px 6px #000;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #serveDot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: #ffd56a; box-shadow: 0 0 8px #ffd56a; display: none; }
+  #serveDot.on { display: block; }
+  #reset {
+    flex: 0 0 auto; pointer-events: auto; padding: 6px 11px; border-radius: 9px;
+    background: rgba(0,0,0,.42); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.2);
   }
   #banner {
-    position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%);
-    z-index: 8; pointer-events: none; text-align: center; opacity: 0; transition: opacity .12s;
-    text-shadow: 0 6px 24px #000, 0 1px 0 #000;
+    position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%);
+    z-index: 8; pointer-events: none; text-align: center; opacity: 0; transition: opacity .14s;
+    text-shadow: 0 6px 26px #000, 0 1px 0 #000; width: 92%;
   }
   #banner.on { opacity: 1; }
-  #banner h2 { margin: 0; font-size: clamp(28px, 8vw, 52px); font-weight: 900; letter-spacing: .02em; }
-  #banner p { margin: 6px 0 0; font-size: 14px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #ffd56a; }
+  #banner h2 { margin: 0; font-size: clamp(26px, 7.4vw, 50px); font-weight: 900; letter-spacing: .02em; }
+  #banner p { margin: 6px 0 0; font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #ffd56a; }
   #hint {
-    position: fixed; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%); z-index: 6; pointer-events: none; max-width: 92%;
-    font-size: 13px; font-weight: 650; color: #e8e8f0; background: rgba(0,0,0,.55);
-    padding: 8px 14px; border-radius: 12px; text-align: center; line-height: 1.35;
+    font-size: 13px; font-weight: 650; color: #eef0f6; background: rgba(0,0,0,.58);
+    padding: 8px 14px; border-radius: 12px; text-align: center; line-height: 1.4;
+    border: 1px solid rgba(255,255,255,.1);
   }
   #hint.hide { display: none; }
-  #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; background: rgba(0,0,0,.82); z-index: 10; padding: 24px; text-align: center; }
+  #hint b { color: #ffd56a; }
+  #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; background: rgba(3,6,12,.86); z-index: 10; padding: 24px; text-align: center; }
   #overlay.on { display: flex; }
   #overlay h2 { margin: 0 0 10px; color: #7dffb0; font-size: 26px; }
-  #overlay p { max-width: 300px; margin: 0 0 20px; color: #c8c8dc; font-size: 15px; line-height: 1.5; }
+  #overlay p { max-width: 320px; margin: 0 0 20px; color: #c8c8dc; font-size: 15px; line-height: 1.5; }
   #readyBtn { padding: 14px 28px; border: 0; border-radius: 12px; background: #7dffb0; color: #062014; font-size: 17px; font-weight: 800; cursor: pointer; }
   #readyBtn:active { transform: scale(0.97); }
 </style>
 <div id="wrap"><canvas id="game"></canvas></div>
-<div id="status">First to 11</div>
-<button id="reset">New game</button>
+<div id="bar"><div id="serveDot"></div><div id="status">First to 11</div><button id="reset">New game</button></div>
 <div id="banner"><h2 id="bt"></h2><p id="bp"></p></div>
-<div id="hint">Drag to move your paddle — it hits for you. Tap to serve.</div>
+<div id="hint">Drag anywhere — your paddle goes where your finger is, side to side <b>and</b> up the table. It hits for you. Tap to serve.</div>
 <div id="overlay">
   <h2 id="ot">Ready?</h2>
   <p id="ob">Tap the button when you are back so you can return the next ball.</p>
@@ -3096,6 +3104,7 @@ function syncDebug(){
   var canvas = document.getElementById('game');
   var ctx = canvas.getContext('2d');
   var statusEl = document.getElementById('status');
+  var serveDot = document.getElementById('serveDot');
   var overlay = document.getElementById('overlay');
   var ot = document.getElementById('ot');
   var ob = document.getElementById('ob');
@@ -3106,49 +3115,90 @@ function syncDebug(){
   var bt = document.getElementById('bt');
   var bp = document.getElementById('bp');
 
-  var TW = 18, TL = 36, NH = 2.2, BR = 0.62, PADW = 4.1;
-  var HOST_Y = 2.55, GUEST_Y = TL - 2.55;
-  var G = -0.00005, REST = 0.9, DT = 16, BROADCAST = 3;
-  var GUEST_TIMEOUT = 3500, STATE_TIMEOUT = 3000;
+  // ---- the table, in decimetres and milliseconds -----------------------------
+  // A real table is 152.5 x 274 cm with a 15.25 cm net, so these are the true
+  // proportions; the ball is drawn larger than life so it reads on a phone.
+  var TW = 15.25, TL = 27.4, NH = 1.525, NOVER = 0.15, BR = 0.2;
+  var G = -0.0000981;            // gravity, dm/ms^2
+  var DRAG = 0.0008;             // per-ms velocity bleed
+  // Magnus, sized against gravity: full topspin on a hard drive pulls the ball
+  // down about as hard again as gravity does, which is what lets a heavy loop
+  // be hit upwards and still land on the table.
+  var MAGZ = 0.0016, MAGX = 0.0009;
+  var REST = 0.86;               // table restitution
+  var PADR = 0.9;                // paddle blade radius, dm
+  var REACH_X = 1.45, REACH_Y = 1.5, REACH_Z = 1.5;
+  // How far up and back a player may stand. y is measured from THEIR end line.
+  var STEP_IN = 2.2, STEP_BACK = 2.4, SIDE_REACH = 1.0;
+  var HOST_HOME = -1.5, GUEST_HOME = TL + 1.5;
+  var HOST_MIN = -STEP_BACK, HOST_MAX = STEP_IN;
+  var SIM = 8, FSTEP = 20;       // physics step, and the coarser step prediction uses
+  var GUEST_TIMEOUT = 3500, STATE_TIMEOUT = 3000, CPU_TIMEOUT = 7000;
   var WIN = 11;
 
   var game = freshGame();
-  var gst = { id: 'guest', x: 0, y: GUEST_Y, heartbeat: 0, ready: false, swing: null, t: 0, name: '' };
+  var gst = freshGuest();
   var pointer = null;
-  var tick = 0, lastGuestBeat = 0, lastStateAt = 0, lastNow = 0;
+  var tick = 0, lastGuestBeat = 0, lastStateAt = 0, lastNow = 0, everHadGuest = false;
+  var mySeq = 1, lastSeen = 0, swingSeq = 0, seenSwingSeq = 0, lastPt = -1;
   var nextSwing = { host: null, guest: null };
-  var cpu = { err: 0, serveAt: 0, vx: 0, reactUntil: 0, lastToward: false };
-  var rules = { needOwn: false, needOpp: false };
+  var cpu = { err: 0, serveAt: 0, vx: 0, vy: 0, reactUntil: 0, lastToward: false, depth: 0, style: 0 };
+  var rules = { needOwn: false, needOpp: false, letBall: false };
   var pointOver = false;
-  var freezeUntil = 0, matchOver = false, matchWinner = null, pendingServer = null;
-  var myVx = 0, prevMyX = 0, hitFlash = 0, hitsDone = 0;
+  var freezeUntil = 0, pendingServer = null;
+  var padVX = 0, padVY = 0, hitFlash = 0, hitsDone = 0, swingAnim = 0, swingKind = 0;
+  var myZ = 1.0, theirZ = 1.0, remote = { x: 0, y: GUEST_HOME, z: 1 };
   var bannerUntil = 0, overlayMode = '';
-  var sparks = [];
+  var sparks = [], marks = [], trail = [];
   var _W = 0, _H = 0, dpr = 1;
+  var CB = 15, CH = 14, K = 40, CX = 0, TY = 0;
   var hoverOk = false;
   try { hoverOk = window.matchMedia('(hover:hover) and (pointer:fine)').matches; } catch (e) {}
 
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function clampX(x) { return clamp(x, -TW / 2 - SIDE_REACH, TW / 2 + SIDE_REACH); }
+  function myEndY(isHost) { return isHost ? 0 : TL; }
+  function clampY(y, isHost) {
+    return isHost ? clamp(y, HOST_MIN, HOST_MAX) : clamp(y, TL - HOST_MAX, TL - HOST_MIN);
+  }
+  function won(a, b) { return a >= WIN && a - b >= 2; }
+  function matchOver() { return won(game.hostScore, game.guestScore) || won(game.guestScore, game.hostScore); }
+  function matchWinner() { return won(game.hostScore, game.guestScore) ? 'host' : 'guest'; }
+
   function freshGame() {
     return {
-      id: 'game',
-      bx: 0, by: HOST_Y + 0.8, bz: 3, vx: 0, vy: 0, vz: 0,
-      sx: 0, sy: 0, sz: 0, sp: 0,
-      hostX: 0, hostY: HOST_Y,
-      guestX: 0, guestY: GUEST_Y,
-      hostScore: 0, guestScore: 0,
+      id: 'game', seq: 0, wr: '',
+      bx: 0, by: HOST_HOME + 0.6, bz: 2.2, vx: 0, vy: 0, vz: 0,
+      tsp: 0, ssp: 0, sp: 0,
+      hostX: 0, hostY: HOST_HOME, hostZ: 1,
+      guestX: 0, guestY: GUEST_HOME, guestZ: 1,
+      hostScore: 0, guestScore: 0, pt: 0,
       serving: 'host', lastHitter: null,
       paused: false, pausedBy: null, pausedAt: 0, t: 0,
       rally: 0, why: '', msgWho: null
     };
   }
 
+  function freshGuest() {
+    return { id: 'guest', x: 0, y: GUEST_HOME, z: 1, vx: 0, vy: 0, heartbeat: 0, ready: false, swing: null, t: 0, name: '' };
+  }
+
+  // Old saves carry the 2-D shape (no depth, no spin split). Fill the gaps so a
+  // match in progress survives the update instead of throwing.
   function adopt(g) {
     if (!g || g.id !== 'game') return game;
     if (typeof g.hostScore !== 'number') g.hostScore = 0;
     if (typeof g.guestScore !== 'number') g.guestScore = 0;
-    if (g.hostY == null) g.hostY = HOST_Y;
-    if (g.guestY == null) g.guestY = GUEST_Y;
+    if (g.hostY == null || g.hostY > TL / 2) g.hostY = HOST_HOME;
+    if (g.guestY == null || g.guestY < TL / 2) g.guestY = GUEST_HOME;
+    if (g.hostZ == null) g.hostZ = 1;
+    if (g.guestZ == null) g.guestZ = 1;
+    if (g.tsp == null) g.tsp = 0;
+    if (g.ssp == null) g.ssp = 0;
+    if (g.sp == null) g.sp = 0;
     if (g.rally == null) g.rally = 0;
+    if (g.pt == null) g.pt = 0;
+    if (g.by == null || g.by > TL + 4 || g.by < -4) { g.by = HOST_HOME + 0.6; g.bz = 2.2; g.serving = 'host'; }
     return g;
   }
 
@@ -3156,43 +3206,62 @@ function syncDebug(){
     if (!owner) resetBtn.style.display = 'none';
     resize();
     window.addEventListener('resize', resize);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
     bindInput();
     bindOverlay();
     db.subscribe(function (items) {
       var g = items.find(function (x) { return x.id === 'game'; });
       if (g) {
-        var prevH = game.hostScore, prevG = game.guestScore;
-        game = adopt(g);
-        lastStateAt = Date.now();
-        if (!owner && (game.hostScore !== prevH || game.guestScore !== prevG)) {
-          onScoreSeen();
+        // The host IS the physics. Its own record coming back through the store
+        // is an echo tens of milliseconds stale: adopting it rewinds the ball,
+        // and a rewound serve bounces twice and loses the point. Take a record
+        // only from someone else (a promoted host), or once at first load.
+        var mine = g.wr === me.id && g.seq <= mySeq;
+        if (!owner || !mine || lastStateAt === 0) {
+          var prevPt = game.pt;
+          game = adopt(g);
+          if (owner) { mySeq = Math.max(mySeq, game.seq || 0); }
+          if (!owner && game.pt !== prevPt) onPointSeen();
+          if (!owner) syncLocalToState();
         }
+        lastStateAt = Date.now();
       }
       if (owner) {
         var n = items.find(function (x) { return x.id === 'guest'; });
         if (n) {
           gst = n;
+          everHadGuest = true;
           lastGuestBeat = n.heartbeat || n.t || 0;
+          if (n.swing && (n.swing.seq || 0) > seenSwingSeq) {
+            seenSwingSeq = n.swing.seq || 0;
+            nextSwing.guest = n.swing;
+          }
           if (n.ready && game.paused) { game.paused = false; game.pausedBy = null; }
         }
       }
       updateOverlay();
     });
     lastNow = Date.now();
-    setInterval(owner ? hostTick : guestTick, DT);
-    requestAnimationFrame(render);
-    showBanner('PING PONG', 'first to 11 · win by 2', 1600);
+    requestAnimationFrame(loop);
+    showBanner('PING PONG', 'first to 11 - win by 2', 1500);
   }
 
-  function isCpu() { return owner && (!lastGuestBeat || (Date.now() - lastGuestBeat > GUEST_TIMEOUT)); }
+  function syncLocalToState() {
+    // A guest that just joined mid-match adopts the paddle the host has for it.
+    if (!gst.heartbeat) { gst.x = game.guestX; gst.y = game.guestY; }
+  }
+
+  function isCpu() {
+    if (!owner) return false;
+    if (!everHadGuest) return true;
+    return Date.now() - lastGuestBeat > CPU_TIMEOUT;
+  }
+  function guestLive() { return owner && everHadGuest && Date.now() - lastGuestBeat <= GUEST_TIMEOUT; }
 
   function themName() {
-    if (isCpu()) return 'CPU';
+    if (isCpu()) return 'Computer';
     return (gst && gst.name) ? gst.name : (owner ? 'Friend' : 'Host');
   }
-
-  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-  function clampX(x) { return clamp(x, -TW / 2 + PADW / 2, TW / 2 - PADW / 2); }
 
   function serverFor(h, g) {
     var tot = h + g;
@@ -3200,135 +3269,197 @@ function syncDebug(){
     return (Math.floor(tot / 2) % 2 === 0) ? 'host' : 'guest';
   }
 
-  function won(a, b) { return a >= WIN && a - b >= 2; }
+  function pushGame() {
+    game.seq = ++mySeq;
+    game.wr = me.id;
+    db.put(game);
+  }
 
-  function hostTick() {
+  var acc = 0, putAt = 0, hudAt = 0, zMine = 1.15, zThem = 1.15, frames = 0;
+
+  function loop() {
     var now = Date.now();
-    var dt = clamp(now - lastNow, 8, 48);
+    var real = clamp(now - lastNow, 0, 150);
     lastNow = now;
-    if (!isCpu() && lastGuestBeat && now - lastGuestBeat > GUEST_TIMEOUT && !game.paused) {
+    acc += real;
+    frames++;
+    // Prediction is the expensive part and it does not change inside one frame.
+    zMine = targetPaddleZ(owner, owner ? game.hostY : gst.y);
+    if (owner) zThem = targetCpuZ();
+    var steps = 0;
+    while (acc >= SIM && steps < 22) { acc -= SIM; if (owner) hostTick(SIM); else guestTick(SIM); steps++; }
+    if (now - hudAt > 140) { hudAt = now; updateHud(); }
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function hostTick(dt) {
+    var now = Date.now();
+    if (everHadGuest && !isCpu() && now - lastGuestBeat > GUEST_TIMEOUT && !game.paused) {
       game.paused = true; game.pausedBy = 'guest'; game.pausedAt = now;
     }
-    if (isCpu() && game.paused) { game.paused = false; game.pausedBy = null; }
-    if (gst.swing) { nextSwing.guest = gst.swing; gst.swing = null; }
-    if (pointer) {
-      var nx = clampX(pointer.tableX);
-      myVx = myVx * 0.55 + (nx - game.hostX) / dt * 0.45;
-      game.hostX = nx;
-    } else {
-      myVx *= 0.85;
-    }
-    game.hostY = HOST_Y;
+    if ((isCpu() || guestLive()) && game.paused) { game.paused = false; game.pausedBy = null; }
+    movePaddle('host', dt);
     if (isCpu()) runCpu(dt, now);
-    else {
-      game.guestX = clampX(gst.x || game.guestX);
-      game.guestY = GUEST_Y;
+    else if (guestLive()) {
+      game.guestX = clampX(gst.x != null ? gst.x : game.guestX);
+      game.guestY = clampY(gst.y != null ? gst.y : game.guestY, false);
+      game.guestZ = gst.z != null ? gst.z : 1;
+      cpu.vx = gst.vx || 0; cpu.vy = gst.vy || 0;
     }
-    if (pendingServer && now >= freezeUntil && !matchOver) {
+    if (pendingServer && now >= freezeUntil && !matchOver()) {
       resetBall(pendingServer);
       pendingServer = null;
     }
-    if (!game.paused && now >= freezeUntil && !matchOver) step(dt);
+    if (!game.paused && now >= freezeUntil && !matchOver()) step(dt);
     game.t = now;
-    game.hostY = HOST_Y;
-    game.guestY = GUEST_Y;
-    if (++tick % BROADCAST === 0) db.put(game);
-    updateHud();
+    // Alone against the computer the record is only a save file, so it is
+    // written a few times a second; with a friend on the line it is the wire.
+    var every = (everHadGuest || guestLive()) ? 70 : 450;
+    if (now - putAt >= every) { putAt = now; pushGame(); }
   }
 
-  function guestTick() {
+  function guestTick(dt) {
     var now = Date.now();
-    var dt = clamp(now - lastNow, 8, 48);
-    lastNow = now;
-    if (pointer) {
-      var nx = clampX(pointer.tableX);
-      myVx = myVx * 0.55 + (nx - gst.x) / dt * 0.45;
-      gst.x = nx;
-    } else myVx *= 0.85;
-    gst.y = GUEST_Y;
+    movePaddle('guest', dt);
     gst.heartbeat = now; gst.t = now; gst.name = me.name;
     if (!game.paused) gst.ready = false;
-    if (++tick % BROADCAST === 0) db.put(gst);
-    updateHud();
+    if (now - putAt >= 60) { putAt = now; db.put(gst); }
   }
 
+  // One finger drives two axes: across the table and up or back from the net.
+  // The paddle's height rises to meet the ball on its own, the way an arm does.
+  function movePaddle(who, dt) {
+    var isHost = who === 'host';
+    var curX = isHost ? game.hostX : gst.x;
+    var curY = isHost ? game.hostY : gst.y;
+    if (pointer) {
+      var t = screenToTable(pointer.x, pointer.y);
+      var nx = clampX(t.x), ny = clampY(t.y, isHost);
+      padVX = padVX * 0.55 + (nx - curX) / dt * 0.45;
+      padVY = padVY * 0.55 + (ny - curY) / dt * 0.45;
+      curX = nx; curY = ny;
+    } else { padVX *= 0.86; padVY *= 0.86; }
+    myZ = myZ + (zMine - myZ) * clamp(dt / 90, 0, 1);
+    if (isHost) { game.hostX = curX; game.hostY = curY; game.hostZ = myZ; }
+    else { gst.x = curX; gst.y = curY; gst.z = myZ; gst.vx = padVX; gst.vy = padVY; }
+  }
+
+  // The arm reaches for where the ball will be when it arrives, so a high ball
+  // is met high and a low one low — that vertical travel is what sells depth.
+  function targetPaddleZ(isHost, py) {
+    var rest = 1.15;
+    var toward = (isHost && game.vy < 0) || (!isHost && game.vy > 0);
+    if (!toward || game.serving) return rest;
+    var z = predictZ(py);
+    if (z == null) return rest;
+    return clamp(z, 0.35, 4.2);
+  }
+
+  // ---- physics ---------------------------------------------------------------
   function step(dt) {
     if (game.serving) { holdServe(dt); return; }
     pointOver = false;
-    var n = clamp(Math.ceil(Math.abs(game.vy) * dt / 0.7), 1, 5);
+    var sp = Math.sqrt(game.vx * game.vx + game.vy * game.vy + game.vz * game.vz);
+    var n = clamp(Math.ceil(sp * dt / 0.16), 1, 8);
     var s = dt / n;
-    for (var i = 0; i < n; i++) { substep(s); if (pointOver) return; }
+    for (var i = 0; i < n; i++) { substep(s); if (pointOver || game.serving) return; }
   }
 
   function holdServe() {
     var who = game.serving;
-    var px = who === 'host' ? game.hostX : game.guestX;
-    var py = who === 'host' ? HOST_Y + 1.55 : GUEST_Y - 1.55;
-    game.bx = px; game.by = py;
-    game.bz = 2.7 + Math.sin(Date.now() / 170) * 0.38;
+    var isHost = who === 'host';
+    var px = isHost ? game.hostX : game.guestX;
+    var py = isHost ? game.hostY : game.guestY;
+    game.bx = px + (isHost ? 0.5 : -0.5);
+    game.by = py + (isHost ? 0.85 : -0.85);
+    game.bz = 1.9 + Math.sin(Date.now() / 190) * 0.28;
     game.vx = 0; game.vy = 0; game.vz = 0;
-    if (who === 'guest' && nextSwing.guest) {
-      var gs = nextSwing.guest; nextSwing.guest = null;
-      doServe('guest', gs.force, gs.smudgeX);
+    game.tsp = 0; game.ssp = 0;
+    if (nextSwing[who]) {
+      var s = nextSwing[who]; nextSwing[who] = null;
+      doServe(who, s.force, s.dx, s.dy);
       return;
     }
     if (isCpu() && who === 'guest') {
-      if (!cpu.serveAt) cpu.serveAt = Date.now() + 520 + Math.random() * 380;
+      if (!cpu.serveAt) cpu.serveAt = Date.now() + 520 + Math.random() * 420;
       if (Date.now() >= cpu.serveAt) {
         cpu.serveAt = 0;
-        doServe('guest', 0.42 + Math.random() * 0.22, (Math.random() - 0.5) * 22);
+        doServe('guest', 0.4 + Math.random() * 0.28, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 30);
       }
     }
   }
 
   function substep(dt) {
-    var prevY = game.by, prevZ = game.bz, prevX = game.bx;
-    game.vz += G * dt;
-    game.vx *= 0.99992; game.vy *= 0.99992;
+    var pX = game.bx, pY = game.by, pZ = game.bz;
+    var vx = game.vx, vy = game.vy, vz = game.vz;
+    var sp = Math.sqrt(vx * vx + vy * vy + vz * vz) || 0.0001;
+    // Topspin pushes the ball down, backspin holds it up, sidespin bends it.
+    var az = G - MAGZ * game.tsp * Math.abs(vy);
+    var ax = MAGX * game.ssp * Math.abs(vy);
+    var bleed = 1 - DRAG * sp * dt;
+    game.vx = (vx + ax * dt) * bleed;
+    game.vy = vy * bleed;
+    game.vz = (vz + az * dt) * bleed;
     game.bx += game.vx * dt;
     game.by += game.vy * dt;
     game.bz += game.vz * dt;
-    game.sp += Math.sqrt(game.sx * game.sx + game.sy * game.sy + game.sz * game.sz) * dt * 0.9;
-    game.sx *= 0.9996; game.sy *= 0.9996; game.sz *= 0.9996;
+    game.sp += (Math.abs(game.tsp) + Math.abs(game.ssp)) * dt * 0.02 + sp * dt * 0.05;
+    game.tsp *= 0.99965; game.ssp *= 0.99965;
 
-    var crossed = (prevY - TL / 2) * (game.by - TL / 2) <= 0 && prevY !== game.by;
+    if (trail.length > 26) trail.shift();
+    trail.push({ x: game.bx, y: game.by, z: game.bz });
+
+    // the net
+    var crossed = (pY - TL / 2) * (game.by - TL / 2) <= 0 && pY !== game.by;
     if (crossed) {
-      var t = (TL / 2 - prevY) / (game.by - prevY);
-      var zAt = prevZ + (game.bz - prevZ) * t;
-      var xAt = prevX + (game.bx - prevX) * t;
-      if (Math.abs(xAt) <= TW / 2 + 0.4 && zAt < NH + BR) {
-        if (rules.needOwn) { endPoint(game.lastHitter === 'host' ? 'guest' : 'host', 'net'); return; }
-        endPoint(game.lastHitter === 'host' ? 'guest' : 'host', 'net');
-        return;
+      var t = (TL / 2 - pY) / (game.by - pY);
+      var zAt = pZ + (game.bz - pZ) * t;
+      var xAt = pX + (game.bx - pX) * t;
+      if (Math.abs(xAt) <= TW / 2 + NOVER && zAt < NH + BR) {
+        if (zAt > NH - 0.12) {
+          // A clip off the cord: on a serve it is a let and the point is replayed.
+          if (rules.needOwn) { playSound('cord'); letServe(); return; }
+          playSound('cord');
+          game.vy *= 0.42; game.vz = Math.abs(game.vz) * 0.3 + 0.006; game.bz = NH + BR;
+          game.tsp *= 0.3; game.ssp *= 0.3;
+          addSpark(xAt, TL / 2, NH, '#ffe9a8');
+        } else {
+          endPoint(game.lastHitter === 'host' ? 'guest' : 'host', 'net');
+          return;
+        }
       }
     }
 
-    if (game.bz <= BR) {
-      var on = game.by > 0.05 && game.by < TL - 0.05 && Math.abs(game.bx) <= TW / 2;
-      if (on) { bounce(); if (game.serving) return; }
-      else if (game.bz < -0.2) { missOff(); return; }
+    // the table
+    if (game.bz <= BR && game.vz < 0) {
+      var onTable = game.by > 0 && game.by < TL && Math.abs(game.bx) <= TW / 2;
+      if (onTable) { bounce(); if (pointOver || game.serving) return; }
+      else if (game.bz < -0.4) { missOff(); return; }
     }
+    if (game.bz < -6) { missOff(); return; }
+    if (game.by > TL + 4.5) { passEnd('guest'); return; }
+    if (game.by < -4.5) { passEnd('host'); return; }
 
-    if (game.by > TL + 0.6) { passEnd('guest'); return; }
-    if (game.by < -0.6) { passEnd('host'); return; }
-
-    tryHit('host');
-    tryHit('guest');
+    tryHit('host', pX, pY, pZ);
+    if (pointOver || game.serving) return;
+    tryHit('guest', pX, pY, pZ);
   }
 
   function bounce() {
     game.bz = BR;
-    game.vz = -game.vz * REST;
-    game.vx += game.sz * 0.1;
-    game.vy += game.sy * 0.04;
+    game.vz = -game.vz * REST * (1 - 0.12 * clamp(-game.tsp, 0, 1));
+    // Friction on the cloth turns spin into travel: topspin kicks on, backspin
+    // sits down and can even check back.
+    game.vy *= 1 + clamp(game.tsp, -0.9, 0.9) * 0.34;
+    game.vx += game.ssp * 0.22;
+    game.ssp *= 0.55; game.tsp *= 0.45;
+    addMark(game.bx, game.by);
     playSound('table');
     var side = game.by < TL / 2 ? 'host' : 'guest';
     if (rules.needOwn) {
       if (side !== game.lastHitter) { endPoint(side, 'fault'); return; }
       rules.needOwn = false;
-      var dir = game.lastHitter === 'host' ? 1 : -1;
-      if (game.vz < 0.026) game.vz = 0.027 + Math.random() * 0.004;
-      game.vy = dir * Math.max(Math.abs(game.vy), 0.026);
       return;
     }
     if (side === game.lastHitter) { endPoint(side === 'host' ? 'guest' : 'host', 'drop'); return; }
@@ -3346,95 +3477,174 @@ function syncDebug(){
     else endPoint(game.by < TL / 2 ? 'guest' : 'host', 'miss');
   }
 
-  function tryHit(who) {
+  // ---- the stroke ------------------------------------------------------------
+  // The paddle is a point in three dimensions and so is the reach around it: a
+  // ball that arrives while you are standing too far back, or too far up the
+  // table, goes past you. That is the whole game.
+  function tryHit(who, pX, pY, pZ) {
     if (game.serving) return;
     var isHost = who === 'host';
-    var py = isHost ? game.hostY : game.guestY;
     var px = isHost ? game.hostX : game.guestX;
-    var toward = (isHost && game.vy < 0) || (!isHost && game.vy > 0);
+    var py = isHost ? game.hostY : game.guestY;
+    var pz = isHost ? game.hostZ : game.guestZ;
+    var toward = isHost ? game.vy < 0 : game.vy > 0;
     if (!toward) return;
     if (game.lastHitter === who) return;
-    if (isHost) { if (game.by > 8.8 || game.by < -1.3) return; }
-    else { if (game.by < TL - 8.8 || game.by > TL + 1.3) return; }
-    var dx = game.bx - px;
-    var reach = PADW / 2 + BR + 0.35;
-    if (Math.abs(dx) > reach) return;
-    if (game.bz > 8.2 || game.bz < -0.2) return;
-    if (who === 'guest' && isCpu() && Math.abs(dx) > 0.85 && Math.random() < 0.62) return;
+    // Contact is the closest approach of this step's path to the blade, so a
+    // fast ball cannot tunnel straight through the paddle between frames.
+    var dx0 = pX - px, dy0 = pY - py, dz0 = pZ - pz;
+    var dx1 = game.bx - px, dy1 = game.by - py, dz1 = game.bz - pz;
+    var mx = dx1 - dx0, my = dy1 - dy0, mz = dz1 - dz0;
+    var ex = REACH_X, ey = REACH_Y, ez = REACH_Z;
+    var a = (mx * mx) / (ex * ex) + (my * my) / (ey * ey) + (mz * mz) / (ez * ez);
+    var b = 2 * ((dx0 * mx) / (ex * ex) + (dy0 * my) / (ey * ey) + (dz0 * mz) / (ez * ez));
+    var c = (dx0 * dx0) / (ex * ex) + (dy0 * dy0) / (ey * ey) + (dz0 * dz0) / (ez * ez) - 1;
+    var tHit = -1;
+    if (c <= 0) tHit = 0;
+    else if (a > 1e-9) {
+      var disc = b * b - 4 * a * c;
+      if (disc >= 0) {
+        var r = (-b - Math.sqrt(disc)) / (2 * a);
+        if (r >= 0 && r <= 1) tHit = r;
+      }
+    }
+    if (tHit < 0) return;
+    var contactX = px + dx0 + mx * tHit;
+    var contactY = py + dy0 + my * tHit;
+    var contactZ = pz + dz0 + mz * tHit;
+    if (contactZ < 0.12) return;
+    if (who === 'guest' && isCpu() && cpu.miss) { cpu.miss = false; return; }
 
     var swing = consumeSwing(who);
-    var padV = isHost ? myVx : (isCpu() ? cpu.vx : (gst.svx || 0));
-    var force = swing ? clamp(swing.force, 0.2, 1) : 0.52;
-    if (swing && Math.abs(swing.smudgeY) > 18) force = clamp(force + 0.18, 0, 1);
-    var speed = 0.026 + force * 0.022 + Math.min(0.012, Math.abs(game.vy) * 0.25);
-    var aim = clampX(-dx * 3.8 + padV * 90 + (swing ? swing.smudgeX * 0.03 : 0));
-    if (who === 'guest' && isCpu() && Math.random() < 0.3) {
-      aim = clampX((Math.random() < 0.5 ? -1 : 1) * (4.6 + Math.random() * 2.4));
-    } else if (Math.abs(aim) < 0.4) aim += (Math.random() - 0.5) * 2.2;
-    var landY = isHost ? (TL - 3.6 + Math.random() * 1.6) : (3.6 - Math.random() * 1.6);
-    launchShot(game.bx, game.by, Math.max(game.bz, 1.2), aim, landY, speed);
-    var smx = swing ? swing.smudgeX : padV * 40;
-    game.sz += smx * 0.0005;
-    game.sy += (isHost ? 1 : -1) * (0.002 + force * 0.003);
-    game.sx += (swing ? -swing.smudgeY : 0) * 0.0003;
+    var vX = isHost ? padVX : (guestLive() ? (gst.vx || 0) : cpu.vx);
+    var vY = isHost ? padVY : (guestLive() ? (gst.vy || 0) : cpu.vy);
+    if (!isHost && !owner) { vX = 0; vY = 0; }
+    game.bx = contactX; game.by = contactY; game.bz = contactZ;
+    strike(who, contactX, contactY, contactZ, swing, vX, vY);
+  }
+
+  function strike(who, cx, cy, cz, swing, padvx, padvy) {
+    var isHost = who === 'host';
+    var dir = isHost ? 1 : -1;
+    var endY = isHost ? 0 : TL;
+    // Depth of contact decides the shot. Taken early, over the table, the ball
+    // goes flat, fast and short; taken deep behind the line it loops high.
+    var depth = (isHost ? cy : TL - cy);            // negative = behind the line
+    var early = clamp((depth + STEP_BACK) / (STEP_BACK + STEP_IN), 0, 1);
+    var flick = swing ? clamp(-swing.dy / 90, -1, 1) : clamp(padvy * dir * 9, -1, 1);
+    var force = swing ? clamp(swing.force, 0.22, 1) : clamp(0.42 + early * 0.3 + Math.abs(padvx) * 14, 0.22, 1);
+    var lat = (swing ? swing.dx * 0.012 : 0) + padvx * 26;
+
+    var speed = 0.052 + force * 0.052 + early * 0.02;
+    speed = clamp(speed, 0.045, 0.125);
+    var top = clamp(flick * 0.55 + early * 0.5 + force * 0.25, -0.85, 1.1);
+    var side = clamp(lat * 0.05 + (swing ? swing.dx * 0.004 : 0), -0.9, 0.9);
+
+    // Aim: where the ball crosses the far half. Steeper when hit early.
+    var aimX = clamp(-(cx - (isHost ? game.hostX : game.guestX)) * 2.2 + lat * 0.9 + (swing ? swing.dx * 0.02 : 0), -TW / 2 + 0.6, TW / 2 - 0.6);
+    if (who === 'guest' && isCpu()) aimX = cpu.aimX != null ? cpu.aimX : aimX;
+    else if (Math.abs(aimX) < 0.5) aimX += (Math.random() - 0.5) * 1.6;
+    var landDepth = 2.0 + (1 - early) * 4.5 + force * 4.0 + clamp(flick, 0, 1) * 3.0;
+    var landY = isHost ? clamp(TL - landDepth, TL / 2 + 1.6, TL - 0.7) : clamp(landDepth, 0.7, TL / 2 - 1.6);
+
+    launchShot(cx, cy, Math.max(cz, 0.3), aimX, landY, speed, top);
+    game.tsp = top;
+    game.ssp = side * dir;
     game.lastHitter = who;
     game.rally = (game.rally || 0) + 1;
     rules.needOwn = false;
     rules.needOpp = true;
-    hitFlash = 1;
+    if (isHost === owner) { hitFlash = 1; swingAnim = 1; swingKind = top > 0.35 ? 1 : (top < -0.2 ? -1 : 0); }
     hitsDone++;
-    if (hitsDone >= 1) hint.classList.add('hide');
-    addSpark(game.bx, game.by, game.bz);
-    playSound(force > 0.78 ? 'smash' : 'paddle');
+    if (hitsDone >= 2) hint.classList.add('hide');
+    addSpark(cx, cy, cz, force > 0.8 ? '#ffd0a0' : '#fff6c8');
+    playSound(force > 0.8 ? 'smash' : 'paddle');
   }
 
-  function consumeSwing(who) {
-    var s = nextSwing[who];
-    if (!s) return null;
-    nextSwing[who] = null;
-    if (performance.now() - s.t > 300) return null;
-    return s;
-  }
-
-  function launchShot(fromX, fromY, fromZ, toX, toY, speed) {
-    speed = clamp(speed, 0.022, 0.056);
+  // Solve a launch that lands on a chosen spot and clears the cord on the way.
+  function launchShot(fromX, fromY, fromZ, toX, toY, speed, top) {
     var dy = toY - fromY;
-    var T = Math.abs(dy) / speed;
-    T = clamp(T, 320, 980);
-    var vy = dy / T;
-    var vx = (toX - fromX) / T;
-    var vz = (BR + 0.15 - fromZ - 0.5 * G * T * T) / T;
-    var tNet = (TL / 2 - fromY) / vy;
-    if (tNet > 40 && tNet < T) {
-      var zNet = fromZ + vz * tNet + 0.5 * G * tNet * tNet;
-      if (zNet < NH + BR + 0.45) {
-        T = clamp(T * 1.2, 360, 1100);
-        vy = dy / T; vx = (toX - fromX) / T;
-        vz = (BR + 0.2 - fromZ - 0.5 * G * T * T) / T;
+    var T = clamp(Math.abs(dy) / speed, 190, 900);
+    for (var pass = 0; pass < 4; pass++) {
+      var vy = dy / T;
+      var vx = (toX - fromX) / T;
+      var g = clamp(G - MAGZ * top * Math.abs(vy), -0.00045, -0.00003);
+      var vz = (BR - fromZ - 0.5 * g * T * T) / T;
+      var tNet = (TL / 2 - fromY) / vy;
+      var ok = true;
+      if (tNet > 0 && tNet < T) {
+        var zNet = fromZ + vz * tNet + 0.5 * g * tNet * tNet;
+        if (zNet < NH + BR + 0.28) ok = false;
       }
+      game.vx = vx; game.vy = vy; game.vz = vz;
+      if (ok) return;
+      T = T * 1.16;
+      if (T > 900) { game.vz = Math.max(game.vz, 0.012); return; }
     }
-    game.vx = vx; game.vy = vy; game.vz = vz;
   }
 
-  function doServe(who, force, smx) {
+  function letServe() {
+    showBanner('LET', 'serve again', 700);
+    game.rally = 0;
+    rules.needOwn = false; rules.needOpp = false;
+    nextSwing = { host: null, guest: null };
+    cpu.serveAt = 0;
+    freezeUntil = Date.now() + 520;
+    pendingServer = game.lastHitter;
+    game.serving = game.lastHitter;
+  }
+
+  // A serve has to bounce twice: once on your own half, once on theirs. Solve
+  // the launch for both, by bisecting on the time to the first bounce — guessing
+  // a velocity and hoping put half of all serves into the net.
+  function serveLaunch(ownY, oppY, top) {
+    var y0 = game.by, z0 = game.bz, g = -G;
+    var lo = 120, hi = 620, vy = 0, vz = 0;
+    for (var i = 0; i < 26; i++) {
+      var t1 = (lo + hi) / 2;
+      vy = (ownY - y0) / t1;
+      vz = (BR - z0 + 0.5 * g * t1 * t1) / t1;
+      var vImpact = vz - g * t1;                     // negative, coming down
+      var vzb = REST * Math.max(0.0005, -vImpact);
+      var t2 = 2 * vzb / g;
+      var vyb = vy * (1 + clamp(top, -0.9, 0.9) * 0.34);
+      var reached = ownY + vyb * t2;
+      var far = Math.abs(reached - y0) > Math.abs(oppY - y0);
+      if (far) lo = t1; else hi = t1;                // longer flight = shorter second hop
+    }
+    game.vy = vy;
+    game.vz = vz;
+  }
+
+  function doServe(who, force, dx, dy) {
     if (!game.serving || game.serving !== who) return;
-    force = clamp(force == null ? 0.5 : force, 0.2, 1);
+    force = clamp(force == null ? 0.5 : force, 0.22, 1);
     var dir = who === 'host' ? 1 : -1;
     var px = who === 'host' ? game.hostX : game.guestX;
-    game.bx = px;
-    game.by = who === 'host' ? HOST_Y + 0.9 : GUEST_Y - 0.9;
-    game.bz = 3.05;
-    game.vx = clamp((smx || 0) * 0.00022, -0.007, 0.007);
-    game.vy = dir * (0.022 + force * 0.006);
-    game.vz = 0.0015;
-    game.sx = 0; game.sy = dir * 0.002; game.sz = (smx || 0) * 0.00025; game.sp = 0;
+    var py = who === 'host' ? game.hostY : game.guestY;
+    game.bx = px + dir * 0.5;
+    game.by = py + dir * 0.85;
+    game.bz = 2.0;
+    var top = clamp((dy ? -dy / 130 : 0) + 0.15, -0.7, 0.9);
+    var side = clamp((dx || 0) * 0.006, -0.8, 0.8);
+    var reach = 3.0 + force * 3.2;                    // how far up your own half it pitches
+    var over = 4.0 + force * 6.5;                     // how deep past the net it lands
+    var ownY = who === 'host' ? reach : TL - reach;
+    var oppY = who === 'host' ? clamp(TL / 2 + over, TL / 2 + 1.5, TL - 0.8) : clamp(TL / 2 - over, 0.8, TL / 2 - 1.5);
+    serveLaunch(ownY, oppY, top);
+    game.vx = clamp((dx || 0) * 0.00016, -0.012, 0.012);
+    game.tsp = top;
+    game.ssp = side * dir;
+    game.sp = 0;
     game.serving = null;
     game.lastHitter = who;
     game.rally = 1;
     game.why = '';
     rules.needOwn = true;
     rules.needOpp = true;
-    playSound('paddle');
+    trail.length = 0;
+    if ((who === 'host') === owner) { swingAnim = 1; swingKind = 0; }
+    playSound('serve');
     hint.classList.add('hide');
   }
 
@@ -3444,22 +3654,14 @@ function syncDebug(){
     if (to === 'host') game.hostScore++; else game.guestScore++;
     game.why = why || '';
     game.msgWho = to;
-    game.rally = game.rally || 0;
+    game.pt = (game.pt || 0) + 1;
     game.vx = 0; game.vy = 0; game.vz = 0;
     playSound('score');
-    var my = owner ? to === 'host' : to === 'guest';
-    var label = why === 'net' ? 'NET' : why === 'out' ? 'OUT' : why === 'double' ? 'DOUBLE BOUNCE' : why === 'fault' ? 'FAULT' : why === 'drop' ? 'DROP' : why === 'miss' ? 'MISS' : 'POINT';
-    var big = my ? 'YOUR POINT' : (isCpu() ? 'CPU POINT' : 'THEIR POINT');
-    if (game.rally >= 5) label = game.rally + ' SHOT RALLY · ' + label;
-    showBanner(big, label, 900);
-    freezeUntil = Date.now() + 900;
-    if (won(game.hostScore, game.guestScore) || won(game.guestScore, game.hostScore)) {
-      matchOver = true;
-      matchWinner = won(game.hostScore, game.guestScore) ? 'host' : 'guest';
+    announce(to, why);
+    freezeUntil = Date.now() + 1000;
+    if (matchOver()) {
       pendingServer = null;
       freezeUntil = Date.now() + 999999;
-      var iWin = owner ? matchWinner === 'host' : matchWinner === 'guest';
-      showBanner(iWin ? 'YOU WIN' : (isCpu() ? 'CPU WINS' : 'THEY WIN'), game.hostScore + '  —  ' + game.guestScore, 4000);
       updateOverlay();
     } else {
       pendingServer = serverFor(game.hostScore, game.guestScore);
@@ -3468,73 +3670,134 @@ function syncDebug(){
     rules.needOwn = false; rules.needOpp = false;
     nextSwing = { host: null, guest: null };
     cpu.serveAt = 0;
+    pushGame();
+  }
+
+  function announce(to, why) {
+    var mine = owner ? to === 'host' : to === 'guest';
+    var label = why === 'net' ? 'INTO THE NET' : why === 'out' ? 'LONG' : why === 'double' ? 'DOUBLE BOUNCE'
+      : why === 'fault' ? 'SERVE FAULT' : why === 'drop' ? 'NEVER CROSSED' : why === 'miss' ? 'PAST YOU' : 'POINT';
+    if (!mine && why === 'miss') label = 'PAST YOU';
+    if (mine && why === 'miss') label = 'PAST THEM';
+    var big = mine ? 'YOUR POINT' : (isCpu() ? 'COMPUTER' : 'THEIR POINT');
+    if ((game.rally || 0) >= 6) label = game.rally + ' SHOT RALLY - ' + label;
+    if (matchOver()) {
+      var iWin = owner ? matchWinner() === 'host' : matchWinner() === 'guest';
+      showBanner(iWin ? 'YOU WIN' : (isCpu() ? 'COMPUTER WINS' : 'THEY WIN'), game.hostScore + '  -  ' + game.guestScore, 4000);
+    } else {
+      showBanner(big, label, 1000);
+    }
+  }
+
+  function onPointSeen() {
+    if (!game.msgWho) return;
+    announce(game.msgWho, game.why);
+    updateOverlay();
   }
 
   function resetBall(server) {
-    game.bx = 0;
-    game.by = server === 'host' ? HOST_Y + 0.8 : GUEST_Y - 0.8;
-    game.bz = 2.8;
+    var isHost = server === 'host';
+    game.bx = isHost ? game.hostX : game.guestX;
+    game.by = isHost ? game.hostY + 0.85 : game.guestY - 0.85;
+    game.bz = 2.0;
     game.vx = 0; game.vy = 0; game.vz = 0;
-    game.sx = 0; game.sy = 0; game.sz = 0; game.sp = 0;
+    game.tsp = 0; game.ssp = 0; game.sp = 0;
     game.lastHitter = null;
     game.serving = server;
+    game.rally = 0;
+    trail.length = 0;
   }
 
-  function onScoreSeen() {
-    var to = game.msgWho;
-    if (!to) return;
-    var my = to === 'guest';
-    showBanner(my ? 'YOUR POINT' : 'THEIR POINT', (game.why || 'POINT').toUpperCase(), 900);
-    if (won(game.hostScore, game.guestScore) || won(game.guestScore, game.hostScore)) {
-      matchOver = true;
-      matchWinner = won(game.hostScore, game.guestScore) ? 'host' : 'guest';
-      var iWin = matchWinner === 'guest';
-      showBanner(iWin ? 'YOU WIN' : 'THEY WIN', game.hostScore + '  —  ' + game.guestScore, 4000);
-      updateOverlay();
+  // ---- reading the flight ----------------------------------------------------
+  // One shared forward simulation answers every question the game asks about
+  // where the ball is going: the computer's feet, your paddle's height, and the
+  // ring that shows you where it is about to land.
+  function fly(stopAtY, wantBounce) {
+    var x = game.bx, y = game.by, z = game.bz;
+    var vx = game.vx, vy = game.vy, vz = game.vz;
+    var tsp = game.tsp, ssp = game.ssp, t = 0, bounced = 0;
+    var dir = vy > 0 ? 1 : -1;
+    for (var i = 0; i < 170; i++) {
+      var sp = Math.sqrt(vx * vx + vy * vy + vz * vz) || 0.0001;
+      var bleed = 1 - DRAG * sp * FSTEP;
+      vx = (vx + MAGX * ssp * Math.abs(vy) * FSTEP) * bleed;
+      vy = vy * bleed;
+      vz = (vz + (G - MAGZ * tsp * Math.abs(vy)) * FSTEP) * bleed;
+      x += vx * FSTEP; y += vy * FSTEP; z += vz * FSTEP; t += FSTEP;
+      if (z <= BR && vz < 0 && y > 0 && y < TL && Math.abs(x) <= TW / 2) {
+        z = BR; vz = -vz * REST; vy *= 1 + clamp(tsp, -0.9, 0.9) * 0.34; vx += ssp * 0.22;
+        tsp *= 0.45; ssp *= 0.55; bounced++;
+        if (wantBounce) return { x: x, y: y, z: z, t: t, bounced: bounced };
+      }
+      if (stopAtY != null && ((dir > 0 && y >= stopAtY) || (dir < 0 && y <= stopAtY))) return { x: x, y: y, z: z, t: t, bounced: bounced };
+      if (y < -6 || y > TL + 6 || z < -6) return { x: x, y: y, z: z, t: t, bounced: bounced };
     }
+    return { x: x, y: y, z: z, t: t, bounced: bounced };
   }
 
+  function predictZ(atY) {
+    if (!game.vy) return null;
+    var r = fly(atY, false);
+    return r.z;
+  }
+
+  // ---- the computer ----------------------------------------------------------
+  // It plays with feet as well as hands: it steps in on a short ball and backs
+  // off a heavy loop, so you are watching an opponent move in three dimensions.
   function runCpu(dt, now) {
     var toward = !game.serving && game.vy > 0;
-    if (toward && !cpu.lastToward) cpu.reactUntil = now + 90 + Math.random() * 90;
+    if (toward && !cpu.lastToward) {
+      cpu.reactUntil = now + 80 + Math.random() * 110;
+      var f = fly(null, true);
+      cpu.aimX = clampX((Math.random() < 0.5 ? -1 : 1) * (1.4 + Math.random() * 5.2));
+      cpu.miss = Math.random() < 0.06;
+      cpu.depth = clamp((f.bounced ? (TL - f.y) : 4) * 0.34 - 1.4, -STEP_BACK + 0.4, STEP_IN - 0.4);
+    }
     cpu.lastToward = toward;
-    game.guestY = GUEST_Y;
-    if (toward && now < cpu.reactUntil) { cpu.vx *= 0.8; return; }
-    var target = game.guestX;
-    var maxV;
-    if (toward) {
-      target = predictX(GUEST_Y);
-      cpu.err += (Math.random() - 0.5) * 0.06;
+    var tx = game.guestX, ty = game.guestY;
+    if (toward && now >= cpu.reactUntil) {
+      var r = fly(GUEST_HOME, false);
+      cpu.err += (Math.random() - 0.5) * 0.09;
       cpu.err *= 0.93;
-      target = clampX(target + cpu.err * 1.3);
-      maxV = Math.abs(game.vy) > 0.042 ? 0.008 : 0.01;
-    } else {
-      target = 0;
-      cpu.err *= 0.88;
-      maxV = 0.01;
+      tx = clampX(r.x + cpu.err * 1.5);
+      ty = clampY(TL - cpu.depth, false);
+    } else if (!toward) {
+      tx = clampX(game.bx * 0.18);
+      ty = clampY(TL + 1.3, false);
+      cpu.err *= 0.9;
     }
-    var dx = target - game.guestX;
-    var stepX = clamp(dx, -maxV * dt, maxV * dt);
-    cpu.vx = stepX / dt;
-    game.guestX = clampX(game.guestX + stepX);
+    var maxV = (Math.abs(game.vy) > 0.085 ? 0.0135 : 0.017);
+    var sx = clamp(tx - game.guestX, -maxV * dt, maxV * dt);
+    var sy = clamp(ty - game.guestY, -maxV * 0.75 * dt, maxV * 0.75 * dt);
+    cpu.vx = sx / dt; cpu.vy = sy / dt;
+    game.guestX = clampX(game.guestX + sx);
+    game.guestY = clampY(game.guestY + sy, false);
+    game.guestZ += (zThem - game.guestZ) * clamp(dt / 90, 0, 1);
   }
 
-  function predictX(atY) {
-    var x = game.bx, y = game.by, z = game.bz, vx = game.vx, vy = game.vy, vz = game.vz;
-    for (var i = 0; i < 220; i++) {
-      vz += G * DT; x += vx * DT; y += vy * DT; z += vz * DT;
-      if (z <= BR && y > 0 && y < TL && Math.abs(x) <= TW / 2) { z = BR; vz = -vz * REST; }
-      if (vy > 0 && y >= atY) return x;
-      if (vy < 0 && y <= atY) return x;
-      if (y < -3 || y > TL + 3) return x;
-    }
-    return x;
+  function targetCpuZ() {
+    if (game.serving || game.vy <= 0) return 1.15;
+    var z = predictZ(game.guestY);
+    return z == null ? 1.15 : clamp(z, 0.35, 4.2);
   }
 
-  function screenToTableX(px) {
-    var nearW = _W * 0.96;
-    var dir = owner ? 1 : -1;
-    return dir * (px - _W / 2) / (nearW / TW);
+  function consumeSwing(who) {
+    var s = nextSwing[who];
+    if (!s) return null;
+    nextSwing[who] = null;
+    // Guest swings carry a sequence, not a clock: two devices never agree on
+    // performance.now(), and a stale-by-a-clock test either eats every swing or
+    // none of them.
+    return s;
+  }
+
+  // ---- input -----------------------------------------------------------------
+  function screenToTable(sx, sy) {
+    var ry = (sy - TY) / K;
+    var vy = CH * CB / Math.max(0.6, ry) - CB;
+    var s = CB / (vy + CB);
+    var vx = (sx - CX) / K / s;
+    return owner ? { x: vx, y: vy } : { x: -vx, y: TL - vy };
   }
 
   function bindInput() {
@@ -3543,106 +3806,106 @@ function syncDebug(){
       try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
       if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
       var r = canvas.getBoundingClientRect();
-      var px = e.clientX - r.left;
-      pointer = {
-        id: e.pointerId, x: px, y: e.clientY - r.top,
-        startX: px, startY: e.clientY - r.top, t: performance.now(),
-        pressure: e.pressure || 0, tableX: screenToTableX(px)
-      };
-      applyPointer();
+      var px = e.clientX - r.left, py = e.clientY - r.top;
+      pointer = { id: e.pointerId, x: px, y: py, startX: px, startY: py, t: Date.now(), pressure: e.pressure || 0 };
     });
     window.addEventListener('pointermove', function (e) {
       var r = canvas.getBoundingClientRect();
-      var px = e.clientX - r.left;
+      var px = e.clientX - r.left, py = e.clientY - r.top;
       if (pointer && pointer.id === e.pointerId) {
-        pointer.x = px; pointer.y = e.clientY - r.top;
+        pointer.x = px; pointer.y = py;
         pointer.pressure = Math.max(pointer.pressure, e.pressure || 0);
-        pointer.tableX = screenToTableX(px);
-        applyPointer();
       } else if (hoverOk && !pointer) {
-        var dummy = { tableX: screenToTableX(px) };
-        if (owner) game.hostX = clampX(dummy.tableX);
-        else gst.x = clampX(dummy.tableX);
+        pointer = { id: -1, x: px, y: py, startX: px, startY: py, t: Date.now(), pressure: 0, hover: true };
       }
     });
     window.addEventListener('pointerup', function (e) {
       if (!pointer || pointer.id !== e.pointerId) return;
-      var dt = performance.now() - pointer.t;
-      var sx = pointer.x - pointer.startX;
-      var sy = pointer.y - pointer.startY;
-      var force = estimateForce(pointer.pressure, dt, sx, sy);
+      var held = Date.now() - pointer.t;
+      var dx = pointer.x - pointer.startX;
+      var dy = pointer.y - pointer.startY;
+      var force = estimateForce(pointer.pressure, held, dx, dy);
       var localWho = owner ? 'host' : 'guest';
-      if (game.serving === localWho && !matchOver) {
-        if (owner) doServe(localWho, force, sx);
-        else {
-          gst.swing = { force: force, smudgeX: sx, smudgeY: sy, tableX: pointer.tableX, t: performance.now() };
-          db.put(gst);
-        }
+      if (game.serving === localWho && !matchOver()) {
+        if (owner) doServe('host', force, dx, dy);
+        else sendSwing(force, dx, dy);
       } else {
-        recordSwing(force, sx, sy, pointer.tableX);
-        if (!owner) db.put(gst);
+        recordSwing(force, dx, dy);
       }
-      pointer = null;
+      pointer = hoverOk ? { id: -1, x: pointer.x, y: pointer.y, startX: pointer.x, startY: pointer.y, t: Date.now(), pressure: 0, hover: true } : null;
     });
     window.addEventListener('pointercancel', function () { pointer = null; });
+    window.addEventListener('keydown', function (e) {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      var localWho = owner ? 'host' : 'guest';
+      if (game.serving === localWho && !matchOver()) {
+        e.preventDefault();
+        if (owner) doServe('host', 0.55, 0, 0); else sendSwing(0.55, 0, 0);
+      }
+    });
   }
 
-  function applyPointer() {
-    if (!pointer) return;
-    if (owner) game.hostX = clampX(pointer.tableX);
-    else gst.x = clampX(pointer.tableX);
-  }
-
-  function estimateForce(pressure, dt, sx, sy) {
-    var dist = Math.sqrt(sx * sx + sy * sy);
-    var fromSwipe = clamp(dist / 140, 0, 1);
-    var fromTap = clamp(1.05 - dt / 380, 0.25, 1);
+  function estimateForce(pressure, held, dx, dy) {
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var fromSwipe = clamp(dist / 150, 0, 1);
+    var fromTap = clamp(1.05 - held / 400, 0.25, 1);
     var p = pressure > 0.05 ? clamp(pressure * 1.2, 0, 1) : 0;
     return clamp(Math.max(fromSwipe, fromTap * 0.7, p), 0.28, 1);
   }
 
-  function recordSwing(force, smudgeX, smudgeY, tableX) {
-    var s = { force: force, smudgeX: smudgeX, smudgeY: smudgeY, tableX: tableX, t: performance.now() };
-    if (owner) nextSwing.host = s; else gst.swing = s;
+  function recordSwing(force, dx, dy) {
+    var s = { force: force, dx: dx, dy: dy, seq: ++swingSeq, at: Date.now() };
+    if (owner) nextSwing.host = s;
+    else { gst.swing = s; db.put(gst); }
+  }
+
+  function sendSwing(force, dx, dy) {
+    gst.swing = { force: force, dx: dx, dy: dy, seq: ++swingSeq, at: Date.now() };
+    db.put(gst);
   }
 
   function bindOverlay() {
     readyBtn.addEventListener('click', function () {
       if (overlayMode === 'match' && owner) { newMatch(); return; }
       if (!owner) { gst.ready = true; db.put(gst); }
-      else { game.paused = false; game.pausedBy = null; db.put(game); }
+      else { game.paused = false; game.pausedBy = null; pushGame(); }
       overlay.classList.remove('on');
     });
     resetBtn.addEventListener('click', function () { if (owner) newMatch(); });
   }
 
   function newMatch() {
+    var keepGuest = { x: game.guestX, y: game.guestY, z: game.guestZ };
     game = freshGame();
-    matchOver = false; matchWinner = null; freezeUntil = 0; pendingServer = null;
+    game.guestX = keepGuest.x; game.guestY = keepGuest.y; game.guestZ = keepGuest.z;
+    freezeUntil = 0; pendingServer = null;
     rules = { needOwn: false, needOpp: false };
     cpu.serveAt = 0; hitsDone = 0;
+    marks.length = 0; trail.length = 0;
     hint.classList.remove('hide');
     overlay.classList.remove('on'); overlayMode = '';
     showBanner('PING PONG', 'first to 11', 1200);
-    db.put(game);
+    pushGame();
   }
 
   function updateOverlay() {
     var now = Date.now();
     var show = false, title = '', body = '', btn = "I'm ready";
     overlayMode = '';
-    if (matchOver) {
+    if (matchOver()) {
       show = true; overlayMode = 'match';
-      var iWin = owner ? matchWinner === 'host' : matchWinner === 'guest';
-      title = iWin ? 'You win!' : (isCpu() ? 'CPU wins' : 'They win');
-      body = game.hostScore + '  —  ' + game.guestScore + '. First to 11, win by 2.';
-      btn = owner ? 'Play again' : 'Waiting for host';
+      var iWin = owner ? matchWinner() === 'host' : matchWinner() === 'guest';
+      title = iWin ? 'You win!' : (isCpu() ? 'Computer wins' : 'They win');
+      body = game.hostScore + '  -  ' + game.guestScore + '. First to 11, win by 2.';
+      btn = owner ? 'Play again' : 'Waiting for the host';
       readyBtn.style.display = owner ? '' : 'none';
-    } else if (!owner && now - lastStateAt > STATE_TIMEOUT && lastStateAt) {
-      show = true; title = 'Connection paused'; body = 'Tap Ready when you are back so you can return the next ball.';
+    } else if (!owner && lastStateAt && now - lastStateAt > STATE_TIMEOUT) {
+      show = true; title = 'Connection paused';
+      body = 'The ball is held where it is. Tap when you are back so you can return it.';
       readyBtn.style.display = '';
     } else if (owner && game.paused && !isCpu()) {
-      show = true; title = 'Opponent away'; body = 'Waiting for them to come back online and tap Ready.';
+      show = true; title = themName() + ' dropped out';
+      body = 'The ball is held mid-flight. It starts again the moment they are back.';
       readyBtn.style.display = 'none';
     }
     overlay.classList.toggle('on', show);
@@ -3650,16 +3913,20 @@ function syncDebug(){
   }
 
   function updateHud() {
-    var servingMe = game.serving && ((owner && game.serving === 'host') || (!owner && game.serving === 'guest'));
+    var mine = owner ? 'host' : 'guest';
+    var servingMe = game.serving === mine;
     var servingThem = game.serving && !servingMe;
-    if (matchOver) statusEl.textContent = 'Match over';
-    else if (game.paused) statusEl.textContent = 'Paused';
-    else if (servingMe) statusEl.textContent = 'Your serve — tap or swipe';
-    else if (servingThem) statusEl.textContent = themName() + ' serving';
-    else statusEl.textContent = themName() + '  ·  first to 11';
+    serveDot.classList.toggle('on', !!game.serving && !matchOver());
+    if (matchOver()) statusEl.textContent = 'Match over';
+    else if (game.paused) statusEl.textContent = 'Paused - waiting for ' + themName();
+    else if (servingMe) statusEl.textContent = 'Your serve - tap or swipe';
+    else if (servingThem) statusEl.textContent = themName() + ' to serve';
+    else if (isCpu()) statusEl.textContent = 'Computer - press Invite up top to play a friend';
+    else statusEl.textContent = themName() + '  -  first to 11';
     canvas.dataset.score = game.hostScore + '-' + game.guestScore;
     canvas.dataset.rally = String(game.rally || 0);
-    canvas.dataset.phase = matchOver ? 'match' : (game.serving ? 'serve' : 'rally');
+    canvas.dataset.phase = matchOver() ? 'match' : (game.serving ? 'serve' : 'rally');
+    canvas.dataset.depth = (owner ? game.hostY : gst.y).toFixed(2);
   }
 
   function showBanner(title, sub, ms) {
@@ -3669,250 +3936,346 @@ function syncDebug(){
     bannerUntil = Date.now() + (ms || 900);
   }
 
-  function addSpark(x, y, z) { sparks.push({ x: x, y: y, z: z, t: 1 }); }
+  function addSpark(x, y, z, col) { sparks.push({ x: x, y: y, z: z, t: 1, c: col || '#fff6c8' }); }
+  function addMark(x, y) { marks.push({ x: x, y: y, t: 1 }); if (marks.length > 6) marks.shift(); }
 
+  // ---- sound -----------------------------------------------------------------
   var audioCtx = null;
   try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  function blip(type, f0, f1, vol, len) {
+    if (!audioCtx) return;
+    var t = audioCtx.currentTime;
+    var osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(f0, t);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + len);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.0008, t + len);
+    osc.start(t); osc.stop(t + len + 0.01);
+  }
   function playSound(kind) {
     if (!audioCtx) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    var t = audioCtx.currentTime;
-    var osc = audioCtx.createOscillator();
-    var gain = audioCtx.createGain();
-    osc.connect(gain); gain.connect(audioCtx.destination);
-    if (kind === 'paddle') {
-      osc.type = 'sine'; osc.frequency.setValueAtTime(980, t); osc.frequency.exponentialRampToValueAtTime(280, t + 0.07);
-      gain.gain.setValueAtTime(0.2, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
-      osc.start(t); osc.stop(t + 0.07);
-    } else if (kind === 'smash') {
-      osc.type = 'triangle'; osc.frequency.setValueAtTime(520, t); osc.frequency.exponentialRampToValueAtTime(140, t + 0.11);
-      gain.gain.setValueAtTime(0.28, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
-      osc.start(t); osc.stop(t + 0.11);
-    } else if (kind === 'table') {
-      osc.type = 'triangle'; osc.frequency.setValueAtTime(210, t); osc.frequency.exponentialRampToValueAtTime(70, t + 0.09);
-      gain.gain.setValueAtTime(0.14, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
-      osc.start(t); osc.stop(t + 0.09);
-    } else if (kind === 'score') {
-      osc.type = 'sine'; osc.frequency.setValueAtTime(660, t); osc.frequency.exponentialRampToValueAtTime(990, t + 0.18);
-      gain.gain.setValueAtTime(0.12, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-      osc.start(t); osc.stop(t + 0.22);
-    }
+    if (kind === 'paddle') blip('sine', 1150, 320, 0.2, 0.06);
+    else if (kind === 'smash') blip('triangle', 620, 150, 0.3, 0.1);
+    else if (kind === 'serve') blip('sine', 900, 420, 0.15, 0.05);
+    else if (kind === 'table') blip('triangle', 300, 95, 0.15, 0.075);
+    else if (kind === 'cord') blip('square', 1700, 900, 0.07, 0.045);
+    else if (kind === 'score') { blip('sine', 620, 930, 0.12, 0.2); }
   }
 
+  // ---- camera ----------------------------------------------------------------
+  // A real perspective divide, not a lerp: scale falls off as 1/distance, which
+  // is what makes stepping a foot up the table read as a foot on screen.
+  function scaleAt(vy) { return CB / Math.max(1.2, vy + CB); }
+
   function p(wx, wy, wz) {
-    var y = wy; if (!owner) y = TL - y;
-    var t = y / TL;
-    var sc = 1 - 0.5 * t;
-    var ny = _H * 0.90, fy = _H * 0.14, nw = _W * 0.96;
-    return { x: _W / 2 + wx * (nw / TW) * sc, y: ny - t * (ny - fy) - wz * (_H * 0.042) * sc, sc: sc };
+    var vx = owner ? wx : -wx;
+    var vy = owner ? wy : (TL - wy);
+    var s = scaleAt(vy);
+    return { x: CX + vx * s * K, y: TY + (CH - wz) * s * K, sc: s };
   }
+
+  // The frame is solved, not guessed: the camera sits far enough back that the
+  // foreground is not grotesque, the zoom is whatever keeps the widest reach on
+  // screen, and the camera HEIGHT is then chosen so the table plus the ground
+  // you stand on exactly fill the viewport. A tall phone gets a steeper look
+  // down the table; a wide desktop gets a flatter one. Nothing is clipped.
+  function setCam() {
+    CB = 18;
+    var sBack = scaleAt(HOST_MIN), sFar = CB / (TL + CB);
+    var halfMax = (TW / 2 + SIDE_REACH) * sBack;
+    K = 0.485 * _W / halfMax;
+    CH = clamp((0.80 * _H / K - 4.6 * sFar) / (sBack - sFar), 9, 50);
+    var bot = CH * sBack, top = (CH - 4.6) * sFar;
+    if ((bot - top) * K > 0.84 * _H) K = 0.84 * _H / (bot - top);
+    bot = CH * sBack; top = (CH - 4.6) * sFar;
+    CX = _W / 2;
+    TY = 0.90 * _H - bot * K;
+    if (TY + top * K < 0.085 * _H) TY = 0.085 * _H - top * K;
+  }
+
+  // ---- render ----------------------------------------------------------------
+  var reticle = null, reticleAge = 0;
 
   function render() {
     if (Date.now() > bannerUntil) banner.classList.remove('on');
-    hitFlash *= 0.85;
-    var W = _W, H = _H;
-    ctx.clearRect(0, 0, W, H);
+    hitFlash *= 0.86;
+    swingAnim *= 0.88;
+    ctx.clearRect(0, 0, _W, _H);
     drawArena();
-    drawFloor();
     drawTable();
-    var myX = owner ? game.hostX : (gst.x != null ? gst.x : game.guestX);
-    var myY = owner ? HOST_Y : GUEST_Y;
-    var theirX = owner ? game.guestX : game.hostX;
-    var theirY = owner ? GUEST_Y : HOST_Y;
-    var ballViewY = owner ? game.by : TL - game.by;
-    var myViewY = owner ? myY : TL - myY;
-    var ballFar = ballViewY > TL * 0.5;
-    var ballInFront = !ballFar && ballViewY <= myViewY + 1.1;
-    drawPaddle(theirX, theirY, '#1a1a1a', false);
-    if (ballFar) drawBall();
-    drawNet();
-    if (!ballFar && !ballInFront) drawBall();
-    drawPaddle(myX, myY, '#d4222a', true);
-    if (ballInFront) drawBall();
+    drawMarks();
+    if (++reticleAge % 5 === 0) reticle = computeReticle();
+    drawReticle();
+
+    var myX = owner ? game.hostX : gst.x;
+    var myY = owner ? game.hostY : gst.y;
+    var myPz = owner ? game.hostZ : gst.z;
+    var thX = owner ? game.guestX : game.hostX;
+    var thY = owner ? game.guestY : game.hostY;
+    var thPz = owner ? game.guestZ : game.hostZ;
+    // Smooth the opponent: their paddle arrives a few times a frame at best.
+    remote.x += (thX - remote.x) * 0.35;
+    remote.y += (thY - remote.y) * 0.35;
+    remote.z += (thPz - remote.z) * 0.35;
+
+    var vyOf = function (y) { return owner ? y : TL - y; };
+    var layers = [
+      { d: vyOf(remote.y), f: function () { drawPaddle(remote.x, remote.y, remote.z, '#16161a', false); } },
+      { d: TL / 2, f: drawNet },
+      { d: vyOf(game.by), f: drawBall },
+      { d: vyOf(myY), f: function () { drawPaddle(myX, myY, myPz, '#d4222a', true); } }
+    ];
+    layers.sort(function (a, b) { return b.d - a.d; });
+    for (var i = 0; i < layers.length; i++) layers[i].f();
+
     drawScores();
     drawSparks();
-    requestAnimationFrame(render);
+  }
+
+  function computeReticle() {
+    if (game.serving || !game.vy) return null;
+    var mineSide = owner ? game.vy < 0 : game.vy > 0;
+    if (!mineSide) return null;
+    var r = fly(null, true);
+    if (!r.bounced) return null;
+    var onMyHalf = owner ? r.y < TL / 2 : r.y > TL / 2;
+    if (!onMyHalf) return null;
+    return { x: r.x, y: r.y, t: r.t };
+  }
+
+  function drawReticle() {
+    if (!reticle) return;
+    var q = p(reticle.x, reticle.y, 0.02);
+    var a = clamp(1 - reticle.t / 900, 0.15, 0.6);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,214,110,' + a + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(q.x, q.y, 22 * q.sc, 8 * q.sc, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawArena() {
-    ctx.fillStyle = '#070b14';
-    ctx.fillRect(0, 0, _W, _H);
-    var g = ctx.createRadialGradient(_W / 2, _H * 0.42, 30, _W / 2, _H * 0.48, _H * 0.8);
-    g.addColorStop(0, 'rgba(70,110,170,0.20)');
-    g.addColorStop(0.55, 'rgba(20,40,70,0.08)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
+    var g = ctx.createLinearGradient(0, 0, 0, _H);
+    g.addColorStop(0, '#04060c');
+    g.addColorStop(0.55, '#080d18');
+    g.addColorStop(1, '#05070e');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, _W, _H);
-  }
-
-  function drawFloor() {
-    var ny = _H * 0.90, fy = _H * 0.14;
-    ctx.fillStyle = '#121826';
-    ctx.beginPath();
-    ctx.moveTo(0, _H); ctx.lineTo(_W, _H);
-    ctx.lineTo(_W * 0.78, fy + 24); ctx.lineTo(_W * 0.22, fy + 24);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.035)'; ctx.lineWidth = 1;
-    for (var i = 0; i < 8; i++) {
-      var t = i / 7;
-      var y = ny - t * (ny - fy - 20);
-      var w = _W * (0.96 - 0.5 * t);
-      ctx.beginPath(); ctx.moveTo(_W / 2 - w / 2, y); ctx.lineTo(_W / 2 + w / 2, y); ctx.stroke();
+    var spot = ctx.createRadialGradient(_W / 2, TY + (CH - 1) * scaleAt(TL / 2) * K, 20, _W / 2, TY + (CH - 1) * scaleAt(TL / 2) * K, _H * 0.9);
+    spot.addColorStop(0, 'rgba(90,130,190,0.17)');
+    spot.addColorStop(0.5, 'rgba(30,55,95,0.07)');
+    spot.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = spot;
+    ctx.fillRect(0, 0, _W, _H);
+    // floor: lines running away from the player, so the hall has a depth of its own
+    ctx.strokeStyle = 'rgba(255,255,255,0.028)';
+    ctx.lineWidth = 1;
+    for (var i = -3; i <= 3; i++) {
+      var a = p(i * 7, HOST_MIN - 1.2, -0.02), b = p(i * 7, TL + 5, -0.02);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    for (var j = 0; j <= 8; j++) {
+      var yy = HOST_MIN - 1.2 + j * 4.6;
+      var c = p(-21, yy, -0.02), d = p(21, yy, -0.02);
+      ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(d.x, d.y); ctx.stroke();
     }
   }
 
   function drawTable() {
     var nw = p(-TW / 2, 0, 0), ne = p(TW / 2, 0, 0), se = p(TW / 2, TL, 0), sw = p(-TW / 2, TL, 0);
-    var drop = Math.max(16, _H * 0.028);
-    ctx.fillStyle = '#082818';
+    var drop = Math.abs(p(0, 0, 0).y - p(0, 0, 0.76).y) + 6;
+
+    // the pool of light the table stands in, then the thickness of the top
+    var floor = ctx.createRadialGradient(CX, nw.y, 10, CX, nw.y, Math.max(_W, _H) * 0.7);
+    floor.addColorStop(0, 'rgba(24,44,36,0.5)');
+    floor.addColorStop(0.45, 'rgba(12,22,32,0.22)');
+    floor.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = floor;
+    ctx.fillRect(0, nw.y - 4, _W, _H - nw.y + 4);
+    var ap = ctx.createLinearGradient(0, nw.y, 0, nw.y + drop);
+    ap.addColorStop(0, '#0d3a24');
+    ap.addColorStop(1, '#04170e');
+    ctx.fillStyle = ap;
     ctx.beginPath();
     ctx.moveTo(nw.x, nw.y); ctx.lineTo(ne.x, ne.y);
-    ctx.lineTo(ne.x + 2, ne.y + drop); ctx.lineTo(nw.x - 2, nw.y + drop);
+    ctx.lineTo(ne.x, ne.y + drop); ctx.lineTo(nw.x, nw.y + drop);
     ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#061c12';
-    ctx.beginPath(); ctx.moveTo(nw.x, nw.y); ctx.lineTo(sw.x, sw.y); ctx.lineTo(sw.x - 8, sw.y + drop * 0.45); ctx.lineTo(nw.x - 2, nw.y + drop); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(ne.x, ne.y); ctx.lineTo(se.x, se.y); ctx.lineTo(se.x + 8, se.y + drop * 0.45); ctx.lineTo(ne.x + 2, ne.y + drop); ctx.closePath(); ctx.fill();
 
     var sg = ctx.createLinearGradient(0, se.y, 0, nw.y);
-    sg.addColorStop(0, '#0c5c30');
-    sg.addColorStop(0.45, '#168a44');
-    sg.addColorStop(1, '#1eaa54');
+    sg.addColorStop(0, '#0d5e34');
+    sg.addColorStop(0.5, '#158a49');
+    sg.addColorStop(1, '#1aa457');
     ctx.fillStyle = sg;
     ctx.beginPath(); ctx.moveTo(nw.x, nw.y); ctx.lineTo(ne.x, ne.y); ctx.lineTo(se.x, se.y); ctx.lineTo(sw.x, sw.y); ctx.closePath(); ctx.fill();
 
     var gloss = ctx.createLinearGradient(nw.x, 0, ne.x, 0);
-    gloss.addColorStop(0, 'rgba(255,255,255,0)');
-    gloss.addColorStop(0.35, 'rgba(255,255,255,0.07)');
-    gloss.addColorStop(0.5, 'rgba(255,255,255,0.02)');
-    gloss.addColorStop(1, 'rgba(0,0,0,0.08)');
+    gloss.addColorStop(0, 'rgba(255,255,255,0.055)');
+    gloss.addColorStop(0.42, 'rgba(255,255,255,0.02)');
+    gloss.addColorStop(1, 'rgba(0,0,0,0.10)');
     ctx.fillStyle = gloss;
     ctx.fill();
 
-    ctx.strokeStyle = '#f3f6f1'; ctx.lineWidth = 2.4; ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#f2f6f2'; ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(1.6, 3 * scaleAt(TL / 2));
     ctx.beginPath(); ctx.moveTo(nw.x, nw.y); ctx.lineTo(ne.x, ne.y); ctx.lineTo(se.x, se.y); ctx.lineTo(sw.x, sw.y); ctx.closePath(); ctx.stroke();
-    var m1 = p(0, 0, 0.02), m2 = p(0, TL, 0.02);
-    ctx.lineWidth = 1.8;
+    var m1 = p(0, 0, 0.01), m2 = p(0, TL, 0.01);
+    ctx.lineWidth = Math.max(1, 1.8 * scaleAt(TL / 2));
     ctx.beginPath(); ctx.moveTo(m1.x, m1.y); ctx.lineTo(m2.x, m2.y); ctx.stroke();
+  }
 
-    if (!game.serving && game.lastHitter && ((owner && game.vy < 0) || (!owner && game.vy > 0))) {
-      var a = p(-TW / 2, owner ? 0.15 : TL - 0.15, 0.03), b = p(TW / 2, owner ? 0.15 : TL - 0.15, 0.03);
-      ctx.strokeStyle = 'rgba(255,230,120,0.35)'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  function drawMarks() {
+    for (var i = marks.length - 1; i >= 0; i--) {
+      var m = marks[i];
+      m.t -= 0.022;
+      if (m.t <= 0) { marks.splice(i, 1); continue; }
+      var q = p(m.x, m.y, 0.012);
+      ctx.save();
+      ctx.globalAlpha = m.t * 0.5;
+      ctx.strokeStyle = '#eafff2'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.ellipse(q.x, q.y, (1 - m.t) * 26 * q.sc + 3, ((1 - m.t) * 26 * q.sc + 3) * 0.34, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
     }
   }
 
   function drawNet() {
-    var n0 = p(-TW / 2, TL / 2, 0), n1 = p(TW / 2, TL / 2, 0);
-    var n2 = p(TW / 2, TL / 2, NH), n3 = p(-TW / 2, TL / 2, NH);
-    var postL0 = p(-TW / 2 - 0.25, TL / 2, 0), postL1 = p(-TW / 2 - 0.25, TL / 2, NH + 0.15);
-    var postR0 = p(TW / 2 + 0.25, TL / 2, 0), postR1 = p(TW / 2 + 0.25, TL / 2, NH + 0.15);
-    ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(postL0.x, postL0.y); ctx.lineTo(postL1.x, postL1.y); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(postR0.x, postR0.y); ctx.lineTo(postR1.x, postR1.y); ctx.stroke();
-    ctx.fillStyle = 'rgba(230,230,240,0.12)';
+    var n0 = p(-TW / 2 - NOVER, TL / 2, 0), n1 = p(TW / 2 + NOVER, TL / 2, 0);
+    var n2 = p(TW / 2 + NOVER, TL / 2, NH), n3 = p(-TW / 2 - NOVER, TL / 2, NH);
+    var pl0 = p(-TW / 2 - NOVER, TL / 2, 0), pl1 = p(-TW / 2 - NOVER, TL / 2, NH + 0.1);
+    var pr0 = p(TW / 2 + NOVER, TL / 2, 0), pr1 = p(TW / 2 + NOVER, TL / 2, NH + 0.1);
+    ctx.fillStyle = 'rgba(228,232,244,0.13)';
     ctx.beginPath(); ctx.moveTo(n0.x, n0.y); ctx.lineTo(n1.x, n1.y); ctx.lineTo(n2.x, n2.y); ctx.lineTo(n3.x, n3.y); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(230,230,245,0.28)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(232,236,248,0.3)'; ctx.lineWidth = 1;
     var i, a, b;
-    for (i = 1; i < 10; i++) {
-      a = p(-TW / 2 + TW * i / 10, TL / 2, 0.1); b = p(-TW / 2 + TW * i / 10, TL / 2, NH);
+    for (i = 1; i < 16; i++) {
+      a = p(-TW / 2 + TW * i / 16, TL / 2, 0.04); b = p(-TW / 2 + TW * i / 16, TL / 2, NH);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
-    for (i = 1; i < 4; i++) {
-      a = p(-TW / 2, TL / 2, NH * i / 4); b = p(TW / 2, TL / 2, NH * i / 4);
+    for (i = 1; i < 5; i++) {
+      a = p(-TW / 2, TL / 2, NH * i / 5); b = p(TW / 2, TL / 2, NH * i / 5);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
-    ctx.strokeStyle = '#f7f7f7'; ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#e6e9f2'; ctx.lineWidth = Math.max(1.8, 3 * scaleAt(TL / 2));
     ctx.beginPath(); ctx.moveTo(n3.x, n3.y); ctx.lineTo(n2.x, n2.y); ctx.stroke();
+    ctx.strokeStyle = '#cfd4e0'; ctx.lineWidth = Math.max(1.6, 3 * scaleAt(TL / 2));
+    ctx.beginPath(); ctx.moveTo(pl0.x, pl0.y); ctx.lineTo(pl1.x, pl1.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pr0.x, pr0.y); ctx.lineTo(pr1.x, pr1.y); ctx.stroke();
   }
 
-  function drawPaddle(x, y, rubber, near) {
-    var pos = p(x, y, 1.25);
+  function drawPaddle(x, y, z, rubber, near) {
+    var pos = p(x, y, z);
     var sh = p(x, y, 0);
     var sc = pos.sc;
-    var rx = (PADW / 2) * 0.78 * (_W * 0.96 / TW) * sc;
-    var ry = rx * 1.18;
+    var rx = Math.max(9, PADR * K * sc);
+    var ry = rx * 1.12;
     ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,' + (near ? 0.32 : 0.22) + ')';
-    ctx.beginPath(); ctx.ellipse(sh.x, sh.y + 4 * sc, rx * 0.95, ry * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,' + (0.3 * clamp(1.6 - z / 3, 0.25, 1)) + ')';
+    ctx.beginPath(); ctx.ellipse(sh.x, sh.y, rx * 0.92, ry * 0.3, 0, 0, Math.PI * 2); ctx.fill();
     ctx.translate(pos.x, pos.y);
-    var tilt = (near ? myVx : (cpu.vx || 0)) * 8;
-    ctx.rotate(clamp(tilt, -0.35, 0.35));
-    ctx.scale(1, 0.78);
-    var handle = ry * 0.95;
+    var vx = near ? padVX : cpu.vx;
+    var tilt = clamp(vx * 7, -0.45, 0.45) + (near ? swingAnim * swingKind * -0.3 : 0);
+    ctx.rotate(tilt);
+    ctx.scale(1, 0.82);
+    var handle = ry * 1.0;
     ctx.save();
-    ctx.rotate(near ? 0.12 : Math.PI + 0.12);
-    ctx.fillStyle = '#5a3a22';
-    ctx.fillRect(-rx * 0.16, ry * 0.72, rx * 0.32, handle);
-    ctx.fillStyle = '#3a2416';
-    ctx.fillRect(-rx * 0.12, ry * 0.72, rx * 0.24, handle * 0.92);
+    ctx.rotate(0.1);
+    ctx.fillStyle = '#6b4426';
+    ctx.fillRect(-rx * 0.17, ry * 0.7, rx * 0.34, handle);
+    ctx.fillStyle = '#42291a';
+    ctx.fillRect(-rx * 0.12, ry * 0.7, rx * 0.24, handle * 0.9);
     ctx.restore();
     ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fillStyle = '#d9b07a'; ctx.fill();
+    ctx.fillStyle = '#e0bb85'; ctx.fill();
     ctx.beginPath(); ctx.ellipse(0, 0, rx * 0.88, ry * 0.88, 0, 0, Math.PI * 2);
     ctx.fillStyle = rubber; ctx.fill();
-    if (hitFlash > 0.2 && near) {
-      ctx.globalAlpha = hitFlash * 0.5;
-      ctx.fillStyle = '#fff'; ctx.fill();
-      ctx.globalAlpha = 1;
+    if (near && hitFlash > 0.15) {
+      ctx.globalAlpha = hitFlash * 0.55; ctx.fillStyle = '#fff'; ctx.fill(); ctx.globalAlpha = 1;
     }
-    ctx.beginPath(); ctx.ellipse(-rx * 0.28, -ry * 0.28, rx * 0.28, ry * 0.18, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-rx * 0.3, -ry * 0.3, rx * 0.3, ry * 0.18, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.13)'; ctx.fill();
     ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.3; ctx.stroke();
     ctx.restore();
   }
 
   function drawBall() {
     var b = p(game.bx, game.by, game.bz);
     var s = p(game.bx, game.by, 0);
-    var r = Math.max(6.5, BR * 1.45 * (_W * 0.96 / TW) * b.sc);
-    var lift = Math.max(0.15, Math.min(1.2, game.bz / 6));
-    ctx.fillStyle = 'rgba(0,0,0,' + (0.32 / lift) + ')';
-    ctx.beginPath(); ctx.ellipse(s.x, s.y, r * 0.9, r * 0.28, 0, 0, Math.PI * 2); ctx.fill();
-    var g = ctx.createRadialGradient(b.x - r * 0.35, b.y - r * 0.4, r * 0.12, b.x, b.y, r);
+    var r = Math.max(3.2, BR * 2.4 * K * b.sc);
+    // trail, coloured by the spin on the ball: warm for topspin, cool for chop
+    if (trail.length > 2 && !game.serving) {
+      var warm = game.tsp * (game.vy > 0 ? 1 : -1);
+      var col = warm > 0.12 ? '255,190,120' : (warm < -0.12 ? '150,210,255' : '235,240,255');
+      ctx.save();
+      for (var i = 1; i < trail.length; i++) {
+        var q0 = p(trail[i - 1].x, trail[i - 1].y, trail[i - 1].z);
+        var q1 = p(trail[i].x, trail[i].y, trail[i].z);
+        var a = (i / trail.length) * 0.4;
+        ctx.strokeStyle = 'rgba(' + col + ',' + a.toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1, r * (i / trail.length) * 0.7);
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    var lift = clamp(game.bz / 3, 0.12, 1.4);
+    ctx.fillStyle = 'rgba(0,0,0,' + (0.34 / (1 + lift)) + ')';
+    ctx.beginPath(); ctx.ellipse(s.x, s.y, r * (0.95 + lift * 0.5), r * (0.3 + lift * 0.16), 0, 0, Math.PI * 2); ctx.fill();
+    var g = ctx.createRadialGradient(b.x - r * 0.36, b.y - r * 0.42, r * 0.1, b.x, b.y, r);
     g.addColorStop(0, '#ffffff');
-    g.addColorStop(0.55, '#f0f0f2');
-    g.addColorStop(1, '#b8b8c4');
+    g.addColorStop(0.5, '#f4f4f6');
+    g.addColorStop(1, '#a9a9b8');
     ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
     ctx.save();
     ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.clip();
     ctx.translate(b.x, b.y); ctx.rotate(game.sp);
-    ctx.fillStyle = 'rgba(220, 64, 48, 0.85)';
-    ctx.fillRect(-r, -r * 0.16, r * 2, r * 0.32);
+    ctx.fillStyle = 'rgba(215,60,45,0.8)';
+    ctx.fillRect(-r, -r * 0.15, r * 2, r * 0.3);
     ctx.restore();
     ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1; ctx.stroke();
   }
 
+  // Painted on the cloth at each end, in perspective, so the number belongs to
+  // the half it counts for and never fights the net for the middle of the frame.
   function drawScores() {
     var my = owner ? game.hostScore : game.guestScore;
     var th = owner ? game.guestScore : game.hostScore;
-    var far = p(0, TL * 0.78, 0.05);
-    var near = p(0, TL * 0.18, 0.05);
+    var mine = owner ? 'host' : 'guest';
+    drawHalfScore(TL * 0.70, TL * 0.88, th, themName().toUpperCase(), 0.13, !!game.serving && game.serving !== mine);
+    drawHalfScore(TL * 0.22, TL * 0.05, my, 'YOU', 0.17, game.serving === mine);
+    ctx.restore();
+  }
+
+  function drawHalfScore(numY, labY, value, label, size, serving) {
+    var a = p(0, numY, 0.03), b = p(0, labY, 0.03);
+    var base = Math.min(_W, _H * 0.8);
     ctx.save();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(255,255,255,0.16)';
-    ctx.font = '800 ' + Math.round(_W * 0.16) + 'px system-ui, sans-serif';
-    ctx.fillText(String(th), far.x, far.y);
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    ctx.font = '800 ' + Math.round(_W * 0.2) + 'px system-ui, sans-serif';
-    ctx.fillText(String(my), near.x, near.y);
-    ctx.font = '700 ' + Math.round(_W * 0.028) + 'px system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.fillText(themName(), far.x, far.y + _W * 0.055);
-    ctx.fillText('YOU', near.x, near.y + _W * 0.07);
+    ctx.fillStyle = 'rgba(255,255,255,' + (serving ? 0.3 : 0.17) + ')';
+    ctx.font = '800 ' + Math.round(base * size) + 'px system-ui, sans-serif';
+    ctx.fillText(String(value), a.x, a.y);
+    ctx.font = '700 ' + clamp(Math.round(base * size * 0.16), 9, 15) + 'px system-ui, sans-serif';
+    ctx.fillStyle = serving ? 'rgba(255,213,106,0.6)' : 'rgba(255,255,255,0.3)';
+    ctx.letterSpacing = '0.12em';
+    ctx.fillText(serving ? label + ' - SERVING' : label, b.x, b.y);
+    ctx.letterSpacing = '0px';
     ctx.restore();
   }
 
   function drawSparks() {
     for (var i = sparks.length - 1; i >= 0; i--) {
       var s = sparks[i];
-      s.t -= 0.08;
+      s.t -= 0.09;
       if (s.t <= 0) { sparks.splice(i, 1); continue; }
       var q = p(s.x, s.y, s.z);
-      ctx.globalAlpha = s.t;
-      ctx.fillStyle = '#fff6c8';
-      ctx.beginPath(); ctx.arc(q.x, q.y, 10 * s.t * q.sc, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = s.t * 0.85;
+      ctx.fillStyle = s.c;
+      ctx.beginPath(); ctx.arc(q.x, q.y, 13 * s.t * q.sc, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
     }
   }
@@ -3926,6 +4289,7 @@ function syncDebug(){
     canvas.style.height = box.height + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     _W = box.width; _H = box.height;
+    setCam();
   }
 </script>
 `;
