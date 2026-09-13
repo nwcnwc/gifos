@@ -3273,7 +3273,7 @@ function syncDebug(){
           gst = n;
           everHadGuest = true;
           rtt = n.rtt || rtt;
-          lastGuestBeat = n.heartbeat || n.t || 0;
+          lastGuestBeat = Date.now();
           if (n.swing && (n.swing.seq || 0) > seenSwingSeq) {
             seenSwingSeq = n.swing.seq || 0;
             nextSwing.guest = n.swing;
@@ -3288,7 +3288,11 @@ function syncDebug(){
     // The GIF kept the match. Say so, instead of replaying the title card.
     setTimeout(function () {
       var played = game.hostScore + game.guestScore;
-      if (matchOver()) return;
+      if (matchOver()) {
+        showBanner('STILL ' + game.hostScore + ' - ' + game.guestScore, 'the match is still here', 1900);
+        hint.classList.add('hide');
+        return;
+      }
       if (played > 0) {
         var my = owner ? game.hostScore : game.guestScore;
         var th = owner ? game.guestScore : game.hostScore;
@@ -3345,11 +3349,13 @@ function syncDebug(){
     db.put(game);
   }
 
-  var acc = 0, putAt = 0, hudAt = 0, zMine = 1.15, zThem = 1.15, frames = 0;
+  var acc = 0, putAt = 0, hudAt = 0, zMine = 1.15, zThem = 1.15, frames = 0, timeDropped = 0, timeSimmed = 0;
 
   function loop() {
     var now = Date.now();
-    var real = clamp(now - lastNow, 0, 150);
+    var raw = now - lastNow;
+    var real = clamp(raw, 0, 260);
+    timeDropped += Math.max(0, raw - real);
     lastNow = now;
     acc += real;
     frames++;
@@ -3357,8 +3363,8 @@ function syncDebug(){
     zMine = targetPaddleZ(owner, owner ? game.hostY : gst.y);
     if (owner) zThem = targetCpuZ();
     var steps = 0;
-    while (acc >= SIM && steps < 22) { acc -= SIM; if (owner) hostTick(SIM); else guestTick(SIM); steps++; }
-    if (now - hudAt > 140) { hudAt = now; updateHud(); }
+    while (acc >= SIM && steps < 34) { acc -= SIM; timeSimmed += SIM; if (owner) hostTick(SIM); else guestTick(SIM); steps++; }
+    if (now - hudAt > 140) { hudAt = now; updateHud(); updateOverlay(); }
     render();
     requestAnimationFrame(loop);
   }
@@ -3418,8 +3424,15 @@ function syncDebug(){
     if (pointer) {
       var t = screenToTable(pointer.x, pointer.y);
       var nx = clampX(t.x), ny = clampY(t.y, isHost);
-      padVX = padVX * 0.55 + (nx - curX) / dt * 0.45;
-      padVY = padVY * 0.55 + (ny - curY) / dt * 0.45;
+      // A finger landing somewhere else is a teleport, not a swing: counting it
+      // as paddle speed would fling the ball and, on the host, extrapolate the
+      // guest's paddle clean off the table.
+      var jump = Math.abs(nx - curX) > 3.5 || Math.abs(ny - curY) > 3.5;
+      if (jump) { padVX = 0; padVY = 0; }
+      else {
+        padVX = clamp(padVX * 0.55 + (nx - curX) / dt * 0.45, -0.03, 0.03);
+        padVY = clamp(padVY * 0.55 + (ny - curY) / dt * 0.45, -0.03, 0.03);
+      }
       curX = nx; curY = ny;
     } else { padVX *= 0.86; padVY *= 0.86; }
     myZ = myZ + (zMine - myZ) * clamp(dt / 90, 0, 1);
@@ -3625,7 +3638,10 @@ function syncDebug(){
 
     // Aim: where the ball crosses the far half. Steeper when hit early.
     var aimX = clamp(-(cx - (isHost ? game.hostX : game.guestX)) * 2.2 + lat * 0.9 + (swing ? swing.dx * 0.02 : 0), -TW / 2 + 0.6, TW / 2 - 0.6);
-    if (who === 'guest' && isCpu()) aimX = cpu.aimX != null ? cpu.aimX : aimX;
+    if (who === 'guest' && isCpu()) {
+      aimX = cpu.aimX != null ? cpu.aimX : aimX;
+      if (cpu.risk) { force = clamp(force + 0.3, 0, 1); }
+    }
     else if (Math.abs(aimX) < 0.5) aimX += (Math.random() - 0.5) * 1.6;
     var landDepth = 2.0 + (1 - early) * 4.5 + force * 4.0 + clamp(flick, 0, 1) * 3.0;
     var landY = isHost ? clamp(TL - landDepth, TL / 2 + 1.6, TL - 0.7) : clamp(landDepth, 0.7, TL / 2 - 1.6);
@@ -3645,29 +3661,41 @@ function syncDebug(){
   }
 
   // Solve a launch that lands on a chosen spot and clears the cord on the way.
+  // The flat, fast line is tried first; if it would hit the net — which is what
+  // happens whenever you take the ball early and low — the flight is lengthened
+  // until it clears, which IS the loop a player would have to play from there.
+  // Four fixed attempts used to give up and fire into the net anyway.
   function launchShot(fromX, fromY, fromZ, toX, toY, speed, top) {
     var dy = toY - fromY;
-    var T = clamp(Math.abs(dy) / speed, 190, 900);
-    for (var pass = 0; pass < 4; pass++) {
+    var T0 = clamp(Math.abs(dy) / speed, 170, 880);
+    var best = trial(T0);
+    if (!best.ok) {
+      for (var i = 1; i <= 16; i++) {
+        var r = trial(T0 + (900 - T0) * i / 16);
+        if (r.ok) { best = r; break; }
+        best = r;
+      }
+    }
+    game.vx = best.vx; game.vy = best.vy; game.vz = Math.max(best.vz, 0.004);
+
+    function trial(T) {
       var vy = dy / T;
       var vx = (toX - fromX) / T;
       var g = clamp(G - MAGZ * top * Math.abs(vy), -0.00045, -0.00003);
       var vz = (BR - fromZ - 0.5 * g * T * T) / T;
-      var tNet = (TL / 2 - fromY) / vy;
       var ok = true;
+      var tNet = (TL / 2 - fromY) / vy;
       if (tNet > 0 && tNet < T) {
         var zNet = fromZ + vz * tNet + 0.5 * g * tNet * tNet;
-        if (zNet < NH + BR + 0.28) ok = false;
+        if (zNet < NH + BR + 0.26) ok = false;
       }
-      game.vx = vx; game.vy = vy; game.vz = vz;
-      if (ok) return;
-      T = T * 1.16;
-      if (T > 900) { game.vz = Math.max(game.vz, 0.012); return; }
+      return { vx: vx, vy: vy, vz: vz, ok: ok };
     }
   }
 
   function letServe() {
     showBanner('LET', 'serve again', 700);
+    game.lets = (game.lets || 0) + 1;
     game.rally = 0;
     rules.needOwn = false; rules.needOpp = false;
     nextSwing = { host: null, guest: null };
@@ -3701,6 +3729,7 @@ function syncDebug(){
 
   function doServe(who, force, dx, dy) {
     if (!game.serving || game.serving !== who) return;
+    if (Date.now() < freezeUntil) return;   // the point just ended; let it be read
     force = clamp(force == null ? 0.5 : force, 0.22, 1);
     var dir = who === 'host' ? 1 : -1;
     var px = who === 'host' ? game.hostX : game.guestX;
@@ -3834,15 +3863,21 @@ function syncDebug(){
     if (toward && !cpu.lastToward) {
       cpu.reactUntil = now + 80 + Math.random() * 110;
       var f = fly(null, true);
-      cpu.aimX = clampX((Math.random() < 0.5 ? -1 : 1) * (1.4 + Math.random() * 5.2));
-      cpu.miss = Math.random() < 0.06;
+      var go = Math.random();
+      cpu.aimX = clampX((Math.random() < 0.5 ? -1 : 1) * (1.4 + Math.random() * 5.6));
+      // Roughly one ball in six is a mistake and one in seven is a swing for a
+      // winner that may itself go long. A machine that never errs is not an
+      // opponent, it is a wall.
+      cpu.miss = go < 0.13;
+      cpu.risk = go > 0.86;
+      if (cpu.risk) cpu.aimX = clampX(cpu.aimX * 1.35);
       cpu.depth = clamp((f.bounced ? (TL - f.y) : 4) * 0.34 - 1.4, -STEP_BACK + 0.4, STEP_IN - 0.4);
     }
     cpu.lastToward = toward;
     var tx = game.guestX, ty = game.guestY;
     if (toward && now >= cpu.reactUntil) {
       var r = fly(GUEST_HOME, false);
-      cpu.err += (Math.random() - 0.5) * 0.09;
+      cpu.err += (Math.random() - 0.5) * 0.16;
       cpu.err *= 0.93;
       tx = clampX(r.x + cpu.err * 1.5);
       ty = clampY(TL - cpu.depth, false);
@@ -3902,11 +3937,15 @@ function syncDebug(){
     window.addEventListener('pointermove', function (e) {
       var r = canvas.getBoundingClientRect();
       var px = e.clientX - r.left, py = e.clientY - r.top;
-      if (pointer && pointer.id === e.pointerId) {
+      if (pointer && pointer.id === e.pointerId && !pointer.hover) {
         pointer.x = px; pointer.y = py;
         pointer.pressure = Math.max(pointer.pressure, e.pressure || 0);
-      } else if (hoverOk && !pointer) {
-        pointer = { id: -1, x: px, y: py, startX: px, startY: py, t: Date.now(), pressure: 0, hover: true };
+      } else if (hoverOk && (!pointer || pointer.hover)) {
+        // With a mouse the paddle follows the cursor whether or not a button is
+        // down. Matching only on pointerId left the paddle frozen after the
+        // first click, because the hover pointer carries no real id.
+        if (pointer && pointer.hover) { pointer.x = px; pointer.y = py; }
+        else pointer = { id: -1, x: px, y: py, startX: px, startY: py, t: Date.now(), pressure: 0, hover: true };
       }
     });
     window.addEventListener('pointerup', function (e) {
