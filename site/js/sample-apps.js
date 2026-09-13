@@ -3162,7 +3162,7 @@ function syncDebug(){
   var HOST_HOME = -1.5, GUEST_HOME = TL + 1.5;
   var HOST_MIN = -STEP_BACK, HOST_MAX = STEP_IN;
   var SIM = 8, FSTEP = 20;       // physics step, and the coarser step prediction uses
-  var GUEST_TIMEOUT = 3500, STATE_TIMEOUT = 3000, CPU_TIMEOUT = 7000;
+  var GUEST_TIMEOUT = 3500, STATE_TIMEOUT = 3000;
   var WIN = 11;
   // Where the two painted numbers sit, in VIEW depth. The near one is up past
   // the furthest you can stand, so your own bat is never on top of your score.
@@ -3179,8 +3179,8 @@ function syncDebug(){
   // player IS, not where they were a quarter of a second ago.
   var pSeq = 0, sentAt = {}, rtt = 0, gRecvAt = 0, gSeq = -1;
   var nextSwing = { host: null, guest: null };
-  var cpu = { err: 0, serveAt: 0, vx: 0, vy: 0, reactUntil: 0, lastToward: false, depth: 0, style: 0 };
-  var rules = { needOwn: false, needOpp: false, letBall: false };
+  var cpu = { err: 0, serveAt: 0, vx: 0, vy: 0, reactUntil: 0, lastToward: false, depth: 0 };
+  var rules = { needOwn: false, needOpp: false };
   var pointOver = false, soloChosen = false, adoptedOnce = false;
   var freezeUntil = 0, pendingServer = null;
   var padVX = 0, padVY = 0, hitFlash = 0, hitsDone = 0, swingAnim = 0, swingKind = 0;
