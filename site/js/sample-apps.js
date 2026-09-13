@@ -3175,12 +3175,26 @@ function syncDebug(){
   // A real table is 152.5 x 274 cm with a 15.25 cm net, so these are the true
   // proportions; the ball is drawn larger than life so it reads on a phone.
   var TW = 15.25, TL = 27.4, NH = 1.525, NOVER = 0.15, BR = 0.2;
-  var G = -0.0000981;            // gravity, dm/ms^2
+  // PACE — how much slower than real table tennis this plays, and it is not a
+  // detail. Measured on the first build a person actually tried: the ball
+  // arrived 234 ms after the opponent hit it at the fastest and 350 ms at the
+  // median. Simple visual reaction time is about 250 ms BEFORE you move a
+  // muscle, so a tenth of all shots were past you before you could begin and
+  // the rest left about a tenth of a second to travel. It was unplayable, and
+  // no bot could tell us, because a bot reacts in a frame.
+  //
+  // This is TIME DILATION, not a speed knob: every velocity scales by PACE and
+  // gravity by PACE squared, which leaves every trajectory exactly the same
+  // SHAPE and simply takes 1/PACE times longer to fly. Spin scales with it so
+  // the curves survive too. Nothing about the game changes except that there
+  // is time to play it.
+  var PACE = 0.52;
+  var G = -0.0000981 * PACE * PACE;  // gravity, dm/ms^2
   var DRAG = 0.0008;             // per-ms velocity bleed
   // Magnus, sized against gravity: full topspin on a hard drive pulls the ball
   // down about as hard again as gravity does, which is what lets a heavy loop
   // be hit upwards and still land on the table.
-  var MAGZ = 0.0016, MAGX = 0.0009;
+  var MAGZ = 0.0016 * PACE, MAGX = 0.0009 * PACE;
   var REST = 0.86;               // table restitution
   var PADR = 0.9;                // paddle blade radius, dm
   var REACH_X = 1.45, REACH_FWD = 1.9, REACH_BACK = 0.95, REACH_Z = 1.5;
@@ -3606,7 +3620,7 @@ function syncDebug(){
     if (game.serving) { holdServe(dt); return; }
     pointOver = false;
     var sp = Math.sqrt(game.vx * game.vx + game.vy * game.vy + game.vz * game.vz);
-    var n = clamp(Math.ceil(sp * dt / 0.16), 1, 8);
+    var n = clamp(Math.ceil(sp * dt / (0.16 * PACE)), 1, 8);
     var s = dt / n;
     for (var i = 0; i < n; i++) { substep(s); if (pointOver || game.serving) return; }
   }
@@ -3706,7 +3720,7 @@ function syncDebug(){
     // Sideways kick off the cloth, sized against the ball's own speed. At 0.22
     // a single bounce added five times the ball's entire forward velocity
     // sideways, and a wide shot left the table at x = 16 on a table 7.6 wide.
-    game.vx += game.ssp * 0.011;
+    game.vx += game.ssp * 0.011 * PACE;
     game.ssp *= 0.55; game.tsp *= 0.45;
     addMark(game.bx, game.by);
     playSound('table');
@@ -3814,17 +3828,21 @@ function syncDebug(){
     //   landing short, which drags the other player in.
     var depth = (isHost ? cy : TL - cy);            // negative = behind the line
     var early = clamp((depth + STEP_BACK) / (STEP_BACK + STEP_IN), 0, 1);
-    var flick = swing ? clamp(-swing.dy / 90, -1, 1) : clamp(padvy * dir * 9, -1, 1);
+    // A hand's speed has to be read RELATIVE TO THE BALL. Scaling velocities by
+    // PACE without this made every auto-swing flat — the computer put six of
+    // seven points straight into the net, because the lift a stroke earns comes
+    // from how fast the bat is moving through it.
+    var flick = swing ? clamp(-swing.dy / 90, -1, 1) : clamp(padvy * dir * 9 / PACE, -1, 1);
     var incoming = Math.abs(game.vy);
-    var force = swing ? clamp(swing.force, 0.22, 1) : clamp(0.42 + early * 0.3 + Math.abs(padvx) * 14, 0.22, 1);
-    var lat = (swing ? swing.dx * 0.012 : 0) + padvx * 26;
+    var force = swing ? clamp(swing.force, 0.22, 1) : clamp(0.42 + early * 0.3 + Math.abs(padvx) * 14 / PACE, 0.22, 1);
+    var lat = (swing ? swing.dx * 0.012 : 0) + padvx * 26 / PACE;
 
     // Pace carries: a ball taken early off a fast one comes back faster still.
     // Pace CARRIES. Take a fast ball early and it comes back faster still, so a
     // rally escalates until somebody is rushed — which is what ends a rally in
     // table tennis, and what stopped these ones running to a hundred shots.
-    var speed = 0.050 + early * 0.040 + force * 0.026 + incoming * early * 0.62;
-    speed = clamp(speed * (0.72 + quality * 0.28), 0.042, 0.152);
+    var speed = (0.050 + early * 0.040 + force * 0.026) * PACE + incoming * early * 0.62;
+    speed = clamp(speed * (0.72 + quality * 0.28), 0.042 * PACE, 0.152 * PACE);
     var top = clamp(flick * 0.55 + early * 0.45 + force * 0.25, -0.85, 1.1);
     var side = clamp(lat * 0.05 + (swing ? swing.dx * 0.004 : 0), -0.9, 0.9);
 
@@ -3834,7 +3852,15 @@ function syncDebug(){
       aimX = cpu.aimX != null ? cpu.aimX : aimX;
       if (cpu.aimDepth != null) landDepth = cpu.aimDepth;
       if (cpu.risk) { force = clamp(force + 0.3, 0, 1); speed = clamp(speed * 1.12, 0.042, 0.135); }
-    } else if (Math.abs(aimX) < 0.5) aimX += (Math.random() - 0.5) * 1.6;
+    } else if (Math.abs(aimX) < 0.6) {
+      // A stroke you did not steer goes into the OPEN COURT, not back down the
+      // middle. Returning everything to the centre is why two players who both
+      // met the ball cleanly could rally sixty-five times without either of
+      // them ever being stretched — nobody was ever made to move.
+      var theirX = isHost ? game.guestX : game.hostX;
+      var away = theirX > 0.4 ? -1 : theirX < -0.4 ? 1 : (Math.random() < 0.5 ? -1 : 1);
+      aimX = clamp(away * (2.0 + Math.random() * 3.6), -TW / 2 + 0.6, TW / 2 - 0.6);
+    }
     // A stretch does not place the ball where you meant it to go.
     var scatter = (1 - quality) * 3.4;
     aimX = clamp(aimX + (Math.random() - 0.5) * scatter * 1.6, -TW / 2 - 0.9, TW / 2 + 0.9);
@@ -3872,7 +3898,7 @@ function syncDebug(){
   // you should.
   function launchShot(fromX, fromY, fromZ, toX, toY, speed, top, arc, quality, aimAtY) {
     var dy = toY - fromY;
-    var want = clamp(Math.abs(dy) / speed * (arc || 1), 150, 1000);
+    var want = clamp(Math.abs(dy) / speed * (arc || 1), 150 / PACE, 1000 / PACE);
     var T = want;
     if (!clears(want)) {
       // The ball must be lifted over the cord, and lifting it means a longer,
@@ -3886,7 +3912,7 @@ function syncDebug(){
       }
       T = want + (need - want) * clamp(((quality == null ? 1 : quality) - 0.35) * 1.6, 0, 1);
     }
-    T = clamp(T, 150, 1250);
+    T = clamp(T, 150 / PACE, 1250 / PACE);
     apply(T);
 
     function grav(T) { return clamp(G - MAGZ * top * Math.abs(dy / T), -0.00048, -0.00003); }
@@ -3929,7 +3955,7 @@ function syncDebug(){
   // a velocity and hoping put half of all serves into the net.
   function serveLaunch(ownY, oppY, top) {
     var y0 = game.by, z0 = game.bz, g = -G;
-    var lo = 120, hi = 620, vy = 0, vz = 0;
+    var lo = 120 / PACE, hi = 620 / PACE, vy = 0, vz = 0;
     for (var i = 0; i < 26; i++) {
       var t1 = (lo + hi) / 2;
       vy = (ownY - y0) / t1;
@@ -3987,7 +4013,7 @@ function syncDebug(){
     var toX = clamp(game.bx + (dx || 0) * 0.035, -TW / 2 + 0.7, TW / 2 - 0.7);
     var span = Math.abs(oppY - game.by) || 1;
     var toEnd = Math.abs((who === 'host' ? TL + 1 : -1) - game.by);
-    game.vx = (toX - game.bx) / Math.max(140, flight * clamp(toEnd / span, 1, 3));
+    game.vx = (toX - game.bx) / Math.max(140 / PACE, flight * clamp(toEnd / span, 1, 3));
     game.tsp = top;
     game.ssp = side * dir;
     game.sp = 0;
@@ -4121,14 +4147,17 @@ function syncDebug(){
   // difficulty, it is a wall. It eases off when it is ahead and sharpens when it
   // is behind — bounded at both ends, so it never becomes a pushover either.
   function edge() {
-    return clamp((game.guestScore - game.hostScore) / 8, -0.4, 0.55);
+    // Asymmetric on purpose: being beaten badly should make it play its best,
+    // while being ahead should make it ease off sooner than that.
+    return clamp((game.guestScore - game.hostScore) / 7, -0.8, 0.55);
   }
 
   function runCpu(dt, now) {
     var ease = edge();
     var toward = !game.serving && game.vy > 0;
     if (toward && !cpu.lastToward) {
-      cpu.reactUntil = now + 80 + Math.random() * 110;
+      // It looks before it knows, like a person. 80 ms was a machine's reflex.
+      cpu.reactUntil = now + 165 + Math.random() * 135;
       var f = fly(null, true, TL / 2);
       var go = Math.random();
       cpu.aimX = clampX((Math.random() < 0.5 ? -1 : 1) * (0.8 + Math.random() * 4.8));
@@ -4142,7 +4171,7 @@ function syncDebug(){
       // Roughly one ball in eight is a mistake and one in seven is a swing for a
       // winner that may itself go long. A machine that never errs is not an
       // opponent, it is a wall.
-      cpu.miss = go < 0.07 + ease * 0.22;
+      cpu.miss = go < 0.10 + ease * 0.22;
       cpu.risk = go > 0.90;
       if (cpu.risk) { cpu.aimX = clampX(cpu.aimX * 1.35); cpu.aimDepth = 1.6 + Math.random() * 1.8; }
       // Where the ball is going to pitch decides where it stands: in for a short
@@ -4153,17 +4182,29 @@ function syncDebug(){
     cpu.lastToward = toward;
     var tx = game.guestX, ty = game.guestY;
     if (toward && now >= cpu.reactUntil) {
-      var r = fly(GUEST_HOME, false);
-      cpu.err += (Math.random() - 0.5) * (0.16 + ease * 0.34);
+      ty = clampY(TL - cpu.depth, false);
+      // Where the ball will be AT THE DEPTH IT IS STANDING, not at the back of
+      // the court. Predicting at GUEST_HOME while standing two to four units in
+      // front of it is a systematic mis-aim, and it showed: the computer met the
+      // ball at 0.83 of a clean contact against the player's 0.92, which cost it
+      // the lift to clear the net and it lost whole matches to its own stroke.
+      var r = fly(clampY(ty, false), false);
+      // Enough drift to land where a person lands — about 0.92 of a clean
+      // contact, the same as a good player. At 0.13 it struck at 0.98 and no
+      // rally ever ended; at the old 0.16, aimed at the wrong depth, it struck
+      // at 0.83 and lost every point to its own stroke.
+      cpu.err += (Math.random() - 0.5) * (0.19 + ease * 0.30);
       cpu.err *= 0.93;
       tx = clampX(r.x + cpu.err * 1.5);
-      ty = clampY(TL - cpu.depth, false);
     } else if (!toward) {
       tx = clampX(game.bx * 0.18);
       ty = clampY(TL + 1.3, false);
       cpu.err *= 0.9;
     }
-    var maxV = (Math.abs(game.vy) > 0.085 ? 0.0165 : 0.021) * (1 - ease * 0.5);
+    // The computer's hand scales with the ball. A slower ball and an unchanged
+    // opponent is just a harder opponent. YOUR hand does not scale — it is a
+    // real hand, and the extra time is the whole point.
+    var maxV = (Math.abs(game.vy) > 0.085 * PACE ? 0.0165 : 0.021) * PACE * 1.32 * (1 - ease * 0.5);
     var sx = clamp(tx - game.guestX, -maxV * dt, maxV * dt);
     var sy = clamp(ty - game.guestY, -maxV * 0.75 * dt, maxV * 0.75 * dt);
     cpu.vx = sx / dt; cpu.vy = sy / dt;

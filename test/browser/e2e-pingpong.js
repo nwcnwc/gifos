@@ -165,6 +165,59 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('serving as instructed does not lose the point every time',
     served.filter((v) => v.why === 'out' && v.rally <= 1).length <= 1, JSON.stringify(served));
 
+  // ---- THE BALL MUST ARRIVE SLOWER THAN A PERSON CAN REACT ------------------
+  // This is the check that matters most, and it is the one nobody had. Every
+  // bot in every suite here reacts within a frame, so the game was tuned until
+  // it was fast and measured as good — and the first person to play it could
+  // not return a ball. Measured on that build: the ball arrived 234 ms after
+  // the opponent struck it at the fastest and 350 ms at the median, against a
+  // simple visual reaction time of about 250 ms BEFORE a muscle moves.
+  //
+  // The window a person actually has is the gap between the opponent's contact
+  // and theirs. It is measured here in the only honest way: from the strokes
+  // the game itself plays, over a real rally.
+  await frame.evaluate(() => { newMatch(); });
+  await sleep(900);
+  const pace = await frame.evaluate(async (SECS) => {
+    const gaps = [];
+    let lastHit = 0;
+    const orig = window.strike;
+    window.strike = function () {
+      const now = Date.now();
+      if (lastHit) gaps.push(now - lastHit);
+      lastHit = now;
+      return orig.apply(this, arguments);
+    };
+    let last = Date.now(), was = false, until = 0, st = null, tx = 0;
+    const bot = setInterval(function () {
+      const now = Date.now(), dt = Math.min(50, now - last); last = now;
+      if (game.serving === 'host') { if (now >= freezeUntil) doServe('host', 0.6, 0, -30); return; }
+      const toward = game.vy < 0;
+      if (toward && !was) { until = now + 150; st = null; }
+      was = toward;
+      if (toward && now >= until) {
+        tx = clampX(fly(game.hostY, false).x);
+        const land = fly(null, true);
+        if (land.bounced) st = clamp(land.y * 0.55 - 1.6, HOST_MIN, STEP_IN);
+      }
+      game.hostX = clampX(game.hostX + clamp(tx - game.hostX, -0.06 * dt, 0.06 * dt));
+      if (st != null) game.hostY = clampY(game.hostY + clamp(st - game.hostY, -0.05 * dt, 0.05 * dt), true);
+    }, 16);
+    await new Promise((r) => setTimeout(r, SECS * 1000));
+    clearInterval(bot);
+    window.strike = orig;
+    gaps.sort((a, b) => a - b);
+    const at = (p) => (gaps.length ? gaps[Math.floor(gaps.length * p)] : 0);
+    return { n: gaps.length, min: gaps[0], p10: at(0.1), median: at(0.5) };
+  }, 34);
+  check('a rally was played to measure', pace.n >= 8, JSON.stringify(pace));
+  check('no ball arrives faster than a person can react (250 ms) and move',
+    pace.min >= 330, 'fastest exchange ' + pace.min + 'ms', JSON.stringify(pace));
+  check('nine shots in ten leave real time to move',
+    pace.p10 >= 420, 'p10 ' + pace.p10 + 'ms of ' + pace.n + ' exchanges');
+  check('the ordinary shot is not a reflex test',
+    pace.median >= 480, 'median ' + pace.median + 'ms');
+
   // ---- the clock -----------------------------------------------------------
   const clock = await frame.evaluate(async () => {
     const s0 = timeSimmed, d0 = timeDropped, a0 = acc, t0 = Date.now();
@@ -217,7 +270,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // A person has to LOOK before they know where it is going, and does not put
     // the bat exactly where they meant to. Aiming perfectly from the instant of
     // contact rallies for ever and proves nothing about the game.
-    if (toward && !_pp.was) { _pp.until = Date.now() + 160 + Math.random() * 70; _pp.err = (Math.random() - 0.5) * 2.0; }
+    // A PERSON's estimate, not a solver's. With the ball slowed to a human
+    // pace, a player who knows exactly where it will be reaches everything and
+    // rallies never end — which measures the bot, not the game.
+    if (toward && !_pp.was) { _pp.until = Date.now() + 200 + Math.random() * 110; _pp.err = (Math.random() - 0.5) * 2.1; }
     _pp.was = toward;
     if (!toward || game.paused || Date.now() < _pp.until) return { sx: CX, sy: padBot - 12 };
     // where the ball will arrive, and how far up the table to stand for it
@@ -228,7 +284,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const s = scaleAt(vy);
     return { sx: CX + clampX(r.x + _pp.err) * s * K, sy: padTop + f * (padBot - padTop) };
   });
-  const deadline = Date.now() + 40000;
+  const deadline = Date.now() + 55000;
   while (Date.now() < deadline) {
     const t = await watch();
     if (t.serve) {
