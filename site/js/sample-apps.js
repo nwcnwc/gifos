@@ -3180,7 +3180,7 @@ function syncDebug(){
   var padVX = 0, padVY = 0, hitFlash = 0, hitsDone = 0, swingAnim = 0, swingKind = 0;
   var myZ = 1.0, remote = { x: 0, y: GUEST_HOME, z: 1 }, frameMs = 16;
   var bannerUntil = 0, overlayMode = '';
-  var sparks = [], marks = [], trail = [];
+  var sparks = [], marks = [], trail = [], snap = { x: 0, y: 0, z: 0 };
   var _W = 0, _H = 0, dpr = 1;
   var CB = 15, CH = 14, K = 40, CX = 0, TY = 0, padTop = 0, padBot = 0;
   var hoverOk = false;
@@ -3198,12 +3198,12 @@ function syncDebug(){
 
   function freshGame() {
     return {
-      id: 'game', seq: 0, wr: '',
+      id: 'game', v: 2, seq: 0, wr: '',
       bx: 0, by: HOST_HOME + 0.6, bz: 2.2, vx: 0, vy: 0, vz: 0,
       tsp: 0, ssp: 0, sp: 0,
       hostX: 0, hostY: HOST_HOME, hostZ: 1,
       guestX: 0, guestY: GUEST_HOME, guestZ: 1,
-      hostScore: 0, guestScore: 0, pt: 0, hostName: '',
+      hostScore: 0, guestScore: 0, pt: 0, hostName: '', hadHuman: false,
       serving: 'host', lastHitter: null,
       paused: false, pausedBy: null, pausedAt: 0, t: 0,
       rally: 0, why: '', msgWho: null
@@ -3216,14 +3216,25 @@ function syncDebug(){
 
   function half() { return clamp(rtt / 2, 0, 260); }
 
-  // Old saves carry the 2-D shape (no depth, no spin split). Fill the gaps so a
-  // match in progress survives the update instead of throwing.
+  // A save written before this version carries the 2-D shape — no depth, no
+  // spin split, a table of different dimensions. Convert it once, on the
+  // version stamp. Sanitising EVERY arriving record instead is how the guest
+  // lost its game: a point ends with the ball past an end line at by = 32, the
+  // old guard read that as corruption, and rewrote the ball into the host's
+  // hand and the serve to the host — after every single point.
   function adopt(g) {
     if (!g || g.id !== 'game') return game;
+    if (g.v !== 2) {
+      var old = { hostScore: g.hostScore || 0, guestScore: g.guestScore || 0, pt: g.pt || 0 };
+      g = freshGame();
+      g.hostScore = old.hostScore; g.guestScore = old.guestScore; g.pt = old.pt;
+      g.serving = serverFor(g.hostScore, g.guestScore);
+      return g;
+    }
     if (typeof g.hostScore !== 'number') g.hostScore = 0;
     if (typeof g.guestScore !== 'number') g.guestScore = 0;
-    if (g.hostY == null || g.hostY > TL / 2) g.hostY = HOST_HOME;
-    if (g.guestY == null || g.guestY < TL / 2) g.guestY = GUEST_HOME;
+    if (g.hostY == null) g.hostY = HOST_HOME;
+    if (g.guestY == null) g.guestY = GUEST_HOME;
     if (g.hostZ == null) g.hostZ = 1;
     if (g.guestZ == null) g.guestZ = 1;
     if (g.tsp == null) g.tsp = 0;
@@ -3231,7 +3242,6 @@ function syncDebug(){
     if (g.sp == null) g.sp = 0;
     if (g.rally == null) g.rally = 0;
     if (g.pt == null) g.pt = 0;
-    if (g.by == null || g.by > TL + 4 || g.by < -4) { g.by = HOST_HOME + 0.6; g.bz = 2.2; g.serving = 'host'; }
     return g;
   }
 
@@ -3254,7 +3264,7 @@ function syncDebug(){
           var prevPt = game.pt;
           var keepX = gst.x, keepY = gst.y, keepZ = gst.z;
           game = adopt(g);
-          if (owner) { mySeq = Math.max(mySeq, game.seq || 0); }
+          if (owner) { mySeq = Math.max(mySeq, game.seq || 0); if (lastStateAt === 0) promoteIfWasGuest(); }
           if (!owner) {
             if (g.ack != null && sentAt[g.ack]) {
               rtt = rtt ? rtt * 0.7 + (Date.now() - sentAt[g.ack]) * 0.3 : (Date.now() - sentAt[g.ack]);
@@ -3266,7 +3276,12 @@ function syncDebug(){
             game.guestX = keepX; game.guestY = keepY; game.guestZ = keepZ;
             game.hostX = clampX(game.hostX + (game.hvx || 0) * half());
             game.hostY = clampY(game.hostY + (game.hvy || 0) * half(), true);
+            // Hold the ball for whatever is left of the host's pause, so the
+            // guest can SEE where the point it just lost actually ended.
+            freezeUntil = Date.now() + clamp((g.hold || 0) - half(), 0, 4000);
+            var wasX = game.bx, wasY = game.by, wasZ = game.bz;
             catchUp(half());
+            softenSnap(wasX, wasY, wasZ);
             if (game.pt !== prevPt) onPointSeen();
             syncLocalToState();
           }
@@ -3276,11 +3291,15 @@ function syncDebug(){
       if (owner) {
         var n = items.find(function (x) { return x.id === 'guest'; });
         if (n) {
-          if ((n.seq || 0) !== gSeq) { gSeq = n.seq || 0; gRecvAt = Date.now(); }
+          // Every host write re-broadcasts the WHOLE collection, guest record
+          // included. Treating that as a heartbeat meant a friend whose phone
+          // had gone looked alive to the millisecond, forever.
+          var fresh = (n.seq || 0) !== gSeq;
+          if (fresh) { gSeq = n.seq || 0; gRecvAt = lastGuestBeat = Date.now(); }
+          if (fresh && !everHadGuest) onGuestArrived(n);
           gst = n;
-          everHadGuest = true;
+          if (fresh) everHadGuest = true;
           rtt = n.rtt || rtt;
-          lastGuestBeat = Date.now();
           if (n.swing && (n.swing.seq || 0) > seenSwingSeq) {
             seenSwingSeq = n.swing.seq || 0;
             nextSwing.guest = n.swing;
@@ -3311,9 +3330,62 @@ function syncDebug(){
     }, 260);
   }
 
+  // Your friend walked in. They should not inherit the score of the match you
+  // were playing against the computer while the link was loading.
+  function onGuestArrived(n) {
+    var name = (n && n.name) || 'Your friend';
+    var played = game.hostScore + game.guestScore;
+    // Only a match against the COMPUTER is swept away. Reopening the app after
+    // a real match must not wipe the score the two of you are on.
+    var wasSolo = !game.hadHuman;
+    game.hadHuman = true;
+    if (wasSolo && (played > 0 || matchOver())) {
+      newMatch();
+      showBanner(name.toUpperCase() + ' IS IN', 'new game - first to 11', 2200);
+    } else {
+      showBanner(name.toUpperCase() + ' IS IN', 'first to 11 - win by 2', 2200);
+    }
+    hint.classList.add('hide');
+  }
+
+  // GifOS promotes a mirrored guest when the host disappears. This tab was the
+  // FAR end a moment ago, so the record's host fields are the other player's:
+  // adopting them straight would hand you their score and name you as your own
+  // opponent. Turn the table round instead.
+  function promoteIfWasGuest() {
+    if (!owner || game.v !== 2) return;
+    if (!game.hostName || game.hostName === me.name) return;
+    var was = game.hostName;
+    var hs = game.hostScore, gs = game.guestScore;
+    game.hostScore = gs; game.guestScore = hs;
+    game.serving = game.serving === 'host' ? 'guest' : (game.serving === 'guest' ? 'host' : game.serving);
+    game.lastHitter = game.lastHitter === 'host' ? 'guest' : (game.lastHitter === 'guest' ? 'host' : game.lastHitter);
+    var hx = game.hostX, hy = game.hostY, hz = game.hostZ;
+    game.hostX = -game.guestX; game.hostY = TL - game.guestY; game.hostZ = game.guestZ;
+    game.guestX = -hx; game.guestY = TL - hy; game.guestZ = hz;
+    game.bx = -game.bx; game.by = TL - game.by; game.vx = -game.vx; game.vy = -game.vy;
+    game.ssp = -game.ssp;
+    game.hostName = me.name;
+    everHadGuest = false; lastGuestBeat = 0; gSeq = -1;
+    gst = freshGuest();
+    showBanner(was.toUpperCase() + ' LEFT', 'the table is yours - ' + game.hostScore + ' - ' + game.guestScore, 2600);
+    pushGame();
+  }
+
   function syncLocalToState() {
     // A guest that just joined mid-match adopts the paddle the host has for it.
     if (!gst.heartbeat) { gst.x = game.guestX; gst.y = game.guestY; }
+  }
+
+  // A reconciliation is a hard truth arriving late. Carry the difference as a
+  // DRAWING offset that fades over a tenth of a second, so a small correction
+  // reads as the ball settling rather than the ball teleporting. A big one
+  // still snaps — pretending a metre of error is not there would be worse.
+  function softenSnap(oldX, oldY, oldZ) {
+    var dx = oldX - game.bx, dy = oldY - game.by, dz = oldZ - game.bz;
+    var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (d > 3.2 || d < 0.02) { snap.x = 0; snap.y = 0; snap.z = 0; return; }
+    snap.x = dx; snap.y = dy; snap.z = dz;
   }
 
   // Replay the host's physics locally for ms milliseconds. Used to close the
@@ -3357,7 +3429,20 @@ function syncDebug(){
   function pushGame() {
     game.seq = ++mySeq;
     game.wr = me.id;
-    db.put(game);
+    // The pause after a point is a host clock reading, and the two devices do
+    // not share a clock. Send what is LEFT of it instead.
+    game.hold = matchOver() ? 0 : clamp(freezeUntil - Date.now(), 0, 4000);
+    put(game);
+  }
+
+  // A guest whose host has walked away gets its writes refused, once every
+  // 45 ms, for as long as it stays open. Swallow it: the overlay already says
+  // what is wrong, and a console filling at twenty errors a second does not.
+  function put(rec) {
+    try {
+      var r = db.put(rec);
+      if (r && r.catch) r.catch(function () {});
+    } catch (e) {}
   }
 
   var acc = 0, putAt = 0, hudAt = 0, zMine = 1.15, zThem = 1.15, frames = 0, timeDropped = 0, timeSimmed = 0;
@@ -3423,7 +3508,7 @@ function syncDebug(){
       gst.seq = ++pSeq;
       sentAt[pSeq] = now;
       if (pSeq % 64 === 0) { for (var k in sentAt) { if (+k < pSeq - 80) delete sentAt[k]; } }
-      db.put(gst);
+      put(gst);
     }
   }
 
@@ -3950,12 +4035,16 @@ function syncDebug(){
       if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
       var r = canvas.getBoundingClientRect();
       var px = e.clientX - r.left, py = e.clientY - r.top;
-      pointer = { id: e.pointerId, x: px, y: py, startX: px, startY: py, t: Date.now(), pressure: e.pressure || 0 };
+      pointer = { id: e.pointerId, x: px, y: py, startX: px, startY: py, ax: px, ay: py, at: Date.now(), t: Date.now(), pressure: e.pressure || 0 };
     });
     window.addEventListener('pointermove', function (e) {
       var r = canvas.getBoundingClientRect();
       var px = e.clientX - r.left, py = e.clientY - r.top;
       if (pointer && pointer.id === e.pointerId && !pointer.hover) {
+        // The swipe that becomes pace and spin is the LAST flick of the finger,
+        // not the whole path it travelled while tracking the ball. Measuring
+        // from pointerdown made every serve saturate its clamps and fly long.
+        if (Date.now() - pointer.at > 110) { pointer.ax = pointer.x; pointer.ay = pointer.y; pointer.at = Date.now(); }
         pointer.x = px; pointer.y = py;
         pointer.pressure = Math.max(pointer.pressure, e.pressure || 0);
       } else if (hoverOk && (!pointer || pointer.hover)) {
@@ -3968,9 +4057,9 @@ function syncDebug(){
     });
     window.addEventListener('pointerup', function (e) {
       if (!pointer || pointer.id !== e.pointerId) return;
-      var held = Date.now() - pointer.t;
-      var dx = pointer.x - pointer.startX;
-      var dy = pointer.y - pointer.startY;
+      var held = Date.now() - pointer.at;
+      var dx = pointer.x - pointer.ax;
+      var dy = pointer.y - pointer.ay;
       var force = estimateForce(pointer.pressure, held, dx, dy);
       var localWho = owner ? 'host' : 'guest';
       if (game.serving === localWho && !matchOver()) {
@@ -3979,7 +4068,7 @@ function syncDebug(){
       } else {
         recordSwing(force, dx, dy);
       }
-      pointer = hoverOk ? { id: -1, x: pointer.x, y: pointer.y, startX: pointer.x, startY: pointer.y, t: Date.now(), pressure: 0, hover: true } : null;
+      pointer = hoverOk ? { id: -1, x: pointer.x, y: pointer.y, startX: pointer.x, startY: pointer.y, ax: pointer.x, ay: pointer.y, at: Date.now(), t: Date.now(), pressure: 0, hover: true } : null;
     });
     window.addEventListener('pointercancel', function () { pointer = null; });
     window.addEventListener('keydown', function (e) {
@@ -4003,18 +4092,19 @@ function syncDebug(){
   function recordSwing(force, dx, dy) {
     var s = { force: force, dx: dx, dy: dy, seq: ++swingSeq, at: Date.now() };
     if (owner) nextSwing.host = s;
-    else { gst.swing = s; db.put(gst); }
+    else { gst.swing = s; put(gst); }
   }
 
   function sendSwing(force, dx, dy) {
     gst.swing = { force: force, dx: dx, dy: dy, seq: ++swingSeq, at: Date.now() };
-    db.put(gst);
+    put(gst);
   }
 
   function bindOverlay() {
     readyBtn.addEventListener('click', function () {
       if (overlayMode === 'match' && owner) { newMatch(); return; }
-      if (!owner) { gst.ready = true; db.put(gst); }
+      if (overlayMode === 'rematch') { gst.rematch = true; put(gst); updateOverlay(); return; }
+      if (!owner) { gst.ready = true; put(gst); }
       else { game.paused = false; game.pausedBy = null; pushGame(); }
       overlay.classList.remove('on');
     });
@@ -4029,6 +4119,9 @@ function syncDebug(){
     rules = { needOwn: false, needOpp: false };
     cpu.serveAt = 0; hitsDone = 0;
     marks.length = 0; trail.length = 0;
+    gst.rematch = false;
+    game.hostName = me.name;
+    game.hadHuman = everHadGuest;
     hint.classList.remove('hide');
     overlay.classList.remove('on'); overlayMode = '';
     showBanner('PING PONG', 'first to 11', 1200);
@@ -4039,21 +4132,28 @@ function syncDebug(){
     var now = Date.now();
     var show = false, title = '', body = '', btn = "I'm ready";
     overlayMode = '';
+    var my = owner ? game.hostScore : game.guestScore;
+    var th = owner ? game.guestScore : game.hostScore;
     if (matchOver()) {
       show = true; overlayMode = 'match';
-      var iWin = owner ? matchWinner() === 'host' : matchWinner() === 'guest';
-      title = iWin ? 'You win!' : (isCpu() ? 'Computer wins' : 'They win');
-      body = game.hostScore + '  -  ' + game.guestScore + '. First to 11, win by 2.';
-      btn = owner ? 'Play again' : 'Waiting for the host';
-      readyBtn.style.display = owner ? '' : 'none';
-    } else if (!owner && lastStateAt && now - lastStateAt > STATE_TIMEOUT) {
-      show = true; title = 'Connection paused';
-      body = 'The ball is held where it is. Tap when you are back so you can return it.';
+      title = my > th ? 'You win!' : themName() + ' wins';
+      // Your own score first, on your own screen. The guest was being shown the
+      // host's order under a scoreboard reading the other way round.
+      body = my + '  -  ' + th + '. First to 11, win by 2.';
+      btn = owner ? (gst && gst.rematch ? 'Play again - ' + themName() + ' is ready' : 'Play again')
+        : (gst && gst.rematch ? 'Waiting for ' + themName() : 'Ask for a rematch');
+      overlayMode = owner ? 'match' : 'rematch';
       readyBtn.style.display = '';
+      readyBtn.disabled = !owner && !!(gst && gst.rematch);
+    } else if (!owner && lastStateAt && now - lastStateAt > STATE_TIMEOUT) {
+      show = true;
+      title = 'Waiting for ' + themName();
+      body = 'No word from the other end. The ball is held exactly where it is — tap when you are both back.';
+      readyBtn.style.display = ''; readyBtn.disabled = false;
     } else if (owner && game.paused && !isCpu()) {
       show = true; title = themName() + ' dropped out';
       body = 'The ball is held mid-flight. It starts again the moment they are back.';
-      readyBtn.style.display = 'none';
+      readyBtn.style.display = 'none'; readyBtn.disabled = false;
     }
     overlay.classList.toggle('on', show);
     if (show) { ot.textContent = title; ob.textContent = body; readyBtn.textContent = btn; }
@@ -4194,6 +4294,8 @@ function syncDebug(){
     // Smooth the opponent: their paddle arrives a few times a frame at best.
     // Smoothing has to be per millisecond, not per frame, or the opponent's
     // paddle glides at a different speed on a fast screen than a slow one.
+    var decay = Math.max(0, 1 - frameMs / 110);
+    snap.x *= decay; snap.y *= decay; snap.z *= decay;
     var k = clamp(frameMs / 55, 0, 1);
     remote.x += (thX - remote.x) * k;
     remote.y += (thY - remote.y) * k;
@@ -4203,7 +4305,7 @@ function syncDebug(){
     var layers = [
       { d: vyOf(remote.y), f: function () { drawPaddle(remote.x, remote.y, remote.z, '#16161a', false); } },
       { d: TL / 2, f: drawNet },
-      { d: vyOf(game.by), f: drawBall },
+      { d: vyOf(game.by + snap.y), f: drawBall },
       { d: vyOf(myY), f: function () { drawPaddle(myX, myY, myPz, '#d4222a', true); } }
     ];
     layers.sort(function (a, b) { return b.d - a.d; });
@@ -4431,8 +4533,9 @@ function syncDebug(){
   }
 
   function drawBall() {
-    var b = p(game.bx, game.by, game.bz);
-    var s = p(game.bx, game.by, 0);
+    var bx = game.bx + snap.x, by = game.by + snap.y, bz = Math.max(0, game.bz + snap.z);
+    var b = p(bx, by, bz);
+    var s = p(bx, by, 0);
     var r = Math.max(3.4, BR * 1.9 * K * b.sc);
     // trail, coloured by the spin on the ball: warm for topspin, cool for chop
     if (trail.length > 2 && !game.serving) {
