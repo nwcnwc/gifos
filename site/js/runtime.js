@@ -161,6 +161,19 @@
       var toOS = parent.postMessage.bind(parent);
       window.addEventListener('pagehide', function(){ try { toOS({ ns:'gifos', type:'unloading', gen: GEN, nonce: NONCE }, '*'); } catch(e){} }, true);
       try { toOS({ ns:'gifos', type:'hello', gen: GEN }, '*'); } catch(e){}
+      // THE LAUNCH SPLASH COMES DOWN ON THIS, not on the load event. A document
+      // has "loaded" before it has painted, and an app whose first frame waits
+      // on its own async boot handed the user a blank pane in between. Two
+      // animation frames after the document is ready is the first moment
+      // anything of the app is actually on screen.
+      (function(){
+        var told = 0;
+        var say = function(){ if (told++) return; try { toOS({ ns:'gifos', type:'painted', gen: GEN }, '*'); } catch(e){} };
+        var arm = function(){ requestAnimationFrame(function(){ requestAnimationFrame(say); }); };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arm);
+        else arm();
+        setTimeout(say, 1500);
+      })();
       (function(){
         var KILL = { IFRAME:1, FRAME:1, FENCEDFRAME:1, PORTAL:1, OBJECT:1, EMBED:1 };
         function sweep(n){
@@ -3686,9 +3699,17 @@
       iframe.style.opacity = '0';
       iframe.style.transition = 'opacity 0.2s linear';
       let revealed = false;
+      // The app tells us the moment it has something on screen (clientShim).
+      const painted = (e) => {
+        if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
+        const d = e.data;
+        if (!d || d.ns !== 'gifos' || d.type !== 'painted') return;
+        reveal();
+      };
       const reveal = () => {
         if (revealed) return;
         revealed = true;
+        try { window.removeEventListener('message', painted); } catch (e) {}
         iframe.style.opacity = '1';
         // The splash is an absolute z-5 overlay and the iframe is not
         // positioned at all, so the frame's fade-in happens UNDER it. Until
@@ -3714,7 +3735,8 @@
           while (n) { const nx = n.nextSibling; if (n !== iframe) mountEl.removeChild(n); n = nx; }
         }, 250);
       };
-      iframe.addEventListener('load', reveal);
+      iframe.addEventListener('load', () => { setTimeout(reveal, 400); });
+      window.addEventListener('message', painted);
       setTimeout(reveal, 3000);
       let stale = mountEl.firstChild; // drop stale frames from a re-mount; keep the splash
       while (stale) { const nx = stale.nextSibling; if (stale.tagName === 'IFRAME') mountEl.removeChild(stale); stale = nx; }

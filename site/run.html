@@ -718,7 +718,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     color: inherit; font: inherit; font-size: .78rem; cursor: pointer; }
   #appbar .perms.ok     { border-color: #4a9eff; color: color-mix(in srgb, #4a9eff 60%, var(--text, #e0e0f0)); }
   #appbar .perms.unsafe { border-color: #ff8a3d; color: color-mix(in srgb, #ff8a3d 60%, var(--text, #e0e0f0)); box-shadow: 0 0 12px rgba(255,138,61,.3); }
-  #appmount { flex: 1; min-height: 0; background: var(--bg, #0a0a0f); }
+  /* THE STAGE IS ALWAYS DARK, whatever the computer's theme.
+     It is the backdrop an app is mounted on, and it is only ever VISIBLE in
+     the moment before the app has painted. Following --bg meant that on a
+     light theme the stage was #e8ecf1, so opening any app flashed a near-white
+     full-bleed sheet for most of a second before the app's own background
+     arrived — measured 293 ms to 832 ms on a phone, and about two seconds on a
+     loaded one. The launch splash already paints #0a0a0f for exactly this
+     reason; the stage under it now agrees, so the sequence from tap to app is
+     dark throughout. */
+  #appmount { flex: 1; min-height: 0; background: #0a0a0f; }
   /* FULL SCREEN gives the app pane the glass: the bar goes with it, so the app
      fills the screen while its Help / Save / Stop stay one tap away — and in a
      meeting the feed steps aside without the call ending. A glyph, not a word,
