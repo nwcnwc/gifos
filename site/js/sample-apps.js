@@ -3540,7 +3540,13 @@ function syncDebug(){
     var curY = isHost ? game.hostY : gst.y;
     if (pointer) {
       var t = screenToTable(pointer.x, pointer.y);
-      var nx = clampX(t.x), ny = clampY(t.y, isHost);
+      // The bat has a little weight. It was pinned to the cursor exactly — zero
+      // mass, zero follow-through, which reads as a slider rather than an arm,
+      // and left the swing speed that decides spin permanently at zero for a
+      // finger that jumps. It catches up in about fifty milliseconds.
+      var ease = clamp(dt / 18, 0, 1);
+      var nx = clampX(curX + (t.x - curX) * ease);
+      var ny = clampY(curY + (clampY(t.y, isHost) - curY) * ease, isHost);
       // A finger landing somewhere else is a teleport, not a swing: counting it
       // as paddle speed would fling the ball and, on the host, extrapolate the
       // guest's paddle clean off the table.
