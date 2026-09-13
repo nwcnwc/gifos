@@ -197,26 +197,31 @@ function drive(frame, secs) {
   // The serve indicator is the thing both players act on. If it disagrees,
   // both of them sit there waiting for the other one to tap.
   const agree = await (async () => {
-    let samples = 0, disagree = 0, worstBall = 0;
+    let samples = 0, disagree = 0, worstBall = 0, flights = 0;
     for (let i = 0; i < 70; i++) {
       const [a, b] = await Promise.all([
-        aFrame.evaluate(() => ({ s: game.serving, by: game.by, pt: game.pt })),
-        bFrame.evaluate(() => ({ s: game.serving, by: game.by, pt: game.pt })),
+        aFrame.evaluate(() => ({ s: game.serving, by: game.by, pt: game.pt, live: !game.serving && Date.now() >= freezeUntil && !!game.vy })),
+        bFrame.evaluate(() => ({ s: game.serving, by: game.by, pt: game.pt, live: !game.serving && Date.now() >= freezeUntil && !!game.vy })),
       ]);
       if (a.pt === b.pt) {
         samples++;
         if (a.s !== b.s) disagree++;
-        worstBall = Math.max(worstBall, Math.abs(a.by - b.by));
+        // Only while the ball is in FLIGHT on both screens. Between points one
+        // end has it parked in a hand and the other still shows where the last
+        // one died; that is a whole table apart and it is not a disagreement
+        // about the ball, it is two reads of different moments.
+        if (a.live && b.live) { flights++; worstBall = Math.max(worstBall, Math.abs(a.by - b.by)); }
       }
       await sleep(90);
     }
-    return { samples, disagree, worstBall };
+    return { samples, disagree, worstBall, flights };
   })();
   check('the two screens name the same server',
     agree.samples > 20 && agree.disagree / agree.samples < 0.08,
     agree.disagree + ' of ' + agree.samples + ' samples disagreed');
   check('the ball never jumps most of a table out of place on the guest',
-    agree.worstBall < 9, 'worst divergence ' + agree.worstBall.toFixed(2) + ' dm of ' + 27.4);
+    agree.flights >= 10 && agree.worstBall < 9,
+    'worst divergence ' + agree.worstBall.toFixed(2) + ' dm of ' + 27.4 + ' over ' + agree.flights + ' in-flight samples');
 
   // ---- latency is measured, and compensated -------------------------------
   const lag = await bFrame.evaluate(() => ({ rtt: Math.round(rtt) }));
