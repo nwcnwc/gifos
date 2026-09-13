@@ -3114,8 +3114,15 @@ function syncDebug(){
   var db = (window.gifos && gifos.db) ? gifos.db('pingpong') : { subscribe: function () {}, put: function () {} };
   var me = { id: 'local', name: 'You' }, owner = !window.gifos;
   if (window.gifos) {
-    gifos.me().then(function (m) { me.id = m.id; me.name = m.name || 'You'; });
-    gifos.info().then(function (i) { owner = !!(i && i.owner); boot(); });
+    // BOTH answers before the first write. The echo guard is "this record is
+    // mine", and a record written before me.id arrives is stamped 'local' — so
+    // the host would adopt its own stale echo and un-serve a served ball.
+    Promise.all([gifos.me(), gifos.info()]).then(function (r) {
+      var m = r[0], i = r[1];
+      if (m) { me.id = m.id; me.name = m.name || 'You'; }
+      owner = !!(i && i.owner);
+      boot();
+    });
   } else boot();
 
   var canvas = document.getElementById('game');
@@ -3171,7 +3178,7 @@ function syncDebug(){
   var pointOver = false;
   var freezeUntil = 0, pendingServer = null;
   var padVX = 0, padVY = 0, hitFlash = 0, hitsDone = 0, swingAnim = 0, swingKind = 0;
-  var myZ = 1.0, theirZ = 1.0, remote = { x: 0, y: GUEST_HOME, z: 1 };
+  var myZ = 1.0, remote = { x: 0, y: GUEST_HOME, z: 1 }, frameMs = 16;
   var bannerUntil = 0, overlayMode = '';
   var sparks = [], marks = [], trail = [];
   var _W = 0, _H = 0, dpr = 1;
@@ -3358,6 +3365,7 @@ function syncDebug(){
     timeDropped += Math.max(0, raw - real);
     lastNow = now;
     acc += real;
+    frameMs = real || 16;
     frames++;
     // Prediction is the expensive part and it does not change inside one frame.
     zMine = targetPaddleZ(owner, owner ? game.hostY : gst.y);
@@ -3465,7 +3473,7 @@ function syncDebug(){
     var who = game.serving;
     var isHost = who === 'host';
     var px = isHost ? game.hostX : game.guestX;
-    var py = isHost ? game.hostY : game.guestY;
+    var py = serveY(who);
     game.bx = px + (isHost ? 0.5 : -0.5);
     game.by = py + (isHost ? 0.85 : -0.85);
     game.bz = 1.9 + Math.sin(Date.now() / 190) * 0.28;
@@ -3483,6 +3491,12 @@ function syncDebug(){
         doServe('guest', 0.4 + Math.random() * 0.28, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 30);
       }
     }
+  }
+
+  // A serve is struck from behind your own end line — standing up over the
+  // table does not let you start the ball halfway down it.
+  function serveY(who) {
+    return who === 'host' ? Math.min(game.hostY, -0.4) : Math.max(game.guestY, TL + 0.4);
   }
 
   function substep(dt) {
@@ -3733,7 +3747,7 @@ function syncDebug(){
     force = clamp(force == null ? 0.5 : force, 0.22, 1);
     var dir = who === 'host' ? 1 : -1;
     var px = who === 'host' ? game.hostX : game.guestX;
-    var py = who === 'host' ? game.hostY : game.guestY;
+    var py = serveY(who);
     game.bx = px + dir * 0.5;
     game.by = py + dir * 0.85;
     game.bz = 2.0;
@@ -4174,9 +4188,12 @@ function syncDebug(){
     var thY = owner ? game.guestY : game.hostY;
     var thPz = owner ? game.guestZ : game.hostZ;
     // Smooth the opponent: their paddle arrives a few times a frame at best.
-    remote.x += (thX - remote.x) * 0.35;
-    remote.y += (thY - remote.y) * 0.35;
-    remote.z += (thPz - remote.z) * 0.35;
+    // Smoothing has to be per millisecond, not per frame, or the opponent's
+    // paddle glides at a different speed on a fast screen than a slow one.
+    var k = clamp(frameMs / 55, 0, 1);
+    remote.x += (thX - remote.x) * k;
+    remote.y += (thY - remote.y) * k;
+    remote.z += (thPz - remote.z) * k;
 
     var vyOf = function (y) { return owner ? y : TL - y; };
     var layers = [
@@ -7423,16 +7440,23 @@ Table tennis from your end of the table. First to 11, win by 2. Serve changes ev
 
 ## Controls
 
-- **Move** — slide one finger (or the mouse) to move your paddle. The paddle is live: if the ball meets it, it returns. You do not have to tap the ball.
-- **Serve** — when it is your serve the ball floats on your paddle. Tap or swipe toward the table to send it. A legal serve bounces on your side first, then theirs.
-- **Aim / spin** — hit the ball off-centre to angle it. A swipe as you make contact adds pace and spin (the stripe on the ball shows the spin).
+Your paddle goes where your finger is — in **two directions, not one**.
+
+- **Across** — slide left and right to cover the table.
+- **Up and back** — slide toward the top of the screen to step in over the table, toward the bottom to back off behind the line. Your paddle lifts and drops on its own to meet the ball, the way an arm does.
+- The paddle is live: if the ball meets it, it returns. You never tap the ball.
+
+**Where you take the ball decides the shot.** Taken early, up over the table, it goes back flat, fast and short — but the window is small, and a low ball from there has to be looped up over the net. Taken deep behind the line you have more time, and the ball comes back higher and heavier. Stand in the wrong place and it goes past you.
+
+- **Serve** — when it is your serve the ball floats on your paddle, behind your own end line. Tap or swipe toward the table to send it. A legal serve bounces on your side first, then theirs. Clip the net cord and it is a **let** — serve again, no point lost.
+- **Aim and spin** — hit the ball off-centre to angle it, and move the paddle as you strike to throw it wider. Flick **up** as you hit for topspin (it dips, and kicks forward off the table); flick **down** to chop it (it floats and sits up). The stripe on the ball shows the spin, and the trail warms for topspin and cools for backspin.
 
 A miss, a shot into the net, a shot that never lands on their side, or a double bounce on one side is a point.
 
 ## Solo or a friend
 
 - **Alone:** you are the near end, a computer plays the far end. It returns honest shots and can be wrong-footed.
-- **Invite** (top bar): a friend gets the far end on their phone, looking the other way down the table. If they drop off, the table pauses until they tap **I'm ready**.
+- **Invite** (top bar): send the link and a friend gets the far end on their own phone, looking the other way down the table. No account, no install, no game server — both ends measure the lag between them and aim at where the other player actually is. If they drop off, the ball stops in the air until they tap **I'm ready**.
 - Only the host sees **New game**.
 
 ## Saved

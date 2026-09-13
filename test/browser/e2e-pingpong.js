@@ -212,6 +212,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const frame2 = app2.frames().find((f) => f !== app2.mainFrame());
   await frame2.waitForSelector('canvas#game', { timeout: 8000 });
   const after = await frame2.evaluate(async () => {
+    // Hold the ball before reading, or the computer scores while we are still
+    // waiting for the banner and the comparison measures the wrong instant.
+    freezeUntil = Date.now() + 9e5;
+    const hs = game.hostScore, gs = game.guestScore;
     let banner = '';
     for (let i = 0; i < 30; i++) {
       const t = (document.getElementById('bt') || {}).textContent || '';
@@ -219,7 +223,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       if (t && !banner) banner = t;
       await new Promise((r) => setTimeout(r, 60));
     }
-    return { hs: game.hostScore, gs: game.guestScore, banner };
+    return { hs, gs, banner };
   });
   check('closing and reopening comes back to the same match',
     after.hs === before.hs && after.gs === before.gs && before.hs + before.gs > 0,
