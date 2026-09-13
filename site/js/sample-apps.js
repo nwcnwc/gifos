@@ -3070,7 +3070,7 @@ function syncDebug(){
     #hint { font-size: 12px; padding: 7px 11px; }
   }
   #reset, #howto {
-    flex: 0 0 auto; pointer-events: auto; padding: 6px 11px; border-radius: 9px;
+    flex: 0 0 auto; pointer-events: auto; touch-action: manipulation; padding: 6px 11px; border-radius: 9px;
     background: rgba(0,0,0,.42); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer;
     border: 1px solid rgba(255,255,255,.2);
   }
@@ -3092,6 +3092,13 @@ function syncDebug(){
   }
   #hint.hide { display: none; }
   #hint b { color: #ffd56a; }
+  #rules { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(3,6,12,.9); z-index: 11; padding: 18px; overflow: auto; }
+  #rules.on { display: flex; }
+  #rules .card { max-width: 30rem; }
+  #rules h3 { margin: 0 0 12px; color: #7dffb0; font-size: 20px; }
+  #rules p { margin: 0 0 11px; color: #cfd2e2; font-size: 14px; line-height: 1.5; }
+  #rules b { color: #fff; }
+  #rulesClose { margin-top: 6px; padding: 12px 24px; border: 0; border-radius: 11px; background: #7dffb0; color: #062014; font-size: 16px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
   #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; background: rgba(3,6,12,.86); z-index: 10; padding: 24px; text-align: center; }
   #overlay.on { display: flex; }
   #overlay h2 { margin: 0 0 10px; color: #7dffb0; font-size: 26px; }
@@ -3107,6 +3114,24 @@ function syncDebug(){
 </div>
 <div id="banner"><h2 id="bt"></h2><p id="bp"></p></div>
 <div id="hint">Drag <b>across</b> the table — and <b>up it, toward the net</b>. It hits for you. Tap to serve.</div>
+<div id="rules"><div class="card">
+  <h3>How to play</h3>
+  <p><b>Your paddle goes where your finger is</b> — across the table, and up or
+  back from the net. It swings for you; you never tap the ball.</p>
+  <p><b>Where you take the ball is the shot.</b> Up over the table it comes off
+  fast and flat and lands deep — but the net is right there, and a ball met low
+  from up there goes into it. Behind the line you have more time and the ball
+  loops back slow, high and safe, landing short.</p>
+  <p><b>Stand in the wrong place and it goes past you.</b> Reaching behind you
+  is half the reach of reaching forward, so a deep ball punishes camping over
+  the table, and a short one punishes hanging back.</p>
+  <p><b>Serve</b> by tapping. Flick up as you let go for a long heavy one, down
+  for a short floaty one, across for swerve. Clip the net cord and you serve
+  again.</p>
+  <p><b>First to 11, win by 2.</b> Serve changes every two points — every point
+  once you are both on 10.</p>
+  <button id="rulesClose">Got it</button>
+</div></div>
 <div id="overlay">
   <h2 id="ot">Ready?</h2>
   <p id="ob">Tap the button when you are back so you can return the next ball.</p>
@@ -3137,6 +3162,8 @@ function syncDebug(){
   var readyBtn = document.getElementById('readyBtn');
   var resetBtn = document.getElementById('reset');
   var howBtn = document.getElementById('howto');
+  var rules_ = document.getElementById('rules');
+  var rulesClose = document.getElementById('rulesClose');
   var hint = document.getElementById('hint');
   var banner = document.getElementById('banner');
   var bt = document.getElementById('bt');
@@ -3158,7 +3185,7 @@ function syncDebug(){
   var PADR = 0.9;                // paddle blade radius, dm
   var REACH_X = 1.45, REACH_FWD = 1.9, REACH_BACK = 0.95, REACH_Z = 1.5;
   // How far up and back a player may stand. y is measured from THEIR end line.
-  var STEP_IN = 2.6, STEP_BACK = 4.0, SIDE_REACH = 1.0;
+  var STEP_IN = 3.6, STEP_BACK = 4.0, SIDE_REACH = 1.0;
   var HOST_HOME = -1.5, GUEST_HOME = TL + 1.5;
   var HOST_MIN = -STEP_BACK, HOST_MAX = STEP_IN;
   var SIM = 8, FSTEP = 20;       // physics step, and the coarser step prediction uses
@@ -3948,7 +3975,12 @@ function syncDebug(){
     var top = clamp(lift * 0.55 + 0.15, -0.7, 0.9);
     var side = clamp((dx || 0) * 0.006, -0.8, 0.8);
     var reach = 3.0 + force * 3.0 - lift * 1.0;       // how far up your own half it pitches
-    var over = 4.0 + force * 4.5 + clamp(lift, 0, 1) * 4.5 + clamp(-lift, 0, 1) * -2.0;
+    // HOW DEEP IT LANDS, with a floor. A soft tap used to pitch about five
+    // units past the net, where the ball dies before any receiver — standing as
+    // far forward as anyone is allowed to stand — can get to it: eight serves
+    // out of eight were unreturnable, and because serves alternate one at a
+    // time from 10-10, a match could not end. One reached 57-56.
+    var over = clamp(6.2 + force * 4.0 + clamp(lift, 0, 1) * 3.6 + clamp(-lift, 0, 1) * -1.4, 5.4, 12.2);
     var ownY = who === 'host' ? reach : TL - reach;
     var oppY = who === 'host' ? clamp(TL / 2 + over, TL / 2 + 1.4, TL - 0.7) : clamp(TL / 2 - over, 0.7, TL / 2 - 1.4);
     var flight = serveLaunch(ownY, oppY, top);
@@ -3974,6 +4006,14 @@ function syncDebug(){
   function endPoint(to, why) {
     if (pointOver) return;
     pointOver = true;
+    // Their tab died a second ago and the ball sailed past a paddle nobody was
+    // holding. That is not a point, it is a disconnection: replay it.
+    if (owner && everHadGuest && !isCpu() && to === 'host'
+        && (why === 'miss' || why === 'double') && Date.now() - lastGuestBeat > 700) {
+      pointOver = false;
+      letServe();
+      return;
+    }
     if (!owner) {
       // A predicted point is only a guess. Hold the ball and let the host say.
       game.vx = 0; game.vy = 0; game.vz = 0;
@@ -4037,7 +4077,11 @@ function syncDebug(){
   // One shared forward simulation answers every question the game asks about
   // where the ball is going: the computer's feet, your paddle's height, and the
   // ring that shows you where it is about to land.
-  function fly(stopAtY, wantBounce) {
+  // pastY: only count a bounce beyond this line. A serve bounces on the
+  // SERVER's half first, so a receiver asking "where will it pitch on my side"
+  // and taking the first bounce it finds positions itself for the wrong ball —
+  // which is most of why serves went unreturned.
+  function fly(stopAtY, wantBounce, pastY) {
     var x = game.bx, y = game.by, z = game.bz;
     var vx = game.vx, vy = game.vy, vz = game.vz;
     var tsp = game.tsp, ssp = game.ssp, t = 0, bounced = 0;
@@ -4052,7 +4096,9 @@ function syncDebug(){
       if (z <= BR && vz < 0 && y > 0 && y < TL && Math.abs(x) <= TW / 2) {
         z = BR; vz = -vz * REST; vy *= 1 + clamp(tsp, -0.9, 0.9) * 0.34; vx += ssp * 0.22;
         tsp *= 0.45; ssp *= 0.55; bounced++;
-        if (wantBounce) return { x: x, y: y, z: z, t: t, bounced: bounced };
+        if (wantBounce && (pastY == null || (dir > 0 ? y > pastY : y < pastY))) {
+          return { x: x, y: y, z: z, t: t, bounced: bounced };
+        }
       }
       if (stopAtY != null && ((dir > 0 && y >= stopAtY) || (dir < 0 && y <= stopAtY))) return { x: x, y: y, z: z, t: t, bounced: bounced };
       if (y < -6 || y > TL + 6 || z < -6) return { x: x, y: y, z: z, t: t, bounced: bounced };
@@ -4083,7 +4129,7 @@ function syncDebug(){
     var toward = !game.serving && game.vy > 0;
     if (toward && !cpu.lastToward) {
       cpu.reactUntil = now + 80 + Math.random() * 110;
-      var f = fly(null, true);
+      var f = fly(null, true, TL / 2);
       var go = Math.random();
       cpu.aimX = clampX((Math.random() < 0.5 ? -1 : 1) * (0.8 + Math.random() * 4.8));
       // It plays the TABLE: a short ball to drag you in, a deep one to push you
@@ -4101,8 +4147,8 @@ function syncDebug(){
       if (cpu.risk) { cpu.aimX = clampX(cpu.aimX * 1.35); cpu.aimDepth = 1.6 + Math.random() * 1.8; }
       // Where the ball is going to pitch decides where it stands: in for a short
       // one, back for a deep one. Same decision the player has to make.
-      var pitch = f.bounced ? (TL - f.y) : 5;
-      cpu.depth = clamp(pitch * 0.42 - 2.4, -STEP_BACK + 0.3, STEP_IN - 0.3);
+      var pitch = (f.bounced && f.y > TL / 2) ? (TL - f.y) : 5;
+      cpu.depth = clamp(pitch * 0.62 - 2.6, -STEP_BACK + 0.3, STEP_IN - 0.3);
     }
     cpu.lastToward = toward;
     var tx = game.guestX, ty = game.guestY;
@@ -4228,6 +4274,18 @@ function syncDebug(){
     put(gst);
   }
 
+  function tap(el, fn) {
+    var at = 0;
+    var go = function (e) {
+      if (Date.now() - at < 400) return;
+      at = Date.now();
+      e.preventDefault(); e.stopPropagation();
+      fn();
+    };
+    el.addEventListener('pointerup', go);
+    el.addEventListener('click', go);
+  }
+
   function bindOverlay() {
     readyBtn.addEventListener('click', function () {
       if (overlayMode === 'match' && owner) { newMatch(); return; }
@@ -4244,13 +4302,16 @@ function syncDebug(){
       else { game.paused = false; game.pausedBy = null; pushGame(); }
       overlay.classList.remove('on');
     });
-    resetBtn.addEventListener('click', function () { if (owner) newMatch(); });
+    // A finger's tap on these was being retargeted to the canvas underneath, so
+    // New game was a painted button on every phone. Take the pointer directly.
+    tap(resetBtn, function () { if (owner) newMatch(); });
     // The hint hides itself after two rallies and there was no way to get it
     // back; the shell's Help button explains app rooms, not table tennis.
-    howBtn.addEventListener('click', function () {
-      hint.classList.toggle('hide');
-      if (!hint.classList.contains('hide')) hitsDone = 0;
+    tap(howBtn, function () {
+      rules_.classList.toggle('on');
+      if (rules_.classList.contains('on')) { hint.classList.add('hide'); hitsDone = 9; }
     });
+    tap(rulesClose, function () { rules_.classList.remove('on'); });
   }
 
   function newMatch() {
@@ -4317,9 +4378,11 @@ function syncDebug(){
     serveDot.classList.toggle('on', !!game.serving && !matchOver());
     if (matchOver()) statusEl.textContent = my > th ? 'You win' : themName() + ' wins';
     else if (game.paused) statusEl.textContent = 'Waiting for ' + themName();
-    else if (servingMe) statusEl.textContent = short() ? 'Your serve - tap' : 'Your serve - tap or swipe';
+    else if (servingMe) statusEl.textContent = (isCpu() && my + th === 0)
+      ? (short() ? 'Tap to serve - or Invite' : 'Tap to serve - or Invite a friend up top')
+      : (short() ? 'Your serve - tap' : 'Your serve - tap or swipe');
     else if (servingThem) statusEl.textContent = themName() + ' to serve';
-    else if (isCpu()) statusEl.textContent = short() ? 'Invite a friend' : 'Invite a friend to play';
+    else if (isCpu()) statusEl.textContent = (game.rally || 0) >= 3 ? game.rally + ' shot rally' : 'Playing the computer';
     else statusEl.textContent = short() ? themName() : 'Playing ' + themName();
     resetBtn.textContent = short() ? 'New' : 'New game';
     canvas.dataset.score = game.hostScore + '-' + game.guestScore;

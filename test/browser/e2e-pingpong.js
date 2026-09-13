@@ -133,11 +133,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // flick: every spin and pace value hit its clamp and the serve flew long,
   // four times out of four.
   const served = [];
+  await frame.evaluate(() => { newMatch(); });
+  await sleep(1000);
   for (let i = 0; i < 4; i++) {
+    // BOUNDED. A match that has reached 11 sets freezeUntil to effectively
+    // forever, and an unbounded wait here never returns: the evaluate hangs,
+    // the suite runs out of time and reports "the page was closed", which looks
+    // like a dead browser and is not one.
     await frame.evaluate(async () => {
-      while (!game.serving || game.serving !== 'host' || Date.now() < freezeUntil) {
+      let guard = 0;
+      while ((!game.serving || game.serving !== 'host' || Date.now() < freezeUntil) && guard++ < 120) {
         await new Promise((r) => setTimeout(r, 60));
       }
+      if (matchOver()) newMatch();
     });
     await app.mouse.move(cx - 60, box.y + box.height * 0.88);
     await app.mouse.down();
