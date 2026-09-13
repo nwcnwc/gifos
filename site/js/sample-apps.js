@@ -3320,9 +3320,13 @@ function syncDebug(){
   // gap on arrival, and again every frame between arrivals.
   function catchUp(ms) {
     var left = clamp(ms, 0, 320);
+    if (left < 25) return;                 // a link this fast needs no help
     var guard = 0;
-    while (left > 0.5 && guard++ < 44) {
-      var d = Math.min(SIM, left);
+    // Coarser than the frame step on purpose: this runs on every arriving
+    // record, and step() sub-steps by ball speed anyway, so the accuracy is
+    // kept without paying for forty function calls seven times a second.
+    while (left > 1 && guard++ < 22) {
+      var d = Math.min(SIM * 2, left);
       left -= d;
       if (game.paused || matchOver() || Date.now() < freezeUntil) break;
       step(d);
