@@ -4069,7 +4069,17 @@ function syncDebug(){
   // ---- the computer ----------------------------------------------------------
   // It plays with feet as well as hands: it steps in on a short ball and backs
   // off a heavy loop, so you are watching an opponent move in three dimensions.
+  // HOW HARD IT PLAYS DEPENDS ON HOW YOU ARE DOING. Three independent people
+  // played this to a finish and not one of them won a match; best was 6-11, and
+  // a phone run went 1-8. A computer that beats every stranger it meets is not
+  // difficulty, it is a wall. It eases off when it is ahead and sharpens when it
+  // is behind — bounded at both ends, so it never becomes a pushover either.
+  function edge() {
+    return clamp((game.guestScore - game.hostScore) / 8, -0.4, 0.55);
+  }
+
   function runCpu(dt, now) {
+    var ease = edge();
     var toward = !game.serving && game.vy > 0;
     if (toward && !cpu.lastToward) {
       cpu.reactUntil = now + 80 + Math.random() * 110;
@@ -4086,7 +4096,7 @@ function syncDebug(){
       // Roughly one ball in eight is a mistake and one in seven is a swing for a
       // winner that may itself go long. A machine that never errs is not an
       // opponent, it is a wall.
-      cpu.miss = go < 0.07;
+      cpu.miss = go < 0.07 + ease * 0.22;
       cpu.risk = go > 0.90;
       if (cpu.risk) { cpu.aimX = clampX(cpu.aimX * 1.35); cpu.aimDepth = 1.6 + Math.random() * 1.8; }
       // Where the ball is going to pitch decides where it stands: in for a short
@@ -4098,7 +4108,7 @@ function syncDebug(){
     var tx = game.guestX, ty = game.guestY;
     if (toward && now >= cpu.reactUntil) {
       var r = fly(GUEST_HOME, false);
-      cpu.err += (Math.random() - 0.5) * 0.16;
+      cpu.err += (Math.random() - 0.5) * (0.16 + ease * 0.34);
       cpu.err *= 0.93;
       tx = clampX(r.x + cpu.err * 1.5);
       ty = clampY(TL - cpu.depth, false);
@@ -4107,7 +4117,7 @@ function syncDebug(){
       ty = clampY(TL + 1.3, false);
       cpu.err *= 0.9;
     }
-    var maxV = (Math.abs(game.vy) > 0.085 ? 0.0165 : 0.021);
+    var maxV = (Math.abs(game.vy) > 0.085 ? 0.0165 : 0.021) * (1 - ease * 0.5);
     var sx = clamp(tx - game.guestX, -maxV * dt, maxV * dt);
     var sy = clamp(ty - game.guestY, -maxV * 0.75 * dt, maxV * 0.75 * dt);
     cpu.vx = sx / dt; cpu.vy = sy / dt;
