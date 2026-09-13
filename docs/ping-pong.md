@@ -1,15 +1,47 @@
 # Ping Pong — Design Document
 
-**Status: design doc; the app SHIPPED (`site/js/sample-apps.js`, Games
-folder) and diverged in the details.** As built: TWO shared records (`game`,
-host-authored, and `guest` — paddle, heartbeat, ready, swing); short field
-names (`sx/sy/sz/sp`, `hostX/hostY/guestX/guestY`); a single pending swing on
-the `guest` record rather than a `swings` queue (captured at pointerdown/up,
-default force 0.5 — hits fire on proximity, not only while pressed); no
-`epoch`, no `resetAt`; timeouts are `STATE_TIMEOUT = 3000` /
-`GUEST_TIMEOUT = 3500` and no `window.online/offline` listener; scores run
-unbounded (no first-to-11 — "New game" resets); and a CPU opponent shipped
-as the default solo mode. The mechanism arguments below still explain WHY the
+**Status: design doc, kept for the arguments. The app SHIPPED
+(`site/js/sample-apps.js`, Games folder) and has since been rebuilt twice; the
+details below are the ORIGINAL plan, not the current code.** What is true now:
+
+- **Two shared records.** `game` (host-authored) and `guest` (paddle, heartbeat,
+  ready, swing, rtt). Short field names: `bx/by/bz`, `vx/vy/vz`, `tsp`/`ssp`
+  (topspin and sidespin, both RELATIVE TO THE BALL'S TRAVEL so the sign does not
+  flip with direction), `hostX/hostY/hostZ`, `guestX/guestY/guestZ`.
+- **Records are versioned** (`v: 2`) and migrated on the stamp, once. Sanitising
+  every arriving record instead is how the guest used to lose the serve after
+  every point: a point ends with the ball past an end line, and the old guard
+  read that as corruption.
+- **The paddle moves in three dimensions.** One finger drives across the table
+  AND up or back from the net (`screenToTable` maps a stretched band of the
+  lower screen onto `[HOST_MIN, STEP_IN]`); paddle height tracks the ball on its
+  own. Where you take the ball IS the shot — early and over the table is flat,
+  fast and deep with the cord a foot away; deep behind the line is a slow loop
+  with clearance to spare. Reaching BEHIND you is half the reach of reaching
+  forward.
+- **Contact quality** is the distance of the ball's path from the middle of the
+  blade at closest approach. It scales pace, placement scatter, and the LIFT you
+  can find to clear the net — so a stretched contact is what puts a ball in the
+  net, and a clean one never does.
+- **Physics runs on a fixed 8 ms step accumulated against the frame clock**, so
+  a busy phone plays the same game a quiet laptop does. The arena, the table and
+  the net are painted into bitmaps at resize and blitted.
+- **The host never adopts an echo of its own writing** (`seq` + `wr` on every
+  record). It used to, and the rewind un-served serves at random.
+- **Latency is measured, not assumed.** The guest stamps each paddle write with
+  a sequence and remembers when it sent it; the host echoes the last one it used
+  as `ack`; the guest turns the round trip into `rtt` and writes it back. The
+  host extrapolates the guest's paddle by (sample age + rtt/2) and widens its
+  reach by the same uncertainty; the guest replays the host's physics locally
+  (`catchUp`) so the ball on its screen is where the ball is, and carries small
+  corrections as a drawing offset that fades rather than a teleport.
+- **Once a person has taken the far end, the computer does not take it back.**
+  A dropped friend holds the ball; giving up on them is a button, not a timer.
+- Scores run to 11, win by 2, serve every two points (every point at 10–10). A
+  net cord on a serve is a let. `test/browser/e2e-pingpong.js` and
+  `e2e-pingpong-2p.js` guard all of the above.
+
+The mechanism arguments below still explain WHY the
 shape is what it is.
 
 A real-time, two-player table-tennis game for GifOS. Each player opens the app, presses **Invite**, and joins from their own phone or computer. Both players see the table from their own end; the host runs the physics and broadcasts state, while the guest sends swing inputs back to the host.
