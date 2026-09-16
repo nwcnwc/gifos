@@ -516,7 +516,16 @@
     // leaves the author's own .assets/ files out; `unpinned` names how many,
     // so a verdict of "valid" can also say what it does not cover.
     const rules = rulesOfSig(sig);
+    // decode() resolves null when it cannot inflate the payload — on a phone,
+    // a half-gigabyte app is exactly where that allocation fails. That is
+    // not tampering: nothing about these bytes was checked. Hashing on with
+    // an empty file list called it TAMPERED, and the store refused a signed
+    // app it could not decompress. Say UNVERIFIED, and say why; the store's
+    // sha256 pin is what holds the bytes to the catalog in that case.
     const archive = await gif.decode(bytes);
+    if (!archive || !archive.files) {
+      return { status: 'unverified', id, type, ts: sig.ts, rules, detail: 'the archive could not be decoded here to check its contents' };
+    }
     const chHex = hex(await contentHash(bytes, rules, archive));
     const unpinned = rules < 2 && archive && archive.files ? unpinnedAssets(archive.files).length : 0;
     const msg = statement(type, id, chHex);

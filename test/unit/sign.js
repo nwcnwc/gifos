@@ -215,6 +215,17 @@ function buildApp(indexHtml, state) {
       check('full verify() says VALID for the email-signed GIF', verdict.status === 'valid' && verdict.id === 'alice@example.com');
       const verdictT = await sign.verify(sign.writeSig(changedApp, sign.readSig(emailSigned)));
       check('full verify() says TAMPERED for altered contents', verdictT.status === 'tampered');
+      // A payload the browser cannot inflate (a phone, a half-gigabyte app)
+      // makes decode() resolve null. That is "could not check", never
+      // "tampered" — the store refused Bible Study 0.7.12 on exactly this.
+      {
+        const realDecode = gif.decode;
+        gif.decode = async () => null;
+        let verdictNoDecode;
+        try { verdictNoDecode = await sign.verify(emailSigned); } finally { gif.decode = realDecode; }
+        check('full verify() says UNVERIFIED, not TAMPERED, when the archive cannot be decoded',
+          verdictNoDecode.status === 'unverified' && /decoded/.test(verdictNoDecode.detail || ''));
+      }
       globalThis.fetch = async () => { throw new Error('offline'); };
       const verdictOff = await sign.verify(emailSigned);
       check('full verify() degrades to UNVERIFIED when the keyserver is unreachable', verdictOff.status === 'unverified');
