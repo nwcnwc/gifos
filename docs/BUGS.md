@@ -4,6 +4,37 @@ This document records concrete security and scalability findings from a
 repository-wide static review. Locations refer to the edge source unless a
 served release is named explicitly.
 
+## Status — 2026-09-16
+
+Every finding below was checked against the code at `5108e8ca` and found
+accurate as a description of what the code does. Six were things earlier
+audits missed; those are FIXED on this branch with regression guards. The
+rest were already recorded in this repo as known, deferred, or accepted
+(`test/batteries/known-unfixed.sh`, `docs/audit-2026-09-02.md`,
+`docs/threat-model.md`), or are hardening ideas rather than defects. The
+reasons stand; they are restated per item so nobody re-derives them.
+
+| Finding | Status | Guard / where the reason lives |
+|---|---|---|
+| Capabilities active before first-run confirmation | **Open — design, worth reversing.** The sheet is an acknowledgement by design (threat-model § 6, SBX-08). The `api`/`ai` brokers are the part that matters: an unacknowledged app can spend a configured provider while the sheet is up. Gating those brokers on the sheet is a contained change and is recommended. | `docs/audit-2026-09-02.md` accepted residuals |
+| API redirects leak custom-header credentials | **FIXED.** `brokerApi` sends `redirect: "error"` (browsers cannot inspect `Location` under `manual`). | `e2e-api.js`: redirect refused, other origin never contacted |
+| Unbound transfer invoices claim a stranger's transfer | **FIXED.** `/transfer/receipt` answers an unbound token `PENDING` without touching the chain; the sheet says binding is required. | `test/unit/pay-transfer-bind.js`; `e2e-pay.js`, `e2e-tip-creators.js` unbound checks |
+| Remote run links allocate up to 1 GiB pre-confirmation | **FIXED (confirm), ceiling kept.** A declared size above 64 MB raises a confirm naming source and size before a byte is buffered; Cancel stores nothing. The 1 GiB ceiling stays: app size is a feature. | `e2e-run-param.js` large-link checks |
+| Brokered API responses have no size ceiling | **FIXED.** `readBodyCapped` at 64 MB. | `e2e-api.js` oversize check |
+| Meeting URL import has no size ceiling | **FIXED.** Streams and refuses past 1 GiB, same as the desktop path. User-initiated, so no confirm. | — (mirrors desktop.js, which is guarded) |
+| Signed-frame verification backlog | Open, low. Relay rate limits and the S4 fill window bound the input; per-sender fairness is an improvement, not a defect. | `docs/audit-2026-09-02.md` WRK/MSH items |
+| Payment and provenance share a signing identity | **FIXED.** The Worker signs with its own key (`pay/gen-key.mjs`), published as `site/gifos-pay.key`; init refuses any other secret. **Needs the secret rotated before the next pay deploy** (see pay/README.md). | `e2e-pay.js`, `e2e-tip-creators.js` verify against `/gifos-pay.key` |
+| Trusted shell CSP incomplete | Open, hardening. GitHub Pages sets no headers; a meta CSP cannot carry `frame-ancestors`. Externalising 13k lines of inline script is a project, not a fix. | `docs/audit-2026-09-02.md` SBX-01 |
+| CyberChef artifacts from a mutable branch | **FIXED.** `vendor.mjs` now VERIFIES against the committed hashes and refuses to touch `vendor/`; `--repin` is the deliberate act and records the gh-pages commit. (Verify is red today: upstream deployed 2026-09-11. The vendored build is the reviewed one.) | `node apps/cyberchef/vendor.mjs` |
+| 5,000-participant join storm | Known, decided 2026-08-05. Diagnosed and solved-but-unshippable (duplicate seats, compaction). | `known-unfixed.sh`, `docs/front3-descent-2026-08-06.md` |
+| Late joiners miss running shared apps | Known, kept as guards. A race, not a missing path; the fix is one control plane. | `known-unfixed.sh`, `docs/app-mesh-unification.md` |
+| PROBLVL = 0 | Known. Measured fix; the sim twin and `mesh.js` must flip together. | `site/js/mesh.js:97` |
+| Meeting history without retention | By design: room-lifetime history, rate-limited. | `docs/meet-security.md` |
+| Subscriptions resend full collections | v1 API shape; delta coalescing already landed (SBX-06). Improvement. | — |
+| Reconnect queue without priority | Open, low. Fair point, not previously recorded. | — |
+| One relay object per room | Architecture as designed; capped at 30 sockets. | `docs/threat-model.md` |
+| Decoration cache unbounded | Open, trivial. Bounded in practice by the apps on a desktop. | — |
+
 ## Security
 
 ### High — capabilities are active before first-run confirmation

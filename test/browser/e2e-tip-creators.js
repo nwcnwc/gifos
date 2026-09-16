@@ -78,6 +78,9 @@ async function until(url, ms) {
     // own /gifos.key -> the throwaway receipt key pay-local signs with.
     route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, body: host === 'gifos.app' ? realKey : receiptPub });
   });
+  // Receipts verify against /gifos-pay.key (the Worker's own key, never the
+  // provenance key above) — pay-local's throwaway stands in for it.
+  await context.route('**/gifos-pay.key', (route) => route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, body: receiptPub }));
 
   const page = await context.newPage();
   page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
@@ -127,7 +130,22 @@ async function until(url, ms) {
   check('the transfer sheet names the treasury address from the SIGNED manifest',
     tSheet.includes(TREASURY), tSheet.replace(/\s+/g, ' ').slice(0, 80));
   const units = String(BigInt(Math.round(Number(exact) * 1e6)));
-  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: TREASURY, value: units }) });
+  // THE PRE-MINT ATTACK, at the shipped app: a stranger's transfer of the
+  // exact dusted amount lands BEFORE the tipper has named a wallet. The
+  // invoice is unbound, so the Worker must not even look — nobody is
+  // thanked, the sheet stays up, and the tipper's own wallet is still asked for.
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: TREASURY, value: units, from: '0x' + '22'.repeat(20) }) });
+  await sleep(4500);
+  check('a stranger\'s exact-amount transfer does NOT complete an UNBOUND invoice',
+    await app.evaluate(() => !!document.getElementById('gifos-pay-transfer')), 'sheet still up');
+  check('…and the sheet says it is waiting for the wallet address, not watching the chain',
+    /Waiting for your wallet address/.test(await app.locator('#gpt-status').textContent()));
+  // The tipper names their wallet; only a transfer FROM it completes the tip.
+  const TIPPER = '0x' + '11'.repeat(20);
+  await app.locator('#gpt-from').fill(TIPPER);
+  await app.locator('#gpt-bind').click();
+  await app.locator('#gpt-bound').filter({ hasText: /Bound to/ }).waitFor({ timeout: 8000 });
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: TREASURY, value: units, from: TIPPER }) });
   await fr.locator('#thanks-line').waitFor({ timeout: 20000 });
   check('the shipped app says thanks, naming the rail\'s own words',
     /went through in USDC/.test(await fr.locator('#thanks-line').textContent()),

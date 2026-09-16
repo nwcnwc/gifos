@@ -42,6 +42,19 @@ function send(res, code, type, body, noCors) {
   res.end(body);
 }
 
+// THE OPEN REDIRECT. /redirect answers 302 to /steal on a DIFFERENT origin
+// (localhost vs 127.0.0.1 — same server, other host name, so the browser
+// treats the hop as cross-origin). /steal counts every request that reaches
+// it and notes whether a credential rode along; /steal-count reports both.
+// The broker must never let a request arrive there at all (runtime.js
+// brokerApi, redirect: 'error'), so the honest number is zero.
+let stealHits = 0, stealWithCred = 0;
+function otherOrigin(req) {
+  const host = String(req.headers.host || ('127.0.0.1:' + PORT));
+  const port = host.split(':')[1] || String(PORT);
+  return (host.indexOf('localhost') === 0 ? 'http://127.0.0.1:' : 'http://localhost:') + port;
+}
+
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
   // /wsonly/* mimics api.deepgram.com's REST: reachable, but NO CORS headers,
@@ -49,6 +62,22 @@ const server = http.createServer((req, res) => {
   const noCors = url.indexOf('/wsonly') === 0;
   if (req.method === 'OPTIONS') return send(res, 204, 'text/plain', '', noCors);
   const auth = req.headers['authorization'] || '';
+  if (url === '/steal-count') return send(res, 200, 'application/json', JSON.stringify({ hits: stealHits, withCredential: stealWithCred }));
+  if (url === '/steal') {
+    stealHits++; if (auth || req.headers['x-api-key']) stealWithCred++;
+    return send(res, 200, 'application/json', JSON.stringify({ stolen: true }));
+  }
+  if (url === '/redirect') {
+    res.writeHead(302, { Location: otherOrigin(req) + '/steal', 'Access-Control-Allow-Origin': '*' });
+    return res.end();
+  }
+  // A response that DECLARES more than the broker's ceiling (runtime.js
+  // API_MAX_BYTES, 64 MB). The body is never sent in full — the broker must
+  // refuse on the header, before reading a byte.
+  if (url === '/big') {
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(65 * 1024 * 1024), 'Access-Control-Allow-Origin': '*' });
+    res.write(Buffer.alloc(1024)); return setTimeout(() => { try { res.destroy(); } catch (e) {} }, 500);
+  }
   // Bare GET at the root is the Settings "Test" probe — answer so a good key
   // reads as reachable and a bad/missing one reads as rejected.
   if (req.method === 'GET' && (url === '/' || url === '' || url === '/wsonly' || url === '/wsonly/')) {

@@ -522,18 +522,28 @@ export function makeCore(cfg) {
     try { inv = await verifyToken(body.token); } catch (e) { return bad(String(e.message || e), 403); }
     if (inv.kind !== 'gifos-pay-invoice') return bad('not an invoice token', 403);
     if (Date.now() > inv.exp) return bad('this invoice expired — start the payment again', 410);
+    // ONLY A BOUND INVOICE CAN BE RECEIPTED. The unbound token /transfer/invoice
+    // hands out still exists (the sheet shows the amount before it asks for
+    // the wallet), and the OS polls with it until the buyer binds — so an
+    // unbound poll is answered PENDING, never with the chain. Answering it
+    // from the chain is the pre-mint attack the comment above describes:
+    // whoever holds a token for a dust value would be signed a stranger's
+    // matching transfer. The chain is not asked, and no receipt is minted,
+    // until the token names the payer.
     const pad = (a) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
+    if (!inv.from || !/^0x[0-9a-f]{40}$/.test(String(inv.from))) return json({ status: 'PENDING', needsPayer: true });
     const logs = await rpc('eth_getLogs', [{
       fromBlock: inv.block, toBlock: 'latest',
       address: inv.asset,
-      topics: [TRANSFER_TOPIC, inv.from ? pad(inv.from) : null, pad(inv.payTo)],
+      topics: [TRANSFER_TOPIC, pad(inv.from), pad(inv.payTo)],
     }]);
     const hit = (logs || []).find((l) => {
       try {
         if (BigInt(l.data) !== BigInt(inv.expected)) return false;
         // The node filtered on topics[1] already; check it here too, so a
         // node that ignores a topic filter cannot widen the binding.
-        if (inv.from && String((l.topics || [])[1] || '').toLowerCase() !== pad(inv.from)) return false;
+        if (String((l.topics || [])[1] || '').toLowerCase() !== pad(inv.from)) return false;
+        if (String((l.topics || [])[2] || '').toLowerCase() !== pad(inv.payTo)) return false;
         return true;
       } catch (e) { return false; }
     });
@@ -543,7 +553,7 @@ export function makeCore(cfg) {
       appId: inv.appId, sku: inv.sku,
       amount: inv.amount,
       payee: inv.payTo,
-      payer: inv.from || null,
+      payer: inv.from,
       tx: hit.transactionHash,
       feeCollected: false,
       at: Date.now(),

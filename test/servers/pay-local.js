@@ -6,7 +6,7 @@
 // because there is one core and two thin wrappers (docs/payments-testing.md).
 //
 // It generates a throwaway Ed25519 keypair at boot and serves the PUBLIC half
-// at GET /test-pubkey — the suite arranges for the OS page's /gifos.key fetch
+// at GET /test-pubkey — the suite arranges for the OS page's /gifos-pay.key fetch
 // to answer with it, standing in for the real key whose private half only
 // Nathan holds. A receipt signed here verifies through the exact same code
 // path a production receipt would.
@@ -62,7 +62,7 @@ const STRIPE_API = process.env.STRIPE_API || 'http://127.0.0.1:8801';
   });
 
   http.createServer(async (req, res) => {
-    // The suite needs the throwaway public key to stand in for /gifos.key.
+    // The suite needs the throwaway public key to stand in for /gifos-pay.key.
     if (req.method === 'GET' && req.url === '/test-pubkey') {
       res.writeHead(200, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
       return res.end(pubB64);

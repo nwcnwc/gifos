@@ -15,7 +15,7 @@ proves about one it proves about the other.
 |---|---|
 | `POST /checkout` | derive the payee from the app's signing identity in the PUBLISHED catalog (never the client), create the PayPal order with the 3% `platform_fees` |
 | `GET /return` | PayPal lands the buyer back here; capture |
-| `GET /receipt/:id?claim=` | PayPal's own answer, wrapped in an Ed25519-signed receipt the OS verifies against `gifos.app/gifos.key` — only to the one-time claim `/checkout` returned, so an order id alone reads nothing |
+| `GET /receipt/:id?claim=` | PayPal's own answer, wrapped in an Ed25519-signed receipt the OS verifies against `gifos.app/gifos-pay.key` — only to the one-time claim `/checkout` returned, so an order id alone reads nothing |
 | `POST /x402/settle` | the standard x402 facilitator wire (verify + settle per transfer of the 97/3 split), same signed-receipt shape |
 | `POST /transfer/invoice` | the wallet-transfer rail (RockWallet + every self-custody wallet): signed stateless invoice, dust-unique amount, catalog payee |
 | `POST /transfer/bind` | re-sign that invoice bound to the payer's wallet address (amount and dust unchanged), so only a transfer FROM that wallet completes it |
@@ -56,7 +56,7 @@ by-hand step:
 cd pay
 npx wrangler deploy
 npx wrangler secret put PAYPAL_CLIENT_SECRET
-npx wrangler secret put GIFOS_PAY_SIGN_JWK    # Ed25519 JWK; its PUBLIC half MUST be site/gifos.key
+npx wrangler secret put GIFOS_PAY_SIGN_JWK < ~/.config/gifos/pay-sign.jwk   # the Worker's OWN key (node pay/gen-key.mjs); public half = site/gifos-pay.key, never site/gifos.key
 # set PAYPAL_CLIENT_ID in the dashboard or wrangler.toml [vars]
 npx wrangler secret put STRIPE_SECRET_KEY     # the agent rail: sk_test_ until the mainnet flag day
 # set STRIPE_PROFILE_ID (profile_test_…, from the Stripe Dashboard → Profile) and

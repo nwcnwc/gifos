@@ -2280,6 +2280,11 @@
         else { bar.classList.remove('busy'); bar.firstChild.style.width = Math.max(0, Math.min(100, Math.round(frac * 100))) + '%'; }
       },
       close() { bg.remove(); },
+      // Step aside for a question (a confirm raised mid-download) and come
+      // back: the busy modal is the only sign the tab is working, so it is
+      // hidden, not destroyed, and show() restores it with its text intact.
+      hide() { bg.style.display = 'none'; },
+      show() { bg.style.display = ''; },
     };
   }
 
@@ -3539,11 +3544,21 @@
   // human error string to show inline (CORS/404/not-a-GIF).
   // Fetch + validate a GIF from a web URL. Returns { bytes, name } or { error }.
   const RUN_MAX_BYTES = 1024 * 1024 * 1024; // 1 GB: the ?run= / add-by-URL download ceiling
+  // Above THIS declared size a ?run= link has to be confirmed before a byte
+  // is buffered. The ceiling is a feature (a half-gigabyte app is real), but
+  // the ceiling is also what a stranger's link can make this tab allocate on
+  // a phone before the download has delivered anything — so a link past this
+  // line names its source and its size and waits for a tap. Small apps, the
+  // common case, open exactly as before.
+  const RUN_CONFIRM_BYTES = 64 * 1024 * 1024;
   // onProgress(got, total) — optional, called as the bytes land. A run-link to
   // a half-gigabyte app is minutes of downloading, and this used to report
   // NOTHING for all of it: the desktop sat there looking idle, which is what a
   // dead link looks like too. Every caller now says something.
-  async function fetchGifFromUrl(raw, onProgress) {
+  // onLarge(total, host) — optional; called ONCE, after the headers and before
+  // any allocation, when the declared size is above RUN_CONFIRM_BYTES. Must
+  // resolve true to continue; anything else cancels the download unread.
+  async function fetchGifFromUrl(raw, onProgress, onLarge) {
     let url;
     try { url = new URL(raw); } catch (e) { return { error: 'That doesn’t look like a web link.' }; }
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return { error: 'Only http(s) links work.' };
@@ -3557,6 +3572,11 @@
       // GIF (the inflate cap is 2 GB−1 on the unpacked side).
       const cl = Number(r.headers.get('content-length'));
       if (cl > RUN_MAX_BYTES) { try { r.body && r.body.cancel(); } catch (e) {} return { error: 'That file is bigger than ' + Math.round(RUN_MAX_BYTES / 1048576) + ' MB — too large to open here.' }; }
+      if (onLarge && cl > RUN_CONFIRM_BYTES) {
+        let ok = false;
+        try { ok = await onLarge(cl, url.host); } catch (e) { ok = false; }
+        if (ok !== true) { try { r.body && r.body.cancel(); } catch (e) {} return { cancelled: true, error: 'Cancelled.' }; }
+      }
       if (r.body && typeof r.body.getReader === 'function') {
         const reader = r.body.getReader();
         // One buffer when the length is declared. Keeping every chunk and
@@ -3672,10 +3692,23 @@
     } catch (e) {}
     const mb = (n) => (n >= 1048576 ? Math.round(n / 1048576) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
     const busy = showBusy('Opening this app', 'Downloading…');
+    // A big one asks first. The link came from a stranger's page; before this
+    // tab buffers hundreds of megabytes on that page's say-so, the person
+    // sees where it comes from and how much it is, and taps. Cancel leaves
+    // nothing behind: no bytes were read, nothing was stored.
+    const confirmLarge = (total, host) => new Promise((resolve) => {
+      busy.hide();
+      showConfirm('Open a large app?',
+        'This link downloads a <b>' + mb(total) + '</b> app from <b>' + escapeHtml(host) + '</b>. ' +
+        'It is kept on this device so it opens offline next time. Continue?',
+        [{ label: 'Download ' + mb(total), fn: () => { busy.show(); resolve(true); } }],
+        () => resolve(false));
+    });
     const r = await fetchGifFromUrl(raw, (got, total) => {
       busy.say(total ? 'Downloading — ' + mb(got) + ' of ' + mb(total) : 'Downloading — ' + mb(got),
         total ? got / total : null);
-    });
+    }, confirmLarge);
+    if (r.cancelled) { busy.close(); return; }
     if (r.error) { busy.close(); showModal('Couldn’t run that link', escapeHtml(r.error)); return; }
     // Storing a half-gigabyte app is where a private/incognito window gives
     // up (tiny storage quota) — that failure must name itself, not vanish as

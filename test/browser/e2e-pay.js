@@ -108,6 +108,9 @@ async function until(url, ms) {
     const body = host === SIGN_DOMAIN ? (appPubB64 || '') : receiptPub;
     route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, body });
   });
+  // Receipts verify against the site's PAY key (/gifos-pay.key — its own,
+  // never the provenance key), which pay-local stands in for.
+  await context.route('**/gifos-pay.key', (route) => route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, body: receiptPub }));
 
   const page = await context.newPage();
   page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
@@ -304,6 +307,13 @@ async function until(url, ms) {
   // The buyer names the wallet they send from: the invoice is re-signed
   // bound to it, and the amount on the sheet does not move.
   const MY_WALLET = '0x' + '11'.repeat(20), OTHER_WALLET = '0x' + '22'.repeat(20);
+  // BEFORE binding, the exact amount from anyone is a stranger's money: an
+  // unbound invoice is never receipted (the pre-minted-dust attack, closed
+  // at the Worker — pay/src/core.js transferReceipt, test/unit/pay-transfer-bind.js).
+  const tUnitsEarly = String(BigInt(Math.round(Number(tExact) * 1e6)));
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: tUnitsEarly, from: OTHER_WALLET }) });
+  await sleep(4000);
+  check('the exact amount arriving while the invoice is UNBOUND is not claimed', await app.evaluate(() => !!document.getElementById('gifos-pay-transfer')));
   await app.locator('#gpt-from').fill(MY_WALLET);
   await app.locator('#gpt-bind').click();
   await app.locator('#gpt-bound').filter({ hasText: /Bound to/ }).waitFor({ timeout: 8000 });
@@ -451,6 +461,7 @@ async function until(url, ms) {
     const host = new URL(route.request().url()).hostname;
     route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, body: host === SIGN_DOMAIN ? appPubB64 : receiptPub });
   });
+  await ctx2.route('**/gifos-pay.key', (route) => route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, body: receiptPub }));
   const fresh = await ctx2.newPage();
   await fresh.goto(BASE + '/index.html');
   await fresh.waitForSelector('.icon', { timeout: 10000 });
@@ -486,6 +497,7 @@ async function until(url, ms) {
     const host = new URL(route.request().url()).hostname;
     route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, body: host === SIGN_DOMAIN ? appPubB64 : receiptPub });
   });
+  await ctx3.route('**/gifos-pay.key', (route) => route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, body: receiptPub }));
   const fresh3 = await ctx3.newPage();
   await fresh3.goto(BASE + '/index.html');
   await fresh3.waitForSelector('.icon', { timeout: 10000 });

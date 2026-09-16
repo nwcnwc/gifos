@@ -14,10 +14,14 @@ workers_dev = false
 #
 # SECRETS (wrangler secret put …): PAYPAL_CLIENT_SECRET, GIFOS_PAY_SIGN_JWK,
 # STRIPE_SECRET_KEY (the agent rail; sk_test_ until the mainnet flag day).
-# GIFOS_PAY_SIGN_JWK's public half MUST be site/gifos.key — the OS verifies
-# every receipt against the site's published key.
+# GIFOS_PAY_SIGN_JWK is the Worker's OWN key (node pay/gen-key.mjs); its public
+# half is site/gifos-pay.key, which the OS verifies every receipt against. It
+# is NOT site/gifos.key: the app-provenance key never enters a Worker
+# (docs/threat-model.md § 2). GIFOS_PAY_PUBKEY below pins the expected public
+# half — init refuses to start with any other secret.
 
 [vars]
+GIFOS_PAY_PUBKEY = "WRwI2n/ztCDo6EsFAHfj0AVc1K2/GywGvNOfaEHW150="   # = site/gifos-pay.key
 PAYPAL_BASE = "https://api-m.sandbox.paypal.com"   # SANDBOX until the mainnet flag day
 TREASURY_EMAIL = "payments@gifos.app"
 TREASURY_ADDRESS = "0x1111111111111111111111111111111111111111"   # the x402 fee leg (Base Sepolia TEST address, = the broker's TREASURY)

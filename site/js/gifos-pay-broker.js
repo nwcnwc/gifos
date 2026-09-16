@@ -16,7 +16,7 @@
  *           (derived — payments@<domain> or the signing email) and hands back
  *           an approval URL. The human finishes in PayPal's own window. Proof
  *           is an Ed25519-signed receipt from the Worker, verified here
- *           against /gifos.key — the purse never takes the browser's word.
+ *           against /gifos-pay.key — the purse never takes the browser's word.
  *   X402    testnet USDC on Base Sepolia. The broker builds the 97/3 split
  *           itself — TWO transfers from ONE approval, no splitter contract —
  *           and hands them to the wallet adapter (GifOS.payWallet) to sign.
@@ -141,16 +141,18 @@
 
   // ---- receipt verification --------------------------------------------------
   // The Worker signs the exact JSON STRING it returns; we verify those UTF-8
-  // bytes against this site's own /gifos.key (the same key that certifies the
-  // app catalog) before a cent is recorded. The purse never takes a redirect's
-  // word — or this page's word — that money moved.
+  // bytes against this site's /gifos-pay.key before a cent is recorded. The
+  // purse never takes a redirect's word — or this page's word — that money
+  // moved. It is the PAY key, not /gifos.key: the app-provenance key never
+  // enters a Worker (docs/threat-model.md § 2), so the Worker signs with a
+  // key of its own, and a Worker compromise can forge receipts but not apps.
   let keyPromise = null;
   function receiptKey() {
-    if (!keyPromise) keyPromise = fetch('/gifos.key').then(async (r) => {
-      if (!r.ok) throw new Error('no /gifos.key on this site (HTTP ' + r.status + ')');
+    if (!keyPromise) keyPromise = fetch('/gifos-pay.key').then(async (r) => {
+      if (!r.ok) throw new Error('no /gifos-pay.key on this site (HTTP ' + r.status + ')');
       const b64 = (await r.text()).trim().replace(/^-----BEGIN[^-]*-----/, '').replace(/-----END[^-]*-----$/, '').trim();
       const bytes = GifOS.sign._b64ToBytes(b64);
-      if (bytes.length !== 32) throw new Error('/gifos.key is not a 32-byte Ed25519 key');
+      if (bytes.length !== 32) throw new Error('/gifos-pay.key is not a 32-byte Ed25519 key');
       return bytes;
     });
     return keyPromise;
@@ -386,9 +388,9 @@
       '<div style="background:#0e0e17;border:1px solid #23233a;border-radius:.6rem;padding:.8rem .9rem;margin-bottom:.9rem">' +
         '<div style="color:#9a9ab5;font-size:.78rem">Sending from (your wallet address)</div>' +
         '<div style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem"><input id="gpt-from" placeholder="0x…" spellcheck="false" style="flex:1;min-width:0;padding:.35rem .5rem;border-radius:.4rem;border:1px solid #2a2a3f;background:#14141f;color:#e8e8f4;font:inherit;font-size:.8rem"><button id="gpt-bind" style="padding:.3rem .7rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.78rem">Bind</button></div>' +
-        '<div id="gpt-bound" style="color:#9a9ab5;font-size:.78rem;margin-top:.4rem">Naming your wallet ties this payment to you: only a transfer from that address can complete it, and nobody else\'s can be mistaken for yours.</div>' +
+        '<div id="gpt-bound" style="color:#9a9ab5;font-size:.78rem;margin-top:.4rem">Name the wallet you are sending from FIRST — the payment is watched for only after that, and only a transfer from that address can complete it. Nobody else can claim it.</div>' +
       '</div>' +
-      '<p id="gpt-status" style="color:#b6b6cf;font-size:.86rem;margin:0 0 .8rem">Watching for your transfer…</p>' +
+      '<p id="gpt-status" style="color:#b6b6cf;font-size:.86rem;margin:0 0 .8rem">Waiting for your wallet address (above) before watching for the transfer.</p>' +
       '<div style="text-align:right"><button id="gpt-cancel" style="padding:.5rem 1.2rem;border-radius:.5rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">Cancel</button></div>';
     bg.appendChild(box); doc.body.appendChild(bg);
     for (const b of box.querySelectorAll('.gpt-copy')) b.onclick = () => { try { root.navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; } catch (e) {} };
@@ -404,6 +406,7 @@
       api.onBind(from).then(() => {
         fromIn.disabled = true;
         bound.textContent = 'Bound to ' + from.slice(0, 6) + '…' + from.slice(-4) + ' — only a transfer from that wallet completes this payment.';
+        const st = box.querySelector('#gpt-status'); if (st) st.textContent = 'Watching for your transfer…';
       }, (e) => { bindBtn.disabled = false; bound.textContent = String(e && e.message || e); });
     };
     return api;
@@ -419,7 +422,10 @@
     const inv = await r.json();
     const ui = showTransferSheet(inv);
     // Binding re-signs the same invoice with the payer's address (amount and
-    // dust unchanged); the poll below reads inv.token, so it follows.
+    // dust unchanged); the poll below reads inv.token, so it follows. It is
+    // REQUIRED: the Worker answers an unbound token PENDING without looking
+    // at the chain (pay/src/core.js transferReceipt), so nothing completes —
+    // not even the buyer's own transfer — until the wallet is named.
     ui.onBind = async (from) => {
       const rb = await fetch(base + '/transfer/bind', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },

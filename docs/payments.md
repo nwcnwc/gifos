@@ -563,10 +563,16 @@ Cloudflare Worker beside relay, cors-proxy and mirror:
 | `GET /receipt/:id?claim=` | ask PayPal for the order (capturing it if the return page never did) and, only when the claim matches the tag the order was minted with, return an **Ed25519-signed receipt**, verifiable against `gifos.app/gifos.key`. PayPal's own answer is the only proof money moved — there is no webhook and no store of ours |
 
 The signed receipt is the load-bearing piece. The Worker signs
-`{appId, sku, amount, payee, at, nonce}` with the same key infrastructure
-`gifos-sign.js` already uses for apps, so **the purse never takes the browser's
-word that a payment happened**, and both rails hand the OS the same shape of
-verifiable object — on-chain proof on one, a gifos.app signature on the other.
+`{appId, sku, amount, payee, at, nonce}` with the same Ed25519 machinery
+`gifos-sign.js` already uses for apps — but with **its own key**, published
+as `site/gifos-pay.key`, never the app-provenance key `site/gifos.key`. The
+provenance private key never enters a Worker (threat-model § 2); the pay key
+lives in a Worker secret by necessity, so a pay-Worker compromise can forge
+receipts but not domain-signed apps. (`pay/gen-key.mjs` mints it, and the
+Worker refuses to start with a secret whose public half is not
+`GIFOS_PAY_PUBKEY`.) So **the purse never takes the browser's word that a
+payment happened**, and both rails hand the OS the same shape of verifiable
+object — on-chain proof on one, a gifos.app signature on the other.
 It is also the answer to the roadmap's open question about restoring purchases
 on a new device without accounts: the receipt IS the portable proof.
 

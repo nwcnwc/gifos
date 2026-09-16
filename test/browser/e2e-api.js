@@ -127,7 +127,7 @@ const API_CFG = JSON.stringify({
 
   // ---- a capability app that calls gifos.api ----
   await page.evaluate(async () => {
-    const html = '<!doctype html><meta charset="utf-8"><div id="ok">…</div><div id="deny">…</div><div id="host">…</div><div id="proxy">…</div><div id="case">…</div><div id="ready">…</div>' +
+    const html = '<!doctype html><meta charset="utf-8"><div id="ok">…</div><div id="deny">…</div><div id="host">…</div><div id="proxy">…</div><div id="case">…</div><div id="ready">…</div><div id="redir">…</div><div id="big">…</div>' +
       '<script>(async function(){' +
       // 1) declared API round-trips: parsed JSON back, key never visible here.
       //    "deepgram" + POST /v1/listen rides the NATIVE WebSocket door — the
@@ -155,6 +155,14 @@ const API_CFG = JSON.stringify({
       '  try { var rdy = await gifos.apiReady("mixedcase");' +
       '        document.getElementById("ready").textContent = "ready:" + rdy; }' +
       '  catch(e){ document.getElementById("ready").textContent = "ready:ERR:"+e.message; }' +
+      // 6) an OPEN REDIRECT on the configured host must not carry the key off
+      //    it: the broker refuses the hop, so the call fails and /steal on
+      //    the other origin never hears from us (asserted from the fake).
+      '  try { var rd = await gifos.api("deepgram", { path:"/redirect", as:"text" }); document.getElementById("redir").textContent = "redir:FOLLOWED:" + rd.status; }' +
+      '  catch(e){ document.getElementById("redir").textContent = "redir:" + (/UNREACHABLE|redirect/i.test(e.message)?"refused":e.message); }' +
+      // 7) a response DECLARING more than the ceiling is refused on the header.
+      '  try { var bg = await gifos.api("deepgram", { path:"/big", as:"bytes" }); document.getElementById("big").textContent = "big:READ:" + (bg.bytes?bg.bytes.byteLength:-1); }' +
+      '  catch(e){ document.getElementById("big").textContent = "big:" + (/TOO_LARGE/.test(e.message)?"capped":e.message); }' +
       '})();<\/script>';
     const bytes = await GifOS.gif.encode({
       'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'apitest', name: 'ApiTest', entry: 'index.html', capabilities: { db: true, api: ['deepgram', 'deepgramp', 'mixedcase'] } }),
@@ -199,6 +207,23 @@ const API_CFG = JSON.stringify({
   const rdy = await fr.locator('#ready').textContent();
   check('…and apiReady() agrees, so an app cannot be told to set up what is already set up',
     /^ready:true$/.test(rdy), rdy);
+
+  // ---- credentials never cross a redirect ----
+  // Browsers strip Authorization on a cross-origin redirect but KEEP custom
+  // credential headers (x-api-key) and anything in the URL; an open redirect
+  // on the configured API host was a path off it for the key. The broker now
+  // refuses every redirect, so the call fails AND nothing reaches the other
+  // origin. The fake's /steal counter is the proof that matters.
+  await fr.locator('#redir').filter({ hasText: /redir:/ }).waitFor({ timeout: 8000 });
+  const redir = await fr.locator('#redir').textContent();
+  check('an API response that REDIRECTS is refused (the key does not follow a hop)', /^redir:refused$/.test(redir), redir);
+  const steal = await (await fetch(API + '/steal-count')).json();
+  check('…and the redirect target on the other origin was never contacted', steal.hits === 0, JSON.stringify(steal));
+
+  // ---- responses are capped while they stream ----
+  await fr.locator('#big').filter({ hasText: /big:/ }).waitFor({ timeout: 8000 });
+  const big = await fr.locator('#big').textContent();
+  check('a response declaring more than the API ceiling is refused on the header, unread', /^big:capped$/.test(big), big);
 
   await app.close();
   await browser.close();

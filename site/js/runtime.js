@@ -705,6 +705,12 @@
   // reach is decided entirely by the declared-and-user-approved host allowlist —
   // never by what the bytes happen to contain.
   const FETCH_MAX_BYTES = 8 * 1024 * 1024; // 8 MB response ceiling
+  // The third-party-API broker's own ceiling. Larger than the plain bridge's
+  // because a configured API is a party the USER chose (a transcript, a
+  // rendered image, a document) — but bounded, because the app chooses the
+  // path and a malicious app can point a 'bytes' request at the largest
+  // thing the API serves. Read through readBodyCapped like everything else.
+  const API_MAX_BYTES = 64 * 1024 * 1024; // 64 MB
   // Read a response body up to `max` bytes and refuse past it — WHILE it
   // streams, not after arrayBuffer() has already pulled the whole thing into
   // this tab. A Content-Length beyond the cap is refused before a byte is read.
@@ -2935,7 +2941,16 @@
         && method === 'POST' && /\/v1\/listen(\/|$)/.test(u.pathname)) {
       return deepgramListenWS(u, key, body, d, baseOrigin);
     }
-    const init = { method, headers };
+    // NO REDIRECTS. Host-pinning above proved the FIRST hop stays on the
+    // configured origin; a redirect is a second hop the API chooses, and a
+    // browser keeps a custom credential header (x-api-key, or a ?key= the
+    // API host reflects into its Location) across a cross-origin redirect —
+    // only Authorization is stripped. An open redirect on the API host would
+    // therefore have carried the key to any origin an app named. 'manual' is
+    // no use in a browser (an opaque redirect, no Location to inspect), so the
+    // broker refuses redirects outright: the credential goes to the host the
+    // user configured, and nowhere else, on every hop there is.
+    const init = { method, headers, redirect: 'error' };
     if (method !== 'GET' && method !== 'HEAD' && body != null) init.body = body;
     // Server-only APIs (Deepgram's REST, …) send no CORS headers, so a direct
     // browser fetch is blocked. If the user turned on a CORS proxy for this API,
@@ -2948,13 +2963,22 @@
       headers['x-gifos-target'] = fetchUrl;
       fetchUrl = pbase + '/';
     }
+    let tooLarge = false;
     return root.fetch(fetchUrl, init).then((r) => {
       const ct = r.headers.get('content-type') || '';
       const as = d.as || (/json/.test(ct) ? 'json' : 'text');
       const meta = { status: r.status, ok: r.ok, contentType: ct };
-      if (as === 'bytes') return r.arrayBuffer().then((buf) => Object.assign(meta, { bytes: buf, mime: ct }));
-      return r.text().then((t) => { if (as === 'json') { try { return Object.assign(meta, { json: JSON.parse(t) }); } catch (e) { /* not json */ } } return Object.assign(meta, { text: t }); });
+      // Capped WHILE it streams (never arrayBuffer()/text() on an unbounded
+      // body): the app picks the path, so the app could pick the largest
+      // object the API serves and take the tab down with it.
+      return readBodyCapped(r, API_MAX_BYTES).catch((e) => { tooLarge = true; throw e; }).then((buf) => {
+        if (as === 'bytes') return Object.assign(meta, { bytes: buf, mime: ct });
+        const t = new TextDecoder().decode(buf);
+        if (as === 'json') { try { return Object.assign(meta, { json: JSON.parse(t) }); } catch (e) { /* not json */ } }
+        return Object.assign(meta, { text: t });
+      });
     }).catch((e) => {
+      if (tooLarge) throw new Error('TOO_LARGE: the "' + name + '" response is bigger than ' + Math.round(API_MAX_BYTES / 1048576) + ' MB — ask for less, or for a range.');
       // A dead network is not a missing key. fetch throws the same bare
       // TypeError ("Failed to fetch") for airplane mode, a down host and a
       // CORS block — and apps relayed it to players as "check your key",
@@ -2964,7 +2988,13 @@
       if (root.navigator && root.navigator.onLine === false) {
         throw new Error('OFFLINE: you are offline — "' + name + '" is set up; it will work when the connection returns.');
       }
-      throw new Error('UNREACHABLE: could not reach ' + baseOrigin + ' — the "' + name + '" entry is set up; this is a network problem, not a key problem.');
+      // A redirect surfaces as the same bare TypeError as a dead network, and
+      // it is neither an outage nor a key problem: the API answered, with a
+      // hop this broker will not take. Say so, so an app does not tell the
+      // player to check their connection. (Checked AFTER offline, before the
+      // generic text: a redirect cannot be told from CORS by the error alone,
+      // so the text names both readings.)
+      throw new Error('UNREACHABLE: could not reach ' + baseOrigin + ' — the "' + name + '" entry is set up; this is a network problem, not a key problem. (A response that REDIRECTED is refused the same way: the key travels only to the configured host.)');
     });
   }
 

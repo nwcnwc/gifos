@@ -30,6 +30,7 @@ workers — is denied by default and granted narrowly.
 | The user's device | The browser/OS running GifOS | An app must not pivot from "runs in a tab" to "attacks the machine" |
 | The GifOS first-party origin(s) | `gifos.app`, `relay.gifos.app`, `cors-proxy.gifos.app`, the mirror computers (`0–9` and the named subdomains in `mirror/wrangler.toml`) | A malicious app must not use us as a proxy or reach our own services |
 | Provenance private keys | The signer's own machine — **never** in client JS, the repo, GitHub Actions secrets, Workers, or any AI channel | If a signing key leaks, authorship claims become forgeable |
+| The pay Worker's receipt key | A Cloudflare secret, by necessity — a **separate** Ed25519 key (`pay/gen-key.mjs`), public half at `site/gifos-pay.key`; never the provenance key | A pay-Worker compromise can forge receipts (bounded, test rails) but must not be able to forge domain-signed apps |
 | The relay | A stateless Cloudflare Worker | It must stay a dumb, cheap pipe — no data at rest, no media |
 | Live media | Camera/mic in video calls | Media must stay peer-to-peer and consented; it must never transit our servers |
 

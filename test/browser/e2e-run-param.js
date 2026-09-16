@@ -77,6 +77,43 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check('the GIF was dropped into Stolen Apps (parent = sys_stolen)', filed && filed.parent === 'sys_stolen', JSON.stringify(filed));
     check('the Stolen Apps icon is visible on the desktop', (await p2.locator('.icon', { hasText: 'Stolen Apps' }).count()) >= 1);
 
+    // ---- A BIG ONE ASKS FIRST -------------------------------------------------
+    // A run-link is a stranger's page telling this tab to download. Below
+    // RUN_CONFIRM_BYTES that happens silently (above); at a declared size past
+    // it, the desktop names the source and the size and waits for a tap,
+    // BEFORE a byte is buffered — a lying Content-Length on a phone is what
+    // this closes. Cancel must leave nothing behind.
+    // A real server, not route.fulfill: Playwright rewrites Content-Length to
+    // the body it was handed, and the whole point is a header that PROMISES
+    // 200 MB while delivering almost nothing.
+    const http = require('http');
+    let bigBodyRequested = 0;
+    const bigSrv = http.createServer((req, res) => {
+      bigBodyRequested++;
+      res.writeHead(200, { 'Content-Type': 'image/gif', 'Content-Length': String(200 * 1024 * 1024), 'Access-Control-Allow-Origin': '*' });
+      res.write('GIF89a'); // …and then nothing: the tab must not be waiting on this
+    });
+    await new Promise((r) => bigSrv.listen(0, '127.0.0.1', r));
+    const bigUrl = 'http://127.0.0.1:' + bigSrv.address().port + '/__big-test.gif';
+    const pBig = await context.newPage();
+    pBig.on('pageerror', (e) => console.log('  [big pageerror]', e.message));
+    await pBig.goto(BASE + '/index.html?run=' + encodeURIComponent(bigUrl));
+    const confirmBox = pBig.locator('.modal', { hasText: /Open a large app\?/ });
+    await confirmBox.waitFor({ timeout: 10000 }).catch(() => {});
+    const confirmText = (await confirmBox.count()) ? await confirmBox.textContent() : '';
+    check('a run-link declaring a large size asks before downloading', /Open a large app/.test(confirmText), confirmText.slice(0, 120));
+    check('…naming the size and the source host', /200 MB/.test(confirmText) && /127\.0\.0\.1/.test(confirmText), confirmText.slice(0, 160));
+    await confirmBox.locator('button', { hasText: 'Cancel' }).click().catch(() => {});
+    await sleep(800);
+    check('Cancel leaves the desktop, not the room page', !/run\.html/.test(pBig.url()), pBig.url());
+    const bigFiled = await pBig.evaluate(async () => (await GifOS.store.allItems()).some((i) => i.name === '__big-test.gif'));
+    check('…and nothing was stored', bigFiled === false);
+    check('…and the address bar dropped the link (a refresh will not re-ask)', !/[?&]run=/.test(pBig.url()), pBig.url());
+    check('the server was asked exactly once (the confirm came from the headers, not a retry)', bigBodyRequested === 1, String(bigBodyRequested));
+    await pBig.close();
+    bigSrv.closeAllConnections && bigSrv.closeAllConnections();
+    bigSrv.close();
+
     // ---- THE STRANGER'S PATH: a run-link through the version redirect ------
     // Everything above runs at the ROOT build, where the channel loader stays
     // put — which is every case EXCEPT the one this link exists for. A person

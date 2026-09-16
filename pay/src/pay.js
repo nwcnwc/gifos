@@ -34,16 +34,29 @@
  *   MPP_SECRET             (secret, optional) HMAC key binding MPP challenge
  *                          ids; derived from STRIPE_SECRET_KEY when unset
  *   GIFOS_PAY_SIGN_JWK     Ed25519 private key as a JWK JSON string (wrangler
- *                          secret; its PUBLIC half must be site/gifos.key —
- *                          receipts verify against the site's published key)
+ *                          secret; its PUBLIC half is site/gifos-pay.key —
+ *                          receipts verify against that published key). It
+ *                          is the Worker's OWN key (pay/gen-key.mjs), never
+ *                          the app-provenance key: docs/threat-model.md § 2.
+ *   GIFOS_PAY_PUBKEY       (var) the base64 public half this deployment is
+ *                          expected to sign with — init refuses a secret whose
+ *                          public half differs, so a stale or wrong key (the
+ *                          provenance key, an old rotation) cannot go live.
  *
  * No storage bindings on purpose: the Worker is stateless (see core.js).
  */
 import { makeCore } from './core.js';
 
 let handler = null;
+const b64uToB64 = (s) => { s = String(s || '').replace(/-/g, '+').replace(/_/g, '/'); return s + '='.repeat((4 - (s.length % 4)) % 4); };
 async function init(env) {
   const jwk = JSON.parse(env.GIFOS_PAY_SIGN_JWK);
+  // The secret must be THE pay key. A deployment that signs with anything
+  // else — most dangerously the app-provenance key that once stood in for it —
+  // does not start. (JWK x is base64url; the published file is plain base64.)
+  if (env.GIFOS_PAY_PUBKEY && b64uToB64(jwk.x) !== String(env.GIFOS_PAY_PUBKEY).trim()) {
+    throw new Error('GIFOS_PAY_SIGN_JWK is not the pay key: its public half does not match GIFOS_PAY_PUBKEY (site/gifos-pay.key). See pay/gen-key.mjs.');
+  }
   const privateKey = await crypto.subtle.importKey('jwk', jwk, { name: 'Ed25519' }, false, ['sign']);
   // The PUBLIC half verifies this Worker's own stateless invoice tokens.
   const publicKey = await crypto.subtle.importKey('jwk', { kty: jwk.kty, crv: jwk.crv, x: jwk.x }, { name: 'Ed25519' }, false, ['verify']);
