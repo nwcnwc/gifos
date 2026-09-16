@@ -268,6 +268,31 @@ function parseGifUrl(raw, slug) {
   return u.href;
 }
 
+// CREDITS UNDER THE SEAL, for a GIF hosted by its author. sign-apps.mjs
+// rewrites a local GIF's credits.json to match its listing and reports the
+// state in dry-run; a release pinned by gifUrl cannot be rewritten here, and
+// CI does not fetch it (--skip-remote-gifs). So the one place that does hold
+// the bytes — a write build, which fetches and hashes them — checks the
+// sealed credits against the listing, refuses a mismatch, and records the
+// verdict in app.json, where the dry-run reads it. Streamed, one file at a
+// time: a half-gigabyte app is not decoded whole to read one small file.
+async function sealedCreditsState(slug, l, bytes) {
+  const want = creditsJson(l, slug);
+  const gif = globalThis.GifOS && globalThis.GifOS.gif;
+  let have = null;
+  try {
+    const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const r = gif && gif.readFilesFrom ? await gif.readFilesFrom(u8, async (p, data) => { if (p === CREDITS_PATH) have = Buffer.from(data).toString('utf8'); }) : null;
+    if (!r) {
+      const archive = gif ? await gif.decode(u8) : null;
+      if (!archive || !archive.files) return 'unreadable';
+      have = archive.files[CREDITS_PATH] ? Buffer.from(archive.files[CREDITS_PATH]).toString('utf8') : null;
+    }
+  } catch (e) { return 'unreadable'; }
+  if (have === null) return 'missing';
+  return have === want ? 'ok' : 'stale';
+}
+
 async function loadListedGif(slug, l, gifPath) {
   const remote = typeof l.gifUrl === 'string' ? l.gifUrl.trim() : '';
   const local = fs.existsSync(gifPath);
@@ -311,7 +336,7 @@ async function loadListedGif(slug, l, gifPath) {
       fail(slug + ': --skip-remote-gifs but app.json does not match listing.gifUrl/gifSha256/gifBytes — fetch once with a plain catalog build');
       return null;
     }
-    return { gifBytes: null, gifHref: href, sha256: wantSha, bytes: wantBytes, claim: prev.signature || null, skipped: true };
+    return { gifBytes: null, gifHref: href, sha256: wantSha, bytes: wantBytes, claim: prev.signature || null, credits: prev.credits || null, skipped: true };
   }
   let gifBytes;
   try {
@@ -331,7 +356,12 @@ async function loadListedGif(slug, l, gifPath) {
     fail(slug + ': gifUrl is ' + gifBytes.length + ' bytes, listing.gifBytes is ' + wantBytes);
     return null;
   }
-  return { gifBytes, gifHref: href, sha256: gotSha, bytes: gifBytes.length };
+  const credits = await sealedCreditsState(slug, l, gifBytes);
+  if (credits !== 'ok') {
+    fail(slug + ': the sealed credits.json in the release is ' + credits + ' against this listing — the author must re-seal and re-release (a hosted GIF cannot be rewritten here)');
+    return null;
+  }
+  return { gifBytes, gifHref: href, sha256: gotSha, bytes: gifBytes.length, credits };
 }
 
 // crop: optional { top, bottom, left, right } in the SOURCE image's own pixels.
@@ -711,6 +741,9 @@ async function buildApp(slug) {
     pay: (m.pay && typeof m.pay.to === 'string') ? { to: m.pay.to } : null,
     sha256: gifBytes ? crypto.createHash('sha256').update(gifBytes).digest('hex') : loaded.sha256,
     signature: claim,
+    // A hosted release's sealed credits, checked against the listing when the
+    // bytes were fetched (sealedCreditsState); sign-apps --dry-run reports it.
+    ...(loaded.credits ? { credits: loaded.credits } : {}),
   };
   if (porter) rec.porter = porter;
   if (based) rec.basedOn = based;

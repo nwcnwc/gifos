@@ -167,7 +167,16 @@ if (DRY) {
   for (const slug of slugs) {
     const gifPath = path.join(OUT, slug, slug + '.gif');
     const listing = JSON.parse(fs.readFileSync(path.join(SRC, slug, 'listing.json'), 'utf8'));
-    if (listing.gifUrl) { console.log(slug + '\tgifUrl\t' + listing.gifUrl); continue; }
+    if (listing.gifUrl) {
+      // A release hosted by its author: the catalog build that fetched the
+      // pinned bytes checked the sealed credits against the listing and wrote
+      // the verdict into app.json (build-app-catalog.mjs sealedCreditsState).
+      let rec = null;
+      try { rec = JSON.parse(fs.readFileSync(path.join(OUT, slug, 'app.json'), 'utf8')); } catch (e) { rec = null; }
+      const state = rec && rec.credits ? rec.credits : 'unpinned';
+      console.log(slug + '\tgifUrl\tcredits:' + state + (state === 'ok' ? '' : '\t' + listing.gifUrl));
+      continue;
+    }
     if (!fs.existsSync(gifPath)) { console.log(slug + '\tMISSING ' + path.relative(ROOT, gifPath)); continue; }
     const raw = fs.readFileSync(gifPath);
     const claim = claimOf(raw);
