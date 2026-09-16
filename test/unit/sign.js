@@ -215,16 +215,70 @@ function buildApp(indexHtml, state) {
       check('full verify() says VALID for the email-signed GIF', verdict.status === 'valid' && verdict.id === 'alice@example.com');
       const verdictT = await sign.verify(sign.writeSig(changedApp, sign.readSig(emailSigned)));
       check('full verify() says TAMPERED for altered contents', verdictT.status === 'tampered');
-      // A payload the browser cannot inflate (a phone, a half-gigabyte app)
-      // makes decode() resolve null. That is "could not check", never
-      // "tampered" — the store refused Bible Study 0.7.12 on exactly this.
+      // A legacy (v1) archive the browser cannot inflate makes decode()
+      // resolve null. That is "could not check", never "tampered" — the
+      // store refused Bible Study 0.7.12 on exactly this verdict.
       {
         const realDecode = gif.decode;
         gif.decode = async () => null;
         let verdictNoDecode;
         try { verdictNoDecode = await sign.verify(emailSigned); } finally { gif.decode = realDecode; }
-        check('full verify() says UNVERIFIED, not TAMPERED, when the archive cannot be decoded',
+        check('full verify() says UNVERIFIED, not TAMPERED, when a v1 archive cannot be decoded',
           verdictNoDecode.status === 'unverified' && /decoded/.test(verdictNoDecode.detail || ''));
+      }
+
+      // ---- the streamed digest: one file in memory at a time ----
+      // A v2 archive is hashed as it streams off the decompressor, so a
+      // half-gigabyte app verifies on a phone that could never hold it
+      // inflated. The digest must be the one filesDigestOf builds from a
+      // decoded archive — under both rule sets — or every signed app breaks.
+      {
+        const big = new Uint8Array(3 * 1024 * 1024 + 777);            // spans several 1 MB stream chunks
+        for (let i = 0; i < big.length; i++) big[i] = (i * 31 + (i >> 9)) & 0xff;
+        const pinnedSha = Buffer.from(await crypto.subtle.digest('SHA-256', Buffer.from('pinned download'))).toString('hex');
+        const files = {
+          'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'streamed', name: 'Streamed', entry: 'index.html', minBuild: 2200,
+            assets: [{ path: 'dl/model.bin', sha256: pinnedSha }] }),
+          'index.html': '<h1>streamed</h1>',
+          'js/app.js': 'console.log(1)',
+          'big.bin': big,
+          'empty.txt': '',
+          '.assets/dl/model.bin': 'pinned download',
+          '.assets/own/pack.gbx': 'sealed by the author, pinned by nothing',
+          '.state/db.json': JSON.stringify({ x: 1 }),
+        };
+        const v2 = await gif.encode(files, { archive: 2 });
+        const arc = await gif.decode(v2);
+        check('the v2 test app decodes', !!(arc && arc.files && arc.files['big.bin'] && arc.files['big.bin'].length === big.length));
+        const streamed = await sign._hashFilesFrom(v2);
+        check('readFilesFrom hands over every file, the empty one included', !!streamed && streamed.paths.length === 8 && streamed.hashes['empty.txt']);
+        for (const rules of [1, 2]) {
+          const a = Buffer.from(await sign._filesDigestOf(arc.files, rules)).toString('hex');
+          const b = Buffer.from(await sign._digestFromHashes(streamed.hashes, streamed.manifest, rules)).toString('hex');
+          check('streamed digest equals the decoded digest under rules v' + rules, a === b);
+        }
+        const kp = await sign.generateDomainKey();
+        const signedV2 = await sign.signDomain(v2, 'example-signer.com', kp.keyPair, '2026-09-16');
+        const pubB64 = kp.publicKeyB64;
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = async (url) => ({ ok: true, status: 200, body: null, text: async () => pubB64, arrayBuffer: async () => Buffer.from(pubB64) });
+        const realDecode = gif.decode;
+        try {
+          gif.decode = async () => { throw new Error('decode must not be needed for a v2 app'); };
+          const v = await sign.verify(signedV2);
+          check('a signed v2 app verifies VALID with the whole-archive decode unavailable', v.status === 'valid' && v.rules === 2);
+          const swapped = Object.assign({}, files, { '.assets/own/pack.gbx': 'swapped pack' });
+          const vT = await sign.verify(sign.writeSig(await gif.encode(swapped, { archive: 2 }), sign.readSig(signedV2)));
+          check('a swapped author-sealed asset is TAMPERED through the streamed digest', vT.status === 'tampered');
+          // repack() writes the default archive version; keep this app v2 so
+          // the state save stays on the streamed path.
+          gif.setArchiveVersion(2);
+          let stateOnly;
+          try { stateOnly = await gif.repack(signedV2, Object.assign({}, files, { '.state/db.json': JSON.stringify({ x: 2 }) })); }
+          finally { gif.setArchiveVersion(1); }
+          const vS = await sign.verify(stateOnly);
+          check('a state change survives verification through the streamed digest', vS.status === 'valid');
+        } finally { gif.decode = realDecode; globalThis.fetch = realFetch; }
       }
       globalThis.fetch = async () => { throw new Error('offline'); };
       const verdictOff = await sign.verify(emailSigned);

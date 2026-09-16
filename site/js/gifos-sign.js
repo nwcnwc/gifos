@@ -121,18 +121,46 @@
   const RULES_CURRENT = 2;
   const rulesOf = (r) => (r === 1 || r === '1' ? 1 : RULES_CURRENT);
   const rulesOfSig = (sig) => (Number(sig && sig.v) >= 2 ? 2 : 1);
-  async function filesDigestOf(files, rules) {
-    const pinned = rules >= 2 ? pinnedAssetPaths(files) : null;
+  // The digest is composed from per-file hashes, so it can be built two ways
+  // that must agree: from a decoded archive (filesDigestOf) or from files
+  // hashed one at a time as they stream off the decompressor (hashFilesFrom +
+  // digestFromHashes). The second is how a phone verifies a half-gigabyte app.
+  async function digestFromHashes(hashes, manifestBytes, rules) {
+    const pinned = rules >= 2 ? pinnedAssetPaths({ 'manifest.json': manifestBytes }) : null;
     const parts = [];
-    for (const path of Object.keys(files).sort()) {
+    for (const path of Object.keys(hashes).sort()) {
       if (path.indexOf('.state/') === 0) continue;  // volatile — never signed
       if (path.indexOf('.lock/') === 0) continue;   // passkey wrap of that volatile state — never signed
       if (path.indexOf('.assets/') === 0 && (rules < 2 || pinned[path])) continue; // OS-sealed download, pinned by the signed manifest (v1: every .assets/ file)
       parts.push(te(path + '\0'));
-      parts.push(await sha256(files[path]));
+      parts.push(hashes[path]);
       parts.push(te('\n'));
     }
     return sha256(concat(parts));
+  }
+  async function filesDigestOf(files, rules) {
+    const hashes = Object.create(null);
+    for (const path of Object.keys(files)) hashes[path] = await sha256(files[path]);
+    return digestFromHashes(hashes, files['manifest.json'], rules);
+  }
+  // Every file's sha256, and the manifest's bytes, without ever holding the
+  // inflated archive: gif.readFilesFrom hands each file over as it completes.
+  // Null when the archive is not v2 (legacy, small — decode() handles it).
+  async function hashFilesFrom(bytes) {
+    if (!gif.readFilesFrom) return null;
+    const hashes = Object.create(null);
+    let manifest = null;
+    const r = await gif.readFilesFrom(bytes, async (path, data) => {
+      if (path === 'manifest.json') manifest = data;
+      hashes[path] = await sha256(data);
+    });
+    if (!r) { if (root.GIFOS_DEBUG) console.error('hashFilesFrom: the stream could not read this archive'); return null; }
+    return { hashes, manifest, paths: Object.keys(hashes) };
+  }
+  // .assets/ files a v1 digest leaves out, from streamed paths.
+  function unpinnedFromHashes(h) {
+    const pinned = pinnedAssetPaths({ 'manifest.json': h.manifest });
+    return h.paths.filter((p) => p.indexOf('.assets/') === 0 && !pinned[p]).sort();
   }
   function stripBlock(bytes, marker) {
     const span = gif.findAppExtSpan(bytes, marker, SIG_AUTH); // both blocks carry the 'GOS' code — the walk checks it
@@ -148,9 +176,16 @@
   async function contentHash(bytes, rules, archive) {
     let visual = stripBlock(bytes, 'GIFOS1.0');
     visual = stripBlock(visual, SIG_MARKER);
-    const arc = archive === undefined ? await gif.decode(bytes) : archive;
     let filesDigest = new Uint8Array(32); // all-zero if not a GifOS app
-    if (arc && arc.files) filesDigest = await filesDigestOf(arc.files, rulesOf(rules));
+    if (archive === undefined) {
+      // Streamed first: one file in memory at a time. decode() only for an
+      // archive the stream cannot read (legacy v1), which is small.
+      const h = await hashFilesFrom(bytes);
+      if (h) filesDigest = await digestFromHashes(h.hashes, h.manifest, rulesOf(rules));
+      else { const arc = await gif.decode(bytes); if (arc && arc.files) filesDigest = await filesDigestOf(arc.files, rulesOf(rules)); }
+    } else if (archive && archive.files) {
+      filesDigest = await filesDigestOf(archive.files, rulesOf(rules));
+    }
     return sha256(concat([visual, new Uint8Array([0]), filesDigest]));
   }
 
@@ -516,18 +551,29 @@
     // leaves the author's own .assets/ files out; `unpinned` names how many,
     // so a verdict of "valid" can also say what it does not cover.
     const rules = rulesOfSig(sig);
-    // decode() resolves null when it cannot inflate the payload — on a phone,
-    // a half-gigabyte app is exactly where that allocation fails. That is
-    // not tampering: nothing about these bytes was checked. Hashing on with
-    // an empty file list called it TAMPERED, and the store refused a signed
-    // app it could not decompress. Say UNVERIFIED, and say why; the store's
-    // sha256 pin is what holds the bytes to the catalog in that case.
-    const archive = await gif.decode(bytes);
-    if (!archive || !archive.files) {
-      return { status: 'unverified', id, type, ts: sig.ts, rules, detail: 'the archive could not be decoded here to check its contents' };
+    // The files are hashed as they stream off the decompressor, one at a
+    // time, so a half-gigabyte app verifies on a phone that could never hold
+    // it inflated. Until this, verify() decoded the whole archive; on a phone
+    // that resolved null, the digest was built over nothing, and a signed app
+    // was refused as TAMPERED. A legacy v1 archive still decodes whole (it is
+    // small); one that cannot be read either way is UNVERIFIED, not tampered —
+    // nothing about its bytes was checked, and the store's sha256 pin is what
+    // holds them to the catalog.
+    let chHex, unpinned = 0;
+    const streamed = await hashFilesFrom(bytes);
+    if (streamed) {
+      const visual = stripBlock(stripBlock(bytes, 'GIFOS1.0'), SIG_MARKER);
+      const filesDigest = await digestFromHashes(streamed.hashes, streamed.manifest, rules);
+      chHex = hex(await sha256(concat([visual, new Uint8Array([0]), filesDigest])));
+      unpinned = rules < 2 ? unpinnedFromHashes(streamed).length : 0;
+    } else {
+      const archive = await gif.decode(bytes);
+      if (!archive || !archive.files) {
+        return { status: 'unverified', id, type, ts: sig.ts, rules, detail: 'the archive could not be decoded here to check its contents' };
+      }
+      chHex = hex(await contentHash(bytes, rules, archive));
+      unpinned = rules < 2 ? unpinnedAssets(archive.files).length : 0;
     }
-    const chHex = hex(await contentHash(bytes, rules, archive));
-    const unpinned = rules < 2 && archive && archive.files ? unpinnedAssets(archive.files).length : 0;
     const msg = statement(type, id, chHex);
     const valid = (extra) => Object.assign({ status: 'valid', id, type, ts: sig.ts, rules }, unpinned ? { unpinned } : null, extra);
     try {
@@ -589,6 +635,6 @@
     generateDomainKey, signDomain, emailStatement, attachEmailSig,
     isDomain, isEmail,
     // exposed for tests
-    _pinnedAssetPaths: pinnedAssetPaths, _ed25519SignFor: ed25519Sign, _pgpVerify: pgpVerify, _pgpSigningKeys: pgpSigningKeys, _ed25519Verify: ed25519Verify, _b64ToBytes: b64ToBytes, _bytesToB64: bytesToB64, _dearmor: dearmor,
+    _pinnedAssetPaths: pinnedAssetPaths, _hashFilesFrom: hashFilesFrom, _digestFromHashes: digestFromHashes, _filesDigestOf: filesDigestOf, _ed25519SignFor: ed25519Sign, _pgpVerify: pgpVerify, _pgpSigningKeys: pgpSigningKeys, _ed25519Verify: ed25519Verify, _b64ToBytes: b64ToBytes, _bytesToB64: bytesToB64, _dearmor: dearmor,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

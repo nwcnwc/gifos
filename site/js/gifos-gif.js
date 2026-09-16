@@ -978,6 +978,140 @@
     })().catch(() => null);
   }
 
+  // The files of a v2 archive, ONE AT A TIME, straight off the decompressor.
+  //
+  // decode() hands back the whole inflated archive, and for a half-gigabyte
+  // app that is a gigabyte and a half in memory — the allocation a phone
+  // cannot make, which is why Install stopped decoding at all (readManifestFrom)
+  // and why verify() then failed there: it still decoded everything to hash
+  // the files. This walks the same stream and never holds more than the file
+  // currently being assembled: the directory is read from the front, the
+  // entries are sorted by offset, and as each chunk arrives it is copied into
+  // whichever entries it overlaps; an entry that has all its bytes is handed
+  // to `visit(path, bytes)` and dropped. Entries may overlap or interleave —
+  // a general directory is allowed to — at the cost of holding those together.
+  //
+  // Resolves { files, bytes } (a count and the inflated total) or null when
+  // the archive is not v2, is corrupt, or exceeds the inflate ceiling; a
+  // caller then falls back to decode(), which is where a legacy v1 archive
+  // (small by construction) still goes.
+  function readFilesFrom(bytes, visit) {
+    let info, reader;
+    const cap = (() => { try { return inflateMaxBytes(payloadSpan(bytes).total - 1); } catch (e) { return 0; } })();
+    let writer, src;
+    try {
+      info = payloadSpan(bytes);
+      if (!info || info.first !== COMPRESSED_FLAG) return Promise.resolve(null);
+      // Fed a megabyte at a time, each write awaited: the decompressor only
+      // gets the next compressed chunk once its output has been consumed, so
+      // inflated data cannot pile up ahead of the hashing. pipeThrough() let
+      // it — a decompressor may drain its source as fast as it can, and the
+      // queue that built behind a slower reader was most of the memory this
+      // function exists to avoid.
+      const ds = new root.DecompressionStream('deflate-raw');
+      writer = ds.writable.getWriter();
+      reader = ds.readable.getReader();
+      src = payloadStream(bytes, info.span, 1).getReader();
+    } catch (e) { return Promise.resolve(null); }
+    const feeding = (async () => {
+      for (;;) {
+        const { done, value } = await src.read();
+        if (done) { await writer.close(); return; }
+        await writer.write(value);
+      }
+    })().catch((e) => { try { writer.abort(e); } catch (_) {} });
+
+    const head = [];                 // chunks until the directory is complete
+    let have = 0, hlen = -1, base = -1;
+    let entries = null, next = 0;    // sorted by offset; `next` = first not finished
+    let pos = 0;                     // inflated bytes consumed so far
+    let count = 0;
+    const stop = (v) => {
+      if (v === null && root.GIFOS_DEBUG) console.error('readFilesFrom: refused at', { have, hlen, pos, entries: entries && entries.length, next });
+      try { reader.cancel(); } catch (e) {}
+      try { src.cancel(); } catch (e) {}
+      return v;
+    };
+
+    // Feed one chunk of FILE DATA (positions are absolute in the inflated
+    // payload) to every entry it overlaps, and emit the ones it completes.
+    const feed = async (chunk, start) => {
+      const end = start + chunk.length;
+      for (let i = next; i < entries.length; i++) {
+        const e = entries[i];
+        if (e.off >= end) break;
+        const lo = Math.max(e.off, start), hi = Math.min(e.off + e.len, end);
+        if (hi > lo) {
+          if (!e.buf) e.buf = new Uint8Array(e.len);
+          e.buf.set(chunk.subarray(lo - start, hi - start), lo - e.off);
+          e.got += hi - lo;
+        }
+        if (e.got === e.len && !e.done) {
+          e.done = true; count++;
+          const b = e.buf || new Uint8Array(0);
+          e.buf = null;
+          await visit(e.path, b);
+        }
+      }
+      while (next < entries.length && entries[next].done) next++;
+    };
+
+    return (async () => {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (value && value.length) {
+          pos += value.length;
+          if (cap && pos > cap) return stop(null);   // the bomb ceiling, same as inflateFrom
+          if (!entries) {
+            head.push(value); have += value.length;
+            // The 8-byte v2 header, then the directory; the first file bytes
+            // may share the chunk that completes it.
+            if (hlen < 0 && have >= 8) {
+              const h8 = new Uint8Array(8); let o = 0;
+              for (const c of head) { const n = Math.min(c.length, 8 - o); h8.set(c.subarray(0, n), o); o += n; if (o === 8) break; }
+              if (!isArchiveV2(h8)) return stop(null);
+              hlen = h8[4] | (h8[5] << 8) | (h8[6] << 16) | (h8[7] * 0x1000000);
+              if (!(hlen > 0)) return stop(null);
+              base = 8 + hlen;
+            }
+            if (hlen < 0 || have < base) continue;
+            const buf = new Uint8Array(have); let o = 0;
+            for (const c of head) { buf.set(c, o); o += c.length; }
+            head.length = 0;
+            let dir;
+            try { dir = JSON.parse(bytesToText(buf.subarray(8, base))); } catch (e) { return stop(null); }
+            if (!dir || !dir.files) return stop(null);
+            entries = [];
+            for (const path in dir.files) {
+              if (path === '__proto__') continue;
+              const e = dir.files[path];
+              const off = Array.isArray(e) ? e[0] : -1, len = Array.isArray(e) ? e[1] : -1;
+              if (!Number.isInteger(off) || !Number.isInteger(len) || off < 0 || len < 0) return stop(null);
+              entries.push({ path, off: base + off, len, got: 0, buf: null, done: false });
+            }
+            entries.sort((a, b) => a.off - b.off || a.len - b.len);
+            // Empty files complete before any byte arrives.
+            for (const e of entries) if (e.len === 0) { e.done = true; count++; await visit(e.path, new Uint8Array(0)); }
+            while (next < entries.length && entries[next].done) next++;
+            if (buf.length > base) await feed(buf.subarray(base), base);
+          } else {
+            await feed(value, pos - value.length);
+          }
+        }
+        if (done) break;
+      }
+      await feeding;
+      if (!entries) return null;
+      // A directory entry the payload never reached is a corrupt or hostile
+      // file — the same refusal parseArchiveV2 makes — not a file we skip.
+      if (next < entries.length) {
+        if (root.GIFOS_DEBUG) console.error('readFilesFrom: payload ended before', entries[next].path, entries[next].got, '/', entries[next].len, 'at', pos);
+        return null;
+      }
+      return { files: count, bytes: pos };
+    })().catch((e) => { if (root.GIFOS_DEBUG) console.error('readFilesFrom:', e); return null; });
+  }
+
   // Writer helper exposed so the signing module can build/splice its own
   // application-extension block with the identical sub-block framing.
   function appExtBlock(marker8, auth3, payload) {
@@ -988,7 +1122,7 @@
   }
 
   GifOS.gif = {
-    encode, decode, repack, embed, looksLikeGifosGif, readManifest, readManifestFrom,
+    encode, decode, repack, embed, looksLikeGifosGif, readManifest, readManifestFrom, readFilesFrom,
     b64encode, b64decode, textToBytes, bytesToText,
     findAppExtSpan, appExtBlock, stripForDisplay,
     setRemixDoc, REMIX_DOC, inflateMaxBytes, inflate,
