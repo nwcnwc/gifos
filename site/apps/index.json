@@ -5335,15 +5335,15 @@
       "appId": "offline-bible-study",
       "name": "Bible Study",
       "shortName": "Study",
-      "version": "0.7.11",
-      "tagline": "The library is the page. Scripture sits beside it.",
+      "version": "0.7.12",
+      "tagline": "Read Henry, Calvin and the fathers, with scripture open beside them.",
       "author": {
         "name": "GifOS",
         "url": "https://gifos.app"
       },
       "minBuild": 2255,
       "offline": true,
-      "releaseDate": "2026-09-06",
+      "releaseDate": "2026-09-16",
       "updated": "2026-09-09",
       "categories": [
         "Learning"
@@ -5362,15 +5362,15 @@
         39
       ],
       "cover": "/apps/offline-bible-study/cover.jpg",
-      "bytes": 575923774,
+      "bytes": 581016102,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-09-09"
+        "ts": "2026-09-16"
       },
-      "sha256": "4a3b98129dfe06bb407c1b7d4bb222a6252421d96233fdeed978b5d5320490c5"
+      "sha256": "5d614efb2380d904b09285488b40bfb20511002c3d701fcebc70e964c88b79f9"
     },
     {
       "slug": "offline-llm-bitnet",

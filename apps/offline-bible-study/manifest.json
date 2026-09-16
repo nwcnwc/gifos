@@ -3,7 +3,7 @@
   "appId": "offline-bible-study",
   "name": "Bible Study",
   "shortName": "Study",
-  "version": "0.7.11",
+  "version": "0.7.12",
   "minBuild": 2255,
   "entry": "index.html",
   "accent": [201, 162, 39],
