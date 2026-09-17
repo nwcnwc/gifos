@@ -10594,7 +10594,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let sgaSeq = 0;
     // The same neighbour set the media fans ride: deep — up (head or parent),
     // cross-link, down, and a head's row; Section 1 — the full rook row+column.
+    // Test hook (e2e-meeting-app.js): a joiner whose STRUCTURAL sga
+    // neighbourhood is empty — the shape of the late-joiner race, made
+    // deterministic. With it set, only the widened pull can reach a holder.
+    let sgaIsolated = false;
     function sgaTargets() {
+      if (sgaIsolated) return [];
       const c = meshCoord(); if (!c) return [];
       const T = net.topo, out = new Set();
       const add = (co) => { const pid = co ? occPid(co) : null; if (pid && pid !== myId) out.add(pid); };
@@ -10687,12 +10692,40 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const sgaWant = new Map();     // sid -> Map(pid -> at): neighbours waiting on a snap I lack
     const sgaReqAt = new Map();    // sid -> last request time (throttle)
     const sgaReqTimer = new Map(); // sid -> retry interval while snapless
+    // THE LATE-JOINER RACE, CLOSED (2026-09-17; known-unfixed "late joiners
+    // adopt a running app unreliably"). Presence rides gossip to everyone, but
+    // this pull only ever asked the STRUCTURAL sga neighbours — the seats the
+    // media fans ride — and gave up after 30 tries (60 s). A newcomer whose
+    // seat wired slowly (measured still wiring at 26 s on a loaded box), or
+    // whose structural neighbours were themselves newcomers holding nothing,
+    // could exhaust the tries with an open channel to some OTHER peer that
+    // held the snap all along. Once the chase died nothing restarted it: the
+    // app stayed mounted-and-blank for the rest of the meeting.
+    // Two changes, both bounded:
+    //   1. WIDEN. After the first few structural asks go unanswered, ask EVERY
+    //      peer with an open channel. A holder answers the requester DIRECTLY
+    //      (sgaServe — never re-fanned), so widening costs one targeted frame
+    //      per open channel per ask, and no storm is possible.
+    //   2. NEVER GIVE UP WHILE WANTED. Interest (a subscriber, or a neighbour
+    //      waiting on me) is the only thing that ends a chase; after the fast
+    //      window the cadence slows to one ask per 5 s, so a room that cannot
+    //      serve costs a frame per open channel per 5 s and nothing more.
+    const SGA_WIDEN_AFTER = 3, SGA_FAST_TRIES = 30;
+    const sgaReqTries = new Map(), sgaAppReqTries = new Map();
+    function sgaAskTargets(sid, tries) {
+      const structural = sgaTargets();
+      if (tries < SGA_WIDEN_AFTER) return structural;
+      const out = new Set(structural);
+      for (const [pid, p] of peers) if (pid !== myId && p && p.dc && p.dc.readyState === 'open') out.add(pid);
+      return [...out];
+    }
     function sgaRequest(sid) {
       const now = Date.now();
       if ((sgaReqAt.get(sid) || 0) > now - 1800) return;
       sgaReqAt.set(sid, now);
       const held = sgaSnap.get(sid);
-      for (const pid of sgaTargets()) {
+      const tries = sgaReqTries.get(sid) || 0; sgaReqTries.set(sid, tries + 1);
+      for (const pid of sgaAskTargets(sid, tries)) {
         const p = peers.get(pid);
         if (p && p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'sga-req', sid: sid, have: held ? held.seq : null });
       }
@@ -10701,19 +10734,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (sgaReqTimer.has(sid)) return;
       sgaRequest(sid);
       let tries = 0;
-      const t = setInterval(() => {
+      const tick = () => {
         const wanted = sgaSubs.has(sid) || (sgaWant.get(sid) || { size: 0 }).size;
-        if (sgaSnap.has(sid) || !wanted || ++tries > 30) { clearInterval(t); sgaReqTimer.delete(sid); return; }
+        if (sgaSnap.has(sid) || !wanted) { sgaReqTimer.delete(sid); sgaReqTries.delete(sid); return; }
         sgaRequest(sid);
-      }, 2000);
-      sgaReqTimer.set(sid, t);
+        sgaReqTimer.set(sid, setTimeout(tick, ++tries > SGA_FAST_TRIES ? 5000 : 2000));
+      };
+      sgaReqTimer.set(sid, setTimeout(tick, 2000));
     }
     const sgaAppReqAt = new Map(), sgaAppTimer = new Map();
     function sgaAppRequest(sid) {
       const now = Date.now();
       if ((sgaAppReqAt.get(sid) || 0) > now - 1800) return;
       sgaAppReqAt.set(sid, now);
-      for (const pid of sgaTargets()) {
+      const tries = sgaAppReqTries.get(sid) || 0; sgaAppReqTries.set(sid, tries + 1);
+      for (const pid of sgaAskTargets(sid, tries)) {
         const p = peers.get(pid);
         if (p && p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'sga-appreq', sid: sid });
       }
@@ -10722,12 +10757,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (sgaAppTimer.has(sid)) return;
       sgaAppRequest(sid);
       let tries = 0;
-      const t = setInterval(() => {
+      const tick = () => {
         const wanted = sgaSubs.has(sid) || (sgaAppWant.get(sid) || { size: 0 }).size;
-        if (sgaApp.has(sid) || !wanted || ++tries > 30) { clearInterval(t); sgaAppTimer.delete(sid); return; }
+        if (sgaApp.has(sid) || !wanted) { sgaAppTimer.delete(sid); sgaAppReqTries.delete(sid); return; }
         sgaAppRequest(sid);
-      }, 2000);
-      sgaAppTimer.set(sid, t);
+        sgaAppTimer.set(sid, setTimeout(tick, ++tries > SGA_FAST_TRIES ? 5000 : 2000));
+      };
+      sgaAppTimer.set(sid, setTimeout(tick, 2000));
     }
     // A neighbour asked for the app. Hold it? Answer directly. Don't? Remember
     // who asked and chase upstream myself — the same pull-through that makes
@@ -10799,8 +10835,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       drop(sid) {
         sgaSnap.delete(sid); sgaSubs.delete(sid); sgaWant.delete(sid);
         sgaApp.delete(sid); sgaAppWant.delete(sid);
-        const ta = sgaAppTimer.get(sid); if (ta) { clearInterval(ta); sgaAppTimer.delete(sid); }
-        const t = sgaReqTimer.get(sid); if (t) { clearInterval(t); sgaReqTimer.delete(sid); }
+        const ta = sgaAppTimer.get(sid); if (ta) { clearTimeout(ta); sgaAppTimer.delete(sid); }
+        const t = sgaReqTimer.get(sid); if (t) { clearTimeout(t); sgaReqTimer.delete(sid); }
       },
     };
     if (window.GifOS) GifOS.meetStageData = stageData;
@@ -13392,6 +13428,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       gdForTest: (v) => { gdOverride = +v || 0; applyGrid(); broadcastStatus(); },
       // app-in-meeting
       appActive: () => !!appKey,
+      sgaIsolateForTest: (on) => { sgaIsolated = !!on; return sgaIsolated; },
+      sgaPullState: (sid) => ({ snap: sgaSnap.has(sid), app: sgaApp.has(sid), reqTries: sgaReqTries.get(sid) || 0, appTries: sgaAppReqTries.get(sid) || 0 }),
       appName: () => document.getElementById('appname').textContent,
       appIsHost: () => appMode === 'host',
       runAppForTest: (fileId, name) => runApp(fileId, name),

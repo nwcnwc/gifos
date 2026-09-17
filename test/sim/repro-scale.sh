@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# scale-frontier.sh — the N>=5000 convergence target (scale-audit 2026-08-04, V4).
+# repro-scale.sh — the N>=5000 convergence target (scale-audit 2026-08-04, V4).
+#
+# RENAMED from scale-frontier.sh on 2026-09-17, the day it went green, per the
+# covenant in known-unfixed.sh: N=5000 converges (3840 ticks, dups=0) with
+# T7 spread-after-NOROOM ON and graded by depth (mesh.cpp SPREAD_MINDEPTH=4;
+# docs/front3-descent-2026-08-06.md § resolution). The release battery globs
+# repro-*.sh, so this now runs with every cut.
 #
 # *** NOT YET A GATE — deliberately named OUTSIDE the release battery's
 # *** test/sim/repro-*.sh glob. THE COVENANT: the day this script goes green,
@@ -18,7 +24,7 @@
 #   N=5000, det on, single join storm (window join), converge under a tick cap
 #   -> seated=5000/5000, s1=25/25, dups=0, stranded=0, teleport=0.
 #
-# Usage: test/sim/scale-frontier.sh
+# Usage: test/sim/repro-scale.sh
 set -u
 cd "$(dirname "$0")/../.."
 BIN="${BIN:-/tmp/gifos-mesh-scale}"

@@ -850,6 +850,31 @@ The laws that closed it, each measured against a named seed family:
   once the mints stopped — 120 depth-1 parents sat on ~360 free cells while
   94 seekers NOROOM-cycled to the depth wall (the 03c livelock reborn one
   layer down).
+- **V7. THE DEEP-ROW LEDGER (2026-09-17).** A parent learns the non-head
+  cells of its owned child row from NOBODY by construction: those seats link
+  to their row HEAD (and cross/down), never to the parent, and the head's
+  PONG row ledger rode only to its row-mates. So a REPLACEMENT parent — the
+  seat that heals or is admitted into a parent cell after the original left
+  — saw an empty child row and admitted fresh seekers into cells occupied
+  for thousands of ticks. That is every one of the 18 residual duplicates at
+  N=50000 (same cell, an admitter that was not the incumbent's placer, in a
+  row whose head it had never heard), and it is the engine of the storm's
+  dup war at every N: the transient mints that E2 yield then spends
+  evictions resolving. The law: **a deep head's phoneHome beat carries its
+  row ledger** (cells 1..C-1, first-hand at the head) **and a parent admits
+  into its child row's non-head cells only once it has HELD that ledger since
+  it seated** (`rowLedgerAt`). A free head cell is always admissible; seating
+  the head is what starts the ledger. It is a once-since-seated fact, NOT a
+  freshness window: the mint site was a replacement parent that had never
+  heard the row, and gating on the head's liveness instead sent every seeker
+  under a dead head one level deeper for the whole heal (repro-compaction
+  leg 1 read ON 19 vs OFF 13 on seed 5; the refined rule reads ON 145 vs OFF
+  167 over seeds 2-9). The S1 rows already had this as V3 (SITXFER); V7 is
+  its deep-row twin. Measured, det, default seed:
+  N=3000 converges @832 (was 6976), evictions 0 (was 4569), moves 101 (was
+  29,387); N=5000 @1408; N=20000 @2176; N=50000 @2176 with dups=0 (was 8512
+  with 18); the JS harness seats 500 @192 (was 1024) and 1000 @320 (was
+  1472). Both twins carry it.
 - **V6. THE DEPTH WALL.** The C++ path is a uint32 of base-6 digits: 6^12
   fits, 6^13 aliases another cell silently — and the JS twin (plain Numbers)
   has no wall, so the twins would diverge exactly where a dup storm goes.
@@ -861,19 +886,23 @@ Result, deterministic runs: N=2000 converges @ ~2600 ticks (pre-V4 baseline
 5504), N=3000 @ 6976 ticks / 74 s (pre-V4: stalled at 1915/3000 after 150k),
 both with dups=0, and the S1 seed mints are 0 end-to-end.
 
-**The open frontier: N=5000 still stalls** (~3076 seated at a 60k-tick cap) —
-a THIRD defect family, diagnosed 2026-08-05, not yet fixed: the join storm
-builds lone-row SPINES down to the depth wall; the heal/compaction layer then
-runs a bucket-brigade conveyor (seats admitted deep, scooched up level by
-level — 113k moves by t=60k) while ~1900 war-loser requeues descend full
-spines and NOROOM at the wall (MESH_FINDLOG traces in the 2026-08-05
-handoff). The fix front is heal-layer PROMOTION EXCLUSIVITY under storm
-(promo-vs-promo at head cells — C1/C3's designation is view-dependent there)
-plus spine re-absorption. `test/sim/scale-frontier.sh` is the ready-made
-gate, tracked expected-RED in known-unfixed.sh; the day it converges it is
-renamed `repro-scale.sh` and the release battery globs it forever. Known
-residual alongside it: the storm leaves the TREE deep even when it converges
-(maxDepth 12 with a free depth-2 frontier — tree shape, not correctness).
+**The frontier that was open here — N=5000 stalled (~3076 seated at a
+60k-tick cap) — CLOSED 2026-09-17.** The diagnosis is in
+`docs/front3-descent-2026-08-06.md`: not the heal layer, the DESCENT — at the
+plateau every pass-0 descent offered exactly one candidate (the child-row
+head, the only child a parent hears first-hand), every FIND walked that spine
+to the depth wall, and the room's free space sat under sibling columns. The
+fix is T7 spread-after-NOROOM, ON in both twins since 2026-09-17, with its
+evidence GRADED BY DEPTH (`SPREAD_MINDEPTH` = 4 in `mesh.cpp` and `mesh.js`):
+a NOROOM counts as spread evidence only when the seat that answered it sits
+at depth >= 4. The grade is what dissolved T7's compaction trade — a shrinking
+room's NOROOMs come from depths 0-2 and spreading on them opened sections
+that chain-local compaction can never reach; the plateau's come from the
+wall. Result: N=5000 converges at 3840 ticks, N=20000 on three seeds,
+`repro-compaction` green with spread on, dups=0 throughout; the gate is
+`test/sim/repro-scale.sh` (renamed from scale-frontier.sh per the covenant).
+Known residual alongside it: the storm still leaves the TREE deep (maxDepth
+12 with a free depth-2 frontier — tree shape, not correctness).
 
 ### E1 amendment recorded: a ghost phone target must be FALSIFIABLE (0.9.2)
 
@@ -1128,7 +1157,16 @@ There is no root to fight over and no arbiter to trust — every verdict above
 is computed independently by clients. Forced merge-by-authority and
 newcomer-as-sole-bridge auto-reunion are both forbidden (Sybil levers).
 
-### Partition: one half may FREEZE (known, accepted — Nathan, 2026-07-21)
+### Partition: one half may FREEZE (known, accepted — Nathan, 2026-07-21; CLOSED 2026-09-17)
+
+**Status 2026-09-17: the 20-seed measurement is 20/20 clean** (2/20 frozen when
+accepted, 18/20 below). Nobody flipped a switch for this — the V4 admission-
+evidence waves and the devolution narrowing are the candidate causes — so the
+check was promoted from `known-unfixed.sh` into a real gate,
+`test/sim/repro-partition.sh` (frozen halves = 0 AND split-brain = 0, twenty
+seeds), exactly as the last paragraph of this section asked. The mechanism
+below is kept as the record of what the gate guards against.
+
 
 Both halves stay *correct* under a total partition — no duplicate seats, no
 split-brain; that is the hard invariant and `test/sim/sweep.sh` still fails on it.

@@ -19,7 +19,7 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d TAKE %u/%d.%d placer=%d\n",(long long)TICK,id,(unsigned)c.pc,(int)c.r,(int)c.i,owner);}
   myPlacer=owner;
   rowLedger = !(c.pc==0 && c.i==0 && owner>=0);   // V4: an admitted S1 row head waits for its assigner's SITXFER
-  coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; reAsk=false; reJoin=false; noroomSeen=0;   // T7: the NOROOM evidence dies with the attempt it belonged to   // seated: any deferred entry retry is moot
+  coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; reAsk=false; reJoin=false; noroomSeen=0; rowLedgerAt=-1;   // T7: the NOROOM evidence dies with the attempt it belonged to; V7: a new seat holds no child-row ledger yet   // seated: any deferred entry retry is moot
   // A: self-confirm sitting-down → seated (only the joiner upgrades).
   confirmSeated(ckey(c), id);
   for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
@@ -150,7 +150,7 @@ void Seat::admit(Coord c,Msg& f){
 // forever-searching joiner's asks go to die.
 #define FINDLOG(fmt,...) do{ const char* _f=getenv("MESH_FINDLOG"); if(_f&&atoi(_f)==mm.nc) fprintf(stderr,"FINDLOG t=%lld me=%d@%u/%d.%d ttl=%d " fmt "\n",(long long)TICK,id,(unsigned)coord.pc,(int)coord.r,(int)coord.i,mm.ttl,##__VA_ARGS__); }while(0)
 void Seat::serveFind(Msg& mm){
-  if(!hasCoord||mm.ttl<=0){ if(descOn()) descEnd(4,200-mm.ttl); FINDLOG("NOROOM ttl-or-unseated"); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
+  if(!hasCoord||mm.ttl<=0){ if(descOn()) descEnd(4,200-mm.ttl); FINDLOG("NOROOM ttl-or-unseated"); Msg m;m.t=NOROOM;m.id=id;m.nd=(uint8_t)(hasCoord?pcDepth(coord.pc):0); NOROOM_BYDEPTH[m.nd<16?m.nd:15]++; emit(mm.nc,m); return; }
   if(coord.pc==0){
     // H7 ROW-FILL seating (replaces the old column backfill): Section 1 fills
     // ROW-MAJOR — row 0 seats 0..C-1, then row 1, ... — so the first C people
@@ -383,7 +383,7 @@ void Seat::serveFind(Msg& mm){
     // path when home's free cells look unservable FAST-TRACKS SILENT DEATH past
     // the H1-S1 ring-hold (headless-row leg C), and it buys nothing: the
     // partitioned half recovers on the reachable-forward fix below alone.
-    if(s1admFree>0){ if(descOn()) descEnd(5,200-mm.ttl); FINDLOG("NOROOM s1admFree=%d",s1admFree); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
+    if(s1admFree>0){ if(descOn()) descEnd(5,200-mm.ttl); FINDLOG("NOROOM s1admFree=%d",s1admFree); Msg m;m.t=NOROOM;m.id=id;m.nd=(uint8_t)(hasCoord?pcDepth(coord.pc):0); NOROOM_BYDEPTH[m.nd<16?m.nd:15]++; emit(mm.nc,m); return; }
   }
   Coord f; if(firstFreeInRoster(f)){
     if(getenv("MESH_DUPLOG")) fprintf(stderr,"DEEPADM t=%lld me=%d my=%u/%d.%d cell=%u/%d.%d seeker=%d\n",
@@ -417,7 +417,7 @@ void Seat::serveFind(Msg& mm){
   // would be depth 13 must not forward the FIND downward — NOROOM is honest
   // (a depth-12 stadium is ~2 billion sections; admission never legitimately
   // needs the 13th floor — reaching it IS the dup-war signature).
-  if(pcDepth(coord.pc)>=12){ if(descOn()) descEnd(2,200-mm.ttl); FINDLOG("NOROOM depth-wall"); Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m); return; }
+  if(pcDepth(coord.pc)>=12){ if(descOn()) descEnd(2,200-mm.ttl); FINDLOG("NOROOM depth-wall"); Msg m;m.t=NOROOM;m.id=id;m.nd=(uint8_t)(hasCoord?pcDepth(coord.pc):0); NOROOM_BYDEPTH[m.nd<16?m.nd:15]++; emit(mm.nc,m); return; }
   Coord rc[C]; rosterCells(rc); vector<int> idx=shufCols();
   // FRONT 3 (measurement only, MESH_DESC=1): classify the candidate set BEFORE
   // the choice is made, so the tally can ask whether the pass-0 filter is what
@@ -444,7 +444,7 @@ void Seat::serveFind(Msg& mm){
       if(pass==0 ? (firstHandLive(rk) || (mm.spread && admitterReachable(rk))) : admitterReachable(rk)){ if(descOn()) descNote(rc,dcls,dkid,q,pass,pcDepth(coord.pc)); FINDLOG("descend pass=%d spread=%d -> %d@%u/%d.%d",pass,(int)mm.spread,x,(unsigned)rc[q].pc,(int)rc[q].r,(int)rc[q].i); Msg m;m.t=FIND;m.nc=mm.nc;m.ttl=mm.ttl-1;m.spread=mm.spread; emit(x,m); return; } }
   if(descOn()){ descNote(rc,dcls,dkid,-1,-1,pcDepth(coord.pc)); descEnd(3,200-mm.ttl); }
   FINDLOG("NOROOM deep-dead-end");
-  Msg m;m.t=NOROOM;m.id=id; emit(mm.nc,m);
+  Msg m;m.t=NOROOM;m.id=id;m.nd=(uint8_t)(hasCoord?pcDepth(coord.pc):0); NOROOM_BYDEPTH[m.nd<16?m.nd:15]++; emit(mm.nc,m);
 }
 // Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1) climbs
 // the seeker's OWN up-chain — every hop an ALIVE link (row → head → owner) — and
@@ -934,6 +934,10 @@ void Seat::onPhone(Msg& m){
   // (S5: "has itself, first-hand, stopped hearing the prior occupant").
   if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40 && !translost.count(ck)){ Msg y;y.t=YIELD;y.ck=ck; emit(m.id,y); return; }
   setOcc(ck,m.id); liveMark(ck); noteS1(ck); kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck);
+  // V7: my down-child head phoned me its ROW LEDGER. Install what I lack (a
+  // cell I already hold first-hand keeps my entry — two claimants are the
+  // head's E2 yield to settle, not mine to overwrite) and stamp the beat.
+  if(ck==ckey(down(coord))){ for(auto&e:m.row){ if(!occ.count(e.k)){ setOcc(e.k,e.v); noteS1(e.k); } } rowLedgerAt=(int)TICK; }
   int owner=-1; uint64_t oCk=0; Coord myoc; if(ownerCoord(myoc)){ oCk=ckey(myoc); owner=occGet(oCk); }
   vector<Ent> row;
   if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){ row.push_back({ckey(coord),id, occGet(ckey(down(coord)))}); for(int c=1;c<C;c++){ Coord rc={coord.pc,coord.r,(uint8_t)c}; int x=occGet(ckey(rc)); if(x>=0&&x!=m.id) row.push_back({ckey(rc),x, childOf.count(ckey(rc))?childOf[ckey(rc)]:-1}); } }
@@ -977,6 +981,11 @@ void Seat::phoneHome(){
   {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id){ int _tid=have?occGet(ckey(tc)):-2; fprintf(stderr,"TRACE t=%lld #%d phoneHome have=%d tc=%u/%d.%d tid=%d lastAckAge=%lld\n",(long long)TICK,id,(int)have,have?(unsigned)tc.pc:0,have?(int)tc.r:-1,have?(int)tc.i:-1,_tid,(long long)(TICK-lastAck));} }
   if(!have) return; int tid=occGet(ckey(tc)); if(tid<0) return;
 Msg m;m.t=PHONE;m.coord=coord;m.tock=ckey(tc);m.id=id;m.kids=hasChildren();m.child=occGet(ckey(down(coord)));
+  // V7 THE DEEP-ROW LEDGER: a deep head phoning its OWNER carries its row's
+  // occupants (cells 1..C-1, first-hand at the head — its mates phone it).
+  // An empty list is still a ledger ("my row is empty"); the owner keys on
+  // the beat, not the list.
+  if(coord.pc!=0 && coord.i==0){ for(int j=1;j<C;j++){ uint64_t rk=ckey({coord.pc,coord.r,(uint8_t)j}); int x=occGet(rk); if(x>=0&&x!=id) m.row.push_back({rk,x,-1}); } }
   // § G UP-LEG (payload on the beat, G0): a deep HEAD contributes its whole ROW
   // fold (its owner is linked to it and to nobody else in that row); everyone
   // else contributes its own subtree. Section-1 rows do NOT roll up — every S1
@@ -1419,7 +1428,7 @@ void Seat::recv(Msg& m){
     // back over a path that demonstrably delivered, so the branch was reachable
     // and simply full. A partitioned FIND is swallowed in silence and lands on
     // the timeout path instead, never here — so a split can never set this.
-    case NOROOM: if(state==2){ noroomSeen++; triedSilent.erase(m.id); if(lastAsked>=0) triedSilent.erase(lastAsked); retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
+    case NOROOM: if(state==2){ if((int)m.nd>=SPREAD_MINDEPTH) noroomSeen++; triedSilent.erase(m.id); if(lastAsked>=0) triedSilent.erase(lastAsked); retryAt=(int)TICK; if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0){askSeat(t);return;}} seatTries=0; join(); } return;
     case HELLO: {
       // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it holds to
       // me, claiming coord m.ck. So it sets first-hand liveness for m.ck.

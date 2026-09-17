@@ -133,6 +133,13 @@ noted. `site/run.html` — the actual consumer of the flood — is untouched by 
 > 866k -> 325 (cAtS1, a counter this work brought to life); settled-room
 > compactness is equal or better than today's; CHECK PASS dups=0 everywhere.
 > **THE DEFAULT DID NOT FLIP THIS RELEASE — one dominance question is open.**
+> **[2026-09-17: SHIPPED AT problvl 3, not 2.** Re-measured on the same
+> leg: cap 2 reds on seeds 2 AND 4 (sections 18 vs 14, 23 vs 21 — the capped
+> chain cannot reach the shallow slots and ends WORSE than compaction off);
+> cap 3 is green (14 vs 14, dominating elsewhere); cap 4 green. At N=20000
+> settled with spread on, cap 3 takes the hot S1 seat from 15.15 to 3.42
+> frames/tick (probes reaching S1 in a 6000-tick window 441,480 → 5,087,
+> moves 209 → 189, sections 3135 → 3026). Both twins carry 3.]
 > repro-compaction's deep-shrink leg reds at problvl 2 on SEED 2 ONLY
 > (capped+offers 17 sections / 8 lone vs the OFF control's 14/4; seeds 3/4/5
 > pass, several BETTER than control; aggregates dominate: 64 vs 78 sections,

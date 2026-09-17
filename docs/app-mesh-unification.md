@@ -553,6 +553,16 @@ late joiners adopt a running app unreliably. Measured verdict since
 (test/batteries/known-unfixed.sh): it is an APP-LANE RACE — app state rides
 the structural-neighbour `sga` flood while presence rides `meshNode.gossip` —
 not the environment; this doc's unified lane is the named fix that owes it.
+**CLOSED 2026-09-17 without unifying the lanes:** the hole was narrower than
+the diagnosis. The retained-snapshot pull (`sgaChase` / `sgaAppChase`) asked
+only the structural sga neighbours and gave up after 60 s, and nothing
+restarted it — a newcomer whose structural neighbours held nothing, or whose
+seat wired slowly, sat mounted-and-blank while a holder was one open channel
+away. The pull now widens to every open channel after three structural asks
+(a holder answers the requester directly, never re-fanned, so no storm) and
+never gives up while a subscriber wants the sid. `e2e-meeting-app.js` guards
+it deterministically (`sgaIsolateForTest`: a joiner with an empty structural
+set must still mount; with the widening disabled it fails at 50 s).
 
 ### Accepted limitations (per the decided scope — NOT bugs)
 

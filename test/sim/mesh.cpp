@@ -65,6 +65,12 @@ struct Msg {
   // times out), so this flag can never be set by one — which is what keeps
   // pass 0's deliverability preference intact exactly where it is load-bearing.
   bool spread=false;
+  // The DEPTH of the seat that answered NOROOM (0 = Section 1 / unseated).
+  // T7's evidence is graded by it: a NOROOM from a shallow seat says "this
+  // row is settling" (a shrinking room, a home row refilling) — spreading on
+  // that opens sections a heal would have packed; a NOROOM from deep down
+  // the spine says "the spine is full to here" — the plateau's signature.
+  uint8_t nd=0;
   vector<int> list; vector<KV> roster,nbrs; vector<Ent> ent,row;
   // § G digest payloads. dgUp rides PHONE (what I contribute to my aggregator);
   // dgPub + dgRoot ride PONG (what I publish back to you — the G4 checker's
@@ -100,7 +106,12 @@ static bool COMPACTION=true;   // Q2 A/B toggle (`compacton 0|1`)
 // empties sit in the deepest levels of a C-ary tree anyway, and chained moves
 // (a d4 seat taking a d2 cell frees a d4 cell for a d5 leaf) still compact
 // fully, just over more windows.
-static int PROBLVL=0;
+static int PROBLVL=3;   // ON since 2026-09-17. 3, not the 2 of the 2026-08-07 sweep: at N=300 gradual-shrink
+                        // (repro-compaction leg 1) cap 2 left chains unable to reach shallow slots (sections
+                        // 18 vs 14, red) while cap 3 packs as well as unlimited (14 vs 14, green); at N=20000
+                        // settled, cap 3 takes the hot S1 seat from 15.15 to 3.42 frames/tick (cap 2: 3.13),
+                        // probes reaching S1 in a 6000-tick window from 441,480 to 5,087, moves 209 -> 189,
+                        // sections 3135 -> 3026. Both twins carry 3; mesh.js MUST match.
 // `offeron 0|1`: deeper-than-cap compaction INVERTED — a row head with a
 // first-hand-known free densifying slot OFFERs it down its subtree; an
 // eligible deep leaf answers with a TARGETED probe at the offering head, and
@@ -117,14 +128,23 @@ static bool OFFERON=false;
 // periodic probe; serveCompact still serves (offers answer with targeted
 // probes) and offers still flow.
 static bool PROBEON=true;
-// T7 SPREAD-AFTER-NOROOM — front 3's fix, DEFAULT OFF (`spreadon 0|1`).
-// It converges rooms that have never converged (N=5000 3076-stuck -> 5000/5000
-// in 3200 ticks; N=20000 in 4480; all seeds; dups=0) but it COSTS TREE
-// COMPACTNESS: spreading seekers across the child row opens more sections and
-// lone rows than compaction can collapse, and repro-compaction leg 1 reds.
-// That trade is unresolved, so the default must stay OFF: ON is not a superset
-// of OFF. See docs/front3-descent-2026-08-06.md.
-static bool SPREAD=false;
+// T7 SPREAD-AFTER-NOROOM — front 3's fix (`spreadon 0|1`), ON since 2026-09-17
+// with its evidence GRADED BY DEPTH (SPREAD_MINDEPTH below, `spreaddepth n`).
+// It converges rooms that never converged (N=5000 3076-stuck -> 5000/5000 in
+// 3840 ticks at grade 4; N=20000 on every seed; dups=0). At grade 0 it COST
+// TREE COMPACTNESS — a shrinking room's NOROOMs (depths 0-2) sent requeued
+// seekers into empty rows under sibling columns, which chain-local compaction
+// can never reach (repro-compaction leg 1 red). The plateau's NOROOMs come from
+// the depth wall; grading at 4 keeps every shallow room byte-identical to
+// pre-T7 and leg 1 green. See docs/front3-descent-2026-08-06.md § RESOLUTION.
+static bool SPREAD=true;    // ON since 2026-09-17, with the depth grade below — see docs/front3-descent-2026-08-06.md § resolution
+// `spreaddepth n`: a NOROOM counts as spread evidence only when the seat that
+// answered it sits at depth >= n. 0 = every explicit NOROOM (T7 as first built).
+// Measured 2026-09-17: at n=0 spread opens sections in a SHRINKING room that
+// heal-packing would have collapsed and chain-local compaction cannot reach
+// (repro-compaction leg 1 red); the plateau's NOROOMs come from the depth wall.
+static int SPREAD_MINDEPTH=4;
+static long long NOROOM_BYDEPTH[16]={0};
 // V1 ROLLUP (healing-laws § G). `digeston 0|1`. The A/B exists to PROVE G1: the
 // rollup adds no frame and no decision, so ON and OFF must produce identical
 // seating trajectories — if they ever diverge, something in the digest actuated.
@@ -328,6 +348,16 @@ struct Seat {
   // search? Only an EXPLICIT NOROOM sets it — a timeout never does. Cleared on
   // seating and on re-entry, so the evidence never outlives the attempt.
   int noroomSeen=0;
+  // V7 — THE DEEP-ROW LEDGER (2026-09-17). The tick I last heard my down-
+  // child head's ROW LEDGER (the occupants of my owned child row, carried on
+  // its phoneHome beat) since I seated. A parent learns its child row's
+  // non-head cells from nobody else: those seats link to their HEAD, not to
+  // the parent, and the head's PONG row rides only to row-mates. So a
+  // REPLACEMENT parent saw an empty child row and admitted into cells that
+  // were occupied for thousands of ticks — every one of the 18 residual
+  // duplicates at N=50000 (front3 § addendum): same cell, an admitter that
+  // was not the incumbent's placer, at rows whose head it had never heard.
+  int rowLedgerAt=-1;
   Dig  myDig, rowDig, rootDig;              // my subtree fold / my row fold (deep heads) / the room fold
   Dig  downDig;                             // the ROW digest my down-child head published up to me (my whole owned child row)
   unordered_map<uint64_t,Dig> rowKids;      // head only: each row-mate's subtree digest   (<= C-1)
@@ -527,7 +557,18 @@ struct Seat {
   // sat on ~360 free cells they believed taken while joiners funneled past
   // them into the depth wall (the N=2000 plateau at 1907: the 03c livelock
   // reborn one layer down).
-  bool firstFreeInRoster(Coord&f){ if(pcDepth(coord.pc)>=12) return false; /* THE DEPTH WALL: children would overflow the uint32 path — see the NOROOM wall in serveFind */ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){ uint64_t k=ckey(rc[c]); if(cellReserved(k)) continue; uint64_t dk=ckey(down(rc[c])); if(cellReserved(dk)&&!occIsPhantom(dk)) continue; if(softSitting(dk)) continue; { auto ht=healTry.find(k); if(ht!=healTry.end() && TICK-ht->second<=45) continue; }   /* V4: deep admissions honor the same 45-tick cooling as S1 — a silence-freed chair is not "admissible NOW" */ f=rc[c]; return true; } return false; }
+  bool firstFreeInRoster(Coord&f){ if(pcDepth(coord.pc)>=12) return false; /* THE DEPTH WALL: children would overflow the uint32 path — see the NOROOM wall in serveFind */ Coord rc[C]; rosterCells(rc);
+    // V7: the non-head cells of my child row are admissible only once I have
+    // HELD that row's ledger since I seated — its head has phoned me the row
+    // at least once. A free head cell is always admissible (seating the head
+    // is what starts the ledger). Not a freshness window: the mint site was a
+    // REPLACEMENT parent that had never heard the row at all; a parent whose
+    // head later died keeps a view as good as anyone's (LEAVE echoes clear
+    // its cells) and must go on filling that row during the heal — gating on
+    // the head's liveness sent every seeker under a dead head one level
+    // deeper for the whole heal (repro-compaction leg 1, seeds 5/8/9).
+    bool ledger = rowLedgerAt>=0;
+    for(int c=0;c<C;c++){ uint64_t k=ckey(rc[c]); if(c>0 && !ledger) continue; if(cellReserved(k)) continue; uint64_t dk=ckey(down(rc[c])); if(cellReserved(dk)&&!occIsPhantom(dk)) continue; if(softSitting(dk)) continue; { auto ht=healTry.find(k); if(ht!=healTry.end() && TICK-ht->second<=45) continue; }   /* V4: deep admissions honor the same 45-tick cooling as S1 — a silence-freed chair is not "admissible NOW" */ f=rc[c]; return true; } return false; }
   bool ownerCoord(Coord&o){ if(!hasCoord||coord.pc==0) return false; return up({coord.pc,coord.r,0},o); }
   int ownerId(){ if(!hasCoord) return -1; Coord u; if(!up({coord.pc,coord.r,0},u)) return -1; return occGet(ckey(u)); }
   bool hasChildren(){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id) return true;} return false; }
@@ -1339,6 +1380,8 @@ int main(int argc,char**argv){
     else if(op=="offeron"){ OFFERON=(tk.size()<2)||(tk[1]!="0"); printf("OK offeron=%d\n",(int)OFFERON); }
     else if(op=="probeon"){ PROBEON=(tk.size()<2)||(tk[1]!="0"); printf("OK probeon=%d\n",(int)PROBEON); }
     else if(op=="spreadon"){ SPREAD=(tk.size()<2)||(tk[1]!="0"); printf("OK spread=%d\n",(int)SPREAD); }
+    else if(op=="spreaddepth"){ SPREAD_MINDEPTH=(tk.size()>1)?atoi(tk[1].c_str()):0; printf("OK spreaddepth=%d\n",SPREAD_MINDEPTH); }
+    else if(op=="noroomhist"){ printf("NOROOMHIST"); for(int d=0;d<16;d++) if(NOROOM_BYDEPTH[d]) printf(" d%d:%lld",d,NOROOM_BYDEPTH[d]); printf("\n"); if(tk.size()>1&&tk[1]=="reset") for(int d=0;d<16;d++) NOROOM_BYDEPTH[d]=0; }
     // descstat [reset] — FRONT 3. Needs MESH_DESC=1 in the environment; without
     // it every counter is zero and the verb says so rather than printing a
     // convincing-looking table of nothing.

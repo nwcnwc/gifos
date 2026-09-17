@@ -94,7 +94,22 @@
   const COMPACT_PERIOD = 90; // test/sim/mesh.cpp COMPACT_PERIOD — min ticks between one leaf's compaction probes
   const COMPACT_SETTLE = 300; // test/sim/mesh.cpp COMPACT_SETTLE — quiescence window since seating / last heal / last move / last local churn. ABOVE the healing horizons so a mass-heal fully re-converges before compaction stirs the tree (a shorter window ~2x'd mass-heal convergence and flaked the churn sweep).
   const COMPACT_TTL = 30;    // test/sim/mesh.cpp COMPACT_TTL — up-chain hop budget for a compaction probe
-  const PROBLVL = 0;         // test/sim/mesh.cpp PROBLVL (`problvl n`) — cap the probe's climb at n levels above the seeker; 0 = unlimited. The V5 funnel fix: at N=20000 settled, problvl 2 takes the hot S1 seat from 13.7-15.1 frames/tick to the 3.13 floor on every seed swept (2026-08-07) while compactness holds. MUST match the sim default — twins never diverge.
+  // T7 SPREAD-AFTER-NOROOM (test/sim/mesh.cpp SPREAD, `spreadon 0|1`;
+  // docs/front3-descent-2026-08-06.md). On a FIND whose seeker has already
+  // been told NOROOM to its face, a reachable-but-unheard sibling may compete
+  // in pass 0 of the descent. DEFAULT OFF, in lockstep with the sim: the two
+  // twins must flip together, and OFF is byte-identical to the pre-T7 brain.
+  const SPREAD = true;       // test/sim/mesh.cpp SPREAD — MUST match the sim default (ON since 2026-09-17)
+  // The evidence is GRADED BY DEPTH (sim SPREAD_MINDEPTH, `spreaddepth n`): a
+  // NOROOM counts only when the seat that answered it sits at depth >= this.
+  // A shrinking room's NOROOMs come from depths 0-2 (a home row refilling, a
+  // shallow row settling) — spreading on those opened sections that a heal
+  // would have packed and chain-local compaction can never reach (measured
+  // 2026-09-17, repro-compaction leg 1). The plateau's NOROOMs come from the
+  // depth wall. 4 is the smallest grade above what a shallow room produces;
+  // N=5000 converges at 3840 ticks with it (never, without spread).
+  const SPREAD_MINDEPTH = 4; // test/sim/mesh.cpp SPREAD_MINDEPTH — MUST match the sim default
+  const PROBLVL = 3;         // test/sim/mesh.cpp PROBLVL (`problvl n`) — cap the probe's climb at n levels above the seeker. ON at 3 since 2026-09-17: at N=20000 settled it takes the hot S1 seat from 15.15 to 3.42 frames/tick (probes reaching S1 in a 6000-tick window 441,480 -> 5,087) with compaction intact; 2 (the 2026-08-07 sweep's value) went RED on repro-compaction leg 1 at N=300, 3 is green there. MUST match the sim default — twins never diverge.
 
   // ---- V1 ROLLUP DIGEST (healing-laws.md § G) — faithful port of the sim's
   // digest machinery (test/sim/mesh.cpp Dig + mesh_seat.inc rollup/pubDig/
@@ -203,6 +218,13 @@
       this.compactMoves = 0;     // Q2 observability: how many times I have compacted upward (surfaced via __gifosVideo.debugDump for the swarm live test)
       this.roster = []; this.haveRoster = false; this.lastGreeters = [];
       this.findNc = null;        // 03c: seeker of the serveFind scan in progress (knock-is-evidence phantom scope)
+      this.noroomSeen = 0;       // T7: NOROOMs told to my face since I last entered the search (sim mesh.cpp noroomSeen) — only an EXPLICIT NOROOM counts, never a timeout
+      // V7 THE DEEP-ROW LEDGER (sim mesh.cpp rowLedgerAt, 2026-09-17): the tick I
+      // last heard my down-child head's ROW LEDGER since I seated. A parent
+      // learns its child row's non-head cells from nobody else (they link to
+      // their head, not to the parent), so a REPLACEMENT parent saw an empty
+      // row and admitted into occupied cells — the N=50000 duplicate residue.
+      this.rowLedgerAt = -1;
       // ---- V1 ROLLUP DIGEST state (healing-laws § G; sim mesh.cpp) ----------
       // Display-only, flag-gated (env.DIGEST) — see the constants block above.
       this.refuses = false;      // MY OWN first-hand consent state (has NOT consented). Local, never derived from a digest.
@@ -547,8 +569,18 @@
       // phantom clear), and raw occ let parents sit on free child rows
       // forever while joiners funneled into the depth wall (the N=2000
       // plateau livelock).
-      for (const rc of this.rosterCells()) {
+      // V7: the non-head cells of my child row are admissible only once I
+      // have HELD that row's ledger since I seated — its head has phoned me
+      // the row at least once. A free head cell is always admissible (seating
+      // the head is what starts the ledger). Not a freshness window: the mint
+      // site was a REPLACEMENT parent that had never heard the row; a parent
+      // whose head later died keeps filling that row during the heal.
+      const cells = this.rosterCells();
+      const ledger = this.rowLedgerAt >= 0;
+      for (let c = 0; c < cells.length; c++) {
+        const rc = cells[c];
         const k = ck(rc);
+        if (c > 0 && !ledger) continue;
         if (this.cellReserved(k)) continue;
         const dk = ck(topo.down(rc));
         if (this.cellReserved(dk) && !this.occIsPhantom(dk)) continue;
@@ -647,7 +679,7 @@
       if (this.joinStart < 0) this.joinStart = this.TICK;
       this.emitRelay(this.myKey); this.wake();
     }
-    askSeat(target) { if (this.askTick === this.TICK) { if (!this.hasCoord) { this.state = 2; this.retryAt = this.TICK; } this.reAsk = true; this.wake(); return; } this.askTick = this.TICK; this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.lastAsked = target; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200 }); this.wake(); } // ENTRY PACING: one ask per tick (paced-out ⇒ defer the SEND, never the STATE — see join())
+    askSeat(target) { if (this.askTick === this.TICK) { if (!this.hasCoord) { this.state = 2; this.retryAt = this.TICK; } this.reAsk = true; this.wake(); return; } this.askTick = this.TICK; this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.lastAsked = target; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200, spread: (SPREAD && this.noroomSeen >= 1) }); this.wake(); } // ENTRY PACING: one ask per tick (paced-out ⇒ defer the SEND, never the STATE — see join())
     // ENTRY RESUME (2026-08-04 plane incident; test/tools/seat-flap-repro.js).
     // The dance is three door round trips — knock→GREETERS, WHOHOME→HOME,
     // FIND→PLACE — and a retry used to restart it from the knock, so a socket
@@ -842,7 +874,7 @@
     take(c, owner, nbrs) {
       if (c.i >= C() || c.r >= C()) return;   // sanity: never take a malformed coord
       this.rowLedger = !(c.pc === 0 && c.i === 0 && owner != null);   // V4: an admitted S1 row head waits for its assigner's SITXFER
-      this.coord = c; this.hasCoord = true; this.state = 3; this.joinStart = -1; this.stranded = false; this.reAsk = false; this.reJoin = false; // seated: any deferred entry retry is moot
+      this.coord = c; this.hasCoord = true; this.state = 3; this.joinStart = -1; this.stranded = false; this.reAsk = false; this.reJoin = false; this.noroomSeen = 0; this.rowLedgerAt = -1; // seated: any deferred entry retry is moot; T7: the NOROOM evidence dies; V7: a new seat holds no child-row ledger yet with the attempt it belonged to
       // A: self-confirm sitting-down → seated (only the joiner upgrades).
       this.confirmSeated(ck(c), this.id);
       for (const kv of nbrs) if (!this.occ.has(kv.k)) { this.setOcc(kv.k, kv.v); this.noteS1(kv.k); }
@@ -905,7 +937,7 @@
     }
     serveFind(mm) {
       const TICK = this.TICK;
-      if (!this.hasCoord || mm.ttl <= 0) { this.emit(mm.nc, { t: 'NOROOM' }); return; }
+      if (!this.hasCoord || mm.ttl <= 0) { this.emit(mm.nc, { t: 'NOROOM', nd: this.hasCoord ? topo.pcDepth(this.coord.pc) : 0 }); return; }
       if (this.coord.pc === 0) {
         // H7 ROW-FILL seating (replaces the old column backfill): Section 1
         // fills ROW-MAJOR — row 0 seats 0..C-1, then row 1, ... — so the first
@@ -1000,7 +1032,7 @@
             const doorListed = (x) => x != null && !!(this.lastGreeters && this.lastGreeters.includes(x));
             let aid = this.firstHandLive(ac) ? this.occGet(ac) : (doorListed(this.occGet(ac)) ? this.occGet(ac) : null);
             if (aid == null || aid === this.id) { const hx = this.occGet(ah); aid = this.firstHandLive(ah) ? hx : (doorListed(hx) ? hx : null); }
-            if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
+            if (aid != null && aid !== this.id) { this.emit(aid, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1, spread: !!mm.spread }); return; }
             // The whole admitter row below is dead too. "Resolve bottom-up"
             // DEADLOCKED here when EVERY row below was dead or empty (s1all
             // recovery: fresh greeters in rows 0-1, rows 2-4 dead, one stale
@@ -1093,7 +1125,7 @@
             }
             // Hand off to reachable real admitter; never emit to a corpse.
             if (this.admitterReachable(ck(adm))) {
-              this.emit(this.occGet(ck(adm)), { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return;
+              this.emit(this.occGet(ck(adm)), { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1, spread: !!mm.spread }); return;
             }
           }
         }
@@ -1110,7 +1142,7 @@
         // free cells look unservable fast-tracks silent death past the H1-S1
         // ring-hold (headless-row leg C), and buys nothing — the partitioned
         // half recovers on the reachable-forward fix below alone.
-        if (s1admFree > 0) { this.emit(mm.nc, { t: 'NOROOM' }); return; }
+        if (s1admFree > 0) { this.emit(mm.nc, { t: 'NOROOM', nd: this.hasCoord ? topo.pcDepth(this.coord.pc) : 0 }); return; }
       }
       const f = this.firstFreeInRoster();
       if (f) {
@@ -1132,14 +1164,19 @@
       // V4 THE DEPTH WALL (twin of the sim's uint32 guard): never forward a
       // FIND toward the 13th floor — NOROOM is honest, and the twins must
       // refuse at the same depth or they diverge exactly where a dup storm goes.
-      if (topo.pcDepth(this.coord.pc) >= 12) { this.emit(mm.nc, { t: 'NOROOM' }); return; }
+      if (topo.pcDepth(this.coord.pc) >= 12) { this.emit(mm.nc, { t: 'NOROOM', nd: this.hasCoord ? topo.pcDepth(this.coord.pc) : 0 }); return; }
       const rc = this.rosterCells(); const idx = this.shuf(Array.from({ length: C() }, (_, k) => k));
       for (let pass = 0; pass < 2; pass++)
         for (const q of idx) {
           const rk = ck(rc[q]); const x = this.occGet(rk); if (x == null || x === this.id) continue;
-          if (pass === 0 ? this.firstHandLive(rk) : this.admitterReachable(rk)) { this.emit(x, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1 }); return; }
+          // T7 (sim mesh_seat.inc serveFind): on a FIND whose seeker has ALREADY
+          // been told NOROOM to its face, a reachable-but-unheard sibling may
+          // compete in pass 0. First contact is untouched; a partitioned seeker
+          // never gets here (it fails silent, not loud); the hop is still
+          // strictly DOWNWARD, so no cycle is possible.
+          if (pass === 0 ? (this.firstHandLive(rk) || (mm.spread && this.admitterReachable(rk))) : this.admitterReachable(rk)) { this.emit(x, { t: 'FIND', nc: mm.nc, ttl: mm.ttl - 1, spread: !!mm.spread }); return; }
         }
-      this.emit(mm.nc, { t: 'NOROOM' });
+      this.emit(mm.nc, { t: 'NOROOM', nd: this.hasCoord ? topo.pcDepth(this.coord.pc) : 0 });
     }
     // Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1)
     // climbs the seeker's OWN up-chain — every hop an ALIVE link (row → head →
@@ -1608,6 +1645,13 @@
       // stopped hearing the prior occupant").
       if (prev != null && prev !== m.id && m.id > prev && this.live.has(kk) && TICK - this.live.get(kk) <= 40 && !this.translost.has(kk)) { this.emit(m.id, { t: 'YIELD', ck: kk }); return; }
       this.setOcc(kk, m.id); this.liveMark(kk); this.noteS1(kk); this.kidful.set(kk, m.kids ? 1 : 0); if (m.child != null) this.childOf.set(kk, m.child); else this.childOf.delete(kk);
+      // V7: my down-child head phoned me its ROW LEDGER. Install what I lack (a
+      // cell I already hold keeps my entry — two claimants are the head's E2
+      // yield to settle, not mine to overwrite) and stamp the beat.
+      if (kk === ck(topo.down(this.coord))) {
+        if (Array.isArray(m.row)) for (const e of m.row) { if (e && e.k != null && e.v != null && !this.occ.has(e.k)) { this.setOcc(e.k, e.v); this.noteS1(e.k); } }
+        this.rowLedgerAt = this.TICK;
+      }
       const myoc = this.ownerCoord(); let owner = null, oCk = null; if (myoc) { oCk = ck(myoc); owner = this.occGet(oCk); }
       const row = [];
       if (this.coord.i === 0 && m.coord.pc === this.coord.pc && m.coord.r === this.coord.r) { row.push({ k: ck(this.coord), v: this.id, age: this.occGet(ck(topo.down(this.coord))) }); for (let c = 1; c < C(); c++) { const rc = { pc: this.coord.pc, r: this.coord.r, i: c }; const x = this.occGet(ck(rc)); if (x != null && x !== m.id) row.push({ k: ck(rc), v: x, age: this.childOf.has(ck(rc)) ? this.childOf.get(ck(rc)) : null }); } }
@@ -1649,6 +1693,13 @@
       let tc = null; if (this.hasCoord) { if (this.coord.i !== 0) tc = { pc: this.coord.pc, r: this.coord.r, i: 0 }; else tc = this.ownerCoord(); }
       if (!tc) return; const tid = this.occGet(ck(tc)); if (tid == null) return;
       const ph = { t: 'PHONE', coord: this.coord, tock: ck(tc), id: this.id, kids: this.hasChildren(), child: this.occGet(ck(topo.down(this.coord))) };
+      // V7 THE DEEP-ROW LEDGER (sim phoneHome): a deep head phoning its OWNER
+      // carries its row's occupants (cells 1..C-1, first-hand at the head).
+      // An empty list is still a ledger — the owner keys on the beat.
+      if (this.coord.pc !== 0 && this.coord.i === 0) {
+        ph.row = [];
+        for (let j = 1; j < C(); j++) { const rk = ck({ pc: this.coord.pc, r: this.coord.r, i: j }); const x = this.occGet(rk); if (x != null && x !== this.id) ph.row.push({ k: rk, v: x, age: -1 }); }
+      }
       // § G UP-LEG (payload on the beat, G0): a deep HEAD contributes its whole
       // ROW fold (its owner is linked to it and nobody else in that row);
       // everyone else contributes its own subtree. Section-1 rows do NOT roll
@@ -2025,7 +2076,7 @@
         // scattered away from the funnel and deep sections filled row 1 before
         // row 0 (H7 dense-fill broken; sim hchain E + c-sweep, 2026-07-29). A
         // corpse answers NOTHING, so its mark stands — corpse-avoid untouched.
-        case 'NOROOM': if (this.state === 2) { if (this.triedSilent && m.id != null) this.triedSilent.delete(m.id); if (this.triedSilent && this.lastAsked != null) this.triedSilent.delete(this.lastAsked); this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); } return;
+        case 'NOROOM': if (this.state === 2) { if ((m.nd | 0) >= SPREAD_MINDEPTH) this.noroomSeen++; if (this.triedSilent && m.id != null) this.triedSilent.delete(m.id); if (this.triedSilent && this.lastAsked != null) this.triedSilent.delete(this.lastAsked); this.retryAt = TICK; if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) { this.askSeat(t); return; } } this.seatTries = 0; this.join(); } return;
         case 'HELLO': {
           // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it
           // holds to me, claiming coord m.ck — it sets first-hand liveness.

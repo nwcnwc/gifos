@@ -35,30 +35,11 @@ echo "building sim -> $BIN"
 g++ -O2 -std=c++17 -o "$BIN" test/sim/mesh.cpp || { echo "BUILD FAILED"; exit 2; }
 
 # ---------------------------------------------------------------- partition --
-hdr "A PARTITIONED HALF MAY FREEZE  (decided: Nathan, 2026-07-21)"
-why "a total partition is rare and the room recovers when the network heals"
-cost "either let the scan skip a confirmed-dead unfillable cell — which costs
-                 row density, and the media near-field is row-scoped — or let another seat
-                 admit into a memberless row, which reintroduces a healer race (\"don't
-                 devolve\"). Both rejected. See docs/healing-laws.md § Partition."
-echo "    what breaks: the half confirms the far side dead and erases those occ"
-echo "                 entries; a home row is left with NO live member, so nobody can"
-echo "                 admit into it; H7's dense-fill gate then refuses to open any"
-echo "                 later row, and every remaining seeker gets NOROOM forever."
-echo "    NOTE: no-split-brain (dups=0) is a REAL invariant and is asserted in"
-echo "          test/sim/sweep.sh, which must stay green. Only the FREEZE lives here."
-echo "    measuring across 20 seeds (the 3 seeds pinned in sweep.sh pass on luck) ..."
-frozen=0; dups=0
-for s in $(seq 1 20); do
-  line=$(printf "seed %s\ninit 400 0\nconverge\nsplit 0.5\ntick 40000\nsplitstate\nquit\n" "$s" \
-          | "$BIN" --service 2>&1 | grep "SPLITSTATE")
-  grep -Eq "strand=[1-9]" <<<"$line" && { frozen=$((frozen+1)); echo "      seed=$s FROZEN $line"; }
-  grep -Eq "dups=[1-9]" <<<"$line" && { dups=$((dups+1)); echo "      seed=$s SPLIT-BRAIN(!) $line"; }
-done
-echo "    result: $frozen/20 seeds froze a half   (baseline when decided: 2/20)"
-[ "$dups" -ne 0 ] && echo "  *** SPLIT-BRAIN APPEARED — that is NOT accepted. Fix it, and check sweep.sh. ***"
-if [ "$frozen" -eq 0 ]; then green "no half froze in 20 seeds — partition recovery is total now"
-else red "$frozen/20 splits froze a half"; fi
+# A PARTITIONED HALF MAY FREEZE (decided: Nathan, 2026-07-21) — CLOSED 2026-09-17.
+# The 20-seed measurement that lived here went 20/20 clean (2/20 frozen when
+# decided; 18/20 in healing-laws § Partition), so per this file's own rule it
+# was promoted into a real gate: test/sim/repro-partition.sh, globbed by the
+# release battery with every other repro-*.sh. It is not re-measured here.
 
 # (The C=2/C=3 tiny-section split-brains the first C-sweep found were FIXED —
 # an isolated S1 fragment now uses its relay re-knock to requeue, commit 2e7aa18
@@ -66,57 +47,35 @@ else red "$frozen/20 splits froze a half"; fi
 # green, so there is no low-C entry to keep here. If it ever regresses, that
 # battery — not this graveyard — is where it shows.)
 
-hdr "N=5000 MASS-JOIN STALLS  (decided: cut 0.9.3 without it, 2026-08-05)"
-why "a 5000-seat single-storm join plateaus (~3076 seated at the 60k-tick cap).
-                 No release has ever converged N=5000. Real rooms sit orders of magnitude
-                 below the pathology; every real-shape gate is green."
-cost "DIAGNOSED AND SOLVED-BUT-UNSHIPPABLE as of 2026-08-06 — read
-                 docs/front3-descent-2026-08-06.md before touching this. The cause is NOT
-                 the heal layer: at the plateau 100% of pass-0 descents offer exactly ONE
-                 candidate (the child-row head, the only child a parent hears first-hand),
-                 every FIND walks that spine 12 levels to the wall (2.44M NOROOMs, meanHops
-                 exactly 12.00) and 11,259 free cells sit under columns 1..C-1 unreached.
-                 T7 spread-after-NOROOM FIXES IT — sim verb \`spreadon 1\`, DEFAULT OFF:
-                 N=5000 converges 5000/5000 on all 4 seeds (~3200-3400 ticks), N=10000 in
-                 3776, N=20000 in 4480, dups=0, evictions 11022 -> 3739, and the split-room
-                 legs (headless-row C, hchain D) stay green.
-                 IT IS OFF FOR TWO REASONS, AND THE FIRST IS CORRECTNESS.
-                 (1) T7 MINTS DUPLICATE SEATS: N=50000 gives seated=49986/50000
-                 with DUPS 18 and CHECK FAIL, while N=100000 is clean (dups=0) —
-                 non-monotonic, so a race whose window depends on topology, not a
-                 threshold. Inferred cause: pass 0's firstHandLive filter was also
-                 selecting an admitter whose occ view is FRESH; a reachable-but-
-                 unheard admitter can admit into a cell already taken. Fixing that
-                 belongs beside the V4/V5 evidence waves.
-                 (2) IT COSTS TREE COMPACTNESS: spreading opens more sections
-                 and lone rows than compaction can collapse, and repro-compaction leg 1
-                 reds (clean A/B: baseline GREEN, T7 RED). Raising the evidence bar to 2
-                 NOROOMs does not separate them (still converges, 8 failures instead of 5),
-                 so the trade is inherent to spreading, not a trigger artifact. Resolving
-                 that trade is the remaining work; the covenant below still stands."
-echo "    running test/sim/scale-frontier.sh (~20 min of sim compute) ..."
-if bash test/sim/scale-frontier.sh > /tmp/known-scale.log 2>&1; then green "N=5000 converges — RENAME scale-frontier.sh to repro-scale.sh NOW"; else red "N=5000 mass-join stalls ($(grep -oE 'seated=[0-9]+/5000' /tmp/known-scale.log | tail -1))"; fi
+# N=5000 MASS-JOIN STALLS (decided: cut 0.9.3 without it, 2026-08-05) —
+# CLOSED 2026-09-17. T7 spread-after-NOROOM is ON in both twins, with its
+# evidence GRADED BY DEPTH (a NOROOM counts only from a seat at depth >= 4):
+# the plateau's NOROOMs come from the depth wall, a shrinking room's from
+# depths 0-2, and that grade is what dissolved the compaction trade (leg 1 is
+# green with spread on; it was red at grade 0 because spread opened sections
+# under sibling columns that chain-local compaction can never reach). N=5000
+# converges at 3840 ticks, N=20000 on three seeds, dups=0 throughout. The
+# N=50000 dup family underneath was then found and closed the same night
+# (healing-laws V7, the deep-row ledger): N=5000 now converges at 1408 ticks
+# and N=50000 at 2176 with dups=0 (was 8512 with 18).
+# scale-frontier.sh was renamed test/sim/repro-scale.sh per the covenant and
+# the release battery globs it. Nothing is re-measured here.
 
 # ----------------------------------------------------------------- browsers --
 if [ "$BROWSERS" = 1 ]; then
   export MEET_CHROME="${MEET_CHROME:-/opt/google/chrome/chrome}"
   run_suite(){ timeout 900 node "$1" >/tmp/known-unfixed-$(basename "$1" .js).log 2>&1; }
 
-  hdr "LATE JOINERS ADOPT A RUNNING APP UNRELIABLY  (decided: kept as guards)"
-  why "app STATE rides the structural-neighbour sga flood while presence rides
-                 meshNode.gossip, so whether a newcomer gets the retained snapshot is a
-                 RACE, not a flat no. Unifying the two lanes is a design change."
-  cost "one control plane for app state + presence (docs/app-mesh-unification.md)"
-  echo "    MEASURED 2026-07-27 (8-core box, 3 runs each; the pi is too weak to judge):"
-  echo "                 e2e-meeting-app  2/3 GREEN     e2e-mymedia-meet  1/3 GREEN"
-  echo "                 So this is intermittent, and the entry above used to claim a"
-  echo "                 newcomer NEVER adopts. It sometimes does. Whoever picks up"
-  echo "                 app-mesh-unification should know they are closing a race, not"
-  echo "                 building a missing path — and that a single green run here"
-  echo "                 proves nothing."
-  for s in test/browser/e2e-meeting-app.js test/browser/e2e-mymedia-meet.js; do
-    if run_suite "$s"; then green "$s now passes"; else red "$s"; fi
-  done
+  # LATE JOINERS ADOPT A RUNNING APP UNRELIABLY (decided: kept as guards) —
+  # CLOSED 2026-09-17. The race was real and reproduced here (1 of 3 pristine
+  # runs timed out at 45 s); the hole was in the PULL, not the lanes: the
+  # snapshot/app pull asked only the STRUCTURAL sga neighbours and gave up
+  # after 30 tries (60 s), and nothing ever restarted it. run.html now widens
+  # the ask to every open channel after three structural tries and never
+  # gives up while a subscriber wants the sid. e2e-meeting-app.js carries a
+  # DETERMINISTIC guard (a joiner with its structural set isolated must still
+  # mount; the negative control with widening disabled fails it at 50 s), so
+  # the suites below are ordinary gate members again, not graveyard entries.
 
   hdr "FAILOVER WAKE MISSES THE ≤5s GRACE BOUND  (decided: Nathan, 2026-07-28; campaign landed 2026-08-08)"
   why "The SENDER-SIDE CAMPAIGN LANDED 2026-08-08 (container identity

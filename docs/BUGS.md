@@ -4,15 +4,20 @@ This document records concrete security and scalability findings from a
 repository-wide static review. Locations refer to the edge source unless a
 served release is named explicitly.
 
-## Status — 2026-09-16
+## Status — 2026-09-16 / 2026-09-17
 
 Every finding below was checked against the code at `5108e8ca` and found
-accurate as a description of what the code does. Six were things earlier
-audits missed; those are FIXED on this branch with regression guards. The
-rest were already recorded in this repo as known, deferred, or accepted
-(`test/batteries/known-unfixed.sh`, `docs/audit-2026-09-02.md`,
-`docs/threat-model.md`), or are hardening ideas rather than defects. The
-reasons stand; they are restated per item so nobody re-derives them.
+accurate as a description of what the code does. Seven of the security items
+are FIXED with regression guards (six misses plus the permission gate,
+reversed on a second look; the proxied-redirect half was found by the
+reviewer's re-review of the first pass). Of the scalability items, the three
+that had been parked in `known-unfixed.sh` — the 5,000-seat storm, the
+late-joiner race and the probe cap — are FIXED (2026-09-17, overnight), and
+the storm work found the duplicate-seat root cause underneath (healing-laws
+V7): 50,000 seats now converge at 2176 ticks with zero duplicates where the
+old brain took 8512 and left 18. The partition freeze went green on its own
+measurement and was promoted to a gate. What remains open is recorded per
+item with its reason, so nobody re-derives it.
 
 | Finding | Status | Guard / where the reason lives |
 |---|---|---|
@@ -26,9 +31,9 @@ reasons stand; they are restated per item so nobody re-derives them.
 | Payment and provenance share a signing identity | **FIXED.** The Worker signs with its own key (`pay/gen-key.mjs`), published as `site/gifos-pay.key`; init refuses any other secret. **Needs the secret rotated before the next pay deploy** (see pay/README.md). | `e2e-pay.js`, `e2e-tip-creators.js` verify against `/gifos-pay.key` |
 | Trusted shell CSP incomplete | Open, hardening. GitHub Pages sets no headers; a meta CSP cannot carry `frame-ancestors`. Externalising 13k lines of inline script is a project, not a fix. | `docs/audit-2026-09-02.md` SBX-01 |
 | CyberChef artifacts from a mutable branch | **FIXED.** `vendor.mjs` now VERIFIES against the committed hashes and refuses to touch `vendor/`; `--repin` is the deliberate act and records the gh-pages commit. (Verify is red today: upstream deployed 2026-09-11. The vendored build is the reviewed one.) | `node apps/cyberchef/vendor.mjs` |
-| 5,000-participant join storm | Known, decided 2026-08-05. Diagnosed and solved-but-unshippable (duplicate seats, compaction). | `known-unfixed.sh`, `docs/front3-descent-2026-08-06.md` |
-| Late joiners miss running shared apps | Known, kept as guards. A race, not a missing path; the fix is one control plane. | `known-unfixed.sh`, `docs/app-mesh-unification.md` |
-| PROBLVL = 0 | Known. Measured fix; the sim twin and `mesh.js` must flip together. | `site/js/mesh.js:97` |
+| 5,000-participant join storm | **FIXED (2026-09-17), twice over.** Spread-after-NOROOM is on in both twins, graded by the answering seat's depth (>= 4), which dissolved the compaction trade. Then the duplicate family underneath it was found: a replacement parent could not see its child row's occupants and admitted into them (healing-laws V7, the deep-row ledger). With V7: N=5000 at 1408 ticks, N=50000 at 2176 with dups=0 (was 8512 with 18); N=3000 evictions 4569 to 0. | `test/sim/repro-scale.sh`, `repro-compaction.sh`, the whole repro set + c-sweep |
+| Late joiners miss running shared apps | **FIXED (2026-09-17).** Reproduced on the untouched code (1 of 3 runs timed out). The pull asked only structural neighbours and gave up after 60 s; it now widens to every open channel and never gives up while wanted. | `e2e-meeting-app.js`: isolated-structure joiner must mount (negative control fails at 50 s) |
+| PROBLVL = 0 | **FIXED (2026-09-17).** Both twins ship the cap at 3 (the measured 2 turned the small-room compaction gate red; 3 is green there and takes the hottest Section 1 seat from 15.15 to 3.42 frames per tick at 20000 seats). | `repro-compaction.sh`; numbers in `docs/scale-audit-2026-08-06.md` |
 | Meeting history without retention | By design: room-lifetime history, rate-limited. | `docs/meet-security.md` |
 | Subscriptions resend full collections | v1 API shape; delta coalescing already landed (SBX-06). Improvement. | — |
 | Reconnect queue without priority | Open, low. Fair point, not previously recorded. | — |

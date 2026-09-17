@@ -55,8 +55,16 @@ echo
 echo "=== 1) TRUTH — the root fold equals the room, at every observer ==="
 # Section 1 alone (N=20, one-level tree) through a deep multi-section room. The
 # small end is G8's "small rooms degrade to today": rollup and flood coincide.
+# 800 ticks after convergence, not 400 (2026-09-17, V7). The fold's staleness
+# bound is O(depth x period) — up-leg + down-leg, ~8 ticks a level, DIG_TTL
+# expiry of re-parented folds — and it used to be hidden by the mesh's own
+# tail: N=2000 converged around tick 2600 and the folds had settled long before
+# the storm ended. With V7 the same room converges at tick 576, and 400 ticks
+# after that only 301 of 2000 observers held the settled root (rootMax 2016 —
+# a re-parented fold not yet expired); at 800 all 2000 were exact and
+# unanimous. The window now sits at the bound it was always meant to measure.
 for N in 20 300 2000; do
-  out=$(run "det on" "seed 3" "init $N 0" "converge 60000" "tick 400" "digest" "check")
+  out=$(run "det on" "seed 3" "init $N 0" "converge 60000" "tick 800" "digest" "check")
   d=$(grep '^DIGEST' <<<"$out"); c=$(grep '^CHECK' <<<"$out")
   true_=$(fld "$d" true); rmin=$(fld "$d" rootMin); rmax=$(fld "$d" rootMax)
   exact=$(fld "$d" rootExact); obs=$(fld "$d" obs); noroot=$(fld "$d" noroot)

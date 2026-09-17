@@ -212,7 +212,7 @@ possible — this needs no loop discipline, unlike shape 3.
 
 Every seed improves — no sign flip, which is precisely what killed T6b. The
 scaling is sub-linear: 6.7x the seats for 1.7x the ticks.
-`test/sim/scale-frontier.sh` reports **SCALE GREEN** with the flag on.
+`test/sim/scale-frontier.sh` (now `repro-scale.sh`) reports **SCALE GREEN** with the flag on.
 Split-room legs stay green: repro-headless-row A/B/**C**, repro-hchain E/F.
 
 **T7 MINTS DUPLICATE SEATS AT N=50000 — found 2026-08-06 on the big-N ladder,
@@ -275,6 +275,74 @@ is the thing that is wrong, and that is an argued change to the compaction
 law, not a test tweak. NOTE the JS twin does NOT have T7: the twins diverge
 here deliberately, exactly as they already do for the digest, until this is
 resolved.
+
+## RESOLUTION (2026-09-17) — T7 ON, graded by depth
+
+Both halves of the T7 verdict above were re-measured on `5108e8ca`+ and one
+of them dissolved.
+
+**The compaction trade is not inherent to spreading — it is inherent to
+spreading on SHALLOW evidence.** A per-phase trace of leg 1 (seed 2, N=300,
+spread on, compaction ON vs OFF) shows the OFF arm packing 41 → 16 sections
+purely through heal-driven re-seating, while the ON arm plateaus at 23:
+compaction's movers fill the shallow frontier along their own chains, the
+requeued seekers then NOROOM once and SPREAD into empty rows under sibling
+columns, and those rows are unreachable to compaction by construction (a
+probe climbs the leaf's OWN up-chain; 46 free depth-1 cells sat in other
+chains at the end, 3484 probes, 2 moves). The NOROOMs that set the flag in
+that scenario come from depths 0, 1 and 2 only (`noroomhist`: d0:338 d1:91
+d2:6 during the shrink); the plateau's come from the depth wall (N=3000
+baseline: d12:1612, hundreds at d4-d8).
+
+So the evidence is now GRADED: a NOROOM counts toward `noroomSeen` only when
+the answering seat's depth (carried on the frame as `nd`) is >= `spreaddepth`
+(`SPREAD_MINDEPTH`, default 4 in both twins). Measured, det, default seed:
+
+| | grade 0 (T7 as built) | grade 4 | grade 6 | grade 8 | baseline |
+|---|---|---|---|---|---|
+| N=5000 converge | 3200 | **3840** | 4096 | 4160 | never (3076/5000 @60k) |
+| dups | 0 | 0 | 0 | 0 | — |
+| repro-compaction leg 1 | RED (2 seeds) | **GREEN** | GREEN | — | GREEN |
+| N=20000 seeds 7/101/2029 | 4736/4352/4544, dups 0 | (grade 0 numbers; grade 4 is a subset of grade-0 spreading) | | | |
+
+4 is the smallest grade above what a shallow room produces. Gates under the
+new defaults: repro-compaction, repro-headless-row, repro-hchain, and
+`repro-scale` (the renamed scale-frontier) GREEN; the rest of the repro set
+and c-sweep in the same commit. The JS twin carries the identical mechanism
+(`mesh.js` SPREAD / SPREAD_MINDEPTH / `noroomSeen` / `nd` on NOROOM), and its
+harness is trajectory-identical to the pre-port tree at N=500/1000, where no
+NOROOM ever comes from depth 4.
+
+**The N=50000 duplicate seats — FOUND AND CLOSED (V7, same night).** The
+run was repeated with `MESH_DUPLOG=1` (converged@8512, DUPS 18, exactly the
+2026-08-06 numbers). Every residual duplicate had the same shape: a cell whose
+incumbent was admitted at t≈600 by one parent, then re-admitted at t≈2800-8500
+by a DIFFERENT seat now holding the parent cell, which had never heard the
+row's occupants. The transient mints that resolve (the baseline N=3000 storm
+logs ~50k of them and ends at 0, at the price of 4,569 evictions) are the same
+engine. A parent learns its child row's non-head cells from nobody: those seats
+link to their head, not the parent, and the head's PONG row ledger rode only
+to row-mates. The fix is healing-laws **V7** — the head's phoneHome beat
+carries its row ledger to the parent, and a parent admits into non-head cells
+only while it holds that ledger first-hand. It is the root of the storm's dup
+war, not only of the 50k residue:
+
+| det, default seed | before V7 (spread on, grade 4) | **with V7** |
+|---|---|---|
+| N=3000 | 6976 ticks, evict 4569, moves 29,387 | **832, evict 0, moves 101** |
+| N=5000 | 3840 | **1408, evict 2** |
+| N=20000 | 4480 | **2176, evict 7** |
+| N=50000 | 8512, **DUPS 18** | **2176, dups 0, evict 54** |
+| JS harness N=500 / 1000 | @1024 / @1472 | **@192 / @320** |
+
+Spread stays ON and graded — it is still what gives the descent a choice at
+the wall — but with V7 most seekers never reach it. (V7's first cut gated the
+row on the head's LIVENESS, which sent every seeker under a dead head one
+level deeper for the length of the heal — repro-compaction leg 1 red on seed
+5 — so the shipped rule is "held the ledger since I seated": the dup site was
+a parent that had never heard the row, not a stale one. Leg 1 itself was
+widened to seeds 2-9 with a bounded per-seed loss and strict aggregate
+dominance, because its per-seed +1 lost 2/8 seeds on the OLD brain too.)
 
 ## The three shapes this pointed to — for the record
 

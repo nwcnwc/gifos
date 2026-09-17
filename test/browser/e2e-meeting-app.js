@@ -89,11 +89,41 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const cCtx = await newUser('Cyd');
   const cMeet = await cCtx.newPage();
   cMeet.on('pageerror', (e) => console.log('  [c meet pageerror]', e.message));
+  const cT0 = Date.now();
   await cMeet.goto(link);
   // 45s: the late joiner must boot the meeting, join the mesh, learn the app is
   // live, and PULL the retained snapshot — boot alone is ~45s on a saturated box.
-  await cMeet.waitForSelector('#appmount iframe', { timeout: 45000 });
+  await cMeet.waitForSelector('#appmount iframe', { timeout: 45000 }).catch(() => {});
   check('a LATE joiner picks up the running app automatically', await cMeet.evaluate(() => window.__gifosVideo.appActive()));
+  // The join timeline (runtime.js bootClientBus joinTrace), so a red here says
+  // WHICH leg was slow: no snap = mesh/DC establishment, snap but no app frame
+  // = the bytes path. And the number itself, so runs can be compared.
+  const cTrace = await cMeet.evaluate(() => (window.__appJoinTrace || []).map((e) => e.ev + '@' + e.ms + 'ms').join(' '));
+  console.log('  late joiner: iframe after ' + (Date.now() - cT0) + ' ms; trace: ' + (cTrace || '(none)'));
+
+  // ---- THE RACE, MADE DETERMINISTIC: a joiner with NO structural neighbours ----
+  // Presence rides gossip to everyone, but the snapshot/app pull used to ask
+  // only the STRUCTURAL sga neighbours (the media-fan links) and give up after
+  // 60 s. A newcomer whose structural neighbours held nothing — or whose seat
+  // wired slowly — sat mounted-and-blank forever while a holder was one open
+  // channel away. Isolate this joiner's structural set outright: the pull
+  // must WIDEN to every open channel and still land the app.
+  const eCtx = await newUser('Eve');
+  const eMeet = await eCtx.newPage();
+  eMeet.on('pageerror', (e) => console.log('  [e meet pageerror]', e.message));
+  await eMeet.addInitScript(() => {
+    // Arm the isolation the moment the meeting object exists — before any seat.
+    const arm = () => { if (window.__gifosVideo && window.__gifosVideo.sgaIsolateForTest) window.__gifosVideo.sgaIsolateForTest(true); else setTimeout(arm, 20); };
+    arm();
+  });
+  const eT0 = Date.now();
+  await eMeet.goto(link);
+  await eMeet.waitForSelector('#appmount iframe', { timeout: 45000 }).catch(() => {});
+  const eState = await eMeet.evaluate(() => { const v = window.__gifosVideo; const sid = v.appSid ? v.appSid() : null; return { active: v.appActive(), isolated: v.sgaIsolateForTest(true) }; });
+  const eTrace = await eMeet.evaluate(() => (window.__appJoinTrace || []).map((e) => e.ev + '@' + e.ms + 'ms').join(' '));
+  console.log('  isolated joiner: iframe after ' + (Date.now() - eT0) + ' ms; trace: ' + (eTrace || '(none)'));
+  check('a joiner with NO structural neighbours still gets the app (the pull widens to any open channel)', eState.active && /mounted@/.test(eTrace));
+  await eCtx.close();
 
   // ---- Stopping the app tears the pane down for everyone ----
   await aMeet.evaluate(() => window.__gifosVideo.stopAppForTest());
