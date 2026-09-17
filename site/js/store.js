@@ -206,6 +206,24 @@
     if (!has) legacyDesktop = rel;
   }
 
+  // ---------- what to say when the save is refused ----------------
+  // Chrome's own words for a value its IndexedDB will not take are "The
+  // serialized keys and/or value are too large (size=…, max=…)". A private
+  // tab is where a reader meets them: its database lives in memory, nothing
+  // is wrapped onto disk, and a half-gigabyte app hits the ceiling a normal
+  // tab never shows. Say that, and say the tab would have lost the install
+  // on close anyway; keep Chrome's line underneath for anyone who wants it.
+  function saveFailure(e, size) {
+    const msg = String((e && e.message) || e || '');
+    const tooLarge = /too large|QuotaExceeded|quota/i.test(msg) || (e && (e.name === 'QuotaExceededError' || e.name === 'DataError'));
+    if (tooLarge) {
+      return 'This browser tab can’t store a file this large' + (size ? ' (' + human(size) + ')' : '') + '. ' +
+        'A private or incognito tab keeps everything in memory and caps what it will hold — and it would forget the install when it closes. ' +
+        'Open gifos.app in a normal tab and install again. (' + msg + ')';
+    }
+    return 'Couldn’t save it to this computer — ' + msg;
+  }
+
   // ---------- how a large file is written for THIS visitor ----------------
   // gifos-store.js writes a payload past 32 MiB as a Blob beside its record
   // (Android's IndexedDB refuses the inline value past ~127 MiB, which is
@@ -1003,7 +1021,7 @@
       // Relative, so a frozen build's store finishes on that same build's
       // desktop; in the hash, so the channel loader can't drop it.
       location.href = BASE + 'index.html#place=' + encodeURIComponent(fileId) + ns('&db=') + '&from=store';
-    } catch (e) { return fail('Couldn’t save it to this computer — ' + (e.message || e)); }
+    } catch (e) { return fail(saveFailure(e, bytes ? bytes.length : 0)); }
   }
 
   // ---------- routing ----------
