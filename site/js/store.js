@@ -76,6 +76,7 @@
   let activeCat = 'All';
   let legacyDesktop = null;    // set to the release name when this visitor's
                                // Home Screen predates the store (see below)
+  let ownerRel = null;         // the release snapshot that will run it, or null for the root build
   let ownerBuild = null;       // the BUILD NUMBER that will run what we install
   let ownerName = '';          // …said in words a player recognises
   let versions = null;         // version.json, once it has landed
@@ -167,6 +168,7 @@
       return;
     }
     const rel = await effectiveRelease();
+    ownerRel = rel || null;
     if (!rel) {                                                 // the root build owns this visitor
       // version.json FIRST, and the number comes from it before the global.
       //
@@ -202,6 +204,31 @@
       has = !!(r && r.ok);
     } catch (e) { /* offline: treat as "no", and say so rather than half-install */ }
     if (!has) legacyDesktop = rel;
+  }
+
+  // ---------- how a large file is written for THIS visitor ----------------
+  // gifos-store.js writes a payload past 32 MiB as a Blob beside its record
+  // (Android's IndexedDB refuses the inline value past ~127 MiB, which is
+  // where Bible Study died on a phone). The record then has no bytes of its
+  // own, and only a build with that reader can put them back. The root store
+  // hands an install to whatever desktop owns this visitor — a pinned or live
+  // release snapshot, most often — so it asks that snapshot's own
+  // gifos-store.js whether it knows the shape, and otherwise writes inline,
+  // the way that build can read (fails on a phone as before; works elsewhere).
+  let bigWriteDecided = null;
+  async function chooseBigWrite() {
+    if (!store.setBigAsBlob) return;
+    if (bigWriteDecided !== null) { store.setBigAsBlob(bigWriteDecided); return; }
+    let on = true;
+    if (ownerRel) {
+      on = false;
+      try {
+        const r = await fetch('/versions/' + encodeURIComponent(ownerRel) + '/js/gifos-store.js', { cache: 'no-cache' });
+        if (r.ok) on = /blobBytes/.test(await r.text());
+      } catch (e) { on = false; }
+    }
+    bigWriteDecided = on;
+    store.setBigAsBlob(on);
   }
 
   // ---------- does this visitor's build meet the app's floor? ----------------
@@ -948,6 +975,7 @@
       if (into) {
         // Same fileId, same NAME (the player may have renamed their copy) —
         // new bytes. No placement hand-off: the icon already lives somewhere.
+        await chooseBigWrite();
         await store.putFile({ id: into.id, name: into.name || (app.name + '.gif'), bytes, kind: 'gif',
           isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif',
           storeSha: app.sha256 || null, storeMeta: storeSnapshot(app) });
@@ -965,6 +993,7 @@
       let fileId = store.uid('file');
       const past = remembered[m.appId];
       if (past && !(await store.getFile(past).catch(() => null))) fileId = past;
+      await chooseBigWrite();
       await store.putFile({ id: fileId, name: app.name + '.gif', bytes, kind: 'gif',
         isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif',
         storeSha: app.sha256 || null, storeMeta: storeSnapshot(app) });

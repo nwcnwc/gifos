@@ -193,9 +193,92 @@
     function metaOf(rec) {
       const m = {};
       for (const k in rec) if (k !== 'bytes' && Object.prototype.hasOwnProperty.call(rec, k)) m[k] = rec[k];
-      m.size = rec.bytes ? (rec.bytes.byteLength || rec.bytes.length || 0) : 0;
+      const b = rec.bytes;
+      m.size = b ? (b.byteLength || b.length || 0) : (rec.blobBytes > 0 ? rec.blobBytes : 0);
       return m;
     }
+
+    // ---- big payloads: a Blob in a sibling database ----
+    // Chrome on Android refuses a single IndexedDB value past ~127 MiB ("The
+    // serialized keys and/or value are too large"): a record is serialised
+    // through one message, and that message has a ceiling. A Blob is not
+    // serialised — IndexedDB keeps it on disk and passes a handle. Bible
+    // Study 0.7.12 (581 MB) verified on a phone and then failed on exactly
+    // this put.
+    //
+    // The Blob lives in '<dbName>::blobs', keyed by fileId — a database the
+    // archived builds never open (the rule stated at DB_VERSION: new storage
+    // arrives as a database they do not know, never a new shape in one they
+    // do). The 'files' record itself is written WITHOUT bytes and with
+    // blobBytes = the size, so a build that predates this reads a record it
+    // understands and skips it (`if (!f.bytes) continue`) rather than
+    // meeting a Blob where it expects bytes. Readers on this build never
+    // meet the Blob either: getFile()/allFiles() thaw it back to the
+    // Uint8Array every caller has always been handed. Files under BLOB_FROM
+    // are written exactly as before.
+    //
+    // store.bigAsBlob is the switch. It is on; the root store turns it off
+    // for a visitor whose desktop is a release build without this reader, so
+    // that visitor gets the inline write that build can read (which fails on
+    // an Android phone exactly as it did before, and works everywhere else).
+    const BLOB_FROM = 32 * 1024 * 1024;
+    const hasBlob = () => typeof root.Blob === 'function';
+    let bdbp = null;
+    function openBlobs() {
+      if (bdbp) return bdbp;
+      bdbp = new Promise((resolve, reject) => {
+        const req = indexedDB.open(dbName + '::blobs', 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('blobs')) db.createObjectStore('blobs', { keyPath: 'fileId' });
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      return bdbp;
+    }
+    function btx(mode, fn) {
+      return openBlobs().then((db) => new Promise((resolve, reject) => {
+        const t = db.transaction('blobs', mode);
+        const os = t.objectStore('blobs');
+        let result;
+        Promise.resolve(fn(os)).then((r) => { result = r; }, reject);
+        t.oncomplete = () => resolve(result);
+        t.onerror = () => reject(t.error);
+        t.onabort = () => reject(t.error);
+      }));
+    }
+    const isBigRaw = (b) => hasBlob() && b && (b instanceof Uint8Array || b instanceof ArrayBuffer) && (b.byteLength || 0) > BLOB_FROM;
+    // Write the record; the payload goes beside it when it is big and the
+    // switch is on. A database that will not take the Blob gets the inline
+    // write, the way every write went before; only the Blob path is new.
+    function putSplit(rec) {
+      if (!storeFlags.bigAsBlob || !isBigRaw(rec.bytes)) {
+        return tx('files', 'readwrite', (os) => reqP(os.put(rec)))
+          .then(() => btx('readwrite', (os) => reqP(os.delete(rec.id))).catch(() => {}));
+      }
+      const b = rec.bytes;
+      const blob = new root.Blob([b], { type: rec.mime || 'application/octet-stream' });
+      const light = {};
+      for (const k in rec) if (Object.prototype.hasOwnProperty.call(rec, k)) light[k] = rec[k];
+      light.bytes = null;
+      light.blobBytes = b.byteLength;
+      return btx('readwrite', (os) => reqP(os.put({ fileId: rec.id, blob, bytes: b.byteLength })))
+        .then(() => tx('files', 'readwrite', (os) => reqP(os.put(light))))
+        .catch(() => tx('files', 'readwrite', (os) => reqP(os.put(rec))));
+    }
+    function thaw(rec) {
+      if (!rec || rec.bytes || !(rec.blobBytes > 0)) return Promise.resolve(rec);
+      return btx('readonly', (os) => reqP(os.get(rec.id))).then((row) => {
+        if (!row || !row.blob) return rec;              // the payload is gone: a record with no bytes, as an old build would see
+        const blob = row.blob;
+        const read = typeof blob.arrayBuffer === 'function' ? blob.arrayBuffer() : new root.Response(blob).arrayBuffer();
+        return read.then((buf) => { rec.bytes = new Uint8Array(buf); return rec; });
+      }).catch(() => rec);
+    }
+    const thawAll = (list) => Promise.all((list || []).map(thaw));
+    const storeFlags = { bigAsBlob: true };
+
     // Build the ornament record for a file. Returns null when there is nothing
     // to show (not a gif) or the codec is not loaded on this page — both mean
     // "paint the old way", never "fail".
@@ -337,7 +420,7 @@
       // per WRITE, against a repaint that used to pay for the whole file every
       // time. A failure to store the ornament is never a failure to store the
       // FILE — the icon just falls back to reading bytes, as it always did.
-      putFile: (rec) => tx('files', 'readwrite', (os) => reqP(os.put(rec)))
+      putFile: (rec) => putSplit(rec)
         .then(() => {
           const orn = ornamentOf(rec);
           if (!orn) return rtx('readwrite', (os) => reqP(os.delete(rec.id))).catch(() => {});
@@ -345,8 +428,9 @@
         })
         .then(() => mtx('readwrite', (os) => reqP(os.put(metaOf(rec)))).catch(() => {}))
         .then(() => rec),
-      getFile: (id) => tx('files', 'readonly', (os) => reqP(os.get(id))),
+      getFile: (id) => tx('files', 'readonly', (os) => reqP(os.get(id))).then(thaw),
       deleteFile: (id) => tx('files', 'readwrite', (os) => reqP(os.delete(id)))
+        .then(() => btx('readwrite', (os) => reqP(os.delete(id))).catch(() => {}))
         .then(() => rtx('readwrite', (os) => reqP(os.delete(id))).catch(() => {}))
         .then(() => mtx('readwrite', (os) => reqP(os.delete(id))).catch(() => {})),
       // Every file's record WITHOUT its bytes — the question most callers were
@@ -447,7 +531,7 @@
           return rec;
         })),
       appDelete: (fileId, coll, id) => tx('apprecords', 'readwrite', (os) => reqP(os.delete([fileId, coll, id]))),
-      allFiles: () => tx('files', 'readonly', (os) => reqP(os.getAll())),
+      allFiles: () => tx('files', 'readonly', (os) => reqP(os.getAll())).then(thawAll),
       // ---- install-time assets (gifos-assets.js) — Blob-backed, per icon ----
       // The bytes arrive as a Blob and STAY a Blob end to end: IndexedDB can
       // keep Blobs on disk, so caching a 1 GB model never holds a 1 GB copy in
@@ -514,12 +598,18 @@
         open().then(() => Promise.all(['files', 'items', 'appstate', 'apprecords'].map((s) =>
           tx(s, 'readwrite', (os) => reqP(os.clear()))))),
         atx('readwrite', (os) => reqP(os.clear())).catch(() => {}), // erase wipes the model cache too
+        btx('readwrite', (os) => reqP(os.clear())).catch(() => {}), // …and the big payloads beside their records
         rtx('readwrite', (os) => reqP(os.clear())).catch(() => {}), // …and the ornament cache (an icon of an erased app is still its picture)
         mtx('readwrite', (os) => reqP(os.clear())).catch(() => {}), // …and the file index
       ]),
     };
 
     store.nowISO = nowISO;
+    // Whether a large file's payload is written beside its record (see
+    // "big payloads" above). The root store turns this off for a visitor
+    // whose desktop is a release build that cannot read it back.
+    store.setBigAsBlob = (on) => { storeFlags.bigAsBlob = !!on; };
+    store.bigAsBlob = () => storeFlags.bigAsBlob;
     store.packJSON = packJSON;     // binary-safe JSON.stringify (keeps media blobs intact)
     store.unpackJSON = unpackJSON; // binary-safe JSON.parse (restores Uint8Array)
 
