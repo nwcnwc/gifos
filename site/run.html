@@ -11362,27 +11362,42 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // the near field (same idea as UNISON's `gd`), so row-mates who hear the
       // leader via different paths still land him at one instant and sing to
       // the same beat. Capped: a pathological path slows itself, not the pew.
-      const stgTracks = new Map(); // audio track id -> { via, direct }
+      // `sp` is PER FEED ({ stagerId: ms }) and counts only the copies I
+      // actually relay (mosIn primaries, never a parked standby): one number
+      // per node fed back through the S1 flood's standby copies — A's standby
+      // via B, B's standby via A — and ran away past the cap within a minute.
+      // Per feed, the copies I relay form a chain back to the producer, so the
+      // recursion terminates at the direct receiver.
+      const stgTracks = new Map(); // audio track id -> { via, owner, direct }
       let stageT = GRID.SONG_STAGE, stageNeed = GRID.SONG_STAGE;
       if (sing) {
-        for (const src of [mosIn, mosStandby]) for (const [k, f] of src) {
+        const feedNeed = {};
+        for (const [k, f] of mosIn) {
           if (k.indexOf('stg:') !== 0 || !f || !f.stream || !f.via) continue;
           const owner = k.slice(4).split('^')[0];
-          for (const t of f.stream.getAudioTracks()) stgTracks.set(t.id, { via: f.via, direct: f.via === owner });
+          for (const t of f.stream.getAudioTracks()) stgTracks.set(t.id, { via: f.via, owner, direct: f.via === owner });
         }
-        for (const si of stgTracks.values()) stageNeed = Math.max(stageNeed, stgIncurred(si) + GRID.JB_BASE);
+        for (const si of stgTracks.values()) {
+          const need = Math.min(GRID.SONG_CAP, Math.ceil(stgIncurred(si) + GRID.JB_BASE));
+          feedNeed[si.owner] = Math.max(feedNeed[si.owner] || 0, need);
+          stageNeed = Math.max(stageNeed, need);
+        }
         stageT = stageNeed;
         for (const pid of peers.keys()) if (stg.has(pid) || mates.has(pid)) {
           const st = statusOf.get(pid);
           if (st && st.sn) stageT = Math.max(stageT, st.sn);
         }
         stageT = Math.min(GRID.SONG_CAP, Math.ceil(stageT));
-        myStatus.sn = Math.ceil(stageNeed);
-        myStatus.sp = Math.max(stageT, Math.ceil(stageNeed)); // what my relayed copies will have incurred at the next hop
+        myStatus.sn = stageNeed;
+        const sp = {}; // what a copy relayed from me will have incurred at the next hop, per feed
+        for (const owner of Object.keys(feedNeed).slice(0, SCALE.C)) sp[owner] = Math.max(stageT, feedNeed[owner]);
+        myStatus.sp = sp;
       } else { delete myStatus.sn; delete myStatus.sp; }
       function stgIncurred(si) {
-        const relay = si.direct ? 0 : (((statusOf.get(si.via) || {}).sp || 0) + GRID.HOP_ENC);
-        return relay + rttOf(si.via) / 2;
+        if (si.direct) return rttOf(si.via) / 2;
+        const viaSp = (statusOf.get(si.via) || {}).sp;
+        const relayPlay = Math.max(GRID.SONG_STAGE, (viaSp && viaSp[si.owner]) || 0); // the relay plays it no sooner than the floor
+        return relayPlay + GRID.HOP_ENC + rttOf(si.via) / 2;
       }
       // SKIP-IF-UNCHANGED (2026-07-31 power work). This runs every
       // GRID.APPLY_EVERY (3s) and walked getReceivers() for EVERY peer to
@@ -13476,7 +13491,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         glareArmed: !!p.glareTimer, glareStored: !!p.glareOffer })),
       grid: () => ({ // the alignment engine's live state: clocks, tiers, timing, sing, mic
         sing: roomSingOn(), mic: micMode, timing, gd: myStatus.gd || 0,
-        sn: myStatus.sn || 0, sp: myStatus.sp || 0, // song: my stage need / playout (gossiped)
+        sn: myStatus.sn || 0, sp: myStatus.sp || null, // song: my stage need / per-feed playout (gossiped)
+        spMax: myStatus.sp ? Math.max(0, ...Object.values(myStatus.sp)) : 0,
         micTrack: (localStream && localStream.getAudioTracks()[0]) ? localStream.getAudioTracks()[0].id : null,
         micOn: !!(localStream && localStream.getAudioTracks()[0] && localStream.getAudioTracks()[0].enabled),
         clocks: Object.fromEntries(Array.from(clk, ([pid, c]) => [pid, { rtt: Math.round(c.rtt), off: Math.round(c.off), n: c.n }])),

@@ -118,7 +118,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // need/playout (sn/sp) at the 280 floor so a downstream hop can account
   // for it.
   check('the stage track on the direct link carries its own per-track target', stageTgt && stageTgt.stg && Object.keys(stageTgt.stg).length >= 1 && Object.values(stageTgt.stg).every((v) => v >= 0 && v <= 220), JSON.stringify(stageTgt && stageTgt.stg));
-  check('the follower gossips its stage need/playout at the anchor floor (sn=sp=280)', sB.sn === 280 && sB.sp === 280, JSON.stringify({ sn: sB.sn, sp: sB.sp }));
+  check('the follower gossips its stage need/playout at the anchor floor (sn=sp=280)', sB.sn === 280 && sB.spMax === 280, JSON.stringify({ sn: sB.sn, sp: sB.sp }));
 
   // ---- headphones plugged in mid-song: the mic session restarts ----
   // Mobile browsers pick the speaker-vs-headset route when the mic capture
@@ -142,7 +142,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('the leader\'s mic restored to VOICE mode', voiceOk, 'mic=' + (await a.evaluate(() => window.__gifosVideo.grid())).mic);
   const fVoiceOk = await b.waitForFunction(() => window.__gifosVideo.grid().mic === 'voice', null, { timeout: 10000 }).then(() => true).catch(() => false);
   check('the follower\'s mic restored to VOICE mode', fVoiceOk, 'mic=' + eB.mic);
-  check('song gossip fields cleared after the song (sn/sp gone)', !eB.sn && !eB.sp, JSON.stringify({ sn: eB.sn, sp: eB.sp }));
+  check('song gossip fields cleared after the song (sn/sp gone)', !eB.sn && !eB.sp && !eB.spMax, JSON.stringify({ sn: eB.sn, sp: eB.sp }));
   check('faders restored to what they were before the song', JSON.stringify(eB.mixNow) === JSON.stringify(mixBefore), JSON.stringify(eB.mixNow));
   const backTgt = Object.values(eB.targets)[0];
   check('targets back on the talk tier', backTgt && backTgt.D <= 280, JSON.stringify(backTgt));

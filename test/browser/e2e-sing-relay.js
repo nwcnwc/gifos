@@ -45,11 +45,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     if (coords.every(Boolean) && coords.some((c) => c.pc !== 0)) break;
     await sleep(1500);
   }
-  const deepIdx = coords.findIndex((c) => c && c.pc !== 0);
+  const deepIdxs = coords.map((c, i) => (c && c.pc !== 0) ? i : -1).filter((i) => i >= 0);
   const leadIdx = coords.findIndex((c) => c && c.pc === 0);
   const coordStr = (i) => coords[i] ? coords[i].pc + '/' + coords[i].r + '.' + coords[i].i : '?';
-  check('all 6 seated; at least one DEEP seat exists', coords.every(Boolean) && deepIdx >= 0 && leadIdx >= 0, coords.map((c, i) => 'P' + i + '@' + coordStr(i)));
-  if (deepIdx < 0 || leadIdx < 0) { await browser.close(); process.exit(1); }
+  check('all 6 seated; at least one DEEP seat exists', coords.every(Boolean) && deepIdxs.length && leadIdx >= 0, coords.map((c, i) => 'P' + i + '@' + coordStr(i)));
+  if (!deepIdxs.length || leadIdx < 0) { await browser.close(); process.exit(1); }
 
   // ---- a Section-1 seat leads the song ----
   await pages[leadIdx].evaluate(() => window.__gifosVideo.singForTest(true));
@@ -59,15 +59,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---- the deep seat holds the leader's voice RELAYED, not direct ----
   const feedsAt = (pg) => pg.evaluate(() => (window.__gifosVideo.feedsInfo() || []).filter((f) => f.key.indexOf('stg:') === 0).map((f) => ({ key: f.key, via: f.via, a: f.aTracks, h: f.meta && f.meta.h }))).catch(() => []);
-  let deepFeeds = [];
+  // Any deep seat will do: the tree seats people under a section as it
+  // fills, and a seat two levels under an EMPTY section has no up-link to
+  // carry anything yet — that is a seating matter, not the song's. Take the
+  // first deep seat whose stage feed arrives with audio.
+  let deepIdx = -1, deepFeeds = [];
   const t1 = Date.now();
-  while (Date.now() - t1 < 120000) {
-    deepFeeds = await feedsAt(pages[deepIdx]);
-    if (deepFeeds.some((f) => f.a > 0)) break;
-    await sleep(2000);
+  while (Date.now() - t1 < 120000 && deepIdx < 0) {
+    for (const i of deepIdxs) {
+      const fs = await feedsAt(pages[i]);
+      if (fs.some((f) => f.a > 0)) { deepIdx = i; deepFeeds = fs; break; }
+    }
+    if (deepIdx < 0) await sleep(2000);
   }
+  if (deepIdx < 0) { deepIdx = deepIdxs[0]; deepFeeds = await feedsAt(pages[deepIdx]); }
   const relayed = deepFeeds.find((f) => f.a > 0 && f.key.slice(4, 12) !== f.via);
-  check('DEEP seat holds the leader\'s stage feed with audio, via a RELAY (not the leader\'s own link)', !!relayed, deepFeeds);
+  check('a DEEP seat (P' + deepIdx + '@' + coordStr(deepIdx) + ') holds the leader\'s stage feed with audio, via a RELAY (not the leader\'s own link)', !!relayed, deepFeeds);
 
   // ---- feed-keyed tier: the carrier is not 'stage', but the stg track has its own target ----
   await sleep(7000); // two grid ticks with the song tiers
@@ -78,7 +85,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // The relay re-encodes its own playout: a copy one hop down has incurred the
   // relay's stage playout (≥280) plus the hop cost — so the deep seat's own
   // playout target sits at least one hop above the direct floor.
-  check('the deep seat\'s gossiped stage playout exceeds the direct floor by ≥ one hop (sp ≥ 380)', gDeep.sp >= 380 && gDeep.sp <= 3000, { sn: gDeep.sn, sp: gDeep.sp });
+  check('the deep seat\'s gossiped stage playout exceeds the direct floor by ≥ one hop (sp ≥ 380)', gDeep.spMax >= 380 && gDeep.spMax <= 3000, { sn: gDeep.sn, sp: gDeep.sp });
 
   // ---- row-mates converge on one stage target ----
   const rowOf = (i) => coords[i] ? coords[i].pc + '/' + coords[i].r : '?';
@@ -96,7 +103,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     }
     const ta = a && Object.values(a.targets).map((t) => t.stageT).find(Boolean);
     const tb = b && Object.values(b.targets).map((t) => t.stageT).find(Boolean);
-    check('row-mates P' + pair[0] + ' and P' + pair[1] + ' (' + rowOf(pair[0]) + ') converge on ONE stage target', !!ta && ta === tb, { ta, tb, sn: [a && a.sn, b && b.sn], sp: [a && a.sp, b && b.sp] });
+    check('row-mates P' + pair[0] + ' and P' + pair[1] + ' (' + rowOf(pair[0]) + ') converge on ONE stage target', !!ta && ta === tb, { ta, tb, sn: [a && a.sn, b && b.sn], sp: [a && a.spMax, b && b.spMax] });
+    // No runaway: a per-node playout number fed back through standby copies
+    // once climbed ~100 ms per tick past the cap. Per-feed, primaries only —
+    // a Section-1 row sits within a hop or two of the leader.
+    check('…and that target is a hop or two above the floor, not the cap (no feedback runaway)', !!ta && ta >= 280 && ta < 1200, { ta });
   } else console.log('  (no non-leader row pair — skipping the convergence leg)');
 
   // ---- the song ends everywhere ----
