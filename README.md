@@ -2,7 +2,7 @@
 
 **Your GIF-powered operating system.**
 
-> One HTML shell. A desktop of GIFs. Every app is a file you own — and a whole computer is one GIF.
+> One HTML shell. A desktop of GIFs. Every app is a GIF you can copy, send, and keep — and so is your whole computer.
 
 🌐 **Live at [gifos.app](https://gifos.app)** · relay at `relay.gifos.app` · each themed subdomain (`0.gifos.app` … `9.gifos.app`, plus named ones like `imagine.gifos.app`) is a separate computer
 
@@ -49,7 +49,7 @@ Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four,
 
 **Or let your AI do the whole thing.** Point any code-capable AI (Claude, etc.) at [`gifos.app/llms.txt`](site/llms.txt) and just say *"build me a habit tracker for GifOS"* — the guide teaches it to write the app, design a pixel-art animated icon, and pack it all into a **finished `.gif` file** with a short Python recipe, which it attaches for you to drop on your Home Screen. AIs that can't run code produce paste-into-＋Add HTML instead. No connector, no server, nothing to sign up for — the format is a public spec.
 
-**Mod anyone's app — encouraged.** Apps are files, and files get remixed. Hand any GifOS app GIF to an AI — *"add a dark mode"*, *"make the buttons bigger"*, *"turn this counter into a tracker"* — and get a modified `.gif` back: the `llms.txt` recipe opens everything inside, splices the changes back into the **same GIF**, so the animation survives byte-for-byte and saved data rides along. See an app you like in a friend's session? **Steal** drops a fresh copy into your *Stolen Apps* treasure chest to hack on. A modified app ships unsigned — a remix is a new work, and the modder can sign their version.
+**Mod anyone's app — encouraged.** Every app is a GIF you can open, and anything you can open you can remix. Hand any GifOS app GIF to an AI — *"add a dark mode"*, *"make the buttons bigger"*, *"turn this counter into a tracker"* — and get a modified `.gif` back: the `llms.txt` recipe opens everything inside, splices the changes back into the **same GIF**, so the animation survives byte-for-byte and saved data rides along. See an app you like in a friend's session? **Steal** drops a fresh copy into your *Stolen Apps* treasure chest to hack on. A modified app ships unsigned — a remix is a new work, and the modder can sign their version.
 
 ## Ship Your App by Sending a Link
 
