@@ -4,7 +4,7 @@
   "appId": "offline-bible-study",
   "name": "Bible Study",
   "shortName": "Study",
-  "version": "0.7.13",
+  "version": "0.7.14",
   "minBuild": 2255,
   "tagline": "Read Henry, Calvin and the fathers, with scripture open beside them.",
   "description": "Most Bible apps read scripture and hide the commentary behind a tap. This one is the other way round: the page you are reading is a book from the library — Henry, Calvin, the Glossa, Haydock, the Hebrew — open at your chapter, and scripture sits in a panel beside it.\n\nThe library is grouped by epoch, from the Apostolic Fathers to the early twentieth century, and tells you what each work has at your chapter before you open it. Schaff's Ante-Nicene and Nicene fathers, Aquinas, the Catena Aurea, the Latin Glossa, Julian of Norwich, Geneva and Challoner, Calvin, Luther in the English we can keep, the Puritans in quantity — Owen, Bunyan, Baxter, Watson, Flavel, Charnock, Gurnall — Henry complete, Edwards, Poole, Haydock, Clarke, Barnes, Keil and Delitzsch, Ryle, Spurgeon, and the rest of the public-domain stack. Dictionaries, topics, a gazetteer, and the Hebrew and Greek word by word with Strong's numbers. World English and King James come with it. Search finds a phrase by meaning as well as by words.\n\nA few works are in the language they were written, because no public-domain English exists. They are in the library anyway. Where we have made an English of one of those — the Didache, the Latin Glossa, Palamas in Migne PG 151 and PG 150, Philokalia volumes 1 and 2, Castellio's reply to Calvin — a switch on the page crosses between the original and ours, labelled as ours every time, not as a historical translation. Schaff's Didache stays separately in ANF07 for comparison. We do not use copyrighted modern translations (Palmer/Sherrard/Ware, Meyendorff) as sources.\n\nAll of it is already in the file. The first open is the last download, and it works on a plane. Highlight, write a note, invite someone to the same page. Press Save and the marks travel with the app. No account.\n\nEvery text is in the public domain (or a licence that allows this use). Place data © OpenBible.info (CC BY 4.0). The Hebrew interlinear is the Open Scriptures Hebrew Bible (CC BY 4.0).",
@@ -12,7 +12,7 @@
     "name": "GifOS",
     "url": "https://gifos.app"
   },
-  "releaseDate": "2026-09-17",
+  "releaseDate": "2026-09-19",
   "updated": "2026-09-09",
   "categories": [
     "Learning"
@@ -45,16 +45,16 @@
   },
   "cover": "/apps/offline-bible-study/cover.jpg",
   "screenshots": [],
-  "gif": "https://biblestudy.gifos.app/gifos/offline-bible-study/v0.7.13.gif",
-  "bytes": 581019090,
+  "gif": "https://biblestudy.gifos.app/gifos/offline-bible-study/v0.7.14.gif",
+  "bytes": 692698637,
   "download": 0,
   "provides": null,
   "pay": null,
-  "sha256": "31fc80b07d7e1db2616644add31888e9d4e9d563a08952d5474129a42c3bd5d1",
+  "sha256": "08afac2f61dc79329e568bfb565f1b59304d5b0cdbb613afa9bf53b104c9e6cf",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-09-17"
+    "ts": "2026-09-19"
   },
   "credits": "ok"
 }
