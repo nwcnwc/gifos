@@ -2,7 +2,7 @@
 
 **Your GIF-powered operating system.**
 
-> One HTML shell. A desktop of GIFs. Every app is a GIF you can copy, send, and keep — and so is your whole computer.
+> One HTML shell. A desktop of GIFs. Every app is a GIF you can copy, improve, send, and keep — and so is your whole computer.
 
 🌐 **Live at [gifos.app](https://gifos.app)** · relay at `relay.gifos.app` · each themed subdomain (`0.gifos.app` … `9.gifos.app`, plus named ones like `imagine.gifos.app`) is a separate computer
 
