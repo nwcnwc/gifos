@@ -108,6 +108,17 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const roomTgtA = Object.values((await a.evaluate(() => window.__gifosVideo.grid())).targets)[0];
   check('the leader hears the congregation BEHIND the stage (row tier, D=560)', roomTgtA && roomTgtA.bus === 'row' && roomTgtA.D === 560 && roomTgtA.set === true, JSON.stringify(roomTgtA));
   check('the follower\'s faders moved to the song preset (stage featured)', sB.mixNow.stage === 1 && sB.mixNow.row === 0.55, JSON.stringify(sB.mixNow));
+  // The FOLLOWER sings too (2026-09-18): suppression + auto-gain off, echo
+  // cancellation kept (they may be on speaker). Async re-grab — poll.
+  const singMicOk = await b.waitForFunction(() => window.__gifosVideo.grid().mic === 'sing', null, { timeout: 10000 }).then(() => true).catch(() => false);
+  check('the follower\'s mic switched to SING mode (suppression off, echo cancellation kept)', singMicOk, 'mic=' + (await b.evaluate(() => window.__gifosVideo.grid())).mic);
+  // The stage feed is keyed by FEED, not carrier: the leader's voice rides the
+  // 'stg:' aux track on the direct link, and that track carries a per-track
+  // target of its own (D=280 − rtt/2 − base) — and the follower gossips its
+  // need/playout (sn/sp) at the 280 floor so a downstream hop can account
+  // for it.
+  check('the stage track on the direct link carries its own per-track target', stageTgt && stageTgt.stg && Object.keys(stageTgt.stg).length >= 1 && Object.values(stageTgt.stg).every((v) => v >= 0 && v <= 220), JSON.stringify(stageTgt && stageTgt.stg));
+  check('the follower gossips its stage need/playout at the anchor floor (sn=sp=280)', sB.sn === 280 && sB.sp === 280, JSON.stringify({ sn: sB.sn, sp: sB.sp }));
 
   // ---- headphones plugged in mid-song: the mic session restarts ----
   // Mobile browsers pick the speaker-vs-headset route when the mic capture
@@ -129,6 +140,9 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   const voiceOk = await a.waitForFunction(() => window.__gifosVideo.grid().mic === 'voice', null, { timeout: 10000 }).then(() => true).catch(() => false);
   const eB = await b.evaluate(() => window.__gifosVideo.grid());
   check('the leader\'s mic restored to VOICE mode', voiceOk, 'mic=' + (await a.evaluate(() => window.__gifosVideo.grid())).mic);
+  const fVoiceOk = await b.waitForFunction(() => window.__gifosVideo.grid().mic === 'voice', null, { timeout: 10000 }).then(() => true).catch(() => false);
+  check('the follower\'s mic restored to VOICE mode', fVoiceOk, 'mic=' + eB.mic);
+  check('song gossip fields cleared after the song (sn/sp gone)', !eB.sn && !eB.sp, JSON.stringify({ sn: eB.sn, sp: eB.sp }));
   check('faders restored to what they were before the song', JSON.stringify(eB.mixNow) === JSON.stringify(mixBefore), JSON.stringify(eB.mixNow));
   const backTgt = Object.values(eB.targets)[0];
   check('targets back on the talk tier', backTgt && backTgt.D <= 280, JSON.stringify(backTgt));

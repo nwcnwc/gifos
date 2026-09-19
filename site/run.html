@@ -1469,8 +1469,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         note like background noise and try to erase it. This room does it differently.</p>
         <p>When someone taps <b>🎵 Song</b> (in <b>Settings</b>, under Timing), they step onto
         the stage as the song leader, their microphone switches to <b>music quality</b>,
-        and every phone quietly lines the room up in time — the way sound behaves in a
-        great stone church:</p>
+        every other phone stops treating a held note as noise, and every phone quietly
+        lines the room up in time — the way sound behaves in a great stone church:</p>
         <ul class="help-list">
           <li>Everyone hears the <b>leader at the same moment</b>, so the whole room is
           truly singing together, wherever everyone is.</li>
@@ -6563,15 +6563,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let micMode = 'voice', micGrabbing = false;
     function setMicMode(mode, force) {
       if ((mode === micMode && !force) || micGrabbing || !localStream) return;
+      // 'music' (the song leader): the whole speech pipeline off. 'sing' (a
+      // follower): suppression and auto-gain off — they treat a held note as
+      // noise and a crescendo as a fault — but echo cancellation stays, since a
+      // follower may well be on speaker. 'voice': the ordinary call pipeline.
       const want = mode === 'music'
         ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-        : { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+        : mode === 'sing'
+          ? { echoCancellation: true, noiseSuppression: false, autoGainControl: false }
+          : { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
       micGrabbing = true;
       navigator.mediaDevices.getUserMedia({ audio: want }).then((s) => {
         micGrabbing = false;
         const na = s.getAudioTracks()[0];
         if (!na) return;
         micMode = mode;
+        try { na.contentHint = mode === 'voice' ? '' : 'music'; } catch (e) {} // tell the encoder it is carrying a song, not speech
         na.enabled = !myStatus.muted; // the swap must never un-mute anyone
         const old = localStream.getAudioTracks()[0] || null;
         // Same discipline as regrabCamera: never an aux sender, and a PARKED
@@ -11229,6 +11236,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       SONG_STAGE: 280,  // song: the stage lands everywhere at capture+this — the true-unison anchor
       SONG_ROW: 560,    // row voices land uniformly this far behind their capture — the pew around you
       SONG_FAR: 840,    // section/stadium units — the far bank of the congregation
+      SONG_CAP: 3000,   // the deepest relayed stage anchor a row will wait for (the browser knob tops out at 4000)
+      HOP_ENC: 40,      // what a relay hop adds beyond its own playout: decode → re-encode + one Opus frame
       CK_EVERY: 5000, APPLY_EVERY: 3000,
     };
     // Timing is a PERSONAL, receiver-side setting (your ears, your knob — like
@@ -11338,6 +11347,43 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         }
       }
       nearD = Math.min(GRID.TALK_ROW, Math.ceil(nearD));
+      // STAGE FEEDS ARE KEYED BY FEED, NOT BY CARRIER (2026-09-18). The tier
+      // used to be chosen per PEER and applied to every audio track on that
+      // link — but a stager's voice reaches most of the room as a per-stager
+      // 'stg:' feed relayed over the tree (stage lane), so anyone not directly
+      // linked to the leader got the anchor on their CARRIER's tier: 560 via a
+      // row-mate, 840 via an up-link, i.e. the leader arriving BEHIND the row
+      // and the whole cathedral model inverted. Now every 'stg:' audio track
+      // gets the stage tier wherever it rides, and a relayed copy accounts for
+      // what the relay already spent: a relay re-encodes its own PLAYOUT, so
+      // the copy has incurred the relay's stage playout delay (gossiped as
+      // `sp`) plus a hop's encode cost plus half our link's rtt. My NEED (`sn`)
+      // is the deepest copy I hold; the row's target is the max need across
+      // the near field (same idea as UNISON's `gd`), so row-mates who hear the
+      // leader via different paths still land him at one instant and sing to
+      // the same beat. Capped: a pathological path slows itself, not the pew.
+      const stgTracks = new Map(); // audio track id -> { via, direct }
+      let stageT = GRID.SONG_STAGE, stageNeed = GRID.SONG_STAGE;
+      if (sing) {
+        for (const src of [mosIn, mosStandby]) for (const [k, f] of src) {
+          if (k.indexOf('stg:') !== 0 || !f || !f.stream || !f.via) continue;
+          const owner = k.slice(4).split('^')[0];
+          for (const t of f.stream.getAudioTracks()) stgTracks.set(t.id, { via: f.via, direct: f.via === owner });
+        }
+        for (const si of stgTracks.values()) stageNeed = Math.max(stageNeed, stgIncurred(si) + GRID.JB_BASE);
+        stageT = stageNeed;
+        for (const pid of peers.keys()) if (stg.has(pid) || mates.has(pid)) {
+          const st = statusOf.get(pid);
+          if (st && st.sn) stageT = Math.max(stageT, st.sn);
+        }
+        stageT = Math.min(GRID.SONG_CAP, Math.ceil(stageT));
+        myStatus.sn = Math.ceil(stageNeed);
+        myStatus.sp = Math.max(stageT, Math.ceil(stageNeed)); // what my relayed copies will have incurred at the next hop
+      } else { delete myStatus.sn; delete myStatus.sp; }
+      function stgIncurred(si) {
+        const relay = si.direct ? 0 : (((statusOf.get(si.via) || {}).sp || 0) + GRID.HOP_ENC);
+        return relay + rttOf(si.via) / 2;
+      }
       // SKIP-IF-UNCHANGED (2026-07-31 power work). This runs every
       // GRID.APPLY_EVERY (3s) and walked getReceivers() for EVERY peer to
       // rewrite a jitter target that, in a settled room, is the value already
@@ -11352,17 +11398,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const D = sing ? (bus === 'stage' ? GRID.SONG_STAGE : bus === 'row' ? GRID.SONG_ROW : GRID.SONG_FAR)
           : (bus === 'stage' || bus === 'row') ? nearD : 0; // far units play natural — they're a murmur, not a conversation
         const jbt = D > 0 ? Math.max(0, Math.round(D - rttOf(pid) / 2 - GRID.JB_BASE)) : 0;
+        // Per-track overrides on this link: the stage feeds it carries.
+        const stgOn = {};
+        for (const [tid, si] of stgTracks) if (si.via === pid) stgOn[tid] = Math.max(0, Math.round(stageT - stgIncurred(si) - GRID.JB_BASE));
+        const stgSig = JSON.stringify(stgOn);
         const was = prevGrid.get(pid);
-        if (was && was.set && was.bus === bus && was.jbt === jbt) { gridApplied.set(pid, was); continue; }
+        if (was && was.set && was.bus === bus && was.jbt === jbt && was.stgSig === stgSig) { gridApplied.set(pid, was); continue; }
         let set = false;
         try {
           for (const r of p.pc.getReceivers()) {
             if (!r.track || r.track.kind !== 'audio') continue;
-            if ('jitterBufferTarget' in r) { r.jitterBufferTarget = jbt; set = true; }
-            else if ('playoutDelayHint' in r) { r.playoutDelayHint = jbt / 1000; set = true; } // older spelling, in seconds
+            const want = Object.prototype.hasOwnProperty.call(stgOn, r.track.id) ? stgOn[r.track.id] : jbt;
+            if ('jitterBufferTarget' in r) { r.jitterBufferTarget = want; set = true; }
+            else if ('playoutDelayHint' in r) { r.playoutDelayHint = want / 1000; set = true; } // older spelling, in seconds
           }
         } catch (e) { /* a receiver mid-teardown — next tick catches it */ }
-        gridApplied.set(pid, { bus, D, jbt, set });
+        gridApplied.set(pid, { bus, D, jbt, set, stg: stgOn, stgSig, stageT });
       }
     }
 
@@ -11379,10 +11430,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           Object.assign(mix, { stage: 1, row: 0.55, stadium: 0.3 }); // feature the leader; the room sings around you
           paintFaders(); applyBuses();
           if (myStatus.sing && stageIds().includes(myId)) setMicMode('music');
-          else setStatus('🎵 ' + esc(singLeaderName()) + ' is leading a song — sing along! (earbuds make your voice part of the choir)');
+          else {
+            // Followers sing too: drop the noise suppression and auto-gain
+            // that erase a held note, but KEEP echo cancellation — a phone on
+            // speaker without it would feed the leader straight back in.
+            setMicMode('sing');
+            const knob = (typeof RTCRtpReceiver !== 'undefined') && (('jitterBufferTarget' in RTCRtpReceiver.prototype) || ('playoutDelayHint' in RTCRtpReceiver.prototype));
+            setStatus('🎵 ' + esc(singLeaderName()) + ' is leading a song — sing along! (earbuds make your voice part of the choir)'
+              + (knob ? '' : ' This browser can\'t line voices up in time, so they may stagger.'));
+          }
         } else {
           if (singPrevMix) { Object.assign(mix, singPrevMix); singPrevMix = null; paintFaders(); applyBuses(); }
-          setMicMode('voice'); // no-op unless we were the leader
+          setMicMode('voice'); // leader and followers alike
           setStatus('🎵 The song ended.');
         }
         paintTiming(); // the Song pill lights (and stays tappable for its leader)
@@ -13417,6 +13476,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         glareArmed: !!p.glareTimer, glareStored: !!p.glareOffer })),
       grid: () => ({ // the alignment engine's live state: clocks, tiers, timing, sing, mic
         sing: roomSingOn(), mic: micMode, timing, gd: myStatus.gd || 0,
+        sn: myStatus.sn || 0, sp: myStatus.sp || 0, // song: my stage need / playout (gossiped)
         micTrack: (localStream && localStream.getAudioTracks()[0]) ? localStream.getAudioTracks()[0].id : null,
         micOn: !!(localStream && localStream.getAudioTracks()[0] && localStream.getAudioTracks()[0].enabled),
         clocks: Object.fromEntries(Array.from(clk, ([pid, c]) => [pid, { rtt: Math.round(c.rtt), off: Math.round(c.off), n: c.n }])),
