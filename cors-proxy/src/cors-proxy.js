@@ -182,21 +182,42 @@ export default {
     // host would be served to the next user for an hour.
     const cacheable = !hasBody && (method === 'GET' || method === 'HEAD') && CACHE_HOSTS.has(u.hostname)
       && !req.headers.get('authorization') && !req.headers.get('cookie') && !req.headers.get('x-api-key');
-    const init = { method, headers: fwd, body };
-    if (cacheable) init.cf = { cacheEverything: true, cacheTtl: 3600 };
-
-    let resp;
-    try {
-      resp = await fetch(u.toString(), init);
-    } catch (e) {
-      return fail(502, 'Upstream request failed.', origin);
-    }
-    // fetch() follows redirects: the host check above saw only the first
-    // hop. The FINAL URL must still be an allow-listed https host, or an
-    // open redirect on one of them turns this into an open proxy.
-    if (resp.url) {
-      let fin = null; try { fin = new URL(resp.url); } catch (e) {}
-      if (!fin || fin.protocol !== 'https:' || !ALLOW_HOSTS.has(fin.hostname)) return fail(502, 'Upstream redirected off the allow-list.', origin);
+    // Redirects are followed BY HAND, one checked hop at a time. fetch()'s own
+    // following sent the request — x-api-key and all — to wherever the
+    // upstream pointed, and only the landing host was checked afterwards: an
+    // open redirect on an allow-listed host had already carried the key off
+    // it. So: a request that carries a credential is never re-sent (a 3xx is
+    // a refusal); a plain request's every Location is checked — https, the
+    // default port, an allow-listed host — BEFORE it is fetched; a 303 (and a
+    // 301/302 answering a POST) becomes a bodiless GET; and a loop is cut off.
+    const credentialed = !!(fwd.get('authorization') || fwd.get('x-api-key') || fwd.get('cookie'));
+    const MAX_HOPS = 5;
+    let cur = u, curMethod = method, curBody = body, curHeaders = fwd, resp;
+    for (let hop = 0; ; hop++) {
+      const init = { method: curMethod, headers: curHeaders, body: curBody, redirect: 'manual' };
+      if (cacheable && hop === 0) init.cf = { cacheEverything: true, cacheTtl: 3600 };
+      try {
+        resp = await fetch(cur.toString(), init);
+      } catch (e) {
+        return fail(502, 'Upstream request failed.', origin);
+      }
+      const loc = resp.status >= 300 && resp.status < 400 ? resp.headers.get('location') : null;
+      if (!loc) break;
+      if (credentialed) return fail(502, 'Upstream redirected a request that carries a credential; refused rather than re-sent.', origin);
+      if (hop >= MAX_HOPS) return fail(502, 'Upstream redirected too many times.', origin);
+      let next = null;
+      try { next = new URL(loc, cur); } catch (e) { next = null; }
+      if (!next || next.protocol !== 'https:' || (next.port && next.port !== '443') || !ALLOW_HOSTS.has(next.hostname)) {
+        return fail(502, 'Upstream redirected off the allow-list.', origin);
+      }
+      if (resp.status === 303 || ((resp.status === 301 || resp.status === 302) && curMethod === 'POST')) {
+        curMethod = 'GET';
+        curBody = undefined;
+        curHeaders = new Headers(curHeaders);
+        curHeaders.delete('content-type');
+        curHeaders.delete('content-length');
+      }
+      cur = next;
     }
 
     const out = new Headers(resp.headers);
@@ -209,12 +230,12 @@ export default {
     // on URL would replay one target's body for a different target. Forbid
     // caching so distinct targets never collide, whatever the upstream sent.
     out.set('Cache-Control', 'no-store');
-    // Tell the caller where the request actually landed. fetch() follows redirects
-    // server-side (e.g. a directory "…/x" -> "…/x/"), and the browser can't see
-    // that through the proxy — so an app resolving relative links would use the
-    // pre-redirect URL and point them at the wrong directory. resp.url is the
-    // final upstream URL; Access-Control-Expose-Headers:* makes it readable.
-    out.set('x-gifos-final-url', resp.url);
+    // Tell the caller where the request actually landed. A directory redirect
+    // ("…/x" -> "…/x/") is invisible through the proxy, so an app resolving
+    // relative links would use the pre-redirect URL and point them at the
+    // wrong directory. `cur` is the URL the final hop was fetched from;
+    // Access-Control-Expose-Headers:* makes it readable.
+    out.set('x-gifos-final-url', cur.toString());
     return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: out });
   },
 };
