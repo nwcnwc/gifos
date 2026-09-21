@@ -35,6 +35,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       }),
       'index.html': '<!doctype html><meta charset="utf-8"><body><script>' +
         'document.body.textContent = "ready";' +
+        'window.has = function(){ return gifos.assetHas("blob.bin"); };' +
         'window.ask = function(){' +
         '  return gifos.assets("blob.bin")' +
         '    .then(function(b){ document.body.textContent = "got:" + b.byteLength; return b.byteLength; })' +
@@ -74,6 +75,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     dumped.needReq.length === 0, JSON.stringify(dumped.needReq));
   check('boot did not download the optional pin (cache empty until the app asks)',
     cachedBefore === 0, String(cachedBefore));
+  // The app can ask whether the pin is here WITHOUT starting the download.
+  const hasBefore = await fr.locator('body').evaluate(() => window.has());
+  check('gifos.assetHas() answers false before the ask, and starts nothing', hasBefore === false, String(hasBefore));
   await fr.locator('body').evaluate(() => { window.ask(); });
 
   let pillText = '';
@@ -91,6 +95,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return b ? b.size : -1;
   }, fid);
   check('the optional pin is cached after the ask (once, not per open)', cached === assetBytes.length, String(cached));
+  const hasAfter = await fr.locator('body').evaluate(() => window.has());
+  check('gifos.assetHas() answers true once the pin is cached', hasAfter === true, String(hasAfter));
 
   // A store Update keeps the fileId. Planting a shorter blob at the same path
   // is the Bible-Darby case: new pin, old download. gifos.assets() must
