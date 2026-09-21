@@ -1,11 +1,11 @@
 {
   "tagline": "Read Henry, Calvin and the fathers, with scripture open beside them.",
-  "description": "Most Bible apps read scripture and hide the commentary behind a tap. This one is the other way round: the page you are reading is a book from the library — Henry, Calvin, the Glossa, Haydock, the Hebrew — open at your chapter, and scripture sits in a panel beside it.\n\nThe library is grouped by epoch, from the Apostolic Fathers to the early twentieth century, and tells you what each work has at your chapter before you open it. Schaff's Ante-Nicene and Nicene fathers, Aquinas, the Catena Aurea, the Latin Glossa, Julian of Norwich, Geneva and Challoner, Calvin, Luther in the English we can keep, the Puritans in quantity — Owen, Bunyan, Baxter, Watson, Flavel, Charnock, Gurnall — Henry complete, Edwards, Poole, Haydock, Clarke, Barnes, Keil and Delitzsch, Ryle, Spurgeon, and the rest of the public-domain stack. Dictionaries, topics, a gazetteer, and the Hebrew and Greek word by word with Strong's numbers. World English and King James come with it. Search finds a phrase by meaning as well as by words.\n\nA few works are in the language they were written, because no public-domain English exists. They are in the library anyway. Where we have made an English of one of those — the Didache, the Latin Glossa, Palamas in Migne PG 151 and PG 150, Philokalia volumes 1 and 2, Castellio's reply to Calvin — a switch on the page crosses between the original and ours, labelled as ours every time, not as a historical translation. Schaff's Didache stays separately in ANF07 for comparison. We do not use copyrighted modern translations (Palmer/Sherrard/Ware, Meyendorff) as sources.\n\nAll of it is already in the file. The first open is the last download, and it works on a plane. Highlight, write a note, invite someone to the same page. Press Save and the marks travel with the app. No account.\n\nEvery text is in the public domain (or a licence that allows this use). Place data © OpenBible.info (CC BY 4.0). The Hebrew interlinear is the Open Scriptures Hebrew Bible (CC BY 4.0).",
+  "description": "Most Bible apps read scripture and hide the commentary behind a tap. This one is the other way round: the page you are reading is a book from the library — Henry, Calvin, the Glossa, Haydock, the Hebrew — open at your chapter, and scripture sits in a panel beside it.\n\nThe library is grouped by epoch, from the Apostolic Fathers to the early twentieth century, and tells you what each work has at your chapter before you open it. Schaff's Ante-Nicene and Nicene fathers, Aquinas, the Catena Aurea, the Latin Glossa, Julian of Norwich, Geneva and Challoner, Calvin, Luther in the English we can keep, the Puritans in quantity — Owen, Bunyan, Baxter, Watson, Flavel, Charnock, Gurnall — Henry complete, Edwards, Poole, Haydock, Clarke, Barnes, Keil and Delitzsch, Ryle, Spurgeon, and the rest of the public-domain stack. Dictionaries, topics, a gazetteer, and the Hebrew and Greek word by word with Strong's numbers. World English and King James come with it. Search finds a phrase by meaning as well as by words.\n\nA few works are in the language they were written, because no public-domain English exists. They are in the library anyway. Where we have made an English of one of those — the Didache, the Latin Glossa, Palamas in Migne PG 151 and PG 150, Philokalia volumes 1 and 2, Castellio's reply to Calvin — a switch on the page crosses between the original and ours, labelled as ours every time, not as a historical translation. Schaff's Didache stays separately in ANF07 for comparison. We do not use copyrighted modern translations (Palmer/Sherrard/Ware, Meyendorff) as sources.\n\nThe app installs with a first shelf built in — one major work from every quarter of the church, the reference works, the Hebrew and Greek — and the rest comes as collections you download once and keep: the Fathers, the Eastern church, the medieval and Catholic writers, the Reformation, the Puritans, the Anglicans and Methodists, the nineteenth-century commentaries, Spurgeon entire, the Brethren and the deeper life. Each has a foundational pack and an everything-else pack. Once downloaded, it works on a plane. Highlight, write a note, invite someone to the same page. Press Save and the marks travel with the app. No account.\n\nEvery text is in the public domain (or a licence that allows this use). Place data © OpenBible.info (CC BY 4.0). The Hebrew interlinear is the Open Scriptures Hebrew Bible (CC BY 4.0).",
   "author": {
     "name": "GifOS",
     "url": "https://gifos.app"
   },
-  "releaseDate": "2026-09-19",
+  "releaseDate": "2026-09-21",
   "categories": [
     "Learning"
   ],
@@ -24,9 +24,10 @@
     "top": 0
   },
   "screenshots": [],
-  "gifUrl": "https://biblestudy.gifos.app/gifos/offline-bible-study/v0.7.14.gif",
-  "gifSha256": "08afac2f61dc79329e568bfb565f1b59304d5b0cdbb613afa9bf53b104c9e6cf",
-  "gifBytes": 692698637,
+  "gifUrl": "https://biblestudy.gifos.app/gifos/offline-bible-study/v0.8.0.gif",
+  "gifSha256": "61ef35ae784a212c3c172d7cc96254dda32d10423ab345fa5785b8c54da5a801",
+  "gifBytes": 131001538,
+  "hostedUrl": "https://biblestudy.gifos.app/gifos/offline-bible-study/v0.8.0.gif",
   "copyright": "Copyright (c) 2026 GifOS",
-  "updated": "2026-09-09"
+  "updated": "2026-09-21"
 }

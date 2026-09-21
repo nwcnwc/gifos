@@ -3,27 +3,50 @@
   "appId": "offline-bible-study",
   "name": "Bible Study",
   "shortName": "Study",
-  "version": "0.7.14",
-  "minBuild": 2255,
+  "version": "0.8.0",
+  "minBuild": 2304,
   "entry": "index.html",
-  "accent": [201, 162, 39],
+  "accent": [
+    201,
+    162,
+    39
+  ],
   "capabilities": {
     "db": true,
     "multiplayer": true,
     "microphone": true,
     "wasm": true,
-    "ai": ["tts"],
+    "ai": [
+      "tts"
+    ],
     "links": true
   },
   "data": {
-    "prefs": { "visibility": "private" },
-    "marks": { "visibility": "private" },
-    "voicenotes": { "visibility": "private" },
-    "plans": { "visibility": "private" },
-    "cache": { "visibility": "private" },
-    "nav": { "visibility": "read-write" }
+    "prefs": {
+      "visibility": "private"
+    },
+    "marks": {
+      "visibility": "private"
+    },
+    "voicenotes": {
+      "visibility": "private"
+    },
+    "plans": {
+      "visibility": "private"
+    },
+    "cache": {
+      "visibility": "private"
+    },
+    "nav": {
+      "visibility": "read-write"
+    }
   },
-  "lead": [{ "collection": "nav", "id": "cursor" }],
+  "lead": [
+    {
+      "collection": "nav",
+      "id": "cursor"
+    }
+  ],
   "launch": {
     "ref": {
       "label": "Open at a verse the link picked",
@@ -34,5 +57,3037 @@
       "detail": "One of the app's translation ids."
     }
   },
-  "assets": []
+  "assets": [
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/700b79b7d28f621c9985e778ca8fb57a7aa357da454ee467d9cfd5a29e7a87fb.gbx",
+      "sha256": "700b79b7d28f621c9985e778ca8fb57a7aa357da454ee467d9cfd5a29e7a87fb",
+      "path": "help-abbott.gbx",
+      "bytes": 274004,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bacef77ff53b6b68f2b584dd7cbb6e6d422f7df8846523831bfe32a8c936a71f.gbx",
+      "sha256": "bacef77ff53b6b68f2b584dd7cbb6e6d422f7df8846523831bfe32a8c936a71f",
+      "path": "help-anf02.gbx",
+      "bytes": 1244756,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bd1829b19285e4d6c1929ffc1cc23e25577428338e574edcbbb7a3cd6d797924.gbx",
+      "sha256": "bd1829b19285e4d6c1929ffc1cc23e25577428338e574edcbbb7a3cd6d797924",
+      "path": "help-anf03.gbx",
+      "bytes": 1462271,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9bb0072f5a91517c889e475bb3f64a090e6ad72b56d11eedb1e9980450db7dd2.gbx",
+      "sha256": "9bb0072f5a91517c889e475bb3f64a090e6ad72b56d11eedb1e9980450db7dd2",
+      "path": "help-anf04.gbx",
+      "bytes": 1354377,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2120c3999c7f28bc5b5c6f13612d117637017cbe70b5ed73a4eb19c71bb38bbf.gbx",
+      "sha256": "2120c3999c7f28bc5b5c6f13612d117637017cbe70b5ed73a4eb19c71bb38bbf",
+      "path": "help-anf05.gbx",
+      "bytes": 1376221,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/afa6c8533629b4e3e66cb382bfe33140dd780923f2445904bf8f389e966966a8.gbx",
+      "sha256": "afa6c8533629b4e3e66cb382bfe33140dd780923f2445904bf8f389e966966a8",
+      "path": "help-anf06.gbx",
+      "bytes": 1135110,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5cc23653b846050772a02aba03af925926b47e91e2b337aeb5b0ab5ee197f8be.gbx",
+      "sha256": "5cc23653b846050772a02aba03af925926b47e91e2b337aeb5b0ab5ee197f8be",
+      "path": "help-anf07.gbx",
+      "bytes": 1187035,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/70e49229582aeb28321a62d4123b7e042cfc76771af62aecc012bc354702bf53.gbx",
+      "sha256": "70e49229582aeb28321a62d4123b7e042cfc76771af62aecc012bc354702bf53",
+      "path": "help-anf08.gbx",
+      "bytes": 1407891,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6cc6ea3dd5583b9e2498aeed56f004d2767e7343c521b11e65c3a734e9916a96.gbx",
+      "sha256": "6cc6ea3dd5583b9e2498aeed56f004d2767e7343c521b11e65c3a734e9916a96",
+      "path": "help-anf09.gbx",
+      "bytes": 855073,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/90519b04c24bfda08774e2c02f0164f88faabe59644f93141e3eaf7933828919.gbx",
+      "sha256": "90519b04c24bfda08774e2c02f0164f88faabe59644f93141e3eaf7933828919",
+      "path": "help-barnes.gbx",
+      "bytes": 5100765,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/184d4c408ac8c6c1819116d02b523e323a0def060146801af587241bc5432dbd.gbx",
+      "sha256": "184d4c408ac8c6c1819116d02b523e323a0def060146801af587241bc5432dbd",
+      "path": "help-baxter-causes.gbx",
+      "bytes": 25671,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d9ba287ad7c727ffd33cde21bee20b4aaade78f907bc427d7f527c644ee93e00.gbx",
+      "sha256": "d9ba287ad7c727ffd33cde21bee20b4aaade78f907bc427d7f527c644ee93e00",
+      "path": "help-baxter-pastor.gbx",
+      "bytes": 173974,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/29040bf678326e6ee3ab654dee49bfc4fb853496c56e9196249f855c2dde58f1.gbx",
+      "sha256": "29040bf678326e6ee3ab654dee49bfc4fb853496c56e9196249f855c2dde58f1",
+      "path": "help-baxter-practical.gbx",
+      "bytes": 2798,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e0b930271e1988487c023f9d764ab9207e966d40b4ba14fc4efec7db38277986.gbx",
+      "sha256": "e0b930271e1988487c023f9d764ab9207e966d40b4ba14fc4efec7db38277986",
+      "path": "help-baxter-saints-rest.gbx",
+      "bytes": 234098,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/c12ba21b04ccd00eb83c08ee0a3d91f7b0d207dad469e56454504de73d24d892.gbx",
+      "sha256": "c12ba21b04ccd00eb83c08ee0a3d91f7b0d207dad469e56454504de73d24d892",
+      "path": "help-baxter-unconverted.gbx",
+      "bytes": 97697,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0e3a5960afb30d2a8cd16c2e217649c0f39cbc36c65454ae15e43a083f799a60.gbx",
+      "sha256": "0e3a5960afb30d2a8cd16c2e217649c0f39cbc36c65454ae15e43a083f799a60",
+      "path": "help-bellett-patriarchs.gbx",
+      "bytes": 267078,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7c99ee6f36e33a5765937f08892167d242ae577b95ab2ab94ac7591726b70226.gbx",
+      "sha256": "7c99ee6f36e33a5765937f08892167d242ae577b95ab2ab94ac7591726b70226",
+      "path": "help-boehme-dialogues.gbx",
+      "bytes": 75146,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b28bddc55ae80c08401ca4b3625296690026b5ac582135f707c0462207705b79.gbx",
+      "sha256": "b28bddc55ae80c08401ca4b3625296690026b5ac582135f707c0462207705b79",
+      "path": "help-bonar-mccheyne.gbx",
+      "bytes": 163379,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/cfac46dea2e7018a93387efd2bd24455d4575613985d0541ecd90a3401510191.gbx",
+      "sha256": "cfac46dea2e7018a93387efd2bd24455d4575613985d0541ecd90a3401510191",
+      "path": "help-boston-crook.gbx",
+      "bytes": 86749,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d7900d1314def381dea964192da755417a3d0e9a2749e962ebca93437a9e39b0.gbx",
+      "sha256": "d7900d1314def381dea964192da755417a3d0e9a2749e962ebca93437a9e39b0",
+      "path": "help-bunyan-badman.gbx",
+      "bytes": 152727,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d0c057eb0ba4631d4f53c0fc36eb2e21a7b5e279662046244b5efbb89264ea7a.gbx",
+      "sha256": "d0c057eb0ba4631d4f53c0fc36eb2e21a7b5e279662046244b5efbb89264ea7a",
+      "path": "help-bunyan-grace.gbx",
+      "bytes": 85792,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/de7ade03916e6bdcea05f2291100518d04e47e55741177a41a83fde5761ad173.gbx",
+      "sha256": "de7ade03916e6bdcea05f2291100518d04e47e55741177a41a83fde5761ad173",
+      "path": "help-bunyan-holy-war.gbx",
+      "bytes": 188471,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d2b9f92978e7cd38ff5adfdbe5bd5b49af0a378818d11704517cad4af7e5807a.gbx",
+      "sha256": "d2b9f92978e7cd38ff5adfdbe5bd5b49af0a378818d11704517cad4af7e5807a",
+      "path": "help-bunyan-miscellaneous.gbx",
+      "bytes": 15271,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f0b6cee37a50753c5f993039328327291beb4eb33292fe133121bfd506c0ee92.gbx",
+      "sha256": "f0b6cee37a50753c5f993039328327291beb4eb33292fe133121bfd506c0ee92",
+      "path": "help-burkitt.gbx",
+      "bytes": 2076714,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7e13569fa40017970d55b40d8b40267e1233f985e7a21f562a5a2f87410d0a8c.gbx",
+      "sha256": "7e13569fa40017970d55b40d8b40267e1233f985e7a21f562a5a2f87410d0a8c",
+      "path": "help-calvin-commentaries.gbx",
+      "bytes": 11775234,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0bdb504a5683bacddf71ee632daa054ee65acc5cd1f8ec80db33257d02983521.gbx",
+      "sha256": "0bdb504a5683bacddf71ee632daa054ee65acc5cd1f8ec80db33257d02983521",
+      "path": "help-castellio-contra-calvin.gbx",
+      "bytes": 312772,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/96bb438102dc700a1106019ec27e2a58ceccac7e667ceed32226366de84d0acb.gbx",
+      "sha256": "96bb438102dc700a1106019ec27e2a58ceccac7e667ceed32226366de84d0acb",
+      "path": "help-catena.gbx",
+      "bytes": 1904944,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5c623ed5cbdb27fb6467a19c6063698e2aacc73873f2218619218d496cda119a.gbx",
+      "sha256": "5c623ed5cbdb27fb6467a19c6063698e2aacc73873f2218619218d496cda119a",
+      "path": "help-chapman-sayings.gbx",
+      "bytes": 65514,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/518b084d195b1dab3d111b69437da5d6a678bbef7646011aeb3a501fb5b51992.gbx",
+      "sha256": "518b084d195b1dab3d111b69437da5d6a678bbef7646011aeb3a501fb5b51992",
+      "path": "help-charnock-cleansing.gbx",
+      "bytes": 45680,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0d21a13186312765fd003197c25990677e06b385b45a461d2b4c0040a3ab4c69.gbx",
+      "sha256": "0d21a13186312765fd003197c25990677e06b385b45a461d2b4c0040a3ab4c69",
+      "path": "help-charnock-efficient-regeneration.gbx",
+      "bytes": 195675,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/816be4e85efe01d9dd5da60026e256beec3b590b13a027e32849034ab3be60ec.gbx",
+      "sha256": "816be4e85efe01d9dd5da60026e256beec3b590b13a027e32849034ab3be60ec",
+      "path": "help-charnock-instr-regen.gbx",
+      "bytes": 41846,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0f07fd39ca9bf86db3be5c9ff0553c9888cc74c1c83b3b73636746bb917c1e06.gbx",
+      "sha256": "0f07fd39ca9bf86db3be5c9ff0553c9888cc74c1c83b3b73636746bb917c1e06",
+      "path": "help-charnock-nat-regen.gbx",
+      "bytes": 117016,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3861ce8431fb71514204891b2e31ef5dbd5288950a88604bb1c15e7ff08b9175.gbx",
+      "sha256": "3861ce8431fb71514204891b2e31ef5dbd5288950a88604bb1c15e7ff08b9175",
+      "path": "help-charnock-nec-regen.gbx",
+      "bytes": 102225,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3481acc375673069b8b06bc7b8b541b514ee81c815bbfd037cdbae4d7ec61632.gbx",
+      "sha256": "3481acc375673069b8b06bc7b8b541b514ee81c815bbfd037cdbae4d7ec61632",
+      "path": "help-charnock-reconcil.gbx",
+      "bytes": 224893,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5c13bb89f88bd4f8a63776fef426b669252ea4d5bb3f9d6f82678a996722a8ba.gbx",
+      "sha256": "5c13bb89f88bd4f8a63776fef426b669252ea4d5bb3f9d6f82678a996722a8ba",
+      "path": "help-clarke.gbx",
+      "bytes": 7422313,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/15359d77be0cb53072a9e45a6d2893ed948c14da18ed8d9da60b850d46742910.gbx",
+      "sha256": "15359d77be0cb53072a9e45a6d2893ed948c14da18ed8d9da60b850d46742910",
+      "path": "help-darby-1john.gbx",
+      "bytes": 67619,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/523a5c112cf46c7d84d0a540d608d25434f4205e8710d3e7c746ec649220571c.gbx",
+      "sha256": "523a5c112cf46c7d84d0a540d608d25434f4205e8710d3e7c746ec649220571c",
+      "path": "help-darby-daniel.gbx",
+      "bytes": 79745,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f67b2381679cabc29da78417a23b80f7eff7d7871e468d1c26689b9672dc73ce.gbx",
+      "sha256": "f67b2381679cabc29da78417a23b80f7eff7d7871e468d1c26689b9672dc73ce",
+      "path": "help-darby-ephesians.gbx",
+      "bytes": 135873,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0343461a5791a8fed008114cca037fd0cfe78350a23a640bc5c30fafffb4fd23.gbx",
+      "sha256": "0343461a5791a8fed008114cca037fd0cfe78350a23a640bc5c30fafffb4fd23",
+      "path": "help-darby-luke.gbx",
+      "bytes": 146493,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0fb9280f08872fa108f68a1966cd3654be67484d0616171a56f1c4256f165f5c.gbx",
+      "sha256": "0fb9280f08872fa108f68a1966cd3654be67484d0616171a56f1c4256f165f5c",
+      "path": "help-darby-psalms.gbx",
+      "bytes": 220154,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9d2fc410600c7a7fef05a3e6d2b813a2efb09c8005a03345bbb8520edb2458fe.gbx",
+      "sha256": "9d2fc410600c7a7fef05a3e6d2b813a2efb09c8005a03345bbb8520edb2458fe",
+      "path": "help-darby-second-coming.gbx",
+      "bytes": 119387,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e35a1e32d80dbf6d4f0f34ee6ec27ae8a9ca51550944f02d242374a015c9f570.gbx",
+      "sha256": "e35a1e32d80dbf6d4f0f34ee6ec27ae8a9ca51550944f02d242374a015c9f570",
+      "path": "help-darby-synopsis-2.gbx",
+      "bytes": 398980,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/ea8d2ba1074c38cf540bd728502222e15e73c7107d16998b68129d096a53c277.gbx",
+      "sha256": "ea8d2ba1074c38cf540bd728502222e15e73c7107d16998b68129d096a53c277",
+      "path": "help-darby-synopsis-3.gbx",
+      "bytes": 385263,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/044b5eeec521d3a20cacddcb5dba8aaf490f4b0c8f918d6ed0dca6fc65085ee4.gbx",
+      "sha256": "044b5eeec521d3a20cacddcb5dba8aaf490f4b0c8f918d6ed0dca6fc65085ee4",
+      "path": "help-darby-synopsis-5.gbx",
+      "bytes": 384423,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0b6b9ce3c8a7e482f90e2d0d34e64c1d94af487c958338bdf897596762977378.gbx",
+      "sha256": "0b6b9ce3c8a7e482f90e2d0d34e64c1d94af487c958338bdf897596762977378",
+      "path": "help-didascalia.gbx",
+      "bytes": 56474,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/31afab8f74f80aca67f599cee98a761d3d3b0208363b2c5ad274068d07dfa276.gbx",
+      "sha256": "31afab8f74f80aca67f599cee98a761d3d3b0208363b2c5ad274068d07dfa276",
+      "path": "help-doddridge-evidences.gbx",
+      "bytes": 56800,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6d73b7ab7c73eb3814bc690a62f894677be8b1677ce22451e94e0b1b4bc507e0.gbx",
+      "sha256": "6d73b7ab7c73eb3814bc690a62f894677be8b1677ce22451e94e0b1b4bc507e0",
+      "path": "help-doddridge-regen.gbx",
+      "bytes": 160542,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/1caae41cb3c944cdd516722a6154ca60ea7c283597927cc10128fbe93489f3ed.gbx",
+      "sha256": "1caae41cb3c944cdd516722a6154ca60ea7c283597927cc10128fbe93489f3ed",
+      "path": "help-doddridge-rise.gbx",
+      "bytes": 236467,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3cf3ea536a59c13a39682131db68e09a6be448b0b8f215b8052232a0e1b93799.gbx",
+      "sha256": "3cf3ea536a59c13a39682131db68e09a6be448b0b8f215b8052232a0e1b93799",
+      "path": "help-drc-notes.gbx",
+      "bytes": 836353,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/23e5dfd2e85ee934fefe9bd8b48cd069114cbfa92add3acef4dca5575cea20b3.gbx",
+      "sha256": "23e5dfd2e85ee934fefe9bd8b48cd069114cbfa92add3acef4dca5575cea20b3",
+      "path": "help-edwards-affections.gbx",
+      "bytes": 298295,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/376968ee9aca75595ac588779520c4f845e271b28dd351620451d79ad728f8ef.gbx",
+      "sha256": "376968ee9aca75595ac588779520c4f845e271b28dd351620451d79ad728f8ef",
+      "path": "help-edwards-sermons.gbx",
+      "bytes": 330642,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/74e6bdb0a127f8f8b11500f93fbd3b822408e772f7eac26c57cd008b27794f5c.gbx",
+      "sha256": "74e6bdb0a127f8f8b11500f93fbd3b822408e772f7eac26c57cd008b27794f5c",
+      "path": "help-enoch.gbx",
+      "bytes": 67020,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b2b14ed203b708504252131f4b0ae177449450d16bc7e6a29a573650e39dc980.gbx",
+      "sha256": "b2b14ed203b708504252131f4b0ae177449450d16bc7e6a29a573650e39dc980",
+      "path": "help-fenelon-existence.gbx",
+      "bytes": 82535,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/097d5690c2128590036f1f9b0e2eaf5c9f1e9f58dc4f5105c49ae41d2b48650e.gbx",
+      "sha256": "097d5690c2128590036f1f9b0e2eaf5c9f1e9f58dc4f5105c49ae41d2b48650e",
+      "path": "help-fenelon-maxims.gbx",
+      "bytes": 20260,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6ce18e5eec99bf0fc19ff87edcd83bc2a28fc4d68bc1018ebb889d4a9139fcfc.gbx",
+      "sha256": "6ce18e5eec99bf0fc19ff87edcd83bc2a28fc4d68bc1018ebb889d4a9139fcfc",
+      "path": "help-fenelon-progress.gbx",
+      "bytes": 169278,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/dbeb765e0f186de99712e6786a09f9c7c322ab8233d41b9fef584f249f877285.gbx",
+      "sha256": "dbeb765e0f186de99712e6786a09f9c7c322ab8233d41b9fef584f249f877285",
+      "path": "help-finney-backslider.gbx",
+      "bytes": 14233,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/83d4936aa37594f577e58a9e0c61cac8e49fc3378d114913ff2492f0323767bc.gbx",
+      "sha256": "83d4936aa37594f577e58a9e0c61cac8e49fc3378d114913ff2492f0323767bc",
+      "path": "help-finney-power.gbx",
+      "bytes": 61043,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e07971a6937d60413dee084b9cc400a580b6a2573494c7ad99f3ccc0bef163dd.gbx",
+      "sha256": "e07971a6937d60413dee084b9cc400a580b6a2573494c7ad99f3ccc0bef163dd",
+      "path": "help-finney-professing.gbx",
+      "bytes": 256239,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/868932b7b651d24bd5cc48105f52c4486174e2cf1b99455bad6b19c52ec99a58.gbx",
+      "sha256": "868932b7b651d24bd5cc48105f52c4486174e2cf1b99455bad6b19c52ec99a58",
+      "path": "help-finney-revivals.gbx",
+      "bytes": 379450,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/83328d2725fc70d012e8e4a64075b9056fde634f6c76f131738bb70520b42882.gbx",
+      "sha256": "83328d2725fc70d012e8e4a64075b9056fde634f6c76f131738bb70520b42882",
+      "path": "help-finney-sermons.gbx",
+      "bytes": 284271,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/ca3a26d4b51abcd9f7c7c78e16e5e6fd5abbd306370762ec9aba33a684d32a73.gbx",
+      "sha256": "ca3a26d4b51abcd9f7c7c78e16e5e6fd5abbd306370762ec9aba33a684d32a73",
+      "path": "help-finney-theology.gbx",
+      "bytes": 577464,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6e3871f94a85d5afcb09d0e57a88f8219ae4e41fed1857cee6086627cb119b3a.gbx",
+      "sha256": "6e3871f94a85d5afcb09d0e57a88f8219ae4e41fed1857cee6086627cb119b3a",
+      "path": "help-flavel-fountain.gbx",
+      "bytes": 515767,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/aee661f0c542d29b6bf57866be15d66ac1f6c321c177847f5052717e706e22a9.gbx",
+      "sha256": "aee661f0c542d29b6bf57866be15d66ac1f6c321c177847f5052717e706e22a9",
+      "path": "help-flavel-grace.gbx",
+      "bytes": 442562,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a0867d1fb48dc5d9c507660fde4d55c71e5a2e064dc6900ed7eec8f6fe4843dc.gbx",
+      "sha256": "a0867d1fb48dc5d9c507660fde4d55c71e5a2e064dc6900ed7eec8f6fe4843dc",
+      "path": "help-flavel-life.gbx",
+      "bytes": 16459,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/1db4ff787b33cf15af9ee5e08b77b107bc928f41211037dfbc30b13727e6750b.gbx",
+      "sha256": "1db4ff787b33cf15af9ee5e08b77b107bc928f41211037dfbc30b13727e6750b",
+      "path": "help-flavel-lovely.gbx",
+      "bytes": 11066,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/dba8aa8d093f78f3a897e4a3e5278cffbd9133c0a8c918b4ec17fccea07e7a75.gbx",
+      "sha256": "dba8aa8d093f78f3a897e4a3e5278cffbd9133c0a8c918b4ec17fccea07e7a75",
+      "path": "help-flavel-pneum.gbx",
+      "bytes": 362373,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d49e8a124d83ae724b10f145ca8eb34b3e50207d28f03ca77f2bf3aa2b1e65aa.gbx",
+      "sha256": "d49e8a124d83ae724b10f145ca8eb34b3e50207d28f03ca77f2bf3aa2b1e65aa",
+      "path": "help-flavel-saintindeed.gbx",
+      "bytes": 113400,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/78ea27d9e4e1c2d48819341a168c96c71672bc65f29ae20d21dddb5122cdf3fd.gbx",
+      "sha256": "78ea27d9e4e1c2d48819341a168c96c71672bc65f29ae20d21dddb5122cdf3fd",
+      "path": "help-geneva-notes.gbx",
+      "bytes": 1562866,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/42d8a7ddfa8d8ae32f845fcc3c717546b5cc97a2e81268948997f6a7b98bc03c.gbx",
+      "sha256": "42d8a7ddfa8d8ae32f845fcc3c717546b5cc97a2e81268948997f6a7b98bc03c",
+      "path": "help-gill-doctrinal.gbx",
+      "bytes": 1266711,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2648889dd3686f98aa3b7ba750db2c1af7a6a8373dd8cca3c42da4b245280d9c.gbx",
+      "sha256": "2648889dd3686f98aa3b7ba750db2c1af7a6a8373dd8cca3c42da4b245280d9c",
+      "path": "help-glossa.gbx",
+      "bytes": 3998941,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/8f5bc5a434582aff37613e4dedbfb31905e8df42f9f8f850a8fe60407fb4804b.gbx",
+      "sha256": "8f5bc5a434582aff37613e4dedbfb31905e8df42f9f8f850a8fe60407fb4804b",
+      "path": "help-gordon-aj-in-christ.gbx",
+      "bytes": 89826,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d20dc9783f721079dc64495fc7174c93742525ff8931f6810c339132a9a42faf.gbx",
+      "sha256": "d20dc9783f721079dc64495fc7174c93742525ff8931f6810c339132a9a42faf",
+      "path": "help-gordon-aj-ministry-spirit.gbx",
+      "bytes": 111037,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/34791cdc3897ca0dffd7087eb88b16e38976b6284d546089b2573db6bcb34123.gbx",
+      "sha256": "34791cdc3897ca0dffd7087eb88b16e38976b6284d546089b2573db6bcb34123",
+      "path": "help-gordon-aj-twofold-life.gbx",
+      "bytes": 143171,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/8db551331dd4b6aa17c15e6bb7d70927560e33e2121599a8f4678ecd55de6a7a.gbx",
+      "sha256": "8db551331dd4b6aa17c15e6bb7d70927560e33e2121599a8f4678ecd55de6a7a",
+      "path": "help-gordon-talks-crowned.gbx",
+      "bytes": 122283,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/72533caf871ddeb9bf78777f47600416a4c29851fadbbb1385aa7de36f0bfb1c.gbx",
+      "sha256": "72533caf871ddeb9bf78777f47600416a4c29851fadbbb1385aa7de36f0bfb1c",
+      "path": "help-gordon-talks-following.gbx",
+      "bytes": 119903,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/05cb80c4f1addc841b972b1d2f66a32891fa63a24ba9eddd478faff5d078f030.gbx",
+      "sha256": "05cb80c4f1addc841b972b1d2f66a32891fa63a24ba9eddd478faff5d078f030",
+      "path": "help-gordon-talks-jesus.gbx",
+      "bytes": 151381,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/283b96bad42abe8c1c77a07bb403b8e37d3303d057c728d2afa42cb499d77301.gbx",
+      "sha256": "283b96bad42abe8c1c77a07bb403b8e37d3303d057c728d2afa42cb499d77301",
+      "path": "help-gordon-talks-john.gbx",
+      "bytes": 129300,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7c7efe7a3b2360e538d46ca92a97f7fd3e724b8f3ac0b713e0ecf2fe0acd3e15.gbx",
+      "sha256": "7c7efe7a3b2360e538d46ca92a97f7fd3e724b8f3ac0b713e0ecf2fe0acd3e15",
+      "path": "help-gordon-talks-power.gbx",
+      "bytes": 104094,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/1427e16c5a01b395392dcce6307fce6ddc9861fff46957e503463d95271dc400.gbx",
+      "sha256": "1427e16c5a01b395392dcce6307fce6ddc9861fff46957e503463d95271dc400",
+      "path": "help-gordon-talks-prayer.gbx",
+      "bytes": 111918,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/c224d90b2ddc9f83dde957ed2b998d43513065c78fa58449d56ca5ecb76c62c3.gbx",
+      "sha256": "c224d90b2ddc9f83dde957ed2b998d43513065c78fa58449d56ca5ecb76c62c3",
+      "path": "help-gordon-talks-service.gbx",
+      "bytes": 89718,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/609cb3e9b96ae2bb870de2c2b4eba9f422c8723465acc8265efd2f73c0f2bf9a.gbx",
+      "sha256": "609cb3e9b96ae2bb870de2c2b4eba9f422c8723465acc8265efd2f73c0f2bf9a",
+      "path": "help-gordon-talks-winners.gbx",
+      "bytes": 124748,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/be083e930c42f36368046770929799f92bf1a97119b02d60365d6fcc734f2625.gbx",
+      "sha256": "be083e930c42f36368046770929799f92bf1a97119b02d60365d6fcc734f2625",
+      "path": "help-govett-apocalypse-interpret.gbx",
+      "bytes": 42959,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7ea098677c839c3c02ab19184d14c465cf19d81232f2e65b7867a63f844418b9.gbx",
+      "sha256": "7ea098677c839c3c02ab19184d14c465cf19d81232f2e65b7867a63f844418b9",
+      "path": "help-govett-apocalypse.gbx",
+      "bytes": 443297,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/23e4285b51378faaa0667b985f0282d1a059fdef7084bc82de8e39b50cc3800c.gbx",
+      "sha256": "23e4285b51378faaa0667b985f0282d1a059fdef7084bc82de8e39b50cc3800c",
+      "path": "help-govett-entrance-kingdom.gbx",
+      "bytes": 165947,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6723125dc02d5f39fec8c7ac869112ce8429835ea7565f44c2824792f1c5eed7.gbx",
+      "sha256": "6723125dc02d5f39fec8c7ac869112ce8429835ea7565f44c2824792f1c5eed7",
+      "path": "help-govett-eternal-punishment.gbx",
+      "bytes": 158924,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5d71ad4a83b6e189754d3b13b992d95f981adb2f9c96f8e6e1eedb80d83a5654.gbx",
+      "sha256": "5d71ad4a83b6e189754d3b13b992d95f981adb2f9c96f8e6e1eedb80d83a5654",
+      "path": "help-govett-galatians.gbx",
+      "bytes": 189640,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6dce9b2561e0e0cb2875533593932e2c1230a900fc5f995913e9419e987813b3.gbx",
+      "sha256": "6dce9b2561e0e0cb2875533593932e2c1230a900fc5f995913e9419e987813b3",
+      "path": "help-govett-isaiah.gbx",
+      "bytes": 417546,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/126a0593f56d2c7ca5e0b79c83686440df7848d9a988ef3ad87687328584fe0c.gbx",
+      "sha256": "126a0593f56d2c7ca5e0b79c83686440df7848d9a988ef3ad87687328584fe0c",
+      "path": "help-govett-kingdom-future.gbx",
+      "bytes": 192279,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/759246acbaf190ff779660112dc6983e4d3abe7c55bd8646e55f40115b750aff.gbx",
+      "sha256": "759246acbaf190ff779660112dc6983e4d3abe7c55bd8646e55f40115b750aff",
+      "path": "help-govett-matthew.gbx",
+      "bytes": 51823,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/345c75d6533c30c9866f2712398c5d23b6a7eff8eed2f4397f8826caad67e7af.gbx",
+      "sha256": "345c75d6533c30c9866f2712398c5d23b6a7eff8eed2f4397f8826caad67e7af",
+      "path": "help-govett-parables.gbx",
+      "bytes": 313902,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/db60c8964dc93a96dd51e260b1c6ed49fb32658815f18d845c833fefa006fa15.gbx",
+      "sha256": "db60c8964dc93a96dd51e260b1c6ed49fb32658815f18d845c833fefa006fa15",
+      "path": "help-govett-resurrection.gbx",
+      "bytes": 95023,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2b7aec22ed97f1b430fcb6ae584517ddcb6c11e5ac91812a7ff8381e90ea80bf.gbx",
+      "sha256": "2b7aec22ed97f1b430fcb6ae584517ddcb6c11e5ac91812a7ff8381e90ea80bf",
+      "path": "help-govett-romans.gbx",
+      "bytes": 358962,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5cf162cf4deb21c886aabaf3edf15927088504c93f0e4509ac7a8b4ef76e5edc.gbx",
+      "sha256": "5cf162cf4deb21c886aabaf3edf15927088504c93f0e4509ac7a8b4ef76e5edc",
+      "path": "help-govett-sermon-mount.gbx",
+      "bytes": 251272,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/df1cbd90e2475a6b03e4ceab27da93b5decaf46eceae75aec26c8c6dc0c96f9b.gbx",
+      "sha256": "df1cbd90e2475a6b03e4ceab27da93b5decaf46eceae75aec26c8c6dc0c96f9b",
+      "path": "help-govett-twofoldness.gbx",
+      "bytes": 19355,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d94281a0c178d05a61c7a7929bf03147f3ad98d6c81fb7f9cbab9ac920dac6de.gbx",
+      "sha256": "d94281a0c178d05a61c7a7929bf03147f3ad98d6c81fb7f9cbab9ac920dac6de",
+      "path": "help-groves-bagdad.gbx",
+      "bytes": 173294,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7436521aabb4afd34bcd2579ffe49f61faf62ce8fb32caa5e44d754841dc62f9.gbx",
+      "sha256": "7436521aabb4afd34bcd2579ffe49f61faf62ce8fb32caa5e44d754841dc62f9",
+      "path": "help-groves-devotedness.gbx",
+      "bytes": 36236,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9d2bf2dd68b11d11dd74e012cb11a2938f2be91d4cc36d7d75965e97cecd6776.gbx",
+      "sha256": "9d2bf2dd68b11d11dd74e012cb11a2938f2be91d4cc36d7d75965e97cecd6776",
+      "path": "help-gurnall-armour.gbx",
+      "bytes": 1581732,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/966faf4b91d8b21fc79992e037bf0a4b96684c35e3041847f2b30f191f90302e.gbx",
+      "sha256": "966faf4b91d8b21fc79992e037bf0a4b96684c35e3041847f2b30f191f90302e",
+      "path": "help-guthrie-interest2.gbx",
+      "bytes": 132769,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3e2dbd6ecba0b9d90af14a42d575af821d9b774a5ac9d499f9cdd41e8dec6fd9.gbx",
+      "sha256": "3e2dbd6ecba0b9d90af14a42d575af821d9b774a5ac9d499f9cdd41e8dec6fd9",
+      "path": "help-guyon-auto.gbx",
+      "bytes": 196807,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/37c514dda90952b9c751b3ecad457e33066a58fd6e50219140cb4906704885fc.gbx",
+      "sha256": "37c514dda90952b9c751b3ecad457e33066a58fd6e50219140cb4906704885fc",
+      "path": "help-guyon-letters.gbx",
+      "bytes": 43417,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/ad8c996c60da7a4eda1127d2e61cdca11a65ace7649a67058aef2d0b947afd6f.gbx",
+      "sha256": "ad8c996c60da7a4eda1127d2e61cdca11a65ace7649a67058aef2d0b947afd6f",
+      "path": "help-guyon-method.gbx",
+      "bytes": 41456,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/fb70f5a5fc89608b2aa85376c31193b969d4d1d35c87e3ce159d7de947fc53d6.gbx",
+      "sha256": "fb70f5a5fc89608b2aa85376c31193b969d4d1d35c87e3ce159d7de947fc53d6",
+      "path": "help-guyon-song.gbx",
+      "bytes": 104516,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/1173b5aa99cb07107f2dafb5c148df352804f04a8c9b5dfde14161d98772c838.gbx",
+      "sha256": "1173b5aa99cb07107f2dafb5c148df352804f04a8c9b5dfde14161d98772c838",
+      "path": "help-guyon-torrents.gbx",
+      "bytes": 63623,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/ebe207ce0bd2608b6fa83ef2600094636cf6d9ad084778a532c49fe7da29cec6.gbx",
+      "sha256": "ebe207ce0bd2608b6fa83ef2600094636cf6d9ad084778a532c49fe7da29cec6",
+      "path": "help-hapgood-service-book.gbx",
+      "bytes": 495609,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e8892980b05c473778a4f2b6c2510996a0044d3e57d116c7a57cc8001e23e2f6.gbx",
+      "sha256": "e8892980b05c473778a4f2b6c2510996a0044d3e57d116c7a57cc8001e23e2f6",
+      "path": "help-havergal-kept.gbx",
+      "bytes": 81610,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/129ae8e8bb86e80351e03a53be50396e50e853ba91a94a02a01a66f9dfad8ffa.gbx",
+      "sha256": "129ae8e8bb86e80351e03a53be50396e50e853ba91a94a02a01a66f9dfad8ffa",
+      "path": "help-haydock.gbx",
+      "bytes": 5013382,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/695a010bc16c23d45eb3f6d4184b265f8e96f36215bbdc957fb66c911b557bd5.gbx",
+      "sha256": "695a010bc16c23d45eb3f6d4184b265f8e96f36215bbdc957fb66c911b557bd5",
+      "path": "help-hooker-church-1.gbx",
+      "bytes": 1122,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bf04c485f55e2d663557dcb6decbb46b678e94ba1986595a1f0ca53c4ca96cc0.gbx",
+      "sha256": "bf04c485f55e2d663557dcb6decbb46b678e94ba1986595a1f0ca53c4ca96cc0",
+      "path": "help-hooker-church-2.gbx",
+      "bytes": 1885,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7d1b7fcbc6143cc6a7d817beb8f022dd0e1f381863d3ae2bbde5e03763dff490.gbx",
+      "sha256": "7d1b7fcbc6143cc6a7d817beb8f022dd0e1f381863d3ae2bbde5e03763dff490",
+      "path": "help-hooker-church-3.gbx",
+      "bytes": 1380,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b726ee80f27de56eef26ea91a8eb5b0934819198260b03a7eef7924e985479c3.gbx",
+      "sha256": "b726ee80f27de56eef26ea91a8eb5b0934819198260b03a7eef7924e985479c3",
+      "path": "help-isbe.gbx",
+      "bytes": 8588645,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6bf1e2cd748e0e8dedd5b7cb22025dd2ccd87966cda7f4f2d36514062d8830e7.gbx",
+      "sha256": "6bf1e2cd748e0e8dedd5b7cb22025dd2ccd87966cda7f4f2d36514062d8830e7",
+      "path": "help-jubilees.gbx",
+      "bytes": 106005,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/546213a63669836d9b8bf9dbf19d17188b7c444ffae6a599b6fa925057e15f3d.gbx",
+      "sha256": "546213a63669836d9b8bf9dbf19d17188b7c444ffae6a599b6fa925057e15f3d",
+      "path": "help-julian-revelations.gbx",
+      "bytes": 112647,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/ab18fc8d28ffa5e686fc1f5648143be7250eb9b151b393ce03602441ab5547af.gbx",
+      "sha256": "ab18fc8d28ffa5e686fc1f5648143be7250eb9b151b393ce03602441ab5547af",
+      "path": "help-kd.gbx",
+      "bytes": 8567715,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3a468161ba2b9badd8d4a2b08556d679569ef8e9a01b856cfd04ada474bdc463.gbx",
+      "sha256": "3a468161ba2b9badd8d4a2b08556d679569ef8e9a01b856cfd04ada474bdc463",
+      "path": "help-kelly-acts-catholic.gbx",
+      "bytes": 388970,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/554bd2eeef9d13e81470b6d6a345f5d095246f46137c158aaf6a9f9b71efe37b.gbx",
+      "sha256": "554bd2eeef9d13e81470b6d6a345f5d095246f46137c158aaf6a9f9b71efe37b",
+      "path": "help-kelly-church-six.gbx",
+      "bytes": 158689,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/fe9710a643fe682d083926a5abdcaf5e53b74e29d779983c022489e6bd8eb833.gbx",
+      "sha256": "fe9710a643fe682d083926a5abdcaf5e53b74e29d779983c022489e6bd8eb833",
+      "path": "help-kelly-daniel-notes.gbx",
+      "bytes": 175052,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/62b7237909b2feb02790f566176cd6736945c7a5b2b5b61c47e426958eeb15f6.gbx",
+      "sha256": "62b7237909b2feb02790f566176cd6736945c7a5b2b5b61c47e426958eeb15f6",
+      "path": "help-kelly-daniel-prophecies.gbx",
+      "bytes": 208156,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/05d9d1ba12b46b56cdf9eacd6d9d09e600ff9d067212b8a3789f19cc326ed10b.gbx",
+      "sha256": "05d9d1ba12b46b56cdf9eacd6d9d09e600ff9d067212b8a3789f19cc326ed10b",
+      "path": "help-kelly-ephesians.gbx",
+      "bytes": 222913,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/c6a3f5e4587613cd7009cb0776991f5bf4792982d15335816f6c4708658e5ecc.gbx",
+      "sha256": "c6a3f5e4587613cd7009cb0776991f5bf4792982d15335816f6c4708658e5ecc",
+      "path": "help-kelly-epistles-intro.gbx",
+      "bytes": 285685,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0eefacf09b2d4183ac78c21c14329540e7ed79495bba73e32eb9cb12562501c0.gbx",
+      "sha256": "0eefacf09b2d4183ac78c21c14329540e7ed79495bba73e32eb9cb12562501c0",
+      "path": "help-kelly-galatians.gbx",
+      "bytes": 132075,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a97d191bb28dff8570df72df3e28af05062e26a08d919587a10548f8a4280833.gbx",
+      "sha256": "a97d191bb28dff8570df72df3e28af05062e26a08d919587a10548f8a4280833",
+      "path": "help-kelly-gospels-intro.gbx",
+      "bytes": 376347,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f0b16559c4af0dc4273738b6423e5ba259c5083aae4597c3e6d874ba9b1f82f1.gbx",
+      "sha256": "f0b16559c4af0dc4273738b6423e5ba259c5083aae4597c3e6d874ba9b1f82f1",
+      "path": "help-kelly-holy-spirit.gbx",
+      "bytes": 221475,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6f827004e0fd54033da528e1b70a17e47859e2c6eb35b5c9acaa8ca5329944c6.gbx",
+      "sha256": "6f827004e0fd54033da528e1b70a17e47859e2c6eb35b5c9acaa8ca5329944c6",
+      "path": "help-kelly-isaiah.gbx",
+      "bytes": 232959,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/29fb41f0f7e5059a88584181cb53d1309fc8097fca5bd1e57f136037eea905bf.gbx",
+      "sha256": "29fb41f0f7e5059a88584181cb53d1309fc8097fca5bd1e57f136037eea905bf",
+      "path": "help-kelly-job.gbx",
+      "bytes": 123825,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d84826f6e5eb6e599925848865e4fcd9f635dcba5da232ad1a30e5f43833775d.gbx",
+      "sha256": "d84826f6e5eb6e599925848865e4fcd9f635dcba5da232ad1a30e5f43833775d",
+      "path": "help-kelly-matthew.gbx",
+      "bytes": 349243,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9ef219de4a7da5c0b50b9e1a3d5563c25ce58b81dca1dc9b580777920336811f.gbx",
+      "sha256": "9ef219de4a7da5c0b50b9e1a3d5563c25ce58b81dca1dc9b580777920336811f",
+      "path": "help-kelly-pentateuch.gbx",
+      "bytes": 402331,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/1b8fb25e427ef3ab9d6fbb68b00088e6e49140e94251a198dd4df9757ea27645.gbx",
+      "sha256": "1b8fb25e427ef3ab9d6fbb68b00088e6e49140e94251a198dd4df9757ea27645",
+      "path": "help-kelly-philippians.gbx",
+      "bytes": 68662,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7b97e1fbc3e813416d422c593e98d79f6baa47d1b466fa9cf8175a66b214f20f.gbx",
+      "sha256": "7b97e1fbc3e813416d422c593e98d79f6baa47d1b466fa9cf8175a66b214f20f",
+      "path": "help-kelly-revelation.gbx",
+      "bytes": 458441,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f46193ea6f54f8b7279464dafd4de95ce7d084727165f84cb4223a30d1243847.gbx",
+      "sha256": "f46193ea6f54f8b7279464dafd4de95ce7d084727165f84cb4223a30d1243847",
+      "path": "help-kelly-romans.gbx",
+      "bytes": 267808,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/ef7422317534390c10b132b46b70b62e6ba9f173f5b4a9d76542b14d591efd7d.gbx",
+      "sha256": "ef7422317534390c10b132b46b70b62e6ba9f173f5b4a9d76542b14d591efd7d",
+      "path": "help-kelly-spirits-prison.gbx",
+      "bytes": 93311,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/07d66c62bb2afb3b0551b5c1753f647a20ee1482c2f1e1b0a8eb74ec2b67b104.gbx",
+      "sha256": "07d66c62bb2afb3b0551b5c1753f647a20ee1482c2f1e1b0a8eb74ec2b67b104",
+      "path": "help-law-clergy.gbx",
+      "bytes": 237091,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/cab829625f6156ea4a04fdf5ef669a5c4d99d317bc685a2850c56280d4eb2bc4.gbx",
+      "sha256": "cab829625f6156ea4a04fdf5ef669a5c4d99d317bc685a2850c56280d4eb2bc4",
+      "path": "help-law-divine-knowledge.gbx",
+      "bytes": 106346,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/85006891add9d6b45f310772a69e3e8b660b4e6a7beac9791e9f102a640f7f84.gbx",
+      "sha256": "85006891add9d6b45f310772a69e3e8b660b4e6a7beac9791e9f102a640f7f84",
+      "path": "help-law-perfection.gbx",
+      "bytes": 212024,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5f8e31eafc03d0e6c31df817a0ae2a60d2b6404244f30f041dcc67848bafb4d5.gbx",
+      "sha256": "5f8e31eafc03d0e6c31df817a0ae2a60d2b6404244f30f041dcc67848bafb4d5",
+      "path": "help-law-regeneration.gbx",
+      "bytes": 42320,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/617d2bcc2183959faac5c883c4db803bc585604ff564d3f5302bb6227c131ec4.gbx",
+      "sha256": "617d2bcc2183959faac5c883c4db803bc585604ff564d3f5302bb6227c131ec4",
+      "path": "help-law-spirit-love.gbx",
+      "bytes": 111938,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3bbbb7448d1143fdd7c6a90c49b6002ede7ac718d48ed12ab945c623bef7c5e7.gbx",
+      "sha256": "3bbbb7448d1143fdd7c6a90c49b6002ede7ac718d48ed12ab945c623bef7c5e7",
+      "path": "help-law-spirit-prayer.gbx",
+      "bytes": 124739,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/de5509b055dceb78fba3759d989d0a6446d71ebf0a668a9aa9dd81a4423d375f.gbx",
+      "sha256": "de5509b055dceb78fba3759d989d0a6446d71ebf0a668a9aa9dd81a4423d375f",
+      "path": "help-lightfoot.gbx",
+      "bytes": 612683,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/8553bc57d64c8713a65e888d4a1b1e691de5e1490aeca687ce47acd15811033d.gbx",
+      "sha256": "8553bc57d64c8713a65e888d4a1b1e691de5e1490aeca687ce47acd15811033d",
+      "path": "help-luther-genesis-1.gbx",
+      "bytes": 337279,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3dfd5c2c54f0695f9ae868cdfb0e857763450dc54812048059180a41ef8cbf85.gbx",
+      "sha256": "3dfd5c2c54f0695f9ae868cdfb0e857763450dc54812048059180a41ef8cbf85",
+      "path": "help-luther-genesis-2.gbx",
+      "bytes": 266062,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3bfee89fc505a58d99ff39567e8a79529e72a3c230016ef06510cf1d48a2f841.gbx",
+      "sha256": "3bfee89fc505a58d99ff39567e8a79529e72a3c230016ef06510cf1d48a2f841",
+      "path": "help-mackintosh-all-sufficiency.gbx",
+      "bytes": 203915,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7a64b253d80592b73a7412f79c382ddb538d757d3abf0d3139a31f4b7176987d.gbx",
+      "sha256": "7a64b253d80592b73a7412f79c382ddb538d757d3abf0d3139a31f4b7176987d",
+      "path": "help-mackintosh-assembly.gbx",
+      "bytes": 251032,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/dfbf87fbdef5e8fc14f3227f21242c89dde365518877882c1c2f88e1afcc4092.gbx",
+      "sha256": "dfbf87fbdef5e8fc14f3227f21242c89dde365518877882c1c2f88e1afcc4092",
+      "path": "help-mackintosh-david.gbx",
+      "bytes": 216574,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/4552e82be400214d06723a985f70efb59eabbd6b51f1845e6c9f861a28faab5b.gbx",
+      "sha256": "4552e82be400214d06723a985f70efb59eabbd6b51f1845e6c9f861a28faab5b",
+      "path": "help-mackintosh-deut-1.gbx",
+      "bytes": 242814,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bd23668a94342b3471319fcb3d4e92ab9869488a1984797b28ceb66b139b8091.gbx",
+      "sha256": "bd23668a94342b3471319fcb3d4e92ab9869488a1984797b28ceb66b139b8091",
+      "path": "help-mackintosh-deut-2.gbx",
+      "bytes": 260102,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d8c356a90990304f53d53d5540bdbe2c7f5ee1038bfc95a51c7df8b69d687d2e.gbx",
+      "sha256": "d8c356a90990304f53d53d5540bdbe2c7f5ee1038bfc95a51c7df8b69d687d2e",
+      "path": "help-mackintosh-elijah.gbx",
+      "bytes": 214883,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9ccb1e762583295b114374b17e21ea46bd696c0964753294e068d6246c0c4dba.gbx",
+      "sha256": "9ccb1e762583295b114374b17e21ea46bd696c0964753294e068d6246c0c4dba",
+      "path": "help-mackintosh-exodus.gbx",
+      "bytes": 212328,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7e03f8646db880e99b4f91b40ef6dbc813d45e037b6736d341a7d1d6be96b667.gbx",
+      "sha256": "7e03f8646db880e99b4f91b40ef6dbc813d45e037b6736d341a7d1d6be96b667",
+      "path": "help-mackintosh-great-commission.gbx",
+      "bytes": 233662,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f6ae6f85821581e6130d6cfaf9fdbceb58e6e9b78e01b8445d78594b614e1f1b.gbx",
+      "sha256": "f6ae6f85821581e6130d6cfaf9fdbceb58e6e9b78e01b8445d78594b614e1f1b",
+      "path": "help-mackintosh-leviticus.gbx",
+      "bytes": 214498,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/beca19aa0f913b4b888417856b328a6ff1582fd709dfa71e9aa01a3c4964c062.gbx",
+      "sha256": "beca19aa0f913b4b888417856b328a6ff1582fd709dfa71e9aa01a3c4964c062",
+      "path": "help-mackintosh-lords-coming.gbx",
+      "bytes": 238087,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/94b74b1079f0bfadf2898fe0af1a94cf2c0c86571e43d3667a15cb350e8b3a56.gbx",
+      "sha256": "94b74b1079f0bfadf2898fe0af1a94cf2c0c86571e43d3667a15cb350e8b3a56",
+      "path": "help-mackintosh-numbers.gbx",
+      "bytes": 258310,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/fb6926ceaa0d5566078faf5a614cf226d8864eccbe6a64391b10d66831cd0d1e.gbx",
+      "sha256": "fb6926ceaa0d5566078faf5a614cf226d8864eccbe6a64391b10d66831cd0d1e",
+      "path": "help-macneil-spirit-filled.gbx",
+      "bytes": 57400,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/598d149afa72d9b2f1af395b1263c1592b606ff65af500fe9620c9cf95f745fb.gbx",
+      "sha256": "598d149afa72d9b2f1af395b1263c1592b606ff65af500fe9620c9cf95f745fb",
+      "path": "help-manton-manton01.gbx",
+      "bytes": 613180,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/396fbd39e5eaf2167b021a1703f26768b6ee0c4c827477acfc4a2b0dd36eceb9.gbx",
+      "sha256": "396fbd39e5eaf2167b021a1703f26768b6ee0c4c827477acfc4a2b0dd36eceb9",
+      "path": "help-manton-manton02.gbx",
+      "bytes": 554350,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/8081cdf0178ca95bb140c7c81775bb459a335d176955f250310dfac339d9d8f3.gbx",
+      "sha256": "8081cdf0178ca95bb140c7c81775bb459a335d176955f250310dfac339d9d8f3",
+      "path": "help-manton-manton03.gbx",
+      "bytes": 584113,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/daef929232e9689006a64812badfdfe3f8e65dcd0a9fe2f15def8088604e34e6.gbx",
+      "sha256": "daef929232e9689006a64812badfdfe3f8e65dcd0a9fe2f15def8088604e34e6",
+      "path": "help-manton-manton04.gbx",
+      "bytes": 613444,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7487278b4eaa401397871e009a2efcdb518b0b51e1629d17b6224f66714e001b.gbx",
+      "sha256": "7487278b4eaa401397871e009a2efcdb518b0b51e1629d17b6224f66714e001b",
+      "path": "help-manton-manton05.gbx",
+      "bytes": 615157,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/4be6d4d8fddbdeaeeeb0456718bf9d1969dd1de7c9ddb407220e04cef1cdc7ef.gbx",
+      "sha256": "4be6d4d8fddbdeaeeeb0456718bf9d1969dd1de7c9ddb407220e04cef1cdc7ef",
+      "path": "help-manton-manton06.gbx",
+      "bytes": 594358,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6da7a6782c88d9f04648ce95c9346cc07eace2dc5787dcb4c86680bd9129f191.gbx",
+      "sha256": "6da7a6782c88d9f04648ce95c9346cc07eace2dc5787dcb4c86680bd9129f191",
+      "path": "help-manton-manton07.gbx",
+      "bytes": 593114,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/ef1e0d96d953d2c5f73b842d3da90224114706092361aeea03b9603d0195134b.gbx",
+      "sha256": "ef1e0d96d953d2c5f73b842d3da90224114706092361aeea03b9603d0195134b",
+      "path": "help-manton-manton08.gbx",
+      "bytes": 603868,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/003d00ca9de2dcb2d6bac53e153d4a34f828f9fbfe32cf35d4464330a4f2a370.gbx",
+      "sha256": "003d00ca9de2dcb2d6bac53e153d4a34f828f9fbfe32cf35d4464330a4f2a370",
+      "path": "help-manton-manton20.gbx",
+      "bytes": 606299,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6d06618059d76c4c270f1e44347d663a58471a809ff28455b767ee7814476b4a.gbx",
+      "sha256": "6d06618059d76c4c270f1e44347d663a58471a809ff28455b767ee7814476b4a",
+      "path": "help-meyer-guidance.gbx",
+      "bytes": 65830,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/76f80c40e5a0b1c00e01a0e27e9b9fc55454dda421bd554756a6c275e6693372.gbx",
+      "sha256": "76f80c40e5a0b1c00e01a0e27e9b9fc55454dda421bd554756a6c275e6693372",
+      "path": "help-meyer-holiest.gbx",
+      "bytes": 176760,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bd7d8398c26dbe306e21fb8718fe75acfa37720a10c5288de857efef48a2654e.gbx",
+      "sha256": "bd7d8398c26dbe306e21fb8718fe75acfa37720a10c5288de857efef48a2654e",
+      "path": "help-mhc.gbx",
+      "bytes": 13137826,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/65a43c92deb15d085ed68d10acc64da66443b02c7fd116c7e33839b1c0975b16.gbx",
+      "sha256": "65a43c92deb15d085ed68d10acc64da66443b02c7fd116c7e33839b1c0975b16",
+      "path": "help-molinos-guide.gbx",
+      "bytes": 127686,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/319e6abc14adf94e4a069839c41dfbcdd2292e5572fe091fdd81cb924d793a6b.gbx",
+      "sha256": "319e6abc14adf94e4a069839c41dfbcdd2292e5572fe091fdd81cb924d793a6b",
+      "path": "help-muller-answers.gbx",
+      "bytes": 64924,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5b3bbf20d09e276d4c68b89c51866628d72b7640599daca3cb7294a3078e97b9.gbx",
+      "sha256": "5b3bbf20d09e276d4c68b89c51866628d72b7640599daca3cb7294a3078e97b9",
+      "path": "help-muller-life-of-trust.gbx",
+      "bytes": 301400,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/cc950558f1493776e22560756f9a186de1931f9903d86d06fb71a064333880ab.gbx",
+      "sha256": "cc950558f1493776e22560756f9a186de1931f9903d86d06fb71a064333880ab",
+      "path": "help-muller-narrative-1.gbx",
+      "bytes": 157469,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/1dcfbfb0f8dffdca3c47e405a98b20cb4f939174fbb598f5093b2f891110b116.gbx",
+      "sha256": "1dcfbfb0f8dffdca3c47e405a98b20cb4f939174fbb598f5093b2f891110b116",
+      "path": "help-muller-narrative-2.gbx",
+      "bytes": 137893,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/928348f6700f22e33bad07778ae72ac95b7d264bee5e05b4df0a09070abbca53.gbx",
+      "sha256": "928348f6700f22e33bad07778ae72ac95b7d264bee5e05b4df0a09070abbca53",
+      "path": "help-muller-narrative-3.gbx",
+      "bytes": 179735,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2c6a9b0f4c5041d5fc2ab6af5e5ca1e8299e9a93573b88746e090cf80226943b.gbx",
+      "sha256": "2c6a9b0f4c5041d5fc2ab6af5e5ca1e8299e9a93573b88746e090cf80226943b",
+      "path": "help-muller-narrative-4.gbx",
+      "bytes": 290743,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d7778c70cb64bc4696fe252006c16ca7dedca7067afaeb97a0c26e92e4bc6d5d.gbx",
+      "sha256": "d7778c70cb64bc4696fe252006c16ca7dedca7067afaeb97a0c26e92e4bc6d5d",
+      "path": "help-murray-covenants.gbx",
+      "bytes": 82297,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f81aee90660b5c9978cc0b31021216a6bd04761effa54133035afb6168f6e189.gbx",
+      "sha256": "f81aee90660b5c9978cc0b31021216a6bd04761effa54133035afb6168f6e189",
+      "path": "help-murray-deeper.gbx",
+      "bytes": 47511,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2703d396dffba7b05f2e56e5e3b2cee32028c722685da81aa0cb3f5eb7481bd0.gbx",
+      "sha256": "2703d396dffba7b05f2e56e5e3b2cee32028c722685da81aa0cb3f5eb7481bd0",
+      "path": "help-murray-holy-in-christ.gbx",
+      "bytes": 156229,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0fc5cfd39297234610ca6849125d0af4faec8c60264fbfaa3364640e8cd72e14.gbx",
+      "sha256": "0fc5cfd39297234610ca6849125d0af4faec8c60264fbfaa3364640e8cd72e14",
+      "path": "help-murray-humility.gbx",
+      "bytes": 40930,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e343f5d3c6c2231c932bfa00b68e8d2be33f142e79dcfb781a0607b410291ee8.gbx",
+      "sha256": "e343f5d3c6c2231c932bfa00b68e8d2be33f142e79dcfb781a0607b410291ee8",
+      "path": "help-murray-indwelling.gbx",
+      "bytes": 81178,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0ef6e4d7e847b6e42f755a93bb5840af39bdf9430c2e26ad3459a05581427b85.gbx",
+      "sha256": "0ef6e4d7e847b6e42f755a93bb5840af39bdf9430c2e26ad3459a05581427b85",
+      "path": "help-murray-intercession.gbx",
+      "bytes": 107552,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3ea2ee7b791407cbfbf9b98a21e010c73e9862bd98d64f1355ff646a9c3329b5.gbx",
+      "sha256": "3ea2ee7b791407cbfbf9b98a21e010c73e9862bd98d64f1355ff646a9c3329b5",
+      "path": "help-murray-jesus-himself.gbx",
+      "bytes": 17585,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0aba1dd5754390f2f034de8f25b63524f9a323b2fffd4abb6cc72a661b5a5b7c.gbx",
+      "sha256": "0aba1dd5754390f2f034de8f25b63524f9a323b2fffd4abb6cc72a661b5a5b7c",
+      "path": "help-murray-lords-table.gbx",
+      "bytes": 42155,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/804b96900d69e386eff34846314110430e6eac39686704827158ce546d47872e.gbx",
+      "sha256": "804b96900d69e386eff34846314110430e6eac39686704827158ce546d47872e",
+      "path": "help-murray-money.gbx",
+      "bytes": 27580,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7cdde6c39cc36ebb954550c482e1bd7b797853cae4cd034084fcc35c44bf42a3.gbx",
+      "sha256": "7cdde6c39cc36ebb954550c482e1bd7b797853cae4cd034084fcc35c44bf42a3",
+      "path": "help-murray-new-life.gbx",
+      "bytes": 122467,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3e5bc0a18538b5f9ccf5079c54f2dc13b991706fd22d7734a6fecda69bef87a8.gbx",
+      "sha256": "3e5bc0a18538b5f9ccf5079c54f2dc13b991706fd22d7734a6fecda69bef87a8",
+      "path": "help-murray-obedience.gbx",
+      "bytes": 50213,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a5d4d8a3d6fc66c113832891bdea1cab770db73da2f54853c4a6129896b9c393.gbx",
+      "sha256": "a5d4d8a3d6fc66c113832891bdea1cab770db73da2f54853c4a6129896b9c393",
+      "path": "help-murray-surrender.gbx",
+      "bytes": 64920,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/66626ee216456a8f50435fe4cd7693597997978a07c0fb2813b5f9591be6d237.gbx",
+      "sha256": "66626ee216456a8f50435fe4cd7693597997978a07c0fb2813b5f9591be6d237",
+      "path": "help-murray-true-vine.gbx",
+      "bytes": 40052,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/1a063ffb1f5bf82e4b67c000885734373f9f84fa38cb22723da26a2cea6a570e.gbx",
+      "sha256": "1a063ffb1f5bf82e4b67c000885734373f9f84fa38cb22723da26a2cea6a570e",
+      "path": "help-murray-waiting.gbx",
+      "bytes": 52832,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bf83a3d98d022ee101458fe6cdb5d8d56a4863a74d9612bad8bfc50ef167612a.gbx",
+      "sha256": "bf83a3d98d022ee101458fe6cdb5d8d56a4863a74d9612bad8bfc50ef167612a",
+      "path": "help-murray-working.gbx",
+      "bytes": 60736,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/daf2dd1d2e4526daa4d92a0ef68cc2d94ec7b98af9c922c242ec6c073ac330b4.gbx",
+      "sha256": "daf2dd1d2e4526daa4d92a0ef68cc2d94ec7b98af9c922c242ec6c073ac330b4",
+      "path": "help-newton-apocalypse.gbx",
+      "bytes": 279243,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a50a5a9bff845695a439253f8b06c7accb25240eab35b922ba1765bd02bfa359.gbx",
+      "sha256": "a50a5a9bff845695a439253f8b06c7accb25240eab35b922ba1765bd02bfa359",
+      "path": "help-newton-messiah-1.gbx",
+      "bytes": 189779,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/1e9415a13432a475ce399a9d2b0b10419463d6bd2023cd6eb06c4964dcd6b836.gbx",
+      "sha256": "1e9415a13432a475ce399a9d2b0b10419463d6bd2023cd6eb06c4964dcd6b836",
+      "path": "help-newton-messiah-2.gbx",
+      "bytes": 185126,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/cd9b03cafc7b4387c70ff844e09f693f240ac51c485007887f4a3443a6c3e6d9.gbx",
+      "sha256": "cd9b03cafc7b4387c70ff844e09f693f240ac51c485007887f4a3443a6c3e6d9",
+      "path": "help-newton-olney.gbx",
+      "bytes": 150922,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/1bf36a2e4b4f7d336cd46652a0e15bb77abdb5c87b7473b44f28a78047d59cc5.gbx",
+      "sha256": "1bf36a2e4b4f7d336cd46652a0e15bb77abdb5c87b7473b44f28a78047d59cc5",
+      "path": "help-npnf102.gbx",
+      "bytes": 1153641,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/42691881b98fc413a36ffd3eddc60e81e53a1426ef770a74de58143c1c11e183.gbx",
+      "sha256": "42691881b98fc413a36ffd3eddc60e81e53a1426ef770a74de58143c1c11e183",
+      "path": "help-npnf103.gbx",
+      "bytes": 972857,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d03a0c1e88c1a6236de379ecf6c4e229b4bfe879aaa1cb8be1f9270ae41f6362.gbx",
+      "sha256": "d03a0c1e88c1a6236de379ecf6c4e229b4bfe879aaa1cb8be1f9270ae41f6362",
+      "path": "help-npnf104.gbx",
+      "bytes": 1149924,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6b0bbd26252875624fd442679394fc72f4773c087b05fc4b8651ac8204f016be.gbx",
+      "sha256": "6b0bbd26252875624fd442679394fc72f4773c087b05fc4b8651ac8204f016be",
+      "path": "help-npnf105.gbx",
+      "bytes": 1101324,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a62953de67bd6b444ffef25eb1dde72b85d9424146190ff14b3e822d95ed2a58.gbx",
+      "sha256": "a62953de67bd6b444ffef25eb1dde72b85d9424146190ff14b3e822d95ed2a58",
+      "path": "help-npnf106.gbx",
+      "bytes": 1153505,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e8239ed23add901bfc0ac75bef9e2746be654276f02c73df088f2320780aca58.gbx",
+      "sha256": "e8239ed23add901bfc0ac75bef9e2746be654276f02c73df088f2320780aca58",
+      "path": "help-npnf107.gbx",
+      "bytes": 992360,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/52d9cf66f9ae85ca3d21327f51345843fe50ac558632cf572be9e85af549e9d0.gbx",
+      "sha256": "52d9cf66f9ae85ca3d21327f51345843fe50ac558632cf572be9e85af549e9d0",
+      "path": "help-npnf108.gbx",
+      "bytes": 1500784,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9f4502263b6eb00bfc444fc68c55db60b0fabf2a0bc4624e89e79c4f96b8775c.gbx",
+      "sha256": "9f4502263b6eb00bfc444fc68c55db60b0fabf2a0bc4624e89e79c4f96b8775c",
+      "path": "help-npnf109.gbx",
+      "bytes": 897222,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/06a59615d689b32270db4b33c84186a533ab0df69fca56ddb8fcadaf0e87360a.gbx",
+      "sha256": "06a59615d689b32270db4b33c84186a533ab0df69fca56ddb8fcadaf0e87360a",
+      "path": "help-npnf110.gbx",
+      "bytes": 1051938,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/be8eed490c673832995542c268f84ef9a222f64baab57acf9ac3cfc5de8ed725.gbx",
+      "sha256": "be8eed490c673832995542c268f84ef9a222f64baab57acf9ac3cfc5de8ed725",
+      "path": "help-npnf111.gbx",
+      "bytes": 1384236,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2cad35b77fb86fd49c9efbc666c695bd441b59fd2a9c99db3e1dbd970f4e0c23.gbx",
+      "sha256": "2cad35b77fb86fd49c9efbc666c695bd441b59fd2a9c99db3e1dbd970f4e0c23",
+      "path": "help-npnf112.gbx",
+      "bytes": 916649,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f0e6a9ce442d165ddb7437b1e1de44ee1cadc49a0d92c22e7a7732c328d56770.gbx",
+      "sha256": "f0e6a9ce442d165ddb7437b1e1de44ee1cadc49a0d92c22e7a7732c328d56770",
+      "path": "help-npnf113.gbx",
+      "bytes": 1214993,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2ae4c35610aaed0ffb864f6677de203c5fe892cc84c493a05212a94ab00c74df.gbx",
+      "sha256": "2ae4c35610aaed0ffb864f6677de203c5fe892cc84c493a05212a94ab00c74df",
+      "path": "help-npnf114.gbx",
+      "bytes": 1176422,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f3deccd564a6442e752bc17288ab21b95963cbf032287eb5c0fb879132d937ce.gbx",
+      "sha256": "f3deccd564a6442e752bc17288ab21b95963cbf032287eb5c0fb879132d937ce",
+      "path": "help-npnf201.gbx",
+      "bytes": 1533022,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3dbbca5aa55c73dec50a4dbf7afe6efd101c1dca5e49c24111cc1813ec669876.gbx",
+      "sha256": "3dbbca5aa55c73dec50a4dbf7afe6efd101c1dca5e49c24111cc1813ec669876",
+      "path": "help-npnf202.gbx",
+      "bytes": 922689,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/85b37b76b93b498ca90a16765e5a45545b919702172891bf53c713699ecf06cb.gbx",
+      "sha256": "85b37b76b93b498ca90a16765e5a45545b919702172891bf53c713699ecf06cb",
+      "path": "help-npnf203.gbx",
+      "bytes": 1129679,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b3bbb8a2b8f926569484cba19f27332d0989400e71a046e974651bc26194ceaa.gbx",
+      "sha256": "b3bbb8a2b8f926569484cba19f27332d0989400e71a046e974651bc26194ceaa",
+      "path": "help-npnf204.gbx",
+      "bytes": 1474551,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/eeacccda0d09d2d5ddf3010a20d1c57039082aeac69afeb3138f57653714ab27.gbx",
+      "sha256": "eeacccda0d09d2d5ddf3010a20d1c57039082aeac69afeb3138f57653714ab27",
+      "path": "help-npnf205.gbx",
+      "bytes": 1133247,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f9778e96783a58ca043ff296039f8699067a67aa2f9875772d408aef0c4b74e6.gbx",
+      "sha256": "f9778e96783a58ca043ff296039f8699067a67aa2f9875772d408aef0c4b74e6",
+      "path": "help-npnf206.gbx",
+      "bytes": 1195949,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f1a604f21e4976e7ad5d5f22db47f011a1ea7326750fc1050d7fdb15baddee4f.gbx",
+      "sha256": "f1a604f21e4976e7ad5d5f22db47f011a1ea7326750fc1050d7fdb15baddee4f",
+      "path": "help-npnf207.gbx",
+      "bytes": 1111507,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/be09b8201ef9ce02aa9c6bd80e4bdc875e56860fca059f538e1162f8515b4400.gbx",
+      "sha256": "be09b8201ef9ce02aa9c6bd80e4bdc875e56860fca059f538e1162f8515b4400",
+      "path": "help-npnf208.gbx",
+      "bytes": 909857,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/080df42c74745a75825c811f70940c3b28a17c88098375371a97509bd1cc201c.gbx",
+      "sha256": "080df42c74745a75825c811f70940c3b28a17c88098375371a97509bd1cc201c",
+      "path": "help-npnf209.gbx",
+      "bytes": 810702,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/8fe13fd51c985d4fe01f87e3699b73932beb842ad5e1c01ac6e012cb98464af4.gbx",
+      "sha256": "8fe13fd51c985d4fe01f87e3699b73932beb842ad5e1c01ac6e012cb98464af4",
+      "path": "help-npnf210.gbx",
+      "bytes": 919802,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/08c02bb17c9aba3be348a864548c25edc2d4e5b981b1f67852aa6347b558caa8.gbx",
+      "sha256": "08c02bb17c9aba3be348a864548c25edc2d4e5b981b1f67852aa6347b558caa8",
+      "path": "help-npnf211.gbx",
+      "bytes": 1106797,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/4738eb293e86d1d4553cb3454ece4b8da18cef73966ab1fd877b3801b83fa009.gbx",
+      "sha256": "4738eb293e86d1d4553cb3454ece4b8da18cef73966ab1fd877b3801b83fa009",
+      "path": "help-npnf212.gbx",
+      "bytes": 953620,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/fa206611d50db3afae629f3ebe648d839b4e37378039558f1f82429db756ac61.gbx",
+      "sha256": "fa206611d50db3afae629f3ebe648d839b4e37378039558f1f82429db756ac61",
+      "path": "help-npnf213.gbx",
+      "bytes": 630536,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/64361655d1a7cad7237fc3dbc65f9bd85177627efe4541114b487561b9c92fe9.gbx",
+      "sha256": "64361655d1a7cad7237fc3dbc65f9bd85177627efe4541114b487561b9c92fe9",
+      "path": "help-npnf214.gbx",
+      "bytes": 824728,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9ed0574adb2db2d10709b20351650c4e33f6aef764f80754cb194ae916bd8339.gbx",
+      "sha256": "9ed0574adb2db2d10709b20351650c4e33f6aef764f80754cb194ae916bd8339",
+      "path": "help-owen-apostasy.gbx",
+      "bytes": 261317,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9e82232f6cf719f67e442ad14183a1f4164deb27901f332aecfab79d867ac3b6.gbx",
+      "sha256": "9e82232f6cf719f67e442ad14183a1f4164deb27901f332aecfab79d867ac3b6",
+      "path": "help-owen-catechisms.gbx",
+      "bytes": 26247,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a5a316bce81dc940f9b6fb748e74cd9107693dfae008e69faa37ef3ad6fb2b36.gbx",
+      "sha256": "a5a316bce81dc940f9b6fb748e74cd9107693dfae008e69faa37ef3ad6fb2b36",
+      "path": "help-owen-christ.gbx",
+      "bytes": 248122,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a03269e1975c924d65297dd8ee05ebf751a1a70da7978a6b83a03ea062b4c369.gbx",
+      "sha256": "a03269e1975c924d65297dd8ee05ebf751a1a70da7978a6b83a03ea062b4c369",
+      "path": "help-owen-churchlove.gbx",
+      "bytes": 127597,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7ccf8fa1557afe904de62140e2061f601fcca288c2dceb0d3388e49a3f381541.gbx",
+      "sha256": "7ccf8fa1557afe904de62140e2061f601fcca288c2dceb0d3388e49a3f381541",
+      "path": "help-owen-communion.gbx",
+      "bytes": 352085,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/41dfcdfaa79a4379ae0ce9cbde0aeca350e934c45a3c4161634842df77bd6227.gbx",
+      "sha256": "41dfcdfaa79a4379ae0ce9cbde0aeca350e934c45a3c4161634842df77bd6227",
+      "path": "help-owen-conscience.gbx",
+      "bytes": 46969,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/19564ae0095c0c0b781fb346e03fbe129ec0c9ce47a59fb8b9f9087111be978d.gbx",
+      "sha256": "19564ae0095c0c0b781fb346e03fbe129ec0c9ce47a59fb8b9f9087111be978d",
+      "path": "help-owen-deathofdeath.gbx",
+      "bytes": 302274,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d6c2fa6894b04a3c22af7e860afb0fe9c92d966382b7cfbe346a71c03001cd6e.gbx",
+      "sha256": "d6c2fa6894b04a3c22af7e860afb0fe9c92d966382b7cfbe346a71c03001cd6e",
+      "path": "help-owen-discourses.gbx",
+      "bytes": 99537,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d5bf7642f79fd2d0799215169450f07ecdd66c7da8307f518ecd252e86ef0c82.gbx",
+      "sha256": "d5bf7642f79fd2d0799215169450f07ecdd66c7da8307f518ecd252e86ef0c82",
+      "path": "help-owen-display.gbx",
+      "bytes": 146772,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/12b4d3679e4e38ea7ddce5ed0d6a95a0d5b8960f33d230629766776d1e839b53.gbx",
+      "sha256": "12b4d3679e4e38ea7ddce5ed0d6a95a0d5b8960f33d230629766776d1e839b53",
+      "path": "help-owen-eshcol.gbx",
+      "bytes": 34880,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/fef606dc11d1cdb1fe735d4bd14373d8057efec31f11265541c7641409959f70.gbx",
+      "sha256": "fef606dc11d1cdb1fe735d4bd14373d8057efec31f11265541c7641409959f70",
+      "path": "help-owen-evangelicalchurches.gbx",
+      "bytes": 463494,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/c138873eec00821e0be9a0056bce7ea5e197ae60284069fa98e5d2e967ce2b2d.gbx",
+      "sha256": "c138873eec00821e0be9a0056bce7ea5e197ae60284069fa98e5d2e967ce2b2d",
+      "path": "help-owen-faith.gbx",
+      "bytes": 55086,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2f02983646e35f83aa781c7f7e7218a34fb780bc90a3f4b21f38f2e3b48c35de.gbx",
+      "sha256": "2f02983646e35f83aa781c7f7e7218a34fb780bc90a3f4b21f38f2e3b48c35de",
+      "path": "help-owen-glory.gbx",
+      "bytes": 180525,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/4c7e1cf26de06002db2f2298c438881044365a6b51207fdcfa60ab7169349ae4.gbx",
+      "sha256": "4c7e1cf26de06002db2f2298c438881044365a6b51207fdcfa60ab7169349ae4",
+      "path": "help-owen-grotius.gbx",
+      "bytes": 25824,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/51e633f0cd017279934ba1754db48430550631b22a7b9179689eb2c65cdca558.gbx",
+      "sha256": "51e633f0cd017279934ba1754db48430550631b22a7b9179689eb2c65cdca558",
+      "path": "help-owen-indwellingsin.gbx",
+      "bytes": 170291,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6076cd7143fca09a16d3d6ea4da381df47888cbcfbc8487dd6da68b80c4c6aba.gbx",
+      "sha256": "6076cd7143fca09a16d3d6ea4da381df47888cbcfbc8487dd6da68b80c4c6aba",
+      "path": "help-owen-just.gbx",
+      "bytes": 399739,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/1889d8d9c2a41301cf143441efe2952b2b0aca17011f617766a16a2cbb7b3f3a.gbx",
+      "sha256": "1889d8d9c2a41301cf143441efe2952b2b0aca17011f617766a16a2cbb7b3f3a",
+      "path": "help-owen-justice.gbx",
+      "bytes": 155767,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/88972f87096e2b4e0672404eedaa7ddfbc99bc290c20a87e0311cff528a7cc6c.gbx",
+      "sha256": "88972f87096e2b4e0672404eedaa7ddfbc99bc290c20a87e0311cff528a7cc6c",
+      "path": "help-owen-liturgies.gbx",
+      "bytes": 53787,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5d902a122f165cc0832f86fcdc95c091745a5a9ab80931b98937c91fc298af3f.gbx",
+      "sha256": "5d902a122f165cc0832f86fcdc95c091745a5a9ab80931b98937c91fc298af3f",
+      "path": "help-owen-pastorspeople.gbx",
+      "bytes": 50991,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/251c3435747c814afcafd6f422c7d4870310a016c53647e3394612e5e685aaeb.gbx",
+      "sha256": "251c3435747c814afcafd6f422c7d4870310a016c53647e3394612e5e685aaeb",
+      "path": "help-owen-perseverance.gbx",
+      "bytes": 711606,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5eab35a4cb006e7ee00ed34a94c4b487eefcb73a5bca2a003e048c79b4528cd5.gbx",
+      "sha256": "5eab35a4cb006e7ee00ed34a94c4b487eefcb73a5bca2a003e048c79b4528cd5",
+      "path": "help-owen-pneum.gbx",
+      "bytes": 1171705,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6ebf60c17ab2a79433601665d1d40bde3f4e74d0f2fbec671ff777544644d40d.gbx",
+      "sha256": "6ebf60c17ab2a79433601665d1d40bde3f4e74d0f2fbec671ff777544644d40d",
+      "path": "help-owen-psalm130.gbx",
+      "bytes": 323774,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/46a0a0d79f976f7ff72498214a34649037a764e1c138336af17a1bda025ac26a.gbx",
+      "sha256": "46a0a0d79f976f7ff72498214a34649037a764e1c138336af17a1bda025ac26a",
+      "path": "help-owen-schism.gbx",
+      "bytes": 266907,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bbcf3a5c1fe751404dd03e35a1f61458f7ddab4157a63242c7709f43c771ea1c.gbx",
+      "sha256": "bbcf3a5c1fe751404dd03e35a1f61458f7ddab4157a63242c7709f43c771ea1c",
+      "path": "help-owen-sermons.gbx",
+      "bytes": 1204110,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/8ef1921bab9c810136e62c6011d0f11bdff3d723bf06e8648838a13c1ec3caec.gbx",
+      "sha256": "8ef1921bab9c810136e62c6011d0f11bdff3d723bf06e8648838a13c1ec3caec",
+      "path": "help-owen-sin-grace.gbx",
+      "bytes": 60517,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3cacb2030c21aa3ceefbdfae076657824cdbe140e23cfa392b6367f453e4a6d8.gbx",
+      "sha256": "3cacb2030c21aa3ceefbdfae076657824cdbe140e23cfa392b6367f453e4a6d8",
+      "path": "help-owen-spirituallyminded.gbx",
+      "bytes": 230506,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f8401f4f836de74b74a6cb7c7dbb6398d96e340f23081ec5ffa09a9daead0b76.gbx",
+      "sha256": "f8401f4f836de74b74a6cb7c7dbb6398d96e340f23081ec5ffa09a9daead0b76",
+      "path": "help-owen-temptation.gbx",
+      "bytes": 66384,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d060c493168bf648e82e29abaeda5f860382e7bf3ecda1dda0c3d947b4033431.gbx",
+      "sha256": "d060c493168bf648e82e29abaeda5f860382e7bf3ecda1dda0c3d947b4033431",
+      "path": "help-owen-trinity.gbx",
+      "bytes": 88296,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f7655213f83e363f826b6a0c822cd4f58afa209b947fea2bd2fc26a8d4bb39d5.gbx",
+      "sha256": "f7655213f83e363f826b6a0c822cd4f58afa209b947fea2bd2fc26a8d4bb39d5",
+      "path": "help-owen-truthinnocence.gbx",
+      "bytes": 178998,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/107a386189fa5c59064a7024a822bb0f058812170234c181a7afd80d922cc9ff.gbx",
+      "sha256": "107a386189fa5c59064a7024a822bb0f058812170234c181a7afd80d922cc9ff",
+      "path": "help-owen-vindicevang.gbx",
+      "bytes": 664234,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bf543b6fd6bea658109ea47cf55d676994408c98a9df5ae18cddeabc05ede5b0.gbx",
+      "sha256": "bf543b6fd6bea658109ea47cf55d676994408c98a9df5ae18cddeabc05ede5b0",
+      "path": "help-owen-worship.gbx",
+      "bytes": 80148,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a9bba6a7aa02bbf72bfda3d7f543278deb605a1e04538022b76af2780d7beaa1.gbx",
+      "sha256": "a9bba6a7aa02bbf72bfda3d7f543278deb605a1e04538022b76af2780d7beaa1",
+      "path": "help-palamas.gbx",
+      "bytes": 2143359,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/fd5857f5bd0133b405d2864eaeb560f83aa82a224e23bc00f4c95f085f97fb39.gbx",
+      "sha256": "fd5857f5bd0133b405d2864eaeb560f83aa82a224e23bc00f4c95f085f97fb39",
+      "path": "help-paxson-highest-plane.gbx",
+      "bytes": 429659,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0e2d4793d04bfca548f1491d613be0ef3ae0d9526a9a992cb9d23d72671868de.gbx",
+      "sha256": "0e2d4793d04bfca548f1491d613be0ef3ae0d9526a9a992cb9d23d72671868de",
+      "path": "help-paxson-wealth-walk-warfare.gbx",
+      "bytes": 191124,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7d360a6f191b0cf8b8264268510113ce3ad8b7dc6b2fff3af6844a071b88b410.gbx",
+      "sha256": "7d360a6f191b0cf8b8264268510113ce3ad8b7dc6b2fff3af6844a071b88b410",
+      "path": "help-pember-earths-earliest.gbx",
+      "bytes": 339721,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d71e4d80851b126bf02c5b8e2d4d82a412e7022fa31681437f575e2902b40590.gbx",
+      "sha256": "d71e4d80851b126bf02c5b8e2d4d82a412e7022fa31681437f575e2902b40590",
+      "path": "help-pember-great-prophecies.gbx",
+      "bytes": 313738,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b47c65183f49809da86df9d338c96e1f481bd847863abd424ad4493f3f3673a3.gbx",
+      "sha256": "b47c65183f49809da86df9d338c96e1f481bd847863abd424ad4493f3f3673a3",
+      "path": "help-pember-theosophy.gbx",
+      "bytes": 54323,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/8e2797b51bc406402991b4ab36c69160383c36820cc66f00e87a62caa599bad1.gbx",
+      "sha256": "8e2797b51bc406402991b4ab36c69160383c36820cc66f00e87a62caa599bad1",
+      "path": "help-pennlewis-conquest-canaan.gbx",
+      "bytes": 51315,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b4cf371977ee28c67500282012bd33f4159e4f9d2759f994c33e8b8a2e2df2bc.gbx",
+      "sha256": "b4cf371977ee28c67500282012bd33f4159e4f9d2759f994c33e8b8a2e2df2bc",
+      "path": "help-pennlewis-cross-touchstone.gbx",
+      "bytes": 36183,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/41db220221252767074f221f106ece5322a879e7aa80bb1d18750b9463e94028.gbx",
+      "sha256": "41db220221252767074f221f106ece5322a879e7aa80bb1d18750b9463e94028",
+      "path": "help-pennlewis-dying-to-live.gbx",
+      "bytes": 23207,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0e35eddd06c43b9e6374d50dbc9410d3dbfef4eee51eab49a24e797221d0d6ce.gbx",
+      "sha256": "0e35eddd06c43b9e6374d50dbc9410d3dbfef4eee51eab49a24e797221d0d6ce",
+      "path": "help-pennlewis-story-of-job.gbx",
+      "bytes": 132972,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bb13047871483efec490fb2ad47a900a182d3f5e0648cf039e384267fe1a5881.gbx",
+      "sha256": "bb13047871483efec490fb2ad47a900a182d3f5e0648cf039e384267fe1a5881",
+      "path": "help-pennlewis-war-saints.gbx",
+      "bytes": 256073,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/53c01da3949a6c310d10a960ba633a66ad6b5a71c2fbbf135bfbdd66b19db95b.gbx",
+      "sha256": "53c01da3949a6c310d10a960ba633a66ad6b5a71c2fbbf135bfbdd66b19db95b",
+      "path": "help-pg150.gbx",
+      "bytes": 1375715,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7b26df49fb3581f0d601dbda4b559936c8ed4bc28ec9259d7c060293b812b808.gbx",
+      "sha256": "7b26df49fb3581f0d601dbda4b559936c8ed4bc28ec9259d7c060293b812b808",
+      "path": "help-philaret-catechism.gbx",
+      "bytes": 412205,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/77083054d524f2f8a36fdf84639be6822fffd9eddc6d96019803ea60ec9aad22.gbx",
+      "sha256": "77083054d524f2f8a36fdf84639be6822fffd9eddc6d96019803ea60ec9aad22",
+      "path": "help-philokalia2.gbx",
+      "bytes": 2314683,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/42b6b1fe52e4aae01ef4c2b18e8b6e56496c471c00c9a03e2dddc40d08edb073.gbx",
+      "sha256": "42b6b1fe52e4aae01ef4c2b18e8b6e56496c471c00c9a03e2dddc40d08edb073",
+      "path": "help-pnt.gbx",
+      "bytes": 802375,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d9d30949acfa878c799a787d10b0f9aae6760a0be60af61872626d2aa5b00cc0.gbx",
+      "sha256": "d9d30949acfa878c799a787d10b0f9aae6760a0be60af61872626d2aa5b00cc0",
+      "path": "help-poole.gbx",
+      "bytes": 5955621,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/467fa8dbef41658010576b4876c4627b7329164a5531e7e36fe24052cff9ddef.gbx",
+      "sha256": "467fa8dbef41658010576b4876c4627b7329164a5531e7e36fe24052cff9ddef",
+      "path": "help-rolle-fire.gbx",
+      "bytes": 175760,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/29f6e4b08ad63eb149d916710d2a9886439a5b8b8f63c6e68a32dcfc0e9cc625.gbx",
+      "sha256": "29f6e4b08ad63eb149d916710d2a9886439a5b8b8f63c6e68a32dcfc0e9cc625",
+      "path": "help-rutherford-letters.gbx",
+      "bytes": 734443,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d7c544824ac6cd58cca1a47c26122c63b9a5e7125ea6b6fadca3d5b82791d2d7.gbx",
+      "sha256": "d7c544824ac6cd58cca1a47c26122c63b9a5e7125ea6b6fadca3d5b82791d2d7",
+      "path": "help-ryle-holiness.gbx",
+      "bytes": 330356,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2cbfc56859ea76b6743f5bedda2e19d5d29dec1d48c22687753df1bdc2231d0f.gbx",
+      "sha256": "2cbfc56859ea76b6743f5bedda2e19d5d29dec1d48c22687753df1bdc2231d0f",
+      "path": "help-ryle-matthew.gbx",
+      "bytes": 218013,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/774f40742724fa197da12ad259df55a44d10e18e363db255cbef750f888bff7e.gbx",
+      "sha256": "774f40742724fa197da12ad259df55a44d10e18e363db255cbef750f888bff7e",
+      "path": "help-ryle-upper-room.gbx",
+      "bytes": 305186,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bacbf735f6f06216cadebe054f8309cd254922dd84752673665e76ee5ccf9941.gbx",
+      "sha256": "bacbf735f6f06216cadebe054f8309cd254922dd84752673665e76ee5ccf9941",
+      "path": "help-scofield.gbx",
+      "bytes": 273019,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bb8da4f032e9a1cd5f847e1243cac68b064a64016d484eedc61a2614f6168c48.gbx",
+      "sha256": "bb8da4f032e9a1cd5f847e1243cac68b064a64016d484eedc61a2614f6168c48",
+      "path": "help-scougal-life.gbx",
+      "bytes": 47365,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e6057dac82010284ceb4f814c9e73c8e8ea486827ad85fd28af9650d849d5425.gbx",
+      "sha256": "e6057dac82010284ceb4f814c9e73c8e8ea486827ad85fd28af9650d849d5425",
+      "path": "help-shepard-sabbath.gbx",
+      "bytes": 26174,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/80b793203d900441b28cfcd3f3b20a52edbbfd8a100cead13f9e6a17b965dd4a.gbx",
+      "sha256": "80b793203d900441b28cfcd3f3b20a52edbbfd8a100cead13f9e6a17b965dd4a",
+      "path": "help-shepard-worksthomas.gbx",
+      "bytes": 465876,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d16103a91c14e2072397012a11f6b577289ca529ab1a107441ef681c00b3b543.gbx",
+      "sha256": "d16103a91c14e2072397012a11f6b577289ca529ab1a107441ef681c00b3b543",
+      "path": "help-simpson-christ-in-bible.gbx",
+      "bytes": 236396,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0bf7e61c792d4e369a899dbfbc5e9eab207f1a5a6ae2cce8b4a8b1e8c5dfb4b2.gbx",
+      "sha256": "0bf7e61c792d4e369a899dbfbc5e9eab207f1a5a6ae2cce8b4a8b1e8c5dfb4b2",
+      "path": "help-simpson-days-of-heaven.gbx",
+      "bytes": 155494,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5ab5b3523f476ce9571af3795c55b076baf9355b8635abd3edb9e0e72601faee.gbx",
+      "sha256": "5ab5b3523f476ce9571af3795c55b076baf9355b8635abd3edb9e0e72601faee",
+      "path": "help-simpson-fourfold-gospel.gbx",
+      "bytes": 43853,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f10029623a44875bc6e86fee2e60986fa1baaab7cde1b230e7d5ea197bb1c92f.gbx",
+      "sha256": "f10029623a44875bc6e86fee2e60986fa1baaab7cde1b230e7d5ea197bb1c92f",
+      "path": "help-simpson-holy-spirit.gbx",
+      "bytes": 185941,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/440e4e1b60987394523da2105ac3333c91783f95d1827bcab870a75f3a578c4a.gbx",
+      "sha256": "440e4e1b60987394523da2105ac3333c91783f95d1827bcab870a75f3a578c4a",
+      "path": "help-simpson-larger-life.gbx",
+      "bytes": 115018,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f203f1068be148f680790c0d7693583e3f8bfaac0a76ad1a207b96fb83bf11e9.gbx",
+      "sha256": "f203f1068be148f680790c0d7693583e3f8bfaac0a76ad1a207b96fb83bf11e9",
+      "path": "help-smith-comfort.gbx",
+      "bytes": 149580,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/c5c6c6d5da68ec64d574abab109694a6d848e1967eabab4d57385be71b79911b.gbx",
+      "sha256": "c5c6c6d5da68ec64d574abab109694a6d848e1967eabab4d57385be71b79911b",
+      "path": "help-smith-secret.gbx",
+      "bytes": 157567,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7137d7599eb4f668c90d21b0e3a22cc7d30148e33af33c04f35117db120aca11.gbx",
+      "sha256": "7137d7599eb4f668c90d21b0e3a22cc7d30148e33af33c04f35117db120aca11",
+      "path": "help-spurgeon-catechism.gbx",
+      "bytes": 10367,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/048813ae400af8ccd0c4e6abe60f2941bc0f4391db9b9d309f672153298c4056.gbx",
+      "sha256": "048813ae400af8ccd0c4e6abe60f2941bc0f4391db9b9d309f672153298c4056",
+      "path": "help-spurgeon-checkbook.gbx",
+      "bytes": 192045,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f1cd106ef79c1b24e1d62333861a6fbbe430601496a9ff4fb9439f552b011bab.gbx",
+      "sha256": "f1cd106ef79c1b24e1d62333861a6fbbe430601496a9ff4fb9439f552b011bab",
+      "path": "help-spurgeon-comment.gbx",
+      "bytes": 38420,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/cf9584aefb3634565250e42bebe0e2a8383de82629534a04098dea26697a5653.gbx",
+      "sha256": "cf9584aefb3634565250e42bebe0e2a8383de82629534a04098dea26697a5653",
+      "path": "help-spurgeon-morneve.gbx",
+      "bytes": 561321,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/ffb6e5fa4b3023fe4b3f89f4dc24e95b1930a9485d943c00ebc61899af376397.gbx",
+      "sha256": "ffb6e5fa4b3023fe4b3f89f4dc24e95b1930a9485d943c00ebc61899af376397",
+      "path": "help-spurgeon-proverbs.gbx",
+      "bytes": 582499,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bd0d8aaaa1fa474953845f3eaa0ad33bcbd7a62c53d5062b961ea52bf676e1b7.gbx",
+      "sha256": "bd0d8aaaa1fa474953845f3eaa0ad33bcbd7a62c53d5062b961ea52bf676e1b7",
+      "path": "help-spurgeon-sermons-01.gbx",
+      "bytes": 670432,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f4534996157c7f7bd772005d7ce21836d03851b120c0d8e59df3b47135f53573.gbx",
+      "sha256": "f4534996157c7f7bd772005d7ce21836d03851b120c0d8e59df3b47135f53573",
+      "path": "help-spurgeon-sermons-02.gbx",
+      "bytes": 643635,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/390b3a1c81701ca52d92f87885d66dd0ce7f0335d06f42a4afc0eb9b4e8fb720.gbx",
+      "sha256": "390b3a1c81701ca52d92f87885d66dd0ce7f0335d06f42a4afc0eb9b4e8fb720",
+      "path": "help-spurgeon-sermons-03.gbx",
+      "bytes": 717363,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7ead7b85f6c59ca6cfb16ff6593c30d532d58a0b1411751b5c0b4eec8c70e4d4.gbx",
+      "sha256": "7ead7b85f6c59ca6cfb16ff6593c30d532d58a0b1411751b5c0b4eec8c70e4d4",
+      "path": "help-spurgeon-sermons-04.gbx",
+      "bytes": 793997,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5736fae4c3bc5f4188dfd5a73de2ba28a4b6e93af42b3a9f74948edfa49c2f83.gbx",
+      "sha256": "5736fae4c3bc5f4188dfd5a73de2ba28a4b6e93af42b3a9f74948edfa49c2f83",
+      "path": "help-spurgeon-sermons-05.gbx",
+      "bytes": 807499,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bb70282231b0d01834348f1eca2de540dfec5b3fde808e8c12641b29863214cc.gbx",
+      "sha256": "bb70282231b0d01834348f1eca2de540dfec5b3fde808e8c12641b29863214cc",
+      "path": "help-spurgeon-sermons-06.gbx",
+      "bytes": 846535,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/360f2acdbc327916c08de7bbc43c8040442603fab0ca68f69c9a14a5baedf859.gbx",
+      "sha256": "360f2acdbc327916c08de7bbc43c8040442603fab0ca68f69c9a14a5baedf859",
+      "path": "help-spurgeon-sermons-07.gbx",
+      "bytes": 964033,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2ba5913264357e1dc3fc204745ac89040390cc9602db73f9f2766d58a45c8845.gbx",
+      "sha256": "2ba5913264357e1dc3fc204745ac89040390cc9602db73f9f2766d58a45c8845",
+      "path": "help-spurgeon-sermons-08.gbx",
+      "bytes": 837893,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/02a38b691de59de10f23f482f38b7361cee759bdd871b728c48bbef9e9a1193b.gbx",
+      "sha256": "02a38b691de59de10f23f482f38b7361cee759bdd871b728c48bbef9e9a1193b",
+      "path": "help-spurgeon-sermons-09.gbx",
+      "bytes": 879868,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5e40f5d0b009cc79c55e1a8bedfafbd72476e224eb449ce28ae7ad6852a9d53d.gbx",
+      "sha256": "5e40f5d0b009cc79c55e1a8bedfafbd72476e224eb449ce28ae7ad6852a9d53d",
+      "path": "help-spurgeon-sermons-10.gbx",
+      "bytes": 884615,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/93c73948668b07553a5a26164c597a3b2b0424b9208cfeadb1af6365d2d44ffe.gbx",
+      "sha256": "93c73948668b07553a5a26164c597a3b2b0424b9208cfeadb1af6365d2d44ffe",
+      "path": "help-spurgeon-sermons-11.gbx",
+      "bytes": 885255,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9a00287944136db5e751044cfe682509b0968fd275cfa4ccfc2a3c44a4ff603a.gbx",
+      "sha256": "9a00287944136db5e751044cfe682509b0968fd275cfa4ccfc2a3c44a4ff603a",
+      "path": "help-spurgeon-sermons-12.gbx",
+      "bytes": 869333,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a9087a2405fc4db23fc0ffc6c0f51f1b0ac352180938622bede061851c95a9bf.gbx",
+      "sha256": "a9087a2405fc4db23fc0ffc6c0f51f1b0ac352180938622bede061851c95a9bf",
+      "path": "help-spurgeon-sermons-13.gbx",
+      "bytes": 870302,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/812b860c3d6e3f94d713c12f1707907313882d69026a5f007b05a2bb19058f96.gbx",
+      "sha256": "812b860c3d6e3f94d713c12f1707907313882d69026a5f007b05a2bb19058f96",
+      "path": "help-spurgeon-sermons-14.gbx",
+      "bytes": 864560,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/4a12703a1ef3459accf5b49a1006b50477bc89a599fece55760ba6cf0eb424e8.gbx",
+      "sha256": "4a12703a1ef3459accf5b49a1006b50477bc89a599fece55760ba6cf0eb424e8",
+      "path": "help-spurgeon-sermons-15.gbx",
+      "bytes": 848634,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0e5125f32ee9bff7353b1aaa6668d5971e17db85b6b398e333ea0453287e3bf4.gbx",
+      "sha256": "0e5125f32ee9bff7353b1aaa6668d5971e17db85b6b398e333ea0453287e3bf4",
+      "path": "help-spurgeon-sermons-16.gbx",
+      "bytes": 871672,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e126d9f7b6054d2afe34b094d8802a545229ee3e986b964bf08260304f1b1d03.gbx",
+      "sha256": "e126d9f7b6054d2afe34b094d8802a545229ee3e986b964bf08260304f1b1d03",
+      "path": "help-spurgeon-sermons-17.gbx",
+      "bytes": 893880,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/37b214626dc3242d05b4c8b0d11a3e4786616541a68e205b10f1f1bf630ab1dd.gbx",
+      "sha256": "37b214626dc3242d05b4c8b0d11a3e4786616541a68e205b10f1f1bf630ab1dd",
+      "path": "help-spurgeon-sermons-18.gbx",
+      "bytes": 895759,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/216faf5102272343bbda817b77febd7a162518458715fa9f6f073c43755798ea.gbx",
+      "sha256": "216faf5102272343bbda817b77febd7a162518458715fa9f6f073c43755798ea",
+      "path": "help-spurgeon-sermons-19.gbx",
+      "bytes": 869646,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a995d27c6dbb49b3dbe936146f2b959de324d1e10e402f7fcdcc109dde76a13f.gbx",
+      "sha256": "a995d27c6dbb49b3dbe936146f2b959de324d1e10e402f7fcdcc109dde76a13f",
+      "path": "help-spurgeon-sermons-20.gbx",
+      "bytes": 877300,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/df8bee39aee6ed20140d1d83a88142f4b0e9cde72ac128746b21e6df5faea021.gbx",
+      "sha256": "df8bee39aee6ed20140d1d83a88142f4b0e9cde72ac128746b21e6df5faea021",
+      "path": "help-spurgeon-sermons-21.gbx",
+      "bytes": 873969,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/200554f1e3fa801d9dabd9c949d1aa9da9c2930a04449afdc39350e2e22a8c3b.gbx",
+      "sha256": "200554f1e3fa801d9dabd9c949d1aa9da9c2930a04449afdc39350e2e22a8c3b",
+      "path": "help-spurgeon-sermons-22.gbx",
+      "bytes": 893943,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/93955686a371d7f699c8d2aca53d64d44179a24314a454bd34f41968c4f9d5e4.gbx",
+      "sha256": "93955686a371d7f699c8d2aca53d64d44179a24314a454bd34f41968c4f9d5e4",
+      "path": "help-spurgeon-sermons-23.gbx",
+      "bytes": 875600,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bfc24b87e535761b75f2902d1029cfeee5911c5782f58dfcfc3e18d22d0f2698.gbx",
+      "sha256": "bfc24b87e535761b75f2902d1029cfeee5911c5782f58dfcfc3e18d22d0f2698",
+      "path": "help-spurgeon-sermons-24.gbx",
+      "bytes": 889752,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b479642a67277466c04faaace2ba9973876bbebd8a3811def1b8cd4786a88625.gbx",
+      "sha256": "b479642a67277466c04faaace2ba9973876bbebd8a3811def1b8cd4786a88625",
+      "path": "help-spurgeon-sermons-25.gbx",
+      "bytes": 882081,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b4c16138446815d1dee0b88f17a8a20f6f65b8229c57c7d164fed42e4d63a45c.gbx",
+      "sha256": "b4c16138446815d1dee0b88f17a8a20f6f65b8229c57c7d164fed42e4d63a45c",
+      "path": "help-spurgeon-sermons-26.gbx",
+      "bytes": 873429,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/04a5701b54da34ec27a6748604e8c63f442783772d23365f80f08b8591262efb.gbx",
+      "sha256": "04a5701b54da34ec27a6748604e8c63f442783772d23365f80f08b8591262efb",
+      "path": "help-spurgeon-sermons-27.gbx",
+      "bytes": 894353,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/198bb0cd2617ca3ea78c178eabdddc8fe8fafd6eae6613cb581e6be4ea10adfb.gbx",
+      "sha256": "198bb0cd2617ca3ea78c178eabdddc8fe8fafd6eae6613cb581e6be4ea10adfb",
+      "path": "help-spurgeon-sermons-28.gbx",
+      "bytes": 881320,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/90ab53cf66da0128f661b582b0561e9165d8543dec4923803afe67dd05bd830b.gbx",
+      "sha256": "90ab53cf66da0128f661b582b0561e9165d8543dec4923803afe67dd05bd830b",
+      "path": "help-spurgeon-sermons-29.gbx",
+      "bytes": 874948,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9ea37f78a3a759f9452e3c4fafb710373482148c5ee41a3f18a1ebbb07ebf71e.gbx",
+      "sha256": "9ea37f78a3a759f9452e3c4fafb710373482148c5ee41a3f18a1ebbb07ebf71e",
+      "path": "help-spurgeon-sermons-30.gbx",
+      "bytes": 857619,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b9b5cde5a2deb1277156ad8ba097f7950399240dd25ed4f33a14b56de6784450.gbx",
+      "sha256": "b9b5cde5a2deb1277156ad8ba097f7950399240dd25ed4f33a14b56de6784450",
+      "path": "help-spurgeon-sermons-31.gbx",
+      "bytes": 835990,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7f3fe28940e0aed6e8ea375922a21f027ff10abcb926bf8aa93bccfa6bfcdea1.gbx",
+      "sha256": "7f3fe28940e0aed6e8ea375922a21f027ff10abcb926bf8aa93bccfa6bfcdea1",
+      "path": "help-spurgeon-sermons-32.gbx",
+      "bytes": 855536,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6dc971ad4b320a2473404f07d71185b940fdf69ba6c486dd484dec4196430f4d.gbx",
+      "sha256": "6dc971ad4b320a2473404f07d71185b940fdf69ba6c486dd484dec4196430f4d",
+      "path": "help-spurgeon-sermons-33.gbx",
+      "bytes": 876841,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f0477df364e9e43101fff6bdbd391c37bdd23d314af5e72b1f2b77f8c3c95b73.gbx",
+      "sha256": "f0477df364e9e43101fff6bdbd391c37bdd23d314af5e72b1f2b77f8c3c95b73",
+      "path": "help-spurgeon-sermons-34.gbx",
+      "bytes": 828367,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/c9acb539b14ab71dfd2f9ecc58c61e6722af7d82f34c68f4681383b9cc726f5c.gbx",
+      "sha256": "c9acb539b14ab71dfd2f9ecc58c61e6722af7d82f34c68f4681383b9cc726f5c",
+      "path": "help-spurgeon-sermons-35.gbx",
+      "bytes": 823238,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a36a5c6ce309f60cb11dda1012339a7d89da52fe025a7f23a517ad2b448e29cd.gbx",
+      "sha256": "a36a5c6ce309f60cb11dda1012339a7d89da52fe025a7f23a517ad2b448e29cd",
+      "path": "help-spurgeon-sermons-36.gbx",
+      "bytes": 819006,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/94aa07c844c34939941cd07675e1850be922629381bd7f7b90d02c12dc0764d3.gbx",
+      "sha256": "94aa07c844c34939941cd07675e1850be922629381bd7f7b90d02c12dc0764d3",
+      "path": "help-spurgeon-sermons-37.gbx",
+      "bytes": 794728,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d1de2829da199c873f1026d1f81e0a73fd01bc04defb1d755c7fb43cac59d589.gbx",
+      "sha256": "d1de2829da199c873f1026d1f81e0a73fd01bc04defb1d755c7fb43cac59d589",
+      "path": "help-spurgeon-sermons-38.gbx",
+      "bytes": 716520,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/4b70e0a19f73f9b156c31c38d2f41b82660bff77d71895d5a781acce10feb7ba.gbx",
+      "sha256": "4b70e0a19f73f9b156c31c38d2f41b82660bff77d71895d5a781acce10feb7ba",
+      "path": "help-spurgeon-sermons-39.gbx",
+      "bytes": 744034,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/8a2ea59f6c4c9b3b4c428670381303fbd8c27428fe68e6f539c8c7bb6316d568.gbx",
+      "sha256": "8a2ea59f6c4c9b3b4c428670381303fbd8c27428fe68e6f539c8c7bb6316d568",
+      "path": "help-spurgeon-sermons-40.gbx",
+      "bytes": 736623,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f2da572687a80fecca2f3b8c4951f5fdbaf95c45ff99e97a7feeb23ceaf936b3.gbx",
+      "sha256": "f2da572687a80fecca2f3b8c4951f5fdbaf95c45ff99e97a7feeb23ceaf936b3",
+      "path": "help-spurgeon-sermons-41.gbx",
+      "bytes": 721807,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f992aac89e2ce3df76fbfd88509b609e711fbb247a4888a769d7b56a5b7b3e77.gbx",
+      "sha256": "f992aac89e2ce3df76fbfd88509b609e711fbb247a4888a769d7b56a5b7b3e77",
+      "path": "help-spurgeon-sermons-42.gbx",
+      "bytes": 740509,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/dd9eab1de10930e199a847abb7204d9dc2555f6ea1740af2f13a7ad099ce49ab.gbx",
+      "sha256": "dd9eab1de10930e199a847abb7204d9dc2555f6ea1740af2f13a7ad099ce49ab",
+      "path": "help-spurgeon-sermons-43.gbx",
+      "bytes": 741477,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d50cff6f770d4f6e0c74b64e425256ffbb02813898604742c0eb3cc31f84c417.gbx",
+      "sha256": "d50cff6f770d4f6e0c74b64e425256ffbb02813898604742c0eb3cc31f84c417",
+      "path": "help-spurgeon-sermons-44.gbx",
+      "bytes": 730043,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/eaf0a81fc450e1ef244d796a6c1c05fb0896c65190be352ab9436eeeb9275b7a.gbx",
+      "sha256": "eaf0a81fc450e1ef244d796a6c1c05fb0896c65190be352ab9436eeeb9275b7a",
+      "path": "help-spurgeon-sermons-45.gbx",
+      "bytes": 758602,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/1eb46b349a40bd3e6ada9b899cd430af1d03683ea73113b14d213208086582e7.gbx",
+      "sha256": "1eb46b349a40bd3e6ada9b899cd430af1d03683ea73113b14d213208086582e7",
+      "path": "help-spurgeon-sermons-46.gbx",
+      "bytes": 724080,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0b3c1c6a89403af7cd2e47f4a7b5eeb00fd0b84a4cc125728c34fa7b040c1175.gbx",
+      "sha256": "0b3c1c6a89403af7cd2e47f4a7b5eeb00fd0b84a4cc125728c34fa7b040c1175",
+      "path": "help-spurgeon-sermons-47.gbx",
+      "bytes": 727854,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d356be27ce017f0f10347da23b49ff0452be1a1dfdfb58aa65bd130a68062549.gbx",
+      "sha256": "d356be27ce017f0f10347da23b49ff0452be1a1dfdfb58aa65bd130a68062549",
+      "path": "help-spurgeon-sermons-48.gbx",
+      "bytes": 729353,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f0bc8d10fc78b39621d5ef3c06b025fd768a717e679fe47dbbd7186935c4352f.gbx",
+      "sha256": "f0bc8d10fc78b39621d5ef3c06b025fd768a717e679fe47dbbd7186935c4352f",
+      "path": "help-spurgeon-sermons-49.gbx",
+      "bytes": 736205,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7a8a03a63d16dc738288cb5ab1fadbc513da037cab8929151c60d6d519e28130.gbx",
+      "sha256": "7a8a03a63d16dc738288cb5ab1fadbc513da037cab8929151c60d6d519e28130",
+      "path": "help-spurgeon-sermons-50.gbx",
+      "bytes": 739912,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2e2ae61b28a9f4b26d7581af360f300ac3ffe0f98dc4996891a707f4d701494b.gbx",
+      "sha256": "2e2ae61b28a9f4b26d7581af360f300ac3ffe0f98dc4996891a707f4d701494b",
+      "path": "help-spurgeon-sermons-51.gbx",
+      "bytes": 733093,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3b7d597175733a7438a45df04b4ad4c2381aa72af278d50a12d052bfe5ecc8d9.gbx",
+      "sha256": "3b7d597175733a7438a45df04b4ad4c2381aa72af278d50a12d052bfe5ecc8d9",
+      "path": "help-spurgeon-sermons-52.gbx",
+      "bytes": 733883,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/67c2095a0ee78e735eacdc4569f754345a9375f732340227cc7af731ed51a0fd.gbx",
+      "sha256": "67c2095a0ee78e735eacdc4569f754345a9375f732340227cc7af731ed51a0fd",
+      "path": "help-spurgeon-sermons-53.gbx",
+      "bytes": 746179,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d430934f4e899750e5efc5d13331547c11a330dd5b5fba7774175c2bbb00d871.gbx",
+      "sha256": "d430934f4e899750e5efc5d13331547c11a330dd5b5fba7774175c2bbb00d871",
+      "path": "help-spurgeon-sermons-54.gbx",
+      "bytes": 735081,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a912111a463e9402156ca341cbc19b5ad44b5cf4d18d8211df5085e720eaeea4.gbx",
+      "sha256": "a912111a463e9402156ca341cbc19b5ad44b5cf4d18d8211df5085e720eaeea4",
+      "path": "help-spurgeon-sermons-55.gbx",
+      "bytes": 745940,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5b468f575455c6bb4395eb47c01f62f2b4ca51fb66122f9d01a52997195291ec.gbx",
+      "sha256": "5b468f575455c6bb4395eb47c01f62f2b4ca51fb66122f9d01a52997195291ec",
+      "path": "help-spurgeon-sermons-56.gbx",
+      "bytes": 725619,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/315dd464d9a5f8e52e7d24cdafb7db0de241ec9b7208f1caa64891426d8c4ff4.gbx",
+      "sha256": "315dd464d9a5f8e52e7d24cdafb7db0de241ec9b7208f1caa64891426d8c4ff4",
+      "path": "help-spurgeon-sermons-57.gbx",
+      "bytes": 699223,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/850c1bd5f075448b1fbf3ada4fe5606905cde177ca8b1a4ca81eb514a71c89dd.gbx",
+      "sha256": "850c1bd5f075448b1fbf3ada4fe5606905cde177ca8b1a4ca81eb514a71c89dd",
+      "path": "help-spurgeon-sermons-58.gbx",
+      "bytes": 707253,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/328ea512891274b92fd5e68de69e1e7631899daacfba539dce11400775b7baf8.gbx",
+      "sha256": "328ea512891274b92fd5e68de69e1e7631899daacfba539dce11400775b7baf8",
+      "path": "help-spurgeon-sermons-59.gbx",
+      "bytes": 707132,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2307971d562d8e6eadec2e8fdcef7eeffb0a7063dad164ac2077d3d967bb0990.gbx",
+      "sha256": "2307971d562d8e6eadec2e8fdcef7eeffb0a7063dad164ac2077d3d967bb0990",
+      "path": "help-spurgeon-sermons-60.gbx",
+      "bytes": 730475,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/94a08cdbbcc8428a9200c72f65fac737406392d0a5a01d92d3764515f74965f9.gbx",
+      "sha256": "94a08cdbbcc8428a9200c72f65fac737406392d0a5a01d92d3764515f74965f9",
+      "path": "help-spurgeon-sermons-61.gbx",
+      "bytes": 719582,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e006059986218b77292cec2eed4e81dd231a8f8d198c247b54b577dbec21fc69.gbx",
+      "sha256": "e006059986218b77292cec2eed4e81dd231a8f8d198c247b54b577dbec21fc69",
+      "path": "help-spurgeon-sermons-62.gbx",
+      "bytes": 640624,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/ab94bbccbfcc5ebba433d47d64780158176cf9973331a2cbedc252a3f5165765.gbx",
+      "sha256": "ab94bbccbfcc5ebba433d47d64780158176cf9973331a2cbedc252a3f5165765",
+      "path": "help-spurgeon-sermons-63.gbx",
+      "bytes": 253484,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/48c8ba3375e4cb2315cf5d6b9a0b0d95d44aff4c27e9ca595e89bb601c0b266b.gbx",
+      "sha256": "48c8ba3375e4cb2315cf5d6b9a0b0d95d44aff4c27e9ca595e89bb601c0b266b",
+      "path": "help-spurgeon-till-he-come.gbx",
+      "bytes": 184039,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/68709e438cc12237b5df8a250e5aa998ca6f76b8b14b8937b0e991ef1b500632.gbx",
+      "sha256": "68709e438cc12237b5df8a250e5aa998ca6f76b8b14b8937b0e991ef1b500632",
+      "path": "help-tauler-following.gbx",
+      "bytes": 169361,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/da1ad1238b99909bc6ba3856e310883d34a95607351dfcb84060d99185d4cd5d.gbx",
+      "sha256": "da1ad1238b99909bc6ba3856e310883d34a95607351dfcb84060d99185d4cd5d",
+      "path": "help-tauler-inner-way.gbx",
+      "bytes": 191057,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/20ce9c4eee2dcc15a23e6a4cecfc4a15a061d57fd86b104882982c6ab24d23e5.gbx",
+      "sha256": "20ce9c4eee2dcc15a23e6a4cecfc4a15a061d57fd86b104882982c6ab24d23e5",
+      "path": "help-tauler-meditations.gbx",
+      "bytes": 205006,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/cb847cf96ef303404202745e6e2713ae26b8a138626c734f16db4390a6f04f36.gbx",
+      "sha256": "cb847cf96ef303404202745e6e2713ae26b8a138626c734f16db4390a6f04f36",
+      "path": "help-taylor-retrospect.gbx",
+      "bytes": 88838,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bf39a1f30e477c0ab23c11742a2f4b623cef7a29e0ae4e7e7900f92a4be1a075.gbx",
+      "sha256": "bf39a1f30e477c0ab23c11742a2f4b623cef7a29e0ae4e7e7900f92a4be1a075",
+      "path": "help-taylor-ribband.gbx",
+      "bytes": 34909,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/847385befc645b59e007483202bea7938618ec8e9c3c3286d929618236ef1781.gbx",
+      "sha256": "847385befc645b59e007483202bea7938618ec8e9c3c3286d929618236ef1781",
+      "path": "help-taylor-separation.gbx",
+      "bytes": 36052,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3638d612091b481c04c21975a931af4b6a1af6d8a7b035c995b66e28c3ae17d2.gbx",
+      "sha256": "3638d612091b481c04c21975a931af4b6a1af6d8a7b035c995b66e28c3ae17d2",
+      "path": "help-taylor-springs.gbx",
+      "bytes": 6828,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/24bccf97354631ededdb799d4d1948aa0428c21447549fa173c782f8dc146bc5.gbx",
+      "sha256": "24bccf97354631ededdb799d4d1948aa0428c21447549fa173c782f8dc146bc5",
+      "path": "help-taylor-union.gbx",
+      "bytes": 38363,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b54769eb2d269fd8f36d7bdb2a529b22e31def0f17eea40d09e75823ebc6223d.gbx",
+      "sha256": "b54769eb2d269fd8f36d7bdb2a529b22e31def0f17eea40d09e75823ebc6223d",
+      "path": "help-tdavid.gbx",
+      "bytes": 4353441,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e2830f2acce96446a93b1a2d180bb5efe0030601f2b6446bfee7a8260bbeb9e6.gbx",
+      "sha256": "e2830f2acce96446a93b1a2d180bb5efe0030601f2b6446bfee7a8260bbeb9e6",
+      "path": "help-teresa-castle.gbx",
+      "bytes": 189568,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2d0c2c1a2a3f0f848214d1b36f5dc35663cea9790210a8dd5c57e2d884a330b1.gbx",
+      "sha256": "2d0c2c1a2a3f0f848214d1b36f5dc35663cea9790210a8dd5c57e2d884a330b1",
+      "path": "help-teresa-life.gbx",
+      "bytes": 398335,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2ca28825229d0dd2bcf2958ea281e5e24059a93bb91b3819f451b88266e4e7b9.gbx",
+      "sha256": "2ca28825229d0dd2bcf2958ea281e5e24059a93bb91b3819f451b88266e4e7b9",
+      "path": "help-teresa-way.gbx",
+      "bytes": 162645,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/937e45e812e18867c247a5a0492b0178a1f6ff716e0d401e07f365f43138a475.gbx",
+      "sha256": "937e45e812e18867c247a5a0492b0178a1f6ff716e0d401e07f365f43138a475",
+      "path": "help-tfg.gbx",
+      "bytes": 932941,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/543811f5e0ada34757f94796ff33cdff413ad89608c995164109b9ddf580bcff.gbx",
+      "sha256": "543811f5e0ada34757f94796ff33cdff413ad89608c995164109b9ddf580bcff",
+      "path": "help-tregelles-printed-text.gbx",
+      "bytes": 442219,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3878a31648801ce31fe2891a98e32f6d0b4d6fb4da212f416863d236dcddba34.gbx",
+      "sha256": "3878a31648801ce31fe2891a98e32f6d0b4d6fb4da212f416863d236dcddba34",
+      "path": "help-trent-catechism.gbx",
+      "bytes": 524792,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/26b90f4df8714355a0707617838ab4b125c07de54a93344f4216e8338ef4eca4.gbx",
+      "sha256": "26b90f4df8714355a0707617838ab4b125c07de54a93344f4216e8338ef4eca4",
+      "path": "help-trotter-plain-papers.gbx",
+      "bytes": 460157,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b27172b5d24c85098bbf3c1009285b68678bdbce4ece5be707ffa0d6921767e4.gbx",
+      "sha256": "b27172b5d24c85098bbf3c1009285b68678bdbce4ece5be707ffa0d6921767e4",
+      "path": "help-watson-beatitudes.gbx",
+      "bytes": 261287,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/06d3d491a6978490e538e1306d6caa9cda4636588990e4e756dde68ab30fc1cc.gbx",
+      "sha256": "06d3d491a6978490e538e1306d6caa9cda4636588990e4e756dde68ab30fc1cc",
+      "path": "help-watson-commandments.gbx",
+      "bytes": 256859,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e59cd89b8a0cd560c3f06938e367a3bad43bc38247a5065b2b3a86b5fda44d82.gbx",
+      "sha256": "e59cd89b8a0cd560c3f06938e367a3bad43bc38247a5065b2b3a86b5fda44d82",
+      "path": "help-watson-contentment.gbx",
+      "bytes": 82949,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/df7382b1ff3756a24a4f51fbfca69c3b73aae0594d5fe0037493823f079f41bd.gbx",
+      "sha256": "df7382b1ff3756a24a4f51fbfca69c3b73aae0594d5fe0037493823f079f41bd",
+      "path": "help-watson-cordial.gbx",
+      "bytes": 79233,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e6630feccde47581332a1f79bbf1a9cf16bf4329493d283cea158161e97fbb12.gbx",
+      "sha256": "e6630feccde47581332a1f79bbf1a9cf16bf4329493d283cea158161e97fbb12",
+      "path": "help-watson-divinity.gbx",
+      "bytes": 320348,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/c86c3a9435a06f701aea3ca385c8776be3ff5e65e1a94a7c81bfafeba86f49b2.gbx",
+      "sha256": "c86c3a9435a06f701aea3ca385c8776be3ff5e65e1a94a7c81bfafeba86f49b2",
+      "path": "help-watson-prayer.gbx",
+      "bytes": 351226,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e1bc066b910ae869e8a7a77bcdbffa2a25cb310a4c35f16cf0f930f55f249b3d.gbx",
+      "sha256": "e1bc066b910ae869e8a7a77bcdbffa2a25cb310a4c35f16cf0f930f55f249b3d",
+      "path": "help-watts-divsongs.gbx",
+      "bytes": 16519,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/4c39de922aeb2408a4f7daaa36d0f407cea353d040524f826659d46f71d739ed.gbx",
+      "sha256": "4c39de922aeb2408a4f7daaa36d0f407cea353d040524f826659d46f71d739ed",
+      "path": "help-watts-psalmshymns.gbx",
+      "bytes": 261806,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/c78d726b3b04a349e703454f8df1141089db89423c17ca0e964226fbc8d33ff4.gbx",
+      "sha256": "c78d726b3b04a349e703454f8df1141089db89423c17ca0e964226fbc8d33ff4",
+      "path": "help-whitefield-sermons.gbx",
+      "bytes": 672338,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/cff8e0dd41105c1a2c74602b59aad010c1922b259a231ed3242ead831f74d54c.gbx",
+      "sha256": "cff8e0dd41105c1a2c74602b59aad010c1922b259a231ed3242ead831f74d54c",
+      "path": "idx-embed.anglican-core.00.gbx",
+      "bytes": 1677534,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5f586ecfab14d7547ae99df03b1b5d5ab48803d48b4409b5c7a7bc9eb5d4d6e5.gbx",
+      "sha256": "5f586ecfab14d7547ae99df03b1b5d5ab48803d48b4409b5c7a7bc9eb5d4d6e5",
+      "path": "idx-embed.anglican-more.00.gbx",
+      "bytes": 909149,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/c77b8aa650b049ab10e332dd0992ee203537967bd386e390bb477e15c59f1016.gbx",
+      "sha256": "c77b8aa650b049ab10e332dd0992ee203537967bd386e390bb477e15c59f1016",
+      "path": "idx-embed.brethren-core.00.gbx",
+      "bytes": 4097606,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/648df2ee402eaaaef273f531c24f6eb3feee12726e2522f6ef869b78038dd487.gbx",
+      "sha256": "648df2ee402eaaaef273f531c24f6eb3feee12726e2522f6ef869b78038dd487",
+      "path": "idx-embed.brethren-more.00.gbx",
+      "bytes": 14399786,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/3fdbe82f7e409d1c53bcb35fd05dea6a99ba26ef82c665ea926e88734cc34acc.gbx",
+      "sha256": "3fdbe82f7e409d1c53bcb35fd05dea6a99ba26ef82c665ea926e88734cc34acc",
+      "path": "idx-embed.catholic-core.00.gbx",
+      "bytes": 16620557,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/98f3dfd122f806b4d768bbee016904833e525e4e20ba48732e3336bf46fec701.gbx",
+      "sha256": "98f3dfd122f806b4d768bbee016904833e525e4e20ba48732e3336bf46fec701",
+      "path": "idx-embed.catholic-more.00.gbx",
+      "bytes": 9085858,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/4c655e81681a2629e5b6470bd75feaf0c5ca814ad66dccb0a30f8405793f7256.gbx",
+      "sha256": "4c655e81681a2629e5b6470bd75feaf0c5ca814ad66dccb0a30f8405793f7256",
+      "path": "idx-embed.fathers-core.00.gbx",
+      "bytes": 14218812,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b470e0da29ac3db1cc48b500cf326cb54089bcff32af9b5a254047e3c9031b31.gbx",
+      "sha256": "b470e0da29ac3db1cc48b500cf326cb54089bcff32af9b5a254047e3c9031b31",
+      "path": "idx-embed.fathers-more.00.gbx",
+      "bytes": 22515931,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/58eeb057d35c48fb4150b9a92b44bb5cfc6ded5c9179e9e5cf8451bc38f5a750.gbx",
+      "sha256": "58eeb057d35c48fb4150b9a92b44bb5cfc6ded5c9179e9e5cf8451bc38f5a750",
+      "path": "idx-embed.nineteenth-core.00.gbx",
+      "bytes": 16466601,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/61eb37b832ca3edec0711331555e8acd805a85728284bcfa470508fef4352d9a.gbx",
+      "sha256": "61eb37b832ca3edec0711331555e8acd805a85728284bcfa470508fef4352d9a",
+      "path": "idx-embed.nineteenth-more.00.gbx",
+      "bytes": 5573354,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a12797c3af7b9780de080af9c1fe49d9e76fefcef1c356926a00b65f68043e9b.gbx",
+      "sha256": "a12797c3af7b9780de080af9c1fe49d9e76fefcef1c356926a00b65f68043e9b",
+      "path": "idx-embed.orthodox-core.00.gbx",
+      "bytes": 1622637,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9b846d06b8ea7c5b3b95806ce4c123393939ce8a8195e76939ee40c47c0e9f4f.gbx",
+      "sha256": "9b846d06b8ea7c5b3b95806ce4c123393939ce8a8195e76939ee40c47c0e9f4f",
+      "path": "idx-embed.orthodox-more.00.gbx",
+      "bytes": 1460085,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/735ec110869bea4869cab61752a87a7879fa0a922e9159c50141a80ee97e8445.gbx",
+      "sha256": "735ec110869bea4869cab61752a87a7879fa0a922e9159c50141a80ee97e8445",
+      "path": "idx-embed.puritan-core.00.gbx",
+      "bytes": 22523049,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/bcbf9bfb6e09d6f8318584d6429e62a891f244023f5c0e2665582d2318bcd8a5.gbx",
+      "sha256": "bcbf9bfb6e09d6f8318584d6429e62a891f244023f5c0e2665582d2318bcd8a5",
+      "path": "idx-embed.puritan-more.00.gbx",
+      "bytes": 11982834,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a0a22f59d762591b0ddeabe036f3622b830f760e95a420d4d30d7e9d17ca8a67.gbx",
+      "sha256": "a0a22f59d762591b0ddeabe036f3622b830f760e95a420d4d30d7e9d17ca8a67",
+      "path": "idx-embed.reference-core.00.gbx",
+      "bytes": 9842968,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/fc8c9c207de8ee0493d65139b39eecf2891e118bb2f069a22b05e3ba25d834ef.gbx",
+      "sha256": "fc8c9c207de8ee0493d65139b39eecf2891e118bb2f069a22b05e3ba25d834ef",
+      "path": "idx-embed.reformation-core.00.gbx",
+      "bytes": 11039832,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/75f3affcc3d7823d6b01661071997d489b6ce0a9ffc9a9a19dbb28e96c3d16be.gbx",
+      "sha256": "75f3affcc3d7823d6b01661071997d489b6ce0a9ffc9a9a19dbb28e96c3d16be",
+      "path": "idx-embed.reformation-more.00.gbx",
+      "bytes": 173895,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e34d6fad5ab4126f2ae3d7e6cb6eacc3ce2b442cb5d89c24619dc0db49f5d5e8.gbx",
+      "sha256": "e34d6fad5ab4126f2ae3d7e6cb6eacc3ce2b442cb5d89c24619dc0db49f5d5e8",
+      "path": "idx-embed.second-temple-core.00.gbx",
+      "bytes": 210719,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f0eb605fd16e343459e8ba18cdfb4a0fabc0d5c29b9f93d238b8a347edb4cc97.gbx",
+      "sha256": "f0eb605fd16e343459e8ba18cdfb4a0fabc0d5c29b9f93d238b8a347edb4cc97",
+      "path": "idx-embed.spurgeon-core.00.gbx",
+      "bytes": 5194591,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2d304d36a09d510d07d4aa7106afc234750a2618926624e019f5839d5f0b5d00.gbx",
+      "sha256": "2d304d36a09d510d07d4aa7106afc234750a2618926624e019f5839d5f0b5d00",
+      "path": "idx-embed.spurgeon-more.00.gbx",
+      "bytes": 37059023,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/32f848e09e3cb458c3c64786d7f47cc4b06c4a51ad940d47ca71e222466f68a9.gbx",
+      "sha256": "32f848e09e3cb458c3c64786d7f47cc4b06c4a51ad940d47ca71e222466f68a9",
+      "path": "idx-search.anglican-core.1.gbx",
+      "bytes": 214672,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d47c5937abeaa7fd51522372db5c123afe2ff730cc8d3daa1d2a20da01da2af7.gbx",
+      "sha256": "d47c5937abeaa7fd51522372db5c123afe2ff730cc8d3daa1d2a20da01da2af7",
+      "path": "idx-search.anglican-core.2.gbx",
+      "bytes": 941501,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/68fe3087ddcec629d2b8869c0b102107010ead00333a6e8fa5fb8a6e4a781ef5.gbx",
+      "sha256": "68fe3087ddcec629d2b8869c0b102107010ead00333a6e8fa5fb8a6e4a781ef5",
+      "path": "idx-search.anglican-more.1.gbx",
+      "bytes": 114924,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5c740fe89d91746951424181a9a8941e03e0116d0f49c84fb9fea0a6c86c2ec3.gbx",
+      "sha256": "5c740fe89d91746951424181a9a8941e03e0116d0f49c84fb9fea0a6c86c2ec3",
+      "path": "idx-search.anglican-more.2.gbx",
+      "bytes": 531709,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/422f1eee691508e3206ffb46b2320aba2ee2fa8b4cfbe47805c68d8a7b98b328.gbx",
+      "sha256": "422f1eee691508e3206ffb46b2320aba2ee2fa8b4cfbe47805c68d8a7b98b328",
+      "path": "idx-search.brethren-core.1.gbx",
+      "bytes": 525170,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e3a890e9ee477d17e232dbebca3d9e417305dd3301baeb07db0d0a2a3bd67eae.gbx",
+      "sha256": "e3a890e9ee477d17e232dbebca3d9e417305dd3301baeb07db0d0a2a3bd67eae",
+      "path": "idx-search.brethren-core.2.gbx",
+      "bytes": 2518176,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/4952e17dca5d11e842e17d1bd9a6dd6e1ba03052b17129f888d32de1d14ee59b.gbx",
+      "sha256": "4952e17dca5d11e842e17d1bd9a6dd6e1ba03052b17129f888d32de1d14ee59b",
+      "path": "idx-search.brethren-more.1.gbx",
+      "bytes": 1868198,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/c60292da80b40f657b0fa955eee50ce895119895d1fc2d90fa6964cd33f72386.gbx",
+      "sha256": "c60292da80b40f657b0fa955eee50ce895119895d1fc2d90fa6964cd33f72386",
+      "path": "idx-search.brethren-more.2.gbx",
+      "bytes": 9847337,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/5098feed38047362883a026bc1f0e0a8a9d978892913b46ad9881edc89212cc9.gbx",
+      "sha256": "5098feed38047362883a026bc1f0e0a8a9d978892913b46ad9881edc89212cc9",
+      "path": "idx-search.catholic-core.1.gbx",
+      "bytes": 2144182,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/259f06aeac86cad66109eeb386a60d35f0dc3df98fbfb671f838f33acde92d75.gbx",
+      "sha256": "259f06aeac86cad66109eeb386a60d35f0dc3df98fbfb671f838f33acde92d75",
+      "path": "idx-search.catholic-core.2.gbx",
+      "bytes": 5128512,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/f96c869f9aca65911e7566ab556a71af956882262599c69338688ea6bfd4bfb6.gbx",
+      "sha256": "f96c869f9aca65911e7566ab556a71af956882262599c69338688ea6bfd4bfb6",
+      "path": "idx-search.catholic-more.1.gbx",
+      "bytes": 901377,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0ec2458a2757a46e5b8f4a928449bff70382fb0bd148debf3fcca9102e9edaaa.gbx",
+      "sha256": "0ec2458a2757a46e5b8f4a928449bff70382fb0bd148debf3fcca9102e9edaaa",
+      "path": "idx-search.catholic-more.2.gbx",
+      "bytes": 1560537,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/19a3290d539667c97cbf9dacaf15e288d98bda4d263f07566f33ef7d68d8c93b.gbx",
+      "sha256": "19a3290d539667c97cbf9dacaf15e288d98bda4d263f07566f33ef7d68d8c93b",
+      "path": "idx-search.fathers-core.1.gbx",
+      "bytes": 1539502,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e7cc3b4177c4f7c45991c9f9ff94b742fbf9aa5091d77e8433c067e4fde4f912.gbx",
+      "sha256": "e7cc3b4177c4f7c45991c9f9ff94b742fbf9aa5091d77e8433c067e4fde4f912",
+      "path": "idx-search.fathers-core.2.gbx",
+      "bytes": 8750061,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b5f0889098c5137d39f20700f14ca69785ff149a9c4cefcf3ed7ae1c8dfb51d1.gbx",
+      "sha256": "b5f0889098c5137d39f20700f14ca69785ff149a9c4cefcf3ed7ae1c8dfb51d1",
+      "path": "idx-search.fathers-more.1.gbx",
+      "bytes": 2538283,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/4504497e9e8e2138c4699e543c089819a5ad98733cafa7c39b3cc2d8a7fe8120.gbx",
+      "sha256": "4504497e9e8e2138c4699e543c089819a5ad98733cafa7c39b3cc2d8a7fe8120",
+      "path": "idx-search.fathers-more.2.gbx",
+      "bytes": 13964044,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d81b5450cb056592f4570f310542049704664612fd59f5caa9b1bc44be7d6214.gbx",
+      "sha256": "d81b5450cb056592f4570f310542049704664612fd59f5caa9b1bc44be7d6214",
+      "path": "idx-search.nineteenth-core.1.gbx",
+      "bytes": 2174323,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0fb9d8e89bde7ddff6436391dfdebd2869f6459d46bbdda1add907047dd04d3f.gbx",
+      "sha256": "0fb9d8e89bde7ddff6436391dfdebd2869f6459d46bbdda1add907047dd04d3f",
+      "path": "idx-search.nineteenth-core.2.gbx",
+      "bytes": 7434810,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/09424223c2034bea4810f2a2e4200cf95c4cf44da1507004db601c5a8cb716f9.gbx",
+      "sha256": "09424223c2034bea4810f2a2e4200cf95c4cf44da1507004db601c5a8cb716f9",
+      "path": "idx-search.nineteenth-more.1.gbx",
+      "bytes": 701338,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e9e99a390effaba59f29057ad2bc67fa59056726858432aad4c7bd747f95b6b2.gbx",
+      "sha256": "e9e99a390effaba59f29057ad2bc67fa59056726858432aad4c7bd747f95b6b2",
+      "path": "idx-search.nineteenth-more.2.gbx",
+      "bytes": 1153458,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/7f6fe44c7cb7f55713d9a3e5b0e5560573ad14d8589fcd6c1f6a53e47d666142.gbx",
+      "sha256": "7f6fe44c7cb7f55713d9a3e5b0e5560573ad14d8589fcd6c1f6a53e47d666142",
+      "path": "idx-search.orthodox-core.1.gbx",
+      "bytes": 179975,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/ac08b9b0eaf35ffa3dac12006acf8952b58f0e2354810a9102243d6f9618dbc8.gbx",
+      "sha256": "ac08b9b0eaf35ffa3dac12006acf8952b58f0e2354810a9102243d6f9618dbc8",
+      "path": "idx-search.orthodox-core.2.gbx",
+      "bytes": 779550,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/d42c28977332380ba01d4032b9d8295172d090d61810922fd8cd769dc446df92.gbx",
+      "sha256": "d42c28977332380ba01d4032b9d8295172d090d61810922fd8cd769dc446df92",
+      "path": "idx-search.orthodox-more.1.gbx",
+      "bytes": 172091,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/2386ebbbae42fe7457b7c87fcb1139ec56f1db823a5c871e2fc73266522f9675.gbx",
+      "sha256": "2386ebbbae42fe7457b7c87fcb1139ec56f1db823a5c871e2fc73266522f9675",
+      "path": "idx-search.orthodox-more.2.gbx",
+      "bytes": 919696,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a773f87055b0b783ff4292715684e978002517abb99916c0e83274c72e0fe138.gbx",
+      "sha256": "a773f87055b0b783ff4292715684e978002517abb99916c0e83274c72e0fe138",
+      "path": "idx-search.puritan-core.1.gbx",
+      "bytes": 2792550,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0083e9cc3b2940d5073f00b8a51569c1049c0d2da874ed6c2dd0e2cace093732.gbx",
+      "sha256": "0083e9cc3b2940d5073f00b8a51569c1049c0d2da874ed6c2dd0e2cace093732",
+      "path": "idx-search.puritan-core.2.gbx",
+      "bytes": 12018669,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/00b9cf1e3b70f78cd0968afcfc11d6cc5c0e023fb875fcd605b1e67813592080.gbx",
+      "sha256": "00b9cf1e3b70f78cd0968afcfc11d6cc5c0e023fb875fcd605b1e67813592080",
+      "path": "idx-search.puritan-more.1.gbx",
+      "bytes": 1481277,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/a43ab2f0dba416f89d33d64d053499225c95ed186554a3379077846b9935ef76.gbx",
+      "sha256": "a43ab2f0dba416f89d33d64d053499225c95ed186554a3379077846b9935ef76",
+      "path": "idx-search.puritan-more.2.gbx",
+      "bytes": 7883221,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/dcb3f20e76577622fde9e72238c9e700eb6b1176b28175cb4a47d65a0a606078.gbx",
+      "sha256": "dcb3f20e76577622fde9e72238c9e700eb6b1176b28175cb4a47d65a0a606078",
+      "path": "idx-search.reference-core.1.gbx",
+      "bytes": 1296808,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/e6a920bb941573cd3760fdcb6e2f680c007813f9904f110912fd9c6616084412.gbx",
+      "sha256": "e6a920bb941573cd3760fdcb6e2f680c007813f9904f110912fd9c6616084412",
+      "path": "idx-search.reference-core.2.gbx",
+      "bytes": 4925709,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/0f6578213573c74bdfd76894513aca6f82686ab65adfde6fc6cd4bfcfa1f9b87.gbx",
+      "sha256": "0f6578213573c74bdfd76894513aca6f82686ab65adfde6fc6cd4bfcfa1f9b87",
+      "path": "idx-search.reformation-core.1.gbx",
+      "bytes": 1439027,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9cbae1c74bf3a7767b7bd593298ee4686951df374cab9795190c7a704e771521.gbx",
+      "sha256": "9cbae1c74bf3a7767b7bd593298ee4686951df374cab9795190c7a704e771521",
+      "path": "idx-search.reformation-core.2.gbx",
+      "bytes": 4997113,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/9654da1b96301ca53eff04ef1e9c5a0b013f20c80dd1609e95d4f03aa3bac2cc.gbx",
+      "sha256": "9654da1b96301ca53eff04ef1e9c5a0b013f20c80dd1609e95d4f03aa3bac2cc",
+      "path": "idx-search.reformation-more.1.gbx",
+      "bytes": 24445,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/b2c8ed575a15e79f83e65c29fcc0cc081e78650f9e4781f05fe8d362ef58378f.gbx",
+      "sha256": "b2c8ed575a15e79f83e65c29fcc0cc081e78650f9e4781f05fe8d362ef58378f",
+      "path": "idx-search.reformation-more.2.gbx",
+      "bytes": 102193,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/971da98dd41b5a430a9d8876a239dd3eec282a653fe3dc2980861ccd9ba3de29.gbx",
+      "sha256": "971da98dd41b5a430a9d8876a239dd3eec282a653fe3dc2980861ccd9ba3de29",
+      "path": "idx-search.second-temple-core.1.gbx",
+      "bytes": 25190,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/6063d1b163ff9d6bab7e767cad67a7d560af214cd3dff8298902ff2b8303d24c.gbx",
+      "sha256": "6063d1b163ff9d6bab7e767cad67a7d560af214cd3dff8298902ff2b8303d24c",
+      "path": "idx-search.second-temple-core.2.gbx",
+      "bytes": 94496,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/04367e169c2d30ec2ed83bbd99f25eb3c0f390a6b39a974ab15e21af1edd4e3d.gbx",
+      "sha256": "04367e169c2d30ec2ed83bbd99f25eb3c0f390a6b39a974ab15e21af1edd4e3d",
+      "path": "idx-search.spurgeon-core.1.gbx",
+      "bytes": 662963,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/678c3aa0b262f194397bc5ee7eb82ef4a463d9af1deae72fc2f37a33f76bf360.gbx",
+      "sha256": "678c3aa0b262f194397bc5ee7eb82ef4a463d9af1deae72fc2f37a33f76bf360",
+      "path": "idx-search.spurgeon-core.2.gbx",
+      "bytes": 3240585,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/8807710cc16e440b2a07f4ba80225ab381db13f19e0bf2cbf47873d8f5fdb18f.gbx",
+      "sha256": "8807710cc16e440b2a07f4ba80225ab381db13f19e0bf2cbf47873d8f5fdb18f",
+      "path": "idx-search.spurgeon-more.1.gbx",
+      "bytes": 4563408,
+      "optional": true
+    },
+    {
+      "url": "https://biblestudy.gifos.app/gifos/offline-bible-study/packs/295a6ace739ec7cef906f73eac5d9a4d87d311eddaecc7bbff38f3ab86ca38be.gbx",
+      "sha256": "295a6ace739ec7cef906f73eac5d9a4d87d311eddaecc7bbff38f3ab86ca38be",
+      "path": "idx-search.spurgeon-more.2.gbx",
+      "bytes": 24193866,
+      "optional": true
+    }
+  ]
 }
