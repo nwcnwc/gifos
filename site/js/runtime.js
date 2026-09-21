@@ -410,6 +410,11 @@
         // call names them). Returns an ArrayBuffer. A miss after the OS has
         // tried names the fix rather than hanging.
         assets: function(path){ return rpc({type:'asset', path:path}).then(function(r){ return r.bytes; }); },
+        // Is that pin already on this computer? Answers without downloading —
+        // an app with a library of optional packs asks this to draw its
+        // shelf, where gifos.assets() would start the download. Sealed files
+        // (.assets/ inside the GIF) are always present.
+        assetHas: function(path){ return rpc({type:'asset-has', path:path}).then(function(r){ return !!(r && r.present); }); },
         info: function(){ return rpc({type:'info'}); },
         me: function(){ return rpc({type:'me'}); },
         // What the LINK that opened this app asked for — an object of the
@@ -1871,6 +1876,7 @@
         // would otherwise look like a broken engine.
         else if (d.type === 'info') { const w = iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'reply', id: d.id, ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version, provider: true } }, '*'); }
         else if (d.type === 'asset') { replyAsset(files, fileId, manifest, d, (p, t) => { const w = iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); }); }
+        else if (d.type === 'asset-has') { replyAssetHas(files, fileId, manifest, d, (p) => { const w = iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*'); }); }
         else if (d.id) { const w = iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'reply', id: d.id, ok: false, error: 'Not available in a provider service mount.' }, '*'); }
       };
       // A provider that nobody has asked anything for a while is unloaded —
@@ -2039,6 +2045,26 @@
       }
       return fetchOnce().then(after);
     }).catch(() => fetchOnce().then(after));
+  }
+
+  // Is a pin present without fetching it: sealed in the GIF, or cached under
+  // this app's fileId with the hash the manifest pins NOW (a re-pinned path
+  // whose old bytes are still cached answers false, as replyAsset would
+  // re-download it). Unknown paths are false, never an error — the app is
+  // drawing a list, not asking for bytes.
+  function replyAssetHas(files, fileId, manifest, d, post) {
+    const p = String(d.path || '').replace(/^\.?\/+/, '');
+    if (files['.assets/' + p]) { post({ ok: true, result: { present: true, sealed: true } }); return; }
+    const A = GifOS.assets;
+    const pin = (A && manifest) ? A.list(manifest).find((a) => a.path === p) : null;
+    if (!pin || !fileId) { post({ ok: true, result: { present: false, pinned: !!pin } }); return; }
+    const rowP = store.getAssetRow
+      ? store.getAssetRow(fileId, p)
+      : store.getAsset(fileId, p).then((blob) => (blob ? { blob: blob, bytes: blob.size } : null));
+    rowP.then((row) => {
+      const present = !!(row && row.blob && (!A.rowMatches || A.rowMatches(row, pin)));
+      post({ ok: true, result: { present, pinned: true, bytes: present ? (row.bytes || row.blob.size || 0) : 0 } });
+    }).catch(() => post({ ok: true, result: { present: false, pinned: true } }));
   }
 
   // The sanitized request a provider sees — the broker's own vocabulary, never
@@ -3279,6 +3305,7 @@
       // person has confirmed; null if nothing was asked, or if they declined.
       else if (d.type === 'launch') launchGate.then((result) => reply({ ok: true, result }));
       else if (d.type === 'asset') replyAsset(files, mountFileId, manifest, d, (p, t) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); });
+      else if (d.type === 'asset-has') replyAssetHas(files, mountFileId, manifest, d, (p) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*'); });
       // A rename is the person's to make. The app proposes, the OS asks — a
       // sheet naming the app and the exact new name — and only a Yes writes
       // it; a No (or a dismissed sheet) answers with the identity unchanged,

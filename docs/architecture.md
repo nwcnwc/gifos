@@ -154,7 +154,10 @@ app.gif
   each pinned URL, verifies the hash, caches the bytes in the computer's
   asset store (IndexedDB `appassets`, keyed by the icon — beside the GIF,
   deliberately not in it, so backups stay quick), and hands them to the app
-  via `gifos.assets(path)`.
+  via `gifos.assets(path)`. `gifos.assetHas(path)` answers whether a pin
+  (or a sealed `.assets/` file) is already on this computer WITHOUT
+  downloading it, so an app with a library of optional packs can draw its
+  shelf of what is here and what is not.
   **Required** pins (no `optional`) download at install. **Optional** pins
   download the first time the app asks for that path — a translation, a
   language pack, a model you may never open. The store listing says both.
