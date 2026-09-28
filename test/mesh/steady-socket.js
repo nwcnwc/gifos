@@ -77,6 +77,37 @@ global.WebSocket = function (url) { attempts++; return new RealWS(url); };
   check('network drops (1006) keep retrying with backoff', attempts >= 2 && attempts <= 8 && !s3.rejected, attempts + ' attempts, rejected=' + (s3.rejected || 0));
   s3.close(); flaky.close();
 
+  // ---- 4. a FULL door backs off: accept, then close 1013 (the relay's crowd reject) ----
+  // The relay turns a crowd away AFTER the upgrade completes, so every rejected
+  // attempt fires onopen first. Resetting the backoff on open kept a full door
+  // retried every ~0.5s forever (a 1,000-joiner flood: 66k attempts in 3 min).
+  // Backoff 500·2^n (1013 caps it at 15s) allows 4 attempts in 6s; the reset-on-
+  // open behavior produced ~11.
+  const full = wsServer(8800, (sock) => { sock.write(closeFrame(1013, 'too many joining right now — try again in a moment')); sock.end(); });
+  attempts = 0;
+  const s4 = net.steadySocket(() => 'ws://127.0.0.1:8800/s/x?role=mesh');
+  await sleep(6000);
+  check('a full door (accept, then 1013) is retried with GROWING backoff, not a hammer', attempts >= 2 && attempts <= 5, attempts + ' attempts in 6s');
+  check('1013 is a crowd code, not a policy rejection — the socket keeps trying', !s4.rejected, 'rejected=' + (s4.rejected || 0));
+  s4.close(); full.close();
+
+  // ---- 5. …while a socket that STAYS open still earns a fast reconnect ----
+  // Three crowd rejections grow the backoff; the fourth attempt is admitted and
+  // held past the stability window, then drops (1006). The reconnect after that
+  // drop must be quick again, not the 4s+ the rejections had grown it to.
+  let served = 0, droppedAt = 0, backAt = 0;
+  const door = wsServer(8801, (sock) => {
+    served++;
+    if (served <= 3) { sock.write(closeFrame(1013, 'this session is full')); sock.end(); return; }
+    if (served === 4) { setTimeout(() => { droppedAt = Date.now(); try { sock.destroy(); } catch (e) {} }, 6000); return; }
+    if (!backAt) backAt = Date.now();
+  });
+  const s5 = net.steadySocket(() => 'ws://127.0.0.1:8801/s/x?role=mesh');
+  for (let t = 0; t < 40 && !backAt; t++) await sleep(500);
+  const gap = backAt && droppedAt ? backAt - droppedAt : -1;
+  check('a socket that stayed open resets the backoff (fast reconnect after a later drop)', gap >= 0 && gap < 1500, 'reconnect ' + gap + 'ms after the drop');
+  s5.close(); door.close();
+
   console.log(failures ? ('\n' + failures + ' FAIL') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
 })().catch((e) => { console.error('FATAL', e && e.message || e); process.exit(2); });

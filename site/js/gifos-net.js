@@ -75,8 +75,9 @@
   // key) ride the next attempt automatically.
   function steadySocket(makeUrl) {
     const s = { onmessage: null, onstate: null, onopen: null, state: 'connecting', downSince: Date.now(), rejected: 0 };
-    let ws = null, closed = false, attempt = 0, timer = null, slow = false;
+    let ws = null, closed = false, attempt = 0, timer = null, slow = false, stableTimer = null;
     const queue = [];
+    const STABLE_MS = 5000; // how long a socket must stay open before the backoff resets
     // Close-code policy — the relay is BILLED for every wake, so reconnects are
     // never free. A POLICY rejection (bad token, wrong password, banned, voted
     // off, replaced by a newer socket, stale/owned host slot) can never succeed
@@ -114,8 +115,14 @@
       sock.onopen = () => {
         clearTimeout(born);
         if (closed || ws !== sock) return;
-        attempt = 0;
-        slow = false;
+        // OPEN is not yet GOOD. The relay turns a crowd away by ACCEPTING the
+        // upgrade and closing with 1013 straight after (a Durable Object cannot
+        // send a close code without accepting), so resetting the backoff here
+        // reset it on every one of those rejections: a crowd at a full door
+        // retried every ~0.5s forever, each retry a billed wake. Only a socket
+        // that STAYS open earns the reset.
+        clearTimeout(stableTimer);
+        stableTimer = setTimeout(() => { if (ws === sock) { attempt = 0; slow = false; } }, STABLE_MS);
         setState('up');
         for (const frame of queue.splice(0)) { try { sock.send(frame); } catch (e) { /* re-dropped */ } }
         if (s.onopen) s.onopen();
@@ -124,6 +131,7 @@
       sock.onclose = (ev) => {
         clearTimeout(born);
         if (ws !== sock) return;
+        clearTimeout(stableTimer);
         ws = null;
         const code = ev && ev.code;
         if (FATAL_CLOSES.indexOf(code) >= 0) s.rejected = code;
@@ -174,7 +182,7 @@
       if (!timer) kick(false);
     };
     s.kick = () => kick(true); // app-layer re-arm after a credential/intent change
-    s.close = () => { closed = true; if (timer) { clearTimeout(timer); timer = null; } try { if (ws) ws.close(); } catch (e) { /* fine */ } };
+    s.close = () => { closed = true; clearTimeout(stableTimer); if (timer) { clearTimeout(timer); timer = null; } try { if (ws) ws.close(); } catch (e) { /* fine */ } };
     s._raw = () => ws; // test hook: lets the e2e suite yank the live socket
     connect();
     (root.__gifosConns = root.__gifosConns || []).push(s);
