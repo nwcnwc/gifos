@@ -197,6 +197,11 @@
       // R6: lastReach = last tick I REACHED a greeter (a HOME roster came back).
       // Stranding requires having reached NONE for a full TTL — a busy room where
       // I keep getting NOROOM is competing for a slot, NOT stranded (bug #6).
+      // joinStart is when this attempt got its FIRST greeter list, not when it
+      // began knocking: time spent outside a full door (the relay's socket cap
+      // answering 1013) reached nobody because nobody was offered, and counting
+      // it stranded every flood joiner the moment it got in — each then idled a
+      // further TTL holding one of the door's few joiner slots.
       this.lastReach = -1; this.strandedAt = 0;
       this.gateway = null;       // the greeter this (unseated) newcomer routes through
       // R5 / E5§2: multi-greeter HOME probe before seating. Cluster replies by
@@ -676,7 +681,6 @@
       this.triedSilent = new Set(); // per-join-attempt silent-target marks (pickRoster)
       this.forkProbe = false; this.forkPaused = false; this.forkSamples = [];
       this.forkOpts = new Map(); this.forkPending = 0;
-      if (this.joinStart < 0) this.joinStart = this.TICK;
       this.emitRelay(this.myKey); this.wake();
     }
     askSeat(target) { if (this.askTick === this.TICK) { if (!this.hasCoord) { this.state = 2; this.retryAt = this.TICK; } this.reAsk = true; this.wake(); return; } this.askTick = this.TICK; this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.lastAsked = target; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200, spread: (SPREAD && this.noroomSeen >= 1) }); this.wake(); } // ENTRY PACING: one ask per tick (paced-out ⇒ defer the SEND, never the STATE — see join())
@@ -1917,6 +1921,7 @@
           // roster came back) for a full TTL ⇒ voted off / unreachable subnet.
           // A seat that keeps reaching greeters but only gets NOROOM is
           // competing for a slot in a busy heal — NOT stranded (bug #6).
+          if ((this.state === 0 || this.state === 1) && this.joinStart < 0) this.joinStart = TICK; // the strand clock starts at the first list (see the ctor)
           if ((this.state === 0 || this.state === 1) && this.joinStart >= 0 && TICK - this.joinStart > STRAND_TTL && (this.lastReach < 0 || TICK - this.lastReach > STRAND_TTL)) { this.stranded = true; this.strandedAt = TICK; return; }
           this.lastGreeters = m.list; this.greetersAt = TICK; // stamped: entry-resume trusts this list only while registry-fresh
           if (this.state === 0 && !this.forkPaused) {

@@ -334,7 +334,7 @@ struct Seat {
   long long greetAt=-1,s1CheckAt=-1;
   uint64_t myKey=0, genKey=0;   // myKey: my throwaway personal genesis key; genKey: THIS meeting's genesis key (learned via the newcomer dance, or minted if I found)
   int subnet=0; double netQual=1.0;   // which sub-network I'm on + my connection/device quality (0..1); set at spawn
-  int joinStart=-1; bool stranded=false;   // R6: when this join attempt began; stranded once I give up
+  int joinStart=-1; bool stranded=false;   // R6: when this join attempt got its FIRST greeter list (not when it began knocking: waiting outside a full door reached nobody because nobody was offered); stranded once I give up
   int lastReach=-1;   // R6: last tick I REACHED a greeter (a HOME roster came back). Stranding requires having reached NONE for a full TTL — a busy room where I keep getting NOROOM is not "stranded".
   int strandedAt=0;   // R6: when I gave up. Stranding is RECOVERABLE — after a backoff I re-knock (the client's manual retry); if a greeter is now reachable I seat. Only a genuinely-cut-off seat stays stranded across retries.
   bool auditPend=false; bool evil=false;
@@ -588,7 +588,7 @@ struct Seat {
   // consumes reJoin, so the seat wedged forever: seated-looking, coordless,
   // knocking never (behavior 04a: a 20s radio blip left one phone solo for 3.5
   // minutes until the NEXT blip re-fired the rescue at a fresh tick).
-  void join(){ {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d join() state=%d haveRoster=%d resumeTries=%d\n",(long long)TICK,id,state,(int)haveRoster,resumeTries);} if(joinTick==(int)TICK){ if(!hasCoord){ state=0; retryAt=(int)TICK; } reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; resumeTries=0; triedSilent.clear(); noroomSeen=0;   /* T7: a fresh knock is a fresh attempt — the NOROOM evidence does not carry over */ if(joinStart<0)joinStart=(int)TICK; emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1. A fresh knock re-arms the resume budget.
+  void join(){ {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d join() state=%d haveRoster=%d resumeTries=%d\n",(long long)TICK,id,state,(int)haveRoster,resumeTries);} if(joinTick==(int)TICK){ if(!hasCoord){ state=0; retryAt=(int)TICK; } reJoin=true; wake(id); return; } joinTick=(int)TICK; state=0; retryAt=(int)TICK; haveRoster=false; resumeTries=0; triedSilent.clear(); noroomSeen=0;   /* T7: a fresh knock is a fresh attempt — the NOROOM evidence does not carry over */ emitRelay(myKey); wake(id); }   // NEWCOMER knock: present my THROWAWAY key. If I'm first I mint genesis; else I learn the real key via the dance and re-present it once seated in Section 1. A fresh knock re-arms the resume budget.
   // ENTRY RESUME (2026-08-04 plane incident; mesh.js resumeAsk is the origin,
   // this is its sim twin — test/tools/seat-flap-repro.js measures it). The
   // dance is three door round trips and a retry used to restart from the
