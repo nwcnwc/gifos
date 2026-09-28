@@ -36,4 +36,8 @@ if [ -f "$HOSTS" ]; then
   BASE=$(node -e 'try{const j=JSON.parse(require("fs").readFileSync(process.argv[1])); if(j.base) console.log(j.base)}catch(e){}' "$HOSTS")
   [ -n "$BASE" ] && ORIGINS="$ORIGINS,$BASE"
 fi
-exec npx wrangler dev --ip 0.0.0.0 --port "${RELAY_DEV_PORT:-8794}" --var "ALLOWED_ORIGINS:$ORIGINS"
+# RELAY_DEV_TRUSTED=127.0.0.1,::1 waives the PER-IP caps for a load test driven
+# from one address (test/mesh/flood.js, test/relay/relay-roster-scope.js with
+# RELAY_URL) — the Worker's own TRUSTED_IPS knob, never set in production.
+exec npx wrangler dev --ip 0.0.0.0 --port "${RELAY_DEV_PORT:-8794}" --var "ALLOWED_ORIGINS:$ORIGINS" \
+  ${RELAY_DEV_TRUSTED:+--var "TRUSTED_IPS:$RELAY_DEV_TRUSTED"}

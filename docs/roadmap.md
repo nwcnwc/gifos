@@ -1646,10 +1646,13 @@ over the shared `mesh-app.js` node so the divergence stays cosmetic.
   but is **S4/W7-gated** (`app-mesh-unification.md` §6 step 5, §7 Q2). Standalone
   app-shares lean on takeover harder than meeting-apps do — decide whether step 3
   ships before host-heal, or carries an interim mirror-holder rule.
-- **Session socket cap.** `MAX_SOCKETS_PER_SESSION = C*C+C = 30` (`relay.js:123`)
-  is sized for a greeter pool, not a star's every-client-holds-a-socket shape.
-  Once standalone apps seat deep and drop their sockets this stops mattering —
-  confirm the transition doesn't strand mid-migration clients.
+- **Session socket cap — REMOVED 2026-09-28.** The C²+C = 30 cap left five
+  joiner slots beside Section 1's 25 permanent greeters, so a meeting that
+  starts at 10:00 queued its whole audience behind five slots (and deadlocked:
+  deep seats answering newcomers could not reopen a socket). What the cap really
+  bounded was roster() re-sending every socket to every socket; the roster is
+  now scoped to the doors and the accept path indexed, so a session holds any
+  burst (`relay.js` roster() / ix()).
 - **First-frame TOFU** on healing-link sids for the app owner key; the clean
   close is carrying the owner pubkey in the authenticated ad
   (`app-mesh-unification.md` "Changes OUTSIDE my files").

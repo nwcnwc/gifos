@@ -1925,6 +1925,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // reach right now" — a target NOT in this set is a socketless deep seat the
     // relay would silently drop, so signaling to it must sponsor-forward (§FWD).
     let relaySocketed = new Set();
+    let relayRosterScope = 'full';  // 'door' ⇒ relaySocketed holds only the greeters (see the roster handler)
+    let pendingDoorGrant = null;    // an admin re-grant waiting on a pulled full list
+    // Peers the relay answered {t:'nosock'} for, and when. Under a 'door' roster
+    // this — not absence from the list — is what "unreachable by relay" means.
+    const relayNoSock = new Map();
+    const RELAY_NOSOCK_MS = 30000;
+    const relayNoSockRecently = (id) => {
+      const at = relayNoSock.get(id);
+      if (at == null) return false;
+      if (Date.now() - at < RELAY_NOSOCK_MS) return true;
+      relayNoSock.delete(id); return false;
+    };
     // ---- rows from COORDS (no more roster arithmetic, no deacons) ----------
     // My row is a fact of my SEAT: the occupants of (pc, r, 0..C-1). The old
     // computeRows derived rows from relay-roster join order with row 0 as the
@@ -4298,7 +4310,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // dying UNANSWERED — no nosock, target listed as socketed, yet nothing
       // arrives (a zombie socket on either end) — alternates its retries onto
       // the sponsor path. The sweeper flips it per re-offer; connect clears it.
-      const targetUnreachable = !relaySocketed.has(to) || !!(peers.get(to) || {}).altPath;
+      // Under a 'door' roster, NOT LISTED means UNKNOWN, not unreachable: a deep
+      // seat that re-opened its socket to wire a newcomer (wired() is all-links)
+      // holds only the doors, and treating the unlisted newcomer as unreachable
+      // sent its answers into the sponsor maze, where no hop could hand them
+      // back to the relay (e2e-latejoin: the pair sat in have-local-offer). So
+      // try the relay; its {t:'nosock'} answer marks the peer for the sponsor path.
+      const notOnRelay = relayRosterScope === 'full' ? !relaySocketed.has(to) : relayNoSockRecently(to);
+      const targetUnreachable = notOnRelay || !!(peers.get(to) || {}).altPath;
       if ((relayDown || targetUnreachable) && msg.kind !== 'status') {
         const m2 = sigSansIce(to, msg);
         if (!m2) return; // a blocked pair sends nothing on either path (fault injection)
@@ -6047,6 +6066,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       else if (m.t === 'roster') {
         relaySocketed = new Set(m.peers || []); // who the relay can reach right now (socketed peers) \u2014 drives \u00a7FWD sponsor fallback
+        // SCOPE (relay 2026-09-28): a greeter gets the FULL socket list and then
+        // peer-join/peer-leave deltas; everyone else gets only the doors
+        // ('door'). A relay that sends no scope sends everyone the full list.
+        relayRosterScope = m.scope || 'full';
+        if (relayRosterScope === 'full' && pendingDoorGrant) { const g = pendingDoorGrant; pendingDoorGrant = null; g(); }
         roomBan = m.ban || []; // admins[] comes from VERIFIED signatures (adminsNow, \u00a79), never the relay
         Object.assign(devOf, m.devs || {}); // MERGE (absence grace keeps tiles whose Ban button must work)
         // \u00a7LOCK, ADMIN ROOMS \u2014 A STORED PASSWORD IS PROVISIONAL UNTIL THE DOOR
@@ -6099,8 +6123,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               net.deriveMeetKey(room, av, '').then((openKey) => net.seal(openKey, grant)).then((env) => {
                 // relaySocketed, not gossipIds(): the whole point is reaching
                 // occupants I CANNOT yet read — the app roster is empty of
-                // them by construction; the relay's socket list is not.
-                for (const pid of relaySocketed) { if (pid === myId) continue; net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece })); }
+                // them by construction; the relay's socket list is not. A
+                // non-greeter holds only the doors ('door' scope), so it PULLS
+                // the full list first and fans on its arrival.
+                const fan = () => { for (const pid of relaySocketed) { if (pid === myId) continue; net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece })); } };
+                if (relayRosterScope === 'full') fan();
+                else { pendingDoorGrant = fan; relaySendObj({ t: 'who' }); }
               });
             });
           }
@@ -6116,7 +6144,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // said so explicitly instead of dropping silently. Mark it so the next
         // retry goes over the sponsor path immediately, not blind.
         txStats.nosock++;
-        if (m.to) relaySocketed.delete(m.to);
+        if (m.to) { relaySocketed.delete(m.to); if (relayNoSock.size > 2048) relayNoSock.clear(); relayNoSock.set(m.to, Date.now()); }
       }
       else if (m.t === 'peer' && m.msg) {
         // Sealed app frames that rode the relay because no DataChannel exists
@@ -6143,7 +6171,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       else if (m.t === 'unban') setStatus('\u2705 ' + (nameForDev(m.dev) || banNames()[m.dev] || 'A device') + ' was unbanned by ' + (nameForPeer(m.by) || 'an admin'));
       else if (m.t === 'votes') { voteTally = m.tally || {}; voteNeed = m.need || 0; refreshAllTiles(); }
+      else if (m.t === 'peer-join') {
+        // Greeters only: a socket joined the session. Keeps the full list
+        // exact without the relay re-sending it on every connect.
+        if (m.peer) { relaySocketed.add(m.peer); relayNoSock.delete(m.peer); }
+        if (m.peer && m.dev) { devOf[m.peer] = m.dev; syncVotes(); }
+      }
       else if (m.t === 'peer-leave') {
+        relaySocketed.delete(m.peer); // the relay no longer reaches it (the delta a greeter's full list lives on)
         const p = peers.get(m.peer); if (p && !p.absentSince) p.absentSince = Date.now() - (ABSENT_GRACE - 4000);
         // D5: the relay WATCHED this peer's socket die (a transport observation
         // by the dumb transport plane — a server frame no peer can forge, not
@@ -13478,6 +13513,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Event-driven departures (D2/D5 → UI): the confirmed-gone tombstones.
       departed: () => Array.from(meshGone, ([pid, at]) => ({ id: String(pid).slice(0, 8), at })),
       relayReach: () => Array.from(relaySocketed), // who I believe the relay can reach (roster + nosock)
+      relayScope: () => relayRosterScope,          // 'full' (a greeter, or an old relay) or 'door' (greeters only)
+      relayWho: () => relaySendObj({ t: 'who' }),  // pull the full list (the relay rate-limits it per socket)
       // Per-pair transport forensics (meet.js CLI + e2e): the raw WebRTC state.
       pairs: () => Array.from(peers.values()).map((p) => ({ id: String(p.id).slice(0, 8),
         pc: p.pc ? p.pc.connectionState : null, ice: p.pc ? p.pc.iceConnectionState : null,

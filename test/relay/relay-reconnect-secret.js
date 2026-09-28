@@ -69,6 +69,8 @@ function join(q) {
     await legacy2.ready; await sleep(300);
     check('a socket that presented no secret is replaced by any same-id socket', legacy.closed && legacy.closeCode === 4000, legacy.closeCode);
     check('…and its replacement stays', !legacy2.closed);
+    legacy2.ws.send(JSON.stringify({ t: 'who' })); // a non-greeter pulls the full list (its pushed roster names only the doors)
+    await sleep(200);
     const r = legacy2.roster();
     check('the room holds Ann and the replacement only', !!r && r.peers.length === 2 && r.peers.includes('p_ann') && r.peers.includes('p_old'), r && r.peers);
 

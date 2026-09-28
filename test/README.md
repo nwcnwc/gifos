@@ -580,9 +580,15 @@ one the moment needs.
 its whole fleet from one IP, so the production per-IP cap of 8 is precisely
 wrong locally — it silently starved the swarm once and the release gate's
 browser tier a second time (e2e-handq meshed exactly 8/10, forever). Set
-`RELAY_PROD=1` to mirror the production abuse guards (8 sockets/IP,
-30/session, frame meter). Ban/eviction/owned-slot semantics are core session logic and
-are active in BOTH modes.
+`RELAY_PROD=1` to mirror the production abuse guards (8 sockets/IP, the join
+rate, the frame meter). There is no per-session socket cap in either mode, nor in
+production: the roster is scoped to the doors (greeters get the full list and
+join/leave deltas, everyone else the doors only), so a burst of any size costs
+the relay O(greeters) per join. `test/mesh/flood-burst.js` (1000 dev, 500
+`RELAY_PROD=1`) and `test/relay/relay-roster-scope.js` guard it; the latter runs
+against the real Worker too (`RELAY_URL=ws://127.0.0.1:8794` under
+`RELAY_DEV_TRUSTED=127.0.0.1,::1 test/servers/relay-dev.sh`).
+Ban/eviction/owned-slot semantics are core session logic and are active in BOTH modes.
 
 **node 22 or newer, always.** `gifos-net.js` opens the relay socket with the
 global `new WebSocket` a browser supplies; node only has that global from v22.

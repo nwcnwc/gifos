@@ -61,7 +61,14 @@ function forkProbeInPage() {
   for (const r of (d.roster || [])) if (r && r.coord && r.peer) inTree.push(String(r.peer));
   for (const p of g(() => V.meshLinks(), [])) if (p) inTree.push(String(p));
   for (const row of (d.rows || [])) for (const cell of (row || [])) if (cell) inTree.push(String(cell));
+  // A non-greeter's relay list holds only the doors (roster scope 'door' —
+  // the relay no longer pushes every socket to everyone). PULL the full list
+  // each sample; the reply lands before the next one (the relay rate-limits
+  // pulls to one per 5s per socket, the sampling cadence).
+  const scope = g(() => V.relayScope(), 'full');
+  if (scope === 'door') g(() => V.relayWho(), null);
   return {
+    scope,
     me: { peer: me.peer || null, coord: me.coord || null, state: me.state == null ? null : me.state,
       occ: me.occ == null ? null : me.occ, links: me.links == null ? null : me.links },
     participants: d.participants == null ? null : d.participants,

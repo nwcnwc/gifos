@@ -37,9 +37,14 @@ function join(sid, peer) {
   const a = join(sid, 'alice'); await new Promise((r) => a.addEventListener('open', r));
   const b = join(sid, 'bob');   await new Promise((r) => b.addEventListener('open', r));
   await sleep(300);
+  // A non-greeter's pushed roster names only the doors (scope 'door'); the full
+  // socket list is a PULL. Every frame of both kinds is held to the same rules.
+  a.send(JSON.stringify({ t: 'who' }));
+  await sleep(300);
 
   const last = a.rosters[a.rosters.length - 1];
   const allFrames = JSON.stringify(a.rosters);
+  check('the pulled roster is the full list', !!last && last.scope === 'full', JSON.stringify(last));
   check('roster lists both peer ids (routing needs these)', !!last && last.peers.includes('alice') && last.peers.includes('bob'), JSON.stringify(last));
   check('roster carries NO names field', !!last && last.names === undefined);
   check('no display-name string appears in ANY roster frame, despite ?name=', !/Secret Name/.test(allFrames));
