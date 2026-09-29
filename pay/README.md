@@ -25,6 +25,9 @@ proves about one it proves about the other.
 | `GET /return` | PayPal lands the buyer back here; capture |
 | `GET /receipt/:id?claim=` | PayPal's own answer, wrapped in an Ed25519-signed receipt the OS verifies against `gifos.app/gifos-pay.key` — only to the one-time claim `/checkout` returned, so an order id alone reads nothing |
 | `POST /x402/settle` | the standard x402 facilitator wire (verify + settle per transfer of the 97/3 split), same signed-receipt shape |
+| `POST /transfer/invoice` | the wallet-transfer rail (RockWallet + every self-custody wallet): signed stateless invoice, dust-unique amount, the signed manifest's `pay.to` |
+| `POST /transfer/bind` | re-sign that invoice bound to the payer's wallet address (amount and dust unchanged), so only a transfer FROM that wallet completes it |
+| `POST /transfer/receipt` | watch the chain (read-only `BASE_RPC`) for the exact transfer, from the bound wallet when there is one; same signed receipt, `feeCollected:false` |
 | `POST /fednow/rfp` | FedNow via a provider (`FEDNOW_API`, Finzly-shaped — FedNow itself has no public API); payee = the registered account for the signing identity (`FEDNOW_PAYEES`) |
 | `GET /fednow/receipt/:id` | poll the RfP to settlement; same signed receipt, `feeCollected:false` |
 | `POST /mpp/offer` | `{proof, sku, amount}` → a signed `/mpp/charge/<offer>` link for exactly that purchase (an agent holds no app bytes, so the OS presents the proof once), plus a one-time `claim`; valid 24 hours, and pays once |
