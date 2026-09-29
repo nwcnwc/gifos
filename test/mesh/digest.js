@@ -380,8 +380,8 @@ function truth(env) {
   for (const s of liveSeats(env)) {
     const L = s.leaf; T.n++;
     if (L.hand) { T.handN++; T.hands.push({ id: s.id, k: L.hand, nm: L.nm }); }
-    if (L.stage) T.stage.push({ id: s.id, k: L.stage, f: L.sf, nm: L.nm });
-    if (L.app) T.apps.push({ id: s.id, k: L.app, s: L.as });
+    if (L.stage) T.stage.push({ id: s.id, k: L.stage, f: L.sf, nm: L.nm, dv: L.dv });
+    if (L.app && L.ad) T.apps.push({ id: s.id, k: L.app, a: L.ad });
     if (L.away) { T.awayN++; continue; }
     for (const t of L.vup) { const v = T.votes.get(t) || { tgt: t, up: 0, dn: 0 }; v.up++; T.votes.set(t, v); }
     for (const t of L.vdn) { const v = T.votes.get(t) || { tgt: t, up: 0, dn: 0 }; v.dn++; T.votes.set(t, v); }
@@ -421,8 +421,8 @@ function setFacts(env) {
   all.forEach((s, i) => {
     const f = { nm: 'p' + i };
     if (i % 20 === 3) f.hand = 1000 + i;
-    if (i % 33 === 5) { f.stage = 2000 + i; f.sf = 2; }
-    if (i === 5 || i === 17) { f.app = 3000 + i; f.as = 'app-' + i; }
+    if (i % 33 === 5) { f.stage = 2000 + i; f.sf = 2; f.dv = 'dv' + i; }
+    if (i === 5 || i === 17) { f.app = 3000 + i; f.ad = { s: 'app-' + i, k: 'secret' + i, relay: 'wss://r', name: 'App ' + i, ts: 3000 + i, byName: 'p' + i, audio: false }; }
     if (i % 10 === 7) f.away = true;
     f.vdn = [pool[i % 3]];
     if (i % 5 === 1) f.vup = [pool[(i + 1) % 4]];
@@ -540,6 +540,9 @@ leg('11) THE WIRE BOUNDARY — a hostile digest is refused whole');
     ['a negative vote', Object.assign({}, ok0, { votes: [{ tgt: 'd', up: -5, dn: 0 }] })],
     ['a non-integer count', Object.assign({}, ok0, { n: 'lots' })],
     ['a list that is not an array', Object.assign({}, ok0, { apps: { 0: { id: 'k', k: 1 } } })],
+    ['an app ad with an unknown field', Object.assign({}, ok0, { apps: [{ id: 'k', k: 1, a: { s: 'x', evil: 'y' } }] })],
+    ['an app ad with an oversized field', Object.assign({}, ok0, { apps: [{ id: 'k', k: 1, a: { s: 'x'.repeat(300) } }] })],
+    ['an oversized device tag', Object.assign({}, ok0, { stage: [{ id: 'k', k: 1, dv: 'd'.repeat(40) }] })],
   ];
   for (const [what, d] of hostile) check(`refused: ${what}`, M.digSane(d) === null);
   const polluted = M.digSane(JSON.parse('{"n":1,"refuse":0,"at":1,"__proto__":{"evil":1},"hands":[{"id":"k","k":1,"__proto__":{"x":1}}]}'));

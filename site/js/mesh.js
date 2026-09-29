@@ -127,10 +127,13 @@
   // The digest record (sim struct Dig). by=null is the sim's by=-1; at=-1 means "never computed".
   // § G9 ROOM-GLOBAL LISTS (healing-laws G9; sim: mesh.cpp LE/VE, listMerge,
   // digFold, digTrim, listHolds, votesHold — same rules). hands {id,k,nm},
-  // stage {id,k,f,nm}, apps {id,k,s}, votes {tgt,up,dn}; handN/awayN counts. The
-  // browser entries carry display payload the sim does not (nm: a short name,
-  // s: the app's session id) — it rides along, never orders, and is in the
-  // fidelity key so an echo must reproduce it too.
+  // stage {id,k,f,nm,dv}, apps {id,k,a}, votes {tgt,up,dn}; handN/awayN counts.
+  // The browser entries carry payload the sim does not — nm a short name, dv the
+  // stager's room-salted device tag (vote exclusion is keyed by device), a the
+  // whole app ad a joiner needs to enter the app (its session secret included:
+  // digests ride only mesh edges, sealed under the same room key as the status
+  // they replace). Payload rides along, never orders, and is in the fidelity key
+  // so an echo must reproduce it too.
   const K_HAND = 8, K_APP = 3, K_VOTE = 16;
   const K_STAGE = () => 2 * C();
   const dig0 = () => ({ n: 0, refuse: 0, freeC: 0, at: -1, by: null, dmin: 99, part: 0, handN: 0, awayN: 0, hands: [], stage: [], apps: [], votes: [] });
@@ -186,7 +189,14 @@
   // sim's fabric is trusted; this is the browser's boundary, not a law.)
   const INT = (x) => Number.isInteger(x);
   const STR = (x, n) => typeof x === 'string' && x.length <= n;
-  const saneLE = (e, kind) => !!e && STR(e.id, 64) && Number.isFinite(e.k) && (e.f === undefined || INT(e.f)) && (e.nm === undefined || STR(e.nm, 24)) && (kind !== 'app' || e.s === undefined || STR(e.s, 64));
+  const AD_STR = ['s', 'k', 'relay', 'name', 'mesh', 'pk', 'byName'];
+  const saneAd = (a) => !!a && typeof a === 'object' && !Array.isArray(a)
+    && Object.keys(a).every((k) => AD_STR.indexOf(k) >= 0 || k === 'ts' || k === 'audio')
+    && AD_STR.every((k) => a[k] === undefined || a[k] === null || STR(a[k], 256))
+    && (a.ts === undefined || Number.isFinite(a.ts)) && (a.audio === undefined || typeof a.audio === 'boolean');
+  const copyAd = (a) => { const o = {}; for (const k of AD_STR) if (a[k] !== undefined && a[k] !== null) o[k] = a[k]; if (a.ts !== undefined) o.ts = a.ts; if (a.audio !== undefined) o.audio = a.audio; return o; };
+  const saneLE = (e, kind) => !!e && STR(e.id, 64) && Number.isFinite(e.k) && (e.f === undefined || INT(e.f)) && (e.nm === undefined || STR(e.nm, 24))
+    && (e.dv === undefined || STR(e.dv, 16)) && (kind !== 'app' || e.a === undefined || saneAd(e.a));
   const digSane = (d) => {
     if (!d || typeof d !== 'object' || !INT(d.n) || !INT(d.refuse) || !Number.isFinite(d.at)) return null;
     const o = { n: d.n, refuse: d.refuse, freeC: INT(d.freeC) ? d.freeC : 0, at: d.at, by: d.by == null ? null : String(d.by).slice(0, 64), dmin: INT(d.dmin) ? d.dmin : 99, part: d.part ? 1 : 0,
@@ -195,7 +205,7 @@
     for (const [f, K, kind] of lists) {
       const a = d[f]; if (a === undefined) continue;
       if (!Array.isArray(a) || a.length > K || !a.every((e) => saneLE(e, kind))) return null;
-      o[f] = a.map((e) => { const c = { id: e.id, k: e.k }; if (e.f !== undefined) c.f = e.f; if (e.nm !== undefined) c.nm = e.nm; if (e.s !== undefined) c.s = e.s; return c; });
+      o[f] = a.map((e) => { const c = { id: e.id, k: e.k }; if (e.f !== undefined) c.f = e.f; if (e.nm !== undefined) c.nm = e.nm; if (e.dv !== undefined) c.dv = e.dv; if (e.a !== undefined) c.a = copyAd(e.a); return c; });
     }
     if (d.votes !== undefined) {
       if (!Array.isArray(d.votes) || d.votes.length > K_VOTE || !d.votes.every((v) => v && STR(v.tgt, 16) && INT(v.up) && v.up >= 0 && INT(v.dn) && v.dn >= 0)) return null;
@@ -203,8 +213,9 @@
     }
     return o;
   };
+  const leCopy = (e) => { const c = Object.assign({}, e); if (e.a) c.a = Object.assign({}, e.a); return c; };
   const digCopy = (d) => ({ n: d.n, refuse: d.refuse, freeC: d.freeC, at: d.at, by: d.by, dmin: d.dmin, part: d.part, handN: d.handN || 0, awayN: d.awayN || 0,
-    hands: (d.hands || []).map((e) => Object.assign({}, e)), stage: (d.stage || []).map((e) => Object.assign({}, e)), apps: (d.apps || []).map((e) => Object.assign({}, e)), votes: (d.votes || []).map((v) => ({ tgt: v.tgt, up: v.up, dn: v.dn })) });
+    hands: (d.hands || []).map(leCopy), stage: (d.stage || []).map(leCopy), apps: (d.apps || []).map(leCopy), votes: (d.votes || []).map((v) => ({ tgt: v.tgt, up: v.up, dn: v.dn })) });
 
   // A Section-1 key has pc==0 — its string ckey starts "0_".
   const isS1key = (k) => k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95;
@@ -322,7 +333,7 @@
       // § G9 MY OWN leaf facts (setLeaf — the application's, never a digest's):
       // hand/stage/app times, stage flags, my short name and app session id,
       // away, and my votes (device tags).
-      this.leaf = { hand: 0, stage: 0, sf: 0, app: 0, as: '', nm: '', away: false, vup: [], vdn: [] };
+      this.leaf = { hand: 0, stage: 0, sf: 0, app: 0, ad: null, nm: '', dv: '', away: false, vup: [], vdn: [] };
       this.upLogI = 0; this.upSince = -1; this.lastAgg = null; this.emptyEcho = 0;
       this.downUsed = dig0(); this.rowUsed = new Map();
       this.digMismatch = 0;      // refutations I have raised (mine only — no votes, G4)
@@ -1621,8 +1632,9 @@
       if ('stage' in f) L.stage = Number.isFinite(f.stage) && f.stage > 0 ? f.stage : 0;
       if ('sf' in f) L.sf = Number.isInteger(f.sf) ? f.sf & 7 : 0;
       if ('app' in f) L.app = Number.isFinite(f.app) && f.app > 0 ? f.app : 0;
-      if ('as' in f) L.as = str(f.as, 64);
+      if ('ad' in f) L.ad = f.ad && saneAd(f.ad) ? copyAd(f.ad) : null;
       if ('nm' in f) L.nm = str(f.nm, 24);
+      if ('dv' in f) L.dv = str(f.dv, 16);
       if ('away' in f) L.away = !!f.away;
       if ('vup' in f) L.vup = tags(f.vup);
       if ('vdn' in f) L.vdn = tags(f.vdn);
@@ -1691,8 +1703,8 @@
         // G9 my own leaf facts. An away device sits out voting — its votes and its place in the denominator both.
         const L = this.leaf;
         if (L.hand) { d.handN = 1; d.hands.push({ id: this.id, k: L.hand, nm: L.nm }); }
-        if (L.stage) d.stage.push({ id: this.id, k: L.stage, f: L.sf, nm: L.nm });
-        if (L.app) d.apps.push({ id: this.id, k: L.app, s: L.as });
+        if (L.stage) d.stage.push({ id: this.id, k: L.stage, f: L.sf, nm: L.nm, dv: L.dv });
+        if (L.app && L.ad) d.apps.push({ id: this.id, k: L.app, a: copyAd(L.ad) });
         if (L.away) d.awayN = 1;
         else { for (const t of L.vup) voteAdd(d.votes, { tgt: t, up: 1, dn: 0 }); for (const t of L.vdn) voteAdd(d.votes, { tgt: t, up: 0, dn: 1 }); }
         // G7 free-space, MEASURED ONLY: how many of my owned child row's cells

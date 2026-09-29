@@ -1160,7 +1160,7 @@ firing on a lying aggregator *and only there* (G4) with the seating trajectory
 unchanged (G5), and the O(C) gauges under churn. The sim's gauge verb is
 `digest`; `digeston 0|1`, `refuse`, and `lie` are its knobs.
 
-`test/mesh/digest.js` (83 assertions) is the same gate against the BROWSER twin
+`test/mesh/digest.js` (86 assertions) is the same gate against the BROWSER twin
 (`site/js/mesh.js`), over `mesh-harness.js`'s fabric. The port landed 2026-08-06
 — a faithful one: same function names, same constants (DIG_TTL 60, DIG_LOSS_H
 300), nothing redesigned. **It is flag-gated and DEFAULT OFF** (`env.DIGEST`;
