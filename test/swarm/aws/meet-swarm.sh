@@ -2,6 +2,7 @@
 # meet-swarm.sh — a 1,000-bot GifOS meeting on disposable EC2 boxes, for minutes.
 #
 #   meet-swarm.sh relay            relay box: relay-local.js behind Caddy, wss://<ip>.sslip.io
+#                                  (SITE=1: it also serves site/ at GIFOS_REF — an unreleased branch at scale)
 #   meet-swarm.sh bots <boxes>     bot boxes, SHARDS x PER_SHARD bots each, all on https://gifos.app
 #   meet-swarm.sh world            one bot box in EVERY enabled region (MARKET=spot: the Spot bucket)
 #   meet-swarm.sh status           per-box load + seated census, summed (home region)
@@ -63,18 +64,21 @@ case "${1:-}" in
 relay)
   aws ec2 authorize-security-group-ingress --region $REGION --group-id $HOME_SG \
     --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$MYIP/32,Description=$TAG}]" >/dev/null 2>&1
-  sed -e "s|__TTL_MIN__|$RELAY_TTL_MIN|g" -e "s|__SHA__|$SHA|g" relay-userdata.sh > $OUT/relay-ud.sh
+  sed -e "s|__TTL_MIN__|$RELAY_TTL_MIN|g" -e "s|__SHA__|$SHA|g" -e "s|__SITE__|${SITE:-0}|g" relay-userdata.sh > $OUT/relay-ud.sh
   launch relay $RELAY_TYPE 1 $OUT/relay-ud.sh || exit 1
   for i in $(seq 1 40); do IP=$(ips relay); [ -n "$IP" ] && break; sleep 3; done
   HOST="${IP//./-}.sslip.io"; echo "relay $IP — waiting for wss://$HOST"
   for i in $(seq 1 60); do
     code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' "https://$HOST/")
-    [ "$code" != 000 ] && { echo "wss://$HOST" > $OUT/relay; echo "RELAY UP wss://$HOST (https $code)"; exit 0; }
+    if [ "${SITE:-0}" = 1 ]; then code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' "https://$HOST/run.html"); [ "$code" = 200 ] || { sleep 5; continue; }
+      echo "https://$HOST" > $OUT/site; fi
+    [ "$code" != 000 ] && { echo "wss://$HOST" > $OUT/relay; echo "RELAY UP wss://$HOST (https $code)${SITE:+ — site https://$HOST/run.html}"; exit 0; }
     sleep 5
   done
   echo "relay never answered on https — ssh ubuntu@$IP, see /var/log/swarm-boot.log caddy.log" >&2; exit 1 ;;
 bots)
   BOXES=${2:?boxes}; RELAY=$(cat $OUT/relay) || exit 1
+  SITEBASE=$(cat $OUT/site 2>/dev/null)   # set by \`SITE=1 meet-swarm.sh relay\`: the bots load THAT build
   NEXT=${BOX_BASE:-$(cat $OUT/next 2>/dev/null || echo 0)}
   VF=$( [ "$VIDEOS" = 1 ] && tr '\n' ' ' < video-files.txt )
   # BOT_TYPES is a fallback list (not every region sells every family); a
@@ -85,7 +89,7 @@ bots)
     sed -e "s|__TTL_MIN__|$TTL_MIN|g" -e "s|__SHA__|$SHA|g" -e "s|__PW__|$PW|g" -e "s|__VIDEOS__|$VIDEOS|g" \
         -e "s|__VIDEO_FILES__|$VF|g" -e "s|__BOX_BASE__|$NEXT|g" -e "s|__SHARDS__|$SH|g" \
         -e "s|__PER_SHARD__|$PER_SHARD|g" -e "s|__ROOM__|$ROOM|g" -e "s|__RELAY__|$RELAY|g" \
-        -e "s|__RAMP__|$RAMP|g" -e "s|__EXTRA__|--pass $PASS $EXTRA|g" bot-userdata.sh > $UD
+        -e "s|__RAMP__|$RAMP|g" -e "s|__EXTRA__|--pass $PASS ${SITEBASE:+--base $SITEBASE} $EXTRA|g" bot-userdata.sh > $UD
     if out=$(launch bots $T $BOXES $UD 2>&1); then
       echo "$REGION ${MARKET:-on-demand}: $BOXES x $T, bots $NEXT…$((NEXT + BOXES*SH*PER_SHARD - 1))"
       echo $REGION >> $OUT/regions
@@ -128,6 +132,6 @@ down)
     --filters Name=tag-key,Values=$TAG Name=instance-state-name,Values=pending,running \
     --query 'length(Reservations[].Instances[])' --output text); left=$((left + n)); done
   echo "still pending/running across all regions: $left"
-  rm -f $OUT/room $OUT/relay $OUT/next $OUT/regions ;;
+  rm -f $OUT/room $OUT/relay $OUT/site $OUT/next $OUT/regions ;;
 *) sed -n 2,9p "$0"; exit 1 ;;
 esac

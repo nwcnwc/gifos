@@ -2,6 +2,9 @@
 # Relay box: relay-local.js (RELAY_DEV=1, no per-IP caps) behind Caddy, which
 # gets a real certificate for <ip-with-dashes>.sslip.io, so https://gifos.app
 # pages — the bots' and a real person's — can reach it as wss://.
+# __SITE__=1 (meet-swarm.sh SITE=1): the same host ALSO serves site/ at the
+# swarm's commit, so a branch that is not released can be run at scale —
+# https://<host>/run.html is that build, and upgrades go to the relay.
 exec > /var/log/swarm-boot.log 2>&1
 set -x
 shutdown -h +__TTL_MIN__          # dead-man switch; shutdown behaviour is terminate
@@ -18,5 +21,14 @@ curl -fsSL "$CADDY" | tar -xz -C /usr/local/bin caddy
 curl -fsSLo relay-local.js "https://raw.githubusercontent.com/nwcnwc/gifos/__SHA__/test/servers/relay-local.js"
 ulimit -n 65536
 RELAY_DEV=1 RELAY_HOST=127.0.0.1 RELAY_PORT=8795 nohup node relay-local.js > /var/log/relay.log 2>&1 &
-nohup caddy reverse-proxy --from "$HOST" --to 127.0.0.1:8795 > /var/log/caddy.log 2>&1 &
+if [ "__SITE__" = 1 ]; then
+  git clone -q --depth 1 --filter=blob:none --no-checkout https://github.com/nwcnwc/gifos.git /opt/gifos \
+    && git -C /opt/gifos fetch -q --depth 1 origin __SHA__ \
+    && git -C /opt/gifos sparse-checkout set --no-cone '/site/' '!/site/apps/' '!/site/versions/' \
+    && git -C /opt/gifos checkout -q FETCH_HEAD
+  printf '%s {\n  @ws header Connection *Upgrade*\n  reverse_proxy @ws 127.0.0.1:8795\n  root * /opt/gifos/site\n  file_server\n}\n' "$HOST" > /opt/Caddyfile
+  nohup caddy run --config /opt/Caddyfile --adapter caddyfile > /var/log/caddy.log 2>&1 &
+else
+  nohup caddy reverse-proxy --from "$HOST" --to 127.0.0.1:8795 > /var/log/caddy.log 2>&1 &
+fi
 echo "READY wss://$HOST" > /var/log/swarm-ready
