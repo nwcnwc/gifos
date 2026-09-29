@@ -1248,8 +1248,8 @@ bool Seat::upRefuted(const Dig& pub,const Dig& echo,int base){
   // changes.
   if(echo.at<0){ emptyEcho++; digArm=3; return emptyEcho>2*DIG_TTL/8; }
   emptyEcho=0;
+  if(echo.by!=id) return false;   // the echo names a DIFFERENT author — my cell's previous occupant's report, not mine. Not evidence. (Checked BEFORE its age: that report's stamp is on ITS author's clock, not mine.)
   if(LT()-echo.at>2*DIG_TTL){ digArm=3; return true; }   // echo.at is MY stamp on the report it names — read on my own clock
-  if(echo.by!=id) return false;   // the echo names a DIFFERENT author — my cell's previous occupant's report, not mine. Not evidence.
   const UpRec* r=nullptr; for(int q=0;q<16;q++) if(upLog[q].at==echo.at){ r=&upLog[q]; break; }
   if(!r) return false;                                     // older than my ring — no record, so no accusation
   if(echo.n!=r->n || echo.refuse!=r->refuse || digListHash(echo)!=r->lh){ digArm=1; return true; }  // (1) — the lists too (G9)

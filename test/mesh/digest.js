@@ -136,7 +136,7 @@ leg('2) ON == OFF — G0/G1 trajectory identity, frame for frame');
 // through join, a kill and the heal that follows. The digest may add bytes to
 // four frames; it may not add a frame, drop a frame, reorder a frame, or change
 // one field of any frame's meaning.
-const DIG_FIELDS = ['dgUp', 'dgPub', 'dgEcho', 'dgRoot', 'digs'];
+const DIG_FIELDS = ['dgUp', 'dgPub', 'dgEcho', 'dgRoot', 'digs', 'dw']; // dw: "send me that digest whole" — digest payload like the rest
 // Canonical form: keys sorted (the ON path builds PONG as an object then adds
 // digest fields, so raw key ORDER differs while the frame does not), digest
 // payload removed, and the volatile `to`/`from` the fabric stamps kept — they
@@ -576,6 +576,43 @@ for (const N of [20, 150]) {
   const d = digStat(env);
   console.log(`  negative control (absolute stamps): exact ${d.exact}/${d.obs}, rootMax ${d.rmax}, mismatch ${d.mism}`);
   check('the absolute-stamp control COLLAPSES under skew — the leg measures clocks', d.exact < d.obs, { exact: d.exact, obs: d.obs });
+}
+
+leg('13) THE STUB — unchanged digests cost a hash, and a lost copy costs freshness, never truth');
+// The unechoed digests (room fold on PONG, Section-1 table on S1SYNC, the rook
+// peers' section digests) go whole only on change or on request (`dw`).
+{
+  const { env } = settledRoom(150);
+  setFacts(env); run(env, 800);
+  const s1 = liveSeats(env).filter((s) => s.coord.pc === 0);
+  let whole = 0, stub = 0, s1bytes = 0; const base = env.send;
+  const s1ids = new Set(s1.map((s) => s.id));
+  env.send = (f, t, m) => {
+    if (m.t === 'S1SYNC' && m.digs) for (const e of m.digs) { if (e.d && e.d.stub === 1) stub++; else whole++; }
+    if (m.dgRoot) { if (m.dgRoot.stub === 1) stub++; else whole++; }
+    if (s1ids.has(f)) s1bytes += JSON.stringify(m).length;
+    base(f, t, m);
+  };
+  run(env, 160);
+  check(`a settled room sends stubs, not copies (${stub} stubs, ${whole} whole)`, stub > 0 && whole <= stub / 20, { stub, whole });
+  const per = s1bytes / s1.length / 160;
+  check(`a Section-1 seat's control traffic with the lists in use: ${per.toFixed(0)} bytes/tick (bound 8000)`, per < 8000, { per });
+  const d0 = digStat(env), l0 = listStat(env).o;
+  check('…and every observer still holds the exact room', d0.exact === d0.obs && l0.hand === l0.obs && l0.vote === l0.obs && l0.app === l0.obs, { d0, l0 });
+  // A seat that lost everything it held (a reload's worth) must be whole again
+  // within a few periods: its stubs mismatch, it asks (dw), the copies come.
+  const amn = s1[3]; amn.s1tab.clear(); amn.rootDig = M.dig0 ? M.dig0() : Object.assign({}, amn.rootDig, { at: -1, n: 0 });
+  const deepAmn = liveSeats(env).find((s) => s.coord.pc !== 0); const keepN = deepAmn.rootDig.n; deepAmn.rootDig = Object.assign({}, deepAmn.rootDig, { at: -1, rx: -1, n: 0, hands: [], stage: [], apps: [], votes: [] });
+  whole = 0; stub = 0;
+  run(env, 40);
+  check(`an amnesiac Section-1 seat is whole again inside 40 ticks (table ${amn.s1tab.size}/24, root n ${amn.rootDig.n})`, amn.s1tab.size >= 24 && amn.rootDig.n === d0.trueSeated, { tab: amn.s1tab.size, n: amn.rootDig.n, whole });
+  check(`…and so is a deep seat that lost the room fold (n ${deepAmn.rootDig.n})`, deepAmn.rootDig.n === keepN && deepAmn.rootDig.at >= 0, { n: deepAmn.rootDig.n, keepN });
+  // Content CHANGES travel whole: one new hand must reach every observer.
+  const who = liveSeats(env).find((s) => s.coord.pc !== 0 && !s.leaf.hand); who.setLeaf({ hand: 1, nm: 'first' });
+  run(env, 400);
+  const l1 = listStat(env).o;
+  check('a change after the stubs began still reaches every observer exactly', l1.hand === l1.obs && l1.handN === l1.obs, l1);
+  env.send = base;
 }
 
 console.log(`  [leg took ${((Date.now() - legAt) / 1000).toFixed(1)}s]`);

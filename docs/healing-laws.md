@@ -971,6 +971,26 @@ because every fold discarded every child report as stale. `net skew=S` (sim) and
 reading survives as a NEGATIVE CONTROL (`digabs 1` / `env.DIG_ABS`) that must
 collapse (measured: 0 of 600 observers exact, 30,916 false refutations).
 
+**G0c. The wire form may shrink a digest; it may never change what is read.**
+(2026-09-29.) Three cuts, all in the browser twin's wire boundary:
+- Fields still at their default stay off the wire.
+- The author id is dropped from the digests nobody echoes.
+- A STUB replaces an unechoed digest whose content has not changed since the
+  last whole copy to that peer. The unechoed digests are the room fold on
+  PONG, the Section-1 table on S1SYNC and the section digest rook peers
+  exchange. A stub is `{stub, at, ag, h}`, where `h` is a hash of the content.
+  The receiver recomputes `h` over what it holds. A match refreshes the
+  entry's age. A mismatch is ignored and answered with `dw`, the slots it
+  wants whole, on the next frame it already sends that peer (G0: no new
+  frame). A whole copy also goes every 240 ticks as the backstop for a lost
+  request.
+
+G4's subjects (dgUp to an aggregator, dgPub, dgEcho) are never stubbed. A lost
+copy costs freshness inside DIG_TTL, never truth. Measured on a settled room of
+150 with every list at its cap: a Section-1 seat's control traffic fell from
+88,878 to 5,773 bytes per tick, which is the pre-digest S1SYNC occupancy table
+plus stubs. `test/mesh/digest.js` leg 13 pins it.
+
 **G1. Digests inform DISPLAY, never ACTUATION.** This is E2's discipline
 ("gossip informs routing, NEVER evicts") generalized one level up: a digest may
 never evict, resurrect, seat, move, admit, heal, or release any privacy-bearing
@@ -1160,6 +1180,14 @@ the harm is no worse than the flood it replaces: flooded statuses were never
 author-signed, so any member could forge any other member's votes, hands and
 stage flag outright.
 
+**The vote bar is the one place `n` is read as a number (accepted residual of
+G2).** Past one section the stage-vote threshold is a majority of the folded
+room minus its away devices. No first-hand count of a room past one section
+exists, and the votes it is measured against ride the same fold, clamped by the
+same `n`: to inflate a vote a liar must inflate the count, which raises the bar
+with it. An inflated `n` can make a vote unpassable and a deflated one cheap;
+neither evicts, seats or unblurs anyone (G1).
+
 **G1 still holds.** HAND, APP and VOTE inform display and self-owned acts (a
 target steps itself down on a tally about itself). STAGE feeds the Section-1
 strip packing, which today reads the same second-hand flooded flags; the
@@ -1177,7 +1205,7 @@ unchanged (G5), the O(C) gauges under churn, and every one of those again with
 every seat on its own clock (G0b, leg 11). The sim's gauge verb is `digest`;
 `digeston 0|1`, `refuse`, `lie`, `net skew=` and `digabs` are its knobs.
 
-`test/mesh/digest.js` (98 assertions) is the same gate against the BROWSER twin
+`test/mesh/digest.js` (104 assertions) is the same gate against the BROWSER twin
 (`site/js/mesh.js`), over `mesh-harness.js`'s fabric. The port landed 2026-08-06
 — a faithful one: same function names, same constants (DIG_TTL 60, DIG_LOSS_H
 300), nothing redesigned. It shipped flag-gated and default OFF (`env.DIGEST`;
