@@ -100,6 +100,7 @@
     return out;
   }
   const wholeCents = (units) => BigInt(units) % CENT === 0n;
+  const MPP_MIN = 50n * CENT;   // Stripe's card minimum, $0.50, in base units
   // Exact USDC, six decimals, for the transfer rail — the buyer must send
   // EXACTLY this, dust and all, so nothing here may round or trim.
   function fmtUsdcExact(units) {
@@ -124,6 +125,47 @@
       verdicts.set(key, Promise.resolve().then(() => GifOS.sign.verify(bytes)).catch((e) => ({ status: 'unverified', detail: String(e && e.message || e) })));
     }
     return verdicts.get(key);
+  }
+
+  // ---- the signature PROOF the Worker verifies ------------------------------
+  // The Worker never looks the app up in the store: every request that starts
+  // a payment carries this proof (the picture, the manifest, every other
+  // file's hash — gifos-sign.js proofOf), and the Worker checks it against
+  // the author's own key. Built once per BYTES, like the verdict above.
+  const proofs = new Map();
+  async function proofFor(appBytes) {
+    const bytes = appBytes instanceof Uint8Array ? appBytes : new Uint8Array(appBytes || 0);
+    let key;
+    try { key = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), (b) => b.toString(16).padStart(2, '0')).join(''); }
+    catch (e) { key = 'len:' + bytes.length; }
+    if (!proofs.has(key)) {
+      const p = GifOS.sign.proofOf(bytes);
+      proofs.set(key, p);
+      p.catch(() => proofs.delete(key));
+    }
+    return proofs.get(key);
+  }
+
+  // Which of the author's allowed rails the Worker can process right now
+  // (provider configured, registry, onboarding, PayPal's partner approval).
+  // The sheet draws only those, so nobody picks a rail that refuses them
+  // after the click. Returns { accepted: {rail: true}, why: {rail: reason} }.
+  async function railsNow(proof) {
+    let r;
+    try {
+      r = await fetch(workerBase() + '/rails', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proof }),
+      });
+    } catch (e) { throw new Error('payments cannot be reached right now — check your connection and try again'); }
+    let body = null; try { body = await r.json(); } catch (e) {}
+    if (!r.ok) throw new Error((body && body.error) || ('payments are unavailable right now (HTTP ' + r.status + ')'));
+    const accepted = {}, why = {};
+    for (const rail of Object.keys((body && body.rails) || {})) {
+      const s = body.rails[rail];
+      if (s && s.ok === true) accepted[rail] = true; else why[rail] = (s && s.why) || 'unavailable';
+    }
+    return { accepted, why };
   }
 
   // ---- receipt ↔ request binding -----------------------------------------------
@@ -187,6 +229,8 @@
       const walletReady = !!(GifOS.payWallet && GifOS.payWallet.available());
       const canPaypal = !!sheetData.rails.paypal && wholeCents(sheetData.amount);
       const canX402 = !!sheetData.rails.x402;
+      // Stripe takes whole cents and nothing under $0.50.
+      const canMpp = !!sheetData.rails.mpp && wholeCents(sheetData.amount) && BigInt(sheetData.amount) >= MPP_MIN;
       box.innerHTML =
         '<h3 style="margin:0 0 .35rem;font-size:1.1rem">' + esc(sheetData.app || 'This app') + ' asks you to pay</h3>' +
         '<p style="margin:0 0 .8rem;color:#b6b6cf;font-size:.9rem">' + esc(sheetData.reason) + '</p>' +
@@ -202,6 +246,7 @@
           (canX402 ? '<button id="gp-x402" ' + (walletReady ? '' : 'disabled ') + 'style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:' + (walletReady ? '#1652f0' : '#20203255') + ';color:' + (walletReady ? '#fff' : '#9a9ab5') + ';cursor:' + (walletReady ? 'pointer' : 'default') + ';font:inherit">Pay with USDC — connected wallet' + (walletReady ? '' : ' (none yet)') + '</button>' : '') +
           (sheetData.rails.transfer ? '<button id="gp-transfer" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:#1d1d2c;color:#e8e8f4;cursor:pointer;font:inherit">Send USDC from any wallet (RockWallet, …)</button>' : '') +
           (sheetData.rails.fednow ? '<button id="gp-fednow" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:#1d1d2c;color:#e8e8f4;cursor:pointer;font:inherit">Pay from your bank (FedNow)</button>' : '') +
+          (canMpp ? '<button id="gp-mpp" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:#1d1d2c;color:#e8e8f4;cursor:pointer;font:inherit">Pay with your AI agent (Stripe Link)</button>' : '') +
           '<button id="gp-decline" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">No thanks</button>' +
         '</div>' +
         '<div id="gp-status" style="display:none;color:#b6b6cf;font-size:.9rem;margin-top:.8rem"></div>';
@@ -240,6 +285,13 @@
         if (amt == null) return;
         done({ rail: 'transfer', amount: amt });
       };
+      const mb = box.querySelector('#gp-mpp');
+      if (mb) mb.onclick = () => {
+        const amt = amountNow();
+        if (amt == null) return;
+        if (amt < MPP_MIN) { const st = box.querySelector('#gp-status'); st.style.display = 'block'; st.textContent = 'An AI agent pays by card through Stripe, which takes nothing under $0.50.'; return; }
+        done({ rail: 'mpp', amount: amt });
+      };
       const fb = box.querySelector('#gp-fednow');
       if (fb) fb.onclick = () => {
         const amt = amountNow();
@@ -274,14 +326,14 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---- the PayPal rail -------------------------------------------------------
-  async function payWithPaypal(manifest, sheetData, amount, win) {
+  async function payWithPaypal(manifest, sheetData, amount, win, proof) {
     const base = workerBase();
     const busyUi = showBusy('Starting the PayPal checkout…');
     try {
       const r = await fetch(base + '/checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          appId: manifest.appId,
+          proof,
           amount: String(amount),
           sku: sheetData.sku || null,
           reason: sheetData.reason,
@@ -328,7 +380,7 @@
   // TWO transfers from ONE approval — the 97/3 split needs no contract because
   // this broker constructs the payment (docs/payments.md). The wallet adapter
   // signs; the Worker's facilitator endpoint settles. Testnet only.
-  async function payWithX402(manifest, sheetData, amount) {
+  async function payWithX402(manifest, sheetData, amount, proof) {
     const wallet = GifOS.payWallet;
     if (!wallet || !wallet.available()) throw new Error('no wallet is available on this computer');
     const base = workerBase();
@@ -350,7 +402,7 @@
       busyUi.say('Settling on Base Sepolia…');
       const r = await fetch(base + '/x402/settle', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appId: manifest.appId, sku: sheetData.sku || null, amount: String(amount), transfers, payloads }),
+        body: JSON.stringify({ proof, sku: sheetData.sku || null, amount: String(amount), transfers, payloads }),
       });
       if (!r.ok) throw new Error('settlement failed (HTTP ' + r.status + '): ' + (await r.text()).slice(0, 200));
       const body = await r.json(); // { status, receiptJson, sig }
@@ -412,11 +464,11 @@
     return api;
   }
 
-  async function payWithTransfer(manifest, sheetData, amount) {
+  async function payWithTransfer(manifest, sheetData, amount, proof) {
     const base = workerBase();
     const r = await fetch(base + '/transfer/invoice', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ appId: manifest.appId, amount: String(amount), sku: sheetData.sku || null, reason: sheetData.reason }),
+      body: JSON.stringify({ proof, amount: String(amount), sku: sheetData.sku || null, reason: sheetData.reason }),
     });
     if (!r.ok) throw new Error('could not start the transfer (HTTP ' + r.status + '): ' + (await r.text()).slice(0, 200));
     const inv = await r.json();
@@ -457,17 +509,81 @@
     } finally { ui.close(); }
   }
 
+  // ---- the AGENT rail: a checkout link for the person's AI agent ------------
+  // The Worker mints a signed offer for exactly this purchase; the person
+  // hands its link to their agent (anything running Stripe's Link wallet —
+  // `link-cli mpp pay <link>`), approves the spend in the Link app, and this
+  // screen finishes on its own: it polls /mpp/status with the one-time claim
+  // only this page holds. One link pays once. Stripe's search can trail a
+  // settled payment by up to a minute, so the wait says so.
+  function showAgentSheet(url) {
+    const doc = root.document;
+    const old = doc.getElementById('gifos-pay-agent'); if (old) old.remove();
+    const bg = doc.createElement('div'); bg.id = 'gifos-pay-agent';
+    bg.setAttribute('style', 'position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1.2rem;');
+    const box = doc.createElement('div');
+    box.setAttribute('style', 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.8rem;max-width:26rem;width:100%;padding:1.2rem;font:15px/1.55 system-ui,-apple-system,sans-serif;');
+    box.innerHTML =
+      '<h3 style="margin:0 0 .35rem;font-size:1.05rem">Pay with your AI agent</h3>' +
+      '<p style="margin:0 0 .8rem;color:#b6b6cf;font-size:.86rem">Give this link to your AI agent (any agent with a Stripe Link wallet). It asks you to approve the payment in the <b>Link app</b> — that approval is the only way it can pay. This screen finishes on its own once it has. The link pays once, and works for 24 hours.</p>' +
+      '<div style="background:#0e0e17;border:1px solid #23233a;border-radius:.6rem;padding:.7rem .8rem;margin-bottom:.8rem">' +
+        '<div id="gpa-url" style="font-size:.72rem;word-break:break-all;color:#cfcfe6;max-height:4.6rem;overflow:auto">' + esc(url) + '</div>' +
+        '<button id="gpa-copy" style="margin-top:.5rem;padding:.25rem .7rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.8rem">Copy link</button>' +
+      '</div>' +
+      '<p id="gpa-status" style="color:#b6b6cf;font-size:.86rem;margin:0 0 .8rem">Waiting for your agent to pay… (a payment can take up to a minute to show here)</p>' +
+      '<div style="text-align:right"><button id="gpa-cancel" style="padding:.5rem 1.2rem;border-radius:.5rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">Cancel</button></div>';
+    bg.appendChild(box); doc.body.appendChild(bg);
+    const cp = box.querySelector('#gpa-copy');
+    cp.onclick = () => { try { root.navigator.clipboard.writeText(url); cp.textContent = 'Copied'; } catch (e) {} };
+    let cancelled = false;
+    box.querySelector('#gpa-cancel').onclick = () => { cancelled = true; };
+    return { cancelled: () => cancelled, close: () => bg.remove() };
+  }
+
+  async function payWithAgent(manifest, sheetData, amount, proof) {
+    const base = workerBase();
+    const r = await fetch(base + '/mpp/offer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proof, amount: String(amount), sku: sheetData.sku || null }),
+    });
+    let offer = null; try { offer = await r.json(); } catch (e) {}
+    if (!r.ok || !offer || !offer.url || !offer.token || !offer.claim) throw new Error('could not start the agent checkout: ' + ((offer && offer.error) || ('HTTP ' + r.status)));
+    const ui = showAgentSheet(offer.url);
+    try {
+      const deadline = Math.min(Number(offer.exp) || 0, Date.now() + 30 * 60 * 1000);
+      while (Date.now() < deadline) {
+        if (ui.cancelled()) throw new Error(GifOS.charge.DECLINED);
+        const rr = await fetch(base + '/mpp/status', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ offer: offer.token, claim: offer.claim }),
+        }).catch(() => null);
+        if (rr && rr.ok) {
+          const body = await rr.json();
+          if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
+            const receipt = await verifyReceipt(body.receiptJson, body.sig);
+            bindReceipt(receipt, manifest, sheetData, amount, 'mpp');
+            return { receipt, receiptJson: body.receiptJson, sig: body.sig };
+          }
+        } else if (rr && rr.status === 410) {
+          throw new Error('the agent checkout link expired — start the payment again');
+        }
+        await sleep(3000);
+      }
+      throw new Error('the agent did not pay in time — start the payment again');
+    } finally { ui.close(); }
+  }
+
   // ---- the FedNow rail ------------------------------------------------------
   // A Request-for-Payment through the provider; the human approves it in
   // their own banking app — there is nothing of ours to render there, so this
   // side only says what to do and waits for the settled receipt.
-  async function payWithFednow(manifest, sheetData, amount) {
+  async function payWithFednow(manifest, sheetData, amount, proof) {
     const base = workerBase();
     const busyUi = showBusy('Sending the payment request to your bank…');
     try {
       const r = await fetch(base + '/fednow/rfp', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appId: manifest.appId, amount: String(amount), sku: sheetData.sku || null, reason: sheetData.reason }),
+        body: JSON.stringify({ proof, amount: String(amount), sku: sheetData.sku || null, reason: sheetData.reason }),
       });
       if (!r.ok) throw new Error('bank payment not available: ' + (await r.text()).slice(0, 200));
       const rfp = await r.json();
@@ -503,8 +619,16 @@
       maxAmount: maxAmountFor(manifest.appId),
       entitled: (sku) => p.entitled(manifest.appId, sku),
     });
-    const sheetData = GifOS.charge.sheet(elig, request, appName || manifest.name);
-    if (!sheetData.rails.paypal && !sheetData.rails.x402) throw new Error('this app has no rail it can be paid on');
+    // The proof is what the Worker verifies instead of consulting the store;
+    // /rails narrows the author's allowed rails to what can be processed now.
+    const proof = await proofFor(appBytes);
+    const now = await railsNow(proof);
+    const sheetData = GifOS.charge.sheet(elig, request, appName || manifest.name, now.accepted);
+    const r = sheetData.rails;
+    if (!r.paypal && !r.x402 && !r.transfer && !r.fednow && !r.mpp) {
+      const reasons = elig.rails.map((k) => now.why[k]).filter(Boolean);
+      throw new Error('this app cannot be paid right now: ' + (reasons.length ? reasons.join('; ') : 'no payment method is available'));
+    }
 
     const choice = await showSheet(sheetData);
     if (choice.declined) throw new Error(GifOS.charge.DECLINED);
@@ -516,10 +640,11 @@
     if (choice.amount > cap) throw new Error('that amount is over this app’s ceiling (' + fmtUsd(cap) + ')');
     sheetData.amount = String(choice.amount);
 
-    const paid = choice.rail === 'paypal' ? await payWithPaypal(manifest, sheetData, choice.amount, choice.win)
-      : choice.rail === 'x402' ? await payWithX402(manifest, sheetData, choice.amount)
-      : choice.rail === 'transfer' ? await payWithTransfer(manifest, sheetData, choice.amount)
-      : await payWithFednow(manifest, sheetData, choice.amount);
+    const paid = choice.rail === 'paypal' ? await payWithPaypal(manifest, sheetData, choice.amount, choice.win, proof)
+      : choice.rail === 'x402' ? await payWithX402(manifest, sheetData, choice.amount, proof)
+      : choice.rail === 'transfer' ? await payWithTransfer(manifest, sheetData, choice.amount, proof)
+      : choice.rail === 'mpp' ? await payWithAgent(manifest, sheetData, choice.amount, proof)
+      : await payWithFednow(manifest, sheetData, choice.amount, proof);
     const receipt = paid.receipt;
 
     // Record: entitlement (if a sku), then the ledger line. The receipt the

@@ -268,6 +268,14 @@
                 + (size ? ', about <b>' + escapeText(size) + '</b> if you take every one' : '') + '.</span>' : ''))
               + extra + '</div>';
           }
+          if (k === 'pay') {
+            // The author's own list of payment methods, from the signed
+            // manifest: true = PayPal only, else exactly the rails named.
+            var PAY_NAMES = { paypal: 'PayPal', x402: 'USDC (connected wallet)', transfer: 'USDC (any wallet)', fednow: 'bank transfer (FedNow)', mpp: 'AI agents' };
+            var pv = (manifest.capabilities || {}).pay;
+            var how = pv === true ? ['PayPal'] : (Array.isArray(pv) ? pv.map(function (r) { return PAY_NAMES[r] || String(r); }) : []);
+            return capRow(k, CAP_LABELS.pay + (how.length ? ' <span class="host" style="font-weight:400">— ' + escapeText(how.join(', ')) + '</span>' : ''), CAP_DESC.pay);
+          }
           return capRow(k, CAP_LABELS[k], CAP_DESC[k]);
         }).join('');
       }

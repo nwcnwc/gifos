@@ -147,6 +147,7 @@ mandatory; everything else defaults sensibly.
      "minBuild": 947,             // store-listed apps only; see "App Store"
      "requires": ["ai"],          // optional; block launch until set up (see below)
      "capabilities": { ... },     // see the table
+     "pay": { "to": "0x…" },      // USDC payout address (see "PAYMENTS")
      "data": { ... },             // per-collection visibility (see "Multiplayer")
      "lead": [ ... ],             // optional leader/communal toggle (see "Multiplayer")
      "launch": { ... },           // optional link arguments (see "Sharing")
@@ -179,6 +180,11 @@ names the missing declaration.
    "fullscreen": true               requestFullscreen + orientation lock
    "links": true                    open a tapped link in a new browser tab
    "agent": true                    inject the GifOS assistant bar
+   "pay": ["paypal","x402"]         take payments — gifos.charge. true =
+                                    PayPal ONLY; any other method must be
+                                    listed. Use ["paypal","x402"] — the
+                                    two open to every author (see
+                                    "PAYMENTS"). The app must be SIGNED.
 
 What the sandbox capabilities actually unlock (and nothing else):
    - wasm: the CSP gains 'wasm-unsafe-eval', worker-src blob: (run the
@@ -346,6 +352,59 @@ AI — gifos.ai  [capabilities.ai — declare the ROLES you use as an array]
    await gifos.ai.imageToVideo({ prompt, image, size, seconds }) -> same
    (video shapes are provider-specific — no settled standard; poll/render
     whatever comes back.)
+
+PAYMENTS — gifos.charge / entitled / license  [capabilities.pay]
+   The app asks; GifOS shows ITS OWN payment sheet (verified author,
+   amount, reason — the app cannot draw or see it); the person picks a
+   method and approves; the money goes straight to the app's AUTHOR. The
+   app never sees a card, a wallet, an address or a balance.
+   await gifos.charge({ amount, reason, sku, editable })
+       amount   decimal integer STRING of USDC base units, never a float:
+                $1 = "1000000", $4.99 = "4990000".
+       reason   what it is for, shown to the person (required, <= 140).
+       sku      optional id for what it unlocks ([A-Za-z0-9_.:-], <= 64).
+       editable true for a TIP: the person may change the amount; a tip
+                has no sku (it unlocks nothing).
+     -> { ok, rail, amount, chain, payee, payeeId, sku, reason, tx, at }
+        rail: the method the person chose; payeeId: the verified author;
+        chain/payee: the network and address for USDC (PayPal: payee is
+        the payout email; FedNow: null).
+     REJECTS "DECLINED_BY_USER" when they say no — a normal outcome to
+     handle quietly, not an error to show. Also rejects: unsigned or
+     tampered app, sku already bought, amount over the person's per-app
+     ceiling (default $20), no method available right now.
+   await gifos.entitled(sku) -> true | false   (bought on THIS computer)
+   await gifos.license(sku)  -> the purchase's transaction id, or null.
+       Stable per purchase and the same wherever the receipt is restored —
+       anchor saves / accounts / room identity to it.
+   NEVER store "bought" in gifos.db: app state travels inside the shared
+   GIF, and a purchase must not travel with it. Ask entitled() instead.
+   Purchases become receipt FILES in a Purchases folder; opening one on
+   another computer re-grants it. No accounts anywhere.
+   Methods (the author lists which ones in capabilities.pay; true means
+   PayPal only). OPEN TO EVERY AUTHOR — use these:
+       paypal    cards/PayPal; paid to the signing email, or
+                 payments@<domain> for a domain signer. Opens once PayPal
+                 approves GifOS as a platform partner; until then the
+                 sheet offers the other listed methods.
+       x402      USDC from a connected wallet (Base); needs "pay": {"to"}
+   NOT YET OPEN TO OTHER AUTHORS — the names exist, but there is no way to
+   sign up for them yet, so an app that lists ONLY these cannot be paid:
+       transfer  USDC sent from any wallet (needs a rails registration)
+       fednow    US bank payment (needs a bank-payment provider account)
+       mpp       an AI agent pays with the person's Stripe Link wallet:
+                 the sheet shows "Pay with your AI agent", hands them a
+                 checkout link for their agent, and finishes on its own
+                 once they approve in the Link app (needs the author's
+                 connected Stripe account; $0.50 minimum)
+   The payout comes from the SIGNED manifest, verified against the
+   author's published key on every payment — never from the store, never
+   from the buyer. Editing "pay" or the method list breaks the signature,
+   so sign the app (see "Signing") after it is final. Any signed app can
+   be paid, listed in the store or not. GifOS keeps 3% on paypal and
+   x402.
+   Right now payments run on TEST networks only (PayPal sandbox, Base
+   Sepolia) — no real money moves yet.
 
 THIRD-PARTY APIs — gifos.api  [capabilities.api: ["<name>", ...]]
    For ANY keyed API that isn't OpenAI-shaped (Deepgram, MapTiler, a
@@ -683,6 +742,9 @@ AFTER the GIF is final:
 The signature excludes app *state*, so it stays valid as people use the
 app. NEVER ask the user for a private key — signing happens entirely on
 their side. A signature proves authorship, not safety.
+Signing is also what lets an app TAKE PAYMENTS: the payout and the
+allowed methods are read from the signed manifest, so an unsigned or
+tampered app cannot charge at all (see "PAYMENTS").
 
 ## Getting into the App Store (optional; the store is a catalog, not a gate)
 

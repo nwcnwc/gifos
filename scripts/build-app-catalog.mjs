@@ -733,12 +733,6 @@ async function buildApp(slug) {
     ...(requiredCount ? { requiredCount } : {}),
     ...(optionalCount ? { optionalCount, optionalDownload } : {}),
     provides: m.provides || null,
-    // The app's on-chain payee, straight from the signed manifest. The pay
-    // Worker treats THIS as the authority for where a wallet-transfer or x402
-    // author leg may point — never a client-sent address, or a buyer could
-    // self-deal an invoice and mint a signed receipt without paying the
-    // author (docs/payments.md).
-    pay: (m.pay && typeof m.pay.to === 'string') ? { to: m.pay.to } : null,
     sha256: gifBytes ? crypto.createHash('sha256').update(gifBytes).digest('hex') : loaded.sha256,
     signature: claim,
     // A hosted release's sealed credits, checked against the listing when the
@@ -819,11 +813,9 @@ const index = {
     cover: r.cover, bytes: r.bytes, download: r.download,
     ...(r.optionalCount ? { optionalCount: r.optionalCount, optionalDownload: r.optionalDownload } : {}),
     provides: r.provides, signature: r.signature,
-    // pay BELONGS IN THE INDEX for the same reason sha256 does: the pay
-    // Worker resolves an appId to its authoritative chain payee from ONE
-    // fetch of the index — never from a client-sent address (see the rec
-    // comment above; docs/payments.md).
-    ...(r.pay ? { pay: r.pay } : {}),
+    // No `pay` here: the pay Worker reads the payee and the allowed rails
+    // from the app's own signature proof, never from the store
+    // (docs/payments.md §THE AUTHOR CHOOSES THE RAILS).
     // sha256 BELONGS IN THE INDEX, not only in each app.json. store.js decides
     // "yours is older" by hashing the installed bytes and comparing to
     // app.sha256 — and the GRID calls outdated() on an INDEX entry. Without

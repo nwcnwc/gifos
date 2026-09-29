@@ -43,7 +43,6 @@
   "bytes": 210299,
   "download": 0,
   "provides": null,
-  "pay": null,
   "sha256": "a6a260decb0c0b2270447d76243518b7c012ed47516be1b14a2c0d14fd23ddfa",
   "signature": {
     "type": "domain",
