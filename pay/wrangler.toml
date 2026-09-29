@@ -58,6 +58,13 @@ STRIPE_PAYEES = "{}"
 # button). SANDBOX app "gifos-pay"; its secret is PAYPAL_CLIENT_SECRET.
 PAYPAL_CLIENT_ID = "BAAhbyY1zsQopKGzUKBQIx-06EA39p-VYaReH1fdSRiKhF_va2KrZA28h77DPB97P6RJf64uqP7F-xFwuI"
 
+# The vendored tweetnacl (via gifos-ed.js, which gifos-sign.js verifies app
+# signatures through) names Node's `crypto` in a branch a Worker never takes
+# (self.crypto always exists here). The bundler must still resolve it: an
+# empty stand-in, rather than nodejs_compat's whole Node surface.
+[alias]
+"crypto" = "./src/no-node-crypto.js"
+
 # Branded domain — TWO bindings, same rationale as relay/wrangler.toml:
 # routes beat custom domains when both match, so the explicit zone route keeps
 # this Worker immune to any future wildcard on another Worker.
