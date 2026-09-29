@@ -390,7 +390,6 @@ PAYMENTS — gifos.charge / entitled / license  [capabilities.pay]
        x402      USDC from a connected wallet (Base); needs "pay": {"to"}
    NOT YET OPEN TO OTHER AUTHORS — the names exist, but there is no way to
    sign up for them yet, so an app that lists ONLY these cannot be paid:
-       transfer  USDC sent from any wallet (needs a rails registration)
        fednow    US bank payment (needs a bank-payment provider account)
        mpp       an AI agent pays with the person's Stripe Link wallet:
                  the sheet shows "Pay with your AI agent", hands them a

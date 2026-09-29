@@ -343,18 +343,16 @@ The decisions:
 |---|---|---|---|---|
 | **PayPal** | every card holder | nothing | a PayPal account claiming the derived email | collected (`platform_fees`) |
 | **x402** (connected wallet) | Base Account / injected wallets | a connected wallet with USDC | `manifest.pay.to` in the signed manifest | collected (the 97/3 split) |
-| **wallet transfer** | **RockWallet and EVERY self-custody wallet** | any wallet holding USDC — no connection, no adapter | `manifest.pay.to` + **rails registration** | flat annual registration instead (amount TBD) |
 | **FedNow** | any US bank account | approving an RfP in their own banking app | provider registration (`FEDNOW_PAYEES`) + **rails registration** | flat annual registration instead (amount TBD) |
 
-**The wallet-transfer rail** exists because RockWallet — like most consumer
-wallets — has no developer API, no WalletConnect, no merchant surface. The
-one integration surface every self-custody wallet has is *send exactly X to
-address Y*, so that is the rail: the Worker mints a **signed, stateless
-invoice token** whose amount carries a random sub-cent DUST (uniqueness
-among concurrent buyers), the sheet shows the exact amount and the signed
-payee address, and `/transfer/receipt` watches the chain (read-only RPC) for
-that exact USDC Transfer. Supporting RockWallet this way supports every
-other wallet for free.
+**The wallet-transfer rail was REMOVED on 2026-09-28** (Nathan). It let a
+buyer send an exact, dust-tagged USDC amount from any wallet — RockWallet
+included — and watched the chain for it. A plain send cannot carry the 3%,
+so it was a fee-free rail open only to registered identities, and there is
+no way for an author to register; with no path for other authors and no fee
+for GifOS it went. Its code and tests are in git history before commit
+`e5634e7c`. A manifest that lists `"transfer"` now names an unknown method
+and cannot charge.
 
 **The FedNow rail** is a provider rail, because FedNow itself has NO public
 API — only financial institutions touch it. The Worker speaks a
@@ -371,11 +369,10 @@ app's signature proof (see "THE AUTHOR CHOOSES THE RAILS" below), exactly as
 it binds the PayPal payee to the signing identity, and `/x402/settle` checks
 the author leg against the same authority.
 
-**Fee honesty, and REGISTRATION (ratified 2026-08-26):** a direct wallet
-send cannot split, and routing it through a GifOS account would be custody;
-the provider rail's split waits on provider capability. So on these two
-rails the 3% is NOT collected per transaction — instead, **the fee-free
-rails are open only to signing identities on the published rails registry**
+**Fee honesty, and REGISTRATION (ratified 2026-08-26):** the provider
+rail's split waits on provider capability, so on FedNow the 3% is NOT
+collected per transaction — instead, **the fee-free rail is open only to
+signing identities on the published rails registry**
 (`site/pay/registry.json`, fetched by the Worker; absent or
 expired → a plain refusal naming the policy and the way back). Registration
 is an annual flat fee — **the amount is deliberately NOT set yet** — which
@@ -405,7 +402,7 @@ browser-driving agent (PayPal's guest card form takes any card, no code
 needed). The token path is the one that matters, because a CLI agent cannot
 click a PayPal window — and it is a near-exact fit for a Worker that
 already speaks a 402-shaped rail (`/x402/settle`) and mints stateless
-signed tokens (`/transfer/invoice`). So: `GET /mpp/charge/<offer>` (the offer
+signed tokens (the invoice tokens). So: `GET /mpp/charge/<offer>` (the offer
 link the OS mints with `POST /mpp/offer` — see "No store" below)
 answers `402` with a `WWW-Authenticate: Payment … method="stripe"` challenge
 whose id is an HMAC over the challenge itself (the spec's stateless
@@ -483,8 +480,9 @@ Nathan's decisions, 2026-09-28:
 
 - **The signer says which rails may pay them, in the signed manifest.**
   `capabilities.pay: true` means **PayPal only**. Any other rail must be
-  listed: `"pay": ["x402", "transfer"]` allows exactly those. The names are
-  `paypal`, `x402`, `transfer`, `fednow`, `mpp`. An empty list, an unknown
+  listed: `"pay": ["paypal", "x402"]` allows exactly those. The names are
+  `paypal`, `x402`, `fednow`, `mpp` (`transfer` was removed the same day).
+  An empty list, an unknown
   name, a duplicate, or a chain rail with no `manifest.pay.to` is a
   malformed manifest and the app cannot charge — a typo never widens or
   empties what the author meant (`gifos-charge.js` `railsAllowed`). An
