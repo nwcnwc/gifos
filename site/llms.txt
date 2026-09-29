@@ -392,9 +392,11 @@ PAYMENTS — gifos.charge / entitled / license  [capabilities.pay]
    sign up for them yet, so an app that lists ONLY these cannot be paid:
        transfer  USDC sent from any wallet (needs a rails registration)
        fednow    US bank payment (needs a bank-payment provider account)
-       mpp       AI agents paying with a Stripe Link wallet (needs a
-                 connected Stripe account; agents pay through a checkout
-                 link, never through gifos.charge, which has no agent path)
+       mpp       an AI agent pays with the person's Stripe Link wallet:
+                 the sheet shows "Pay with your AI agent", hands them a
+                 checkout link for their agent, and finishes on its own
+                 once they approve in the Link app (needs the author's
+                 connected Stripe account; $0.50 minimum)
    The payout comes from the SIGNED manifest, verified against the
    author's published key on every payment — never from the store, never
    from the buyer. Editing "pay" or the method list breaks the signature,

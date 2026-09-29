@@ -526,7 +526,24 @@ cannot present a proof. Whoever holds the app (the OS) presents it once to
 `POST /mpp/offer {proof, sku, amount}` and gets back a signed
 `/mpp/charge/<offer>` link naming exactly that purchase; the agent pays the
 link. Stateless like the invoices — the token is the offer, signed with the
-receipt key, valid seven days.
+receipt key, valid 24 hours.
+
+**On the OS sheet (2026-09-28).** An app that lists `mpp` gets a sheet
+button, "Pay with your AI agent (Stripe Link)". It mints an offer, shows the
+link with a Copy button and the one instruction that matters (approve in
+the Link app), and waits: `POST /mpp/status {offer, claim}` finds the
+payment by the offer id stamped on it (Stripe's search API, which can trail
+a settled payment by up to a minute) and answers only to the one-time claim
+the offer was minted with, so another holder of the link cannot read the
+receipt. The purchase then lands exactly as the other rails' do —
+entitlement, ledger, receipt file — with nothing for the person to carry
+back. For a person sitting at the sheet this is a card payment through
+their Link wallet with one extra hop; its point is the case where the
+agent is the one operating the app and the person only approves on their
+phone. **One link pays once:** the Stripe Idempotency-Key is the offer id,
+so the same credential comes back `idempotent-replayed` and a different
+token is refused by Stripe (`idempotency_error`); Stripe keeps keys 24
+hours, which is why offers live exactly that long.
 
 **PayPal stays closed until the partner approval.** `PAYPAL_PARTNER` is
 `pending`: `/rails` reports the PayPal rail closed with the reason, and

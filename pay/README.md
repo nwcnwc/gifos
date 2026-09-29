@@ -30,7 +30,8 @@ proves about one it proves about the other.
 | `POST /transfer/receipt` | watch the chain (read-only `BASE_RPC`) for the exact transfer, from the bound wallet when there is one; same signed receipt, `feeCollected:false` |
 | `POST /fednow/rfp` | FedNow via a provider (`FEDNOW_API`, Finzly-shaped — FedNow itself has no public API); payee = the registered account for the signing identity (`FEDNOW_PAYEES`) |
 | `GET /fednow/receipt/:id` | poll the RfP to settlement; same signed receipt, `feeCollected:false` |
-| `POST /mpp/offer` | `{proof, sku, amount}` → a signed `/mpp/charge/<offer>` link for exactly that purchase (an agent holds no app bytes, so the OS presents the proof once); valid seven days |
+| `POST /mpp/offer` | `{proof, sku, amount}` → a signed `/mpp/charge/<offer>` link for exactly that purchase (an agent holds no app bytes, so the OS presents the proof once), plus a one-time `claim`; valid 24 hours, and pays once |
+| `POST /mpp/status` | `{offer, claim}` → `PENDING`, or the signed receipt once the agent has paid that offer (found by the offer id stamped on the PaymentIntent, via Stripe's search API) — how the OS sheet's "Pay with your AI agent" finishes on its own |
 | `GET\|POST /mpp/charge/<offer>` | the AGENT rail — Machine Payments Protocol (HTTP 402, mpp.dev), the wire Stripe's Link agent wallet speaks (link.com/agents): a `WWW-Authenticate: Payment … method="stripe"` challenge, then a Shared Payment Token back, settled as a Stripe Connect DESTINATION charge to the author's connected account with the 3% as `application_fee_amount`; same signed receipt, plus a `Payment-Receipt` header |
 | `POST /receipt/file` | package a signed receipt as the receipt GIF the OS opens — verified first; how an agent's purchase reaches the human's Purchases folder |
 
