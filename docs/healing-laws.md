@@ -919,7 +919,7 @@ broad form (any silent target) minted dups under mass-kill and killed
 severed-but-alive neighbours under adversary churn — both in the commit
 messages of the fix.
 
-## G — the rollup digest (ARGUED 2026-08-05; BOTH TWINS BUILT 2026-08-06, flag OFF)
+## G — the rollup digest (ARGUED 2026-08-05; BOTH TWINS BUILT 2026-08-06; ON BY DEFAULT 2026-09-28)
 
 The O(N)-per-node status flood (scale-audit V1) is what this replaces: every
 participant's heartbeat rides the room-wide GSP flood today, so every node
@@ -1180,10 +1180,11 @@ every seat on its own clock (G0b, leg 11). The sim's gauge verb is `digest`;
 `test/mesh/digest.js` (98 assertions) is the same gate against the BROWSER twin
 (`site/js/mesh.js`), over `mesh-harness.js`'s fabric. The port landed 2026-08-06
 — a faithful one: same function names, same constants (DIG_TTL 60, DIG_LOSS_H
-300), nothing redesigned. **It is flag-gated and DEFAULT OFF** (`env.DIGEST`;
-`mesh-wire.js` reads `window.GIFOS_DIGEST`). The flag stays down until
-`run.html` migrates off the room-wide status flood — scale-audit sequencing step
-4 — so today the digest is built, gated and inert in production.
+300), nothing redesigned. It shipped flag-gated and default OFF (`env.DIGEST`;
+`mesh-wire.js` reads `window.GIFOS_DIGEST`) until `run.html` migrated off the
+room-wide status flood. That migration landed on 2026-09-28
+(docs/status-plane-migration.md). The flag is now **default ON**, and
+`window.GIFOS_DIGEST = false` restores the pre-plane flood.
 
 The acceptance test for the port is the EQUALITY, not the feature, and it is the
 mechanical form of G0+G1: every emit — tick, sender, recipient, and the frame

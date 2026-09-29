@@ -1951,7 +1951,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     };
     // ============================ THE STATUS PLANE ============================
     // docs/status-plane-migration.md; healing-laws § G and G9. With the rollup
-    // digest on (window.GIFOS_DIGEST), a heartbeat reaches only its sender's
+    // digest on (the default; window.GIFOS_DIGEST = false opts out), a heartbeat reaches only its sender's
     // SECTION — the C×C seats sharing its pc, which is the whole room below C²
     // people (G8) — and the four room-global facts the room-wide flood used to
     // carry (hands, the Stage roster, the room-app ad, stage-vote tallies)
@@ -1963,7 +1963,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // here may evict, seat, or release a camera's blur. Admins keep a ROOM-wide
     // heartbeat — their signed mod frame is the proof of admin presence, valid
     // whoever carries it, and admins are few.
-    const digestMode = () => (typeof window !== 'undefined' && window.GIFOS_DIGEST === true) && !!meshNode && typeof meshNode.roomDigest === 'function';
+    const digestMode = () => !(typeof window !== 'undefined' && window.GIFOS_DIGEST === false) && !!meshNode && typeof meshNode.roomDigest === 'function'; // ON by default; GIFOS_DIGEST=false is the pre-plane room flood
     const roomDig = () => { if (!digestMode()) return null; const d = meshNode.roomDigest(); return d && d.age <= 120 ? d : null; }; // 2 × DIG_TTL: an older fold is not the room
     const roomPastSection = () => { const d = roomDig(); return !!d && d.n > SCALE.C * SCALE.C; };
     // The fold's LISTS, only where they carry something my section cannot (G8):

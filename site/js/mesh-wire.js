@@ -273,13 +273,13 @@
       // mover's up-chain vanished, and its legal drain+rejoin raced the
       // assert). Production pages never set the flag.
       COMPACTION: (typeof root !== 'undefined' && root.GIFOS_COMPACTION === false) ? false : true,
-      // V1 ROLLUP DIGEST (healing-laws § G) — ported from the sim, DEFAULT
-      // OFF. The fold rides existing frames and can never actuate (G1), but
-      // the flag stays down until the sim gates are green at scale AND the
-      // small-room e2e is proven byte-identical (scale-audit sequencing step
-      // 4). Flip with window.GIFOS_DIGEST = true before boot; tests set
-      // env.DIGEST directly on the harness fabric.
-      DIGEST: (typeof root !== 'undefined' && root.GIFOS_DIGEST === true),
+      // V1 ROLLUP DIGEST (healing-laws § G), DEFAULT ON since the status
+      // plane (docs/status-plane-migration.md): run.html's heartbeat is
+      // section-scoped and the room-global facts ride this fold. It rides
+      // existing frames and can never actuate (G1). window.GIFOS_DIGEST = false
+      // before boot turns it off (the pre-plane room flood); the harness
+      // fabric sets env.DIGEST directly.
+      DIGEST: !(typeof root !== 'undefined' && root.GIFOS_DIGEST === false),
       send(from, to, m) {
         // S4: sign the participant's own occupancy-authoring frames before they
         // leave. The signature is the same for every recipient (it commits to

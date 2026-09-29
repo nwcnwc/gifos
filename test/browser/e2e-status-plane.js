@@ -1,7 +1,7 @@
 // e2e-status-plane.js — THE STATUS PLANE PAST ONE SECTION, in real browsers.
 //
 // docs/status-plane-migration.md; healing-laws § G + G9. With the rollup
-// digest on (window.GIFOS_DIGEST), a status heartbeat reaches only its sender's
+// digest on (the default), a status heartbeat reaches only its sender's
 // SECTION and the room-global facts ride the fold. At C=2 a section is 4 seats,
 // so ten browsers span three or more sections — the smallest room where the
 // plane is doing its job. Every leg asks one question a member of a big room
@@ -39,7 +39,7 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   const errs = [];
   const mk = async (i) => {
     const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
-    await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}');localStorage.setItem('gifos_meet_bar','0')}catch(e){}; window.GIFOS_SCALE={C:2}; window.GIFOS_DIGEST=true;` });
+    await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}');localStorage.setItem('gifos_meet_bar','0')}catch(e){}; window.GIFOS_SCALE={C:2};` });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => { errs.push('P' + i + ': ' + String(e).slice(0, 160)); console.log(`  [P${i}] PAGEERROR`, String(e).slice(0, 160)); });
     await page.goto(BASE + '/run.html#v=' + room);
