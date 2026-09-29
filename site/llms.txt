@@ -182,9 +182,9 @@ names the missing declaration.
    "agent": true                    inject the GifOS assistant bar
    "pay": ["paypal","x402"]         take payments — gifos.charge. true =
                                     PayPal ONLY; any other method must be
-                                    listed (paypal, x402, transfer,
-                                    fednow, mpp). The app must be SIGNED.
-                                    See "PAYMENTS".
+                                    listed. Use ["paypal","x402"] — the
+                                    two open to every author (see
+                                    "PAYMENTS"). The app must be SIGNED.
 
 What the sandbox capabilities actually unlock (and nothing else):
    - wasm: the CSP gains 'wasm-unsafe-eval', worker-src blob: (run the
@@ -382,20 +382,25 @@ PAYMENTS — gifos.charge / entitled / license  [capabilities.pay]
    Purchases become receipt FILES in a Purchases folder; opening one on
    another computer re-grants it. No accounts anywhere.
    Methods (the author lists which ones in capabilities.pay; true means
-   PayPal only):
+   PayPal only). OPEN TO EVERY AUTHOR — use these:
        paypal    cards/PayPal; paid to the signing email, or
-                 payments@<domain> for a domain signer
+                 payments@<domain> for a domain signer. Opens once PayPal
+                 approves GifOS as a platform partner; until then the
+                 sheet offers the other listed methods.
        x402      USDC from a connected wallet (Base); needs "pay": {"to"}
-       transfer  USDC sent from ANY wallet; needs "pay": {"to"}
-       fednow    US bank payment approved in the buyer's bank app
-       mpp       AI agents paying with a Stripe Link wallet
+   NOT YET OPEN TO OTHER AUTHORS — the names exist, but there is no way to
+   sign up for them yet, so an app that lists ONLY these cannot be paid:
+       transfer  USDC sent from any wallet (needs a rails registration)
+       fednow    US bank payment (needs a bank-payment provider account)
+       mpp       AI agents paying with a Stripe Link wallet (needs a
+                 connected Stripe account; agents pay through a checkout
+                 link, never through gifos.charge, which has no agent path)
    The payout comes from the SIGNED manifest, verified against the
    author's published key on every payment — never from the store, never
    from the buyer. Editing "pay" or the method list breaks the signature,
    so sign the app (see "Signing") after it is final. Any signed app can
-   be paid, listed in the store or not. GifOS keeps 3% on paypal, x402
-   and mpp; transfer and fednow need the author registered at
-   gifos.app/pay; mpp needs the author's Stripe account connected.
+   be paid, listed in the store or not. GifOS keeps 3% on paypal and
+   x402.
    Right now payments run on TEST networks only (PayPal sandbox, Base
    Sepolia) — no real money moves yet.
 

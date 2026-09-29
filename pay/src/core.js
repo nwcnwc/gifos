@@ -253,7 +253,7 @@ export function makeCore(cfg) {
       registryCache = { at: Date.now(), reg: (await r.json()).registered || {} };
     }
     const e = registryCache.reg[identity.id];
-    if (!e) throw new Refusal('"' + identity.id + '" is not registered for the fee-free rails — see gifos.app/pay (registration is annual; the PayPal and USDC rails need no registration)', 403);
+    if (!e) throw new Refusal('"' + identity.id + '" is not registered for the fee-free rails — registration is not open to other authors yet; list paypal or x402 instead, which need none', 403);
     const untilMs = e.until == null ? null : Date.parse(e.until);
     if (untilMs != null && (Number.isNaN(untilMs) || Date.now() > untilMs)) {
       throw new Refusal('the rails registration for "' + identity.id + '" expired on ' + e.until + ' — renew it, or use the PayPal / USDC rails, which need no registration', 403);
@@ -780,7 +780,7 @@ export function makeCore(cfg) {
     if (BigInt(amount) / CENT < STRIPE_MIN_CENTS) return bad('Stripe takes nothing under $0.50 on this rail — $' + value + ' is too small; the USDC rails have no minimum');
     const sku = body.sku == null || body.sku === '' ? null : String(body.sku);
     if (sku != null && !/^[\w.\-:]{1,64}$/.test(sku)) return bad('bad sku');
-    if (!(cfg.stripePayees || {})[seller.identity.id]) return bad('"' + seller.identity.id + '" is not onboarded for the agent rail — the author connects a Stripe account at gifos.app/pay (the PayPal and USDC rails need no onboarding)', 403);
+    if (!(cfg.stripePayees || {})[seller.identity.id]) return bad('"' + seller.identity.id + '" is not onboarded for the agent rail — Stripe onboarding is not open to other authors yet; the PayPal and x402 rails need none', 403);
     const now = Date.now();
     const token = await signToken({
       v: 1, kind: 'gifos-mpp-offer', appId: seller.appId, name: seller.name,
@@ -810,7 +810,7 @@ export function makeCore(cfg) {
     // and that mapping is the platform's record (like FEDNOW_PAYEES), never
     // a client value. Absent -> a plain refusal naming the way back.
     const acct = (cfg.stripePayees || {})[identity.id];
-    if (!acct) return bad('"' + identity.id + '" is not onboarded for the agent rail — the author connects a Stripe account at gifos.app/pay (the PayPal and USDC rails need no onboarding)', 403);
+    if (!acct) return bad('"' + identity.id + '" is not onboarded for the agent rail — Stripe onboarding is not open to other authors yet; the PayPal and x402 rails need none', 403);
     const cents = BigInt(amount) / CENT;
     const app = { name: offer.name };
 

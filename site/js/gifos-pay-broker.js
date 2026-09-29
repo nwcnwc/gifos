@@ -551,8 +551,10 @@
     const sheetData = GifOS.charge.sheet(elig, request, appName || manifest.name, now.accepted);
     const r = sheetData.rails;
     if (!r.paypal && !r.x402 && !r.transfer && !r.fednow) {
-      const reasons = elig.rails.filter((k) => k !== 'mpp').map((k) => now.why[k]).filter(Boolean);
-      throw new Error('this app cannot be paid right now' + (reasons.length ? ': ' + reasons.join('; ') : ''));
+      // Name every listed rail's reason. mpp is never a button here — agents
+      // pay through a checkout link — so an app listing only mpp is told so.
+      const reasons = elig.rails.map((k) => (k === 'mpp' ? 'AI-agent payments are made through an agent checkout link, not this payment screen' : now.why[k])).filter(Boolean);
+      throw new Error('this app cannot be paid right now: ' + (reasons.length ? reasons.join('; ') : 'no payment method is available'));
     }
 
     const choice = await showSheet(sheetData);
