@@ -508,8 +508,12 @@
     const url = 'https://' + domain + '/gifos.key';
     const r = await fetch(url, { mode: 'cors', redirect: 'error' });
     if (!r.ok) throw new Error('no gifos.key at ' + domain + ' (HTTP ' + r.status + ')');
-    const txt = (await readCapped(r, KEY_READ_MAX)).trim();
-    const b64 = txt.replace(/^-----BEGIN[^-]*-----/, '').replace(/-----END[^-]*-----$/, '').trim();
+    return parseDomainKey(await readCapped(r, KEY_READ_MAX));
+  }
+  // A gifos.key file's text -> the 32 raw key bytes (bare base64, optionally
+  // PEM-fenced). Shared with the pay Worker, which fetches keys itself.
+  function parseDomainKey(text) {
+    const b64 = String(text).trim().replace(/^-----BEGIN[^-]*-----/, '').replace(/-----END[^-]*-----$/, '').trim();
     const key = b64ToBytes(b64);
     if (key.length !== 32) throw new Error('gifos.key is not a 32-byte Ed25519 key');
     return key;
@@ -609,6 +613,91 @@
     }
   }
 
+  // ---- the PROOF: verify a signature without holding the app ---------------
+  // The statement an author signs commits to exactly two things: the picture
+  // (visual bytes) and every file's sha256 (the files digest). A proof hands
+  // over precisely those — the picture, the manifest IN FULL, and every other
+  // file as a hash — so a party that never holds the app (the pay Worker)
+  // can rebuild the content hash, check the signature against the author's
+  // published key, and read the manifest AS SIGNED. An edited manifest, a
+  // forged or missing hash, or a swapped picture each change the rebuilt
+  // hash, and the signature fails. The app's code never leaves the computer;
+  // neither do the hashes the digest skips (.state/, .lock/, OS-sealed
+  // .assets/), which describe the user's own data, not the author's app.
+  const PROOF_MAX_FILES = 50000;
+  async function proofOf(bytes) {
+    const sig = readSig(bytes);
+    if (!sig) throw new Error('this app is not signed, so there is nothing to prove');
+    let hashes = null, manifest = null;
+    const streamed = await hashFilesFrom(bytes);
+    if (streamed) { hashes = streamed.hashes; manifest = streamed.manifest; }
+    else {
+      const arc = await gif.decode(bytes);
+      if (!arc || !arc.files) throw new Error('the archive could not be read to build a proof');
+      hashes = Object.create(null);
+      for (const p of Object.keys(arc.files)) hashes[p] = await sha256(arc.files[p]);
+      manifest = arc.files['manifest.json'] || null;
+    }
+    if (!manifest) throw new Error('this app has no manifest.json');
+    const rules = rulesOfSig(sig);
+    const pinned = rules >= 2 ? pinnedAssetPaths({ 'manifest.json': manifest }) : null;
+    const out = {};
+    for (const p of Object.keys(hashes).sort()) {
+      if (p === 'manifest.json' || p.indexOf('.state/') === 0 || p.indexOf('.lock/') === 0) continue;
+      if (p.indexOf('.assets/') === 0 && (rules < 2 || pinned[p])) continue;   // the digest skips these too
+      out[p] = hex(hashes[p]);
+    }
+    const visual = stripBlock(stripBlock(bytes, 'GIFOS1.0'), SIG_MARKER);
+    return { v: 1, sig, manifest: bytesToB64(manifest), visual: bytesToB64(visual), hashes: out };
+  }
+  // keyFor(type, id) -> the author's key: 32 raw bytes for a domain, the
+  // dearmored OpenPGP key for an email. Injected, because the Worker fetches
+  // (and caches) keys its own way. Verdicts match verify(): valid / tampered
+  // / unverified (the key could not be fetched) / unsigned.
+  async function checkProof(proof, keyFor) {
+    const tampered = (detail, extra) => Object.assign({ status: 'tampered', detail }, extra);
+    if (!proof || typeof proof !== 'object') return tampered('no proof was given');
+    const sig = proof.sig;
+    if (!sig || typeof sig !== 'object') return { status: 'unsigned' };
+    const type = sig.type;
+    const id = type === 'domain' && typeof sig.id === 'string' ? sig.id.toLowerCase() : sig.id;
+    if (!id || (type === 'domain' && !isDomain(id)) || (type === 'email' && !isEmail(id))) return tampered('malformed signature identity');
+    let sigBytes = null, manifestBytes = null, visual = null;
+    try {
+      sigBytes = typeof sig.sig === 'string' && sig.sig ? b64ToBytes(sig.sig) : null;
+      manifestBytes = b64ToBytes(String(proof.manifest || ''));
+      visual = b64ToBytes(String(proof.visual || ''));
+    } catch (e) { return tampered('the proof is not valid base64'); }
+    if (!sigBytes || !sigBytes.length || (type === 'domain' && sigBytes.length !== 64)) return tampered('malformed signature', { id, type });
+    if (!manifestBytes.length) return tampered('the proof carries no manifest', { id, type });
+    const given = proof.hashes;
+    if (!given || typeof given !== 'object' || Array.isArray(given)) return tampered('the proof carries no file hashes', { id, type });
+    const paths = Object.keys(given);
+    if (paths.length > PROOF_MAX_FILES) return tampered('the proof lists too many files', { id, type });
+    const hashes = Object.create(null);
+    for (const p of paths) {
+      const h = given[p];
+      if (p === 'manifest.json') continue;   // rebuilt from the bytes below, never taken on trust
+      if (p.length > 1024 || typeof h !== 'string' || !/^[0-9a-f]{64}$/i.test(h)) return tampered('malformed file hash', { id, type });
+      const b = new Uint8Array(32); for (let i = 0; i < 32; i++) b[i] = parseInt(h.substr(i * 2, 2), 16);
+      hashes[p] = b;
+    }
+    hashes['manifest.json'] = await sha256(manifestBytes);
+    const rules = rulesOfSig(sig);
+    const filesDigest = await digestFromHashes(hashes, manifestBytes, rules);
+    const msg = statement(type, id, hex(await sha256(concat([visual, new Uint8Array([0]), filesDigest]))));
+    let key;
+    try { key = await keyFor(type, id); } catch (e) { return { status: 'unverified', id, type, detail: String(e && e.message || e) }; }
+    const ok = type === 'domain' ? await ed25519Verify(key, sigBytes, msg)
+      : type === 'email' ? await pgpVerify(msg, sigBytes, key)
+      : false;
+    if (!ok) return tampered('signature does not match this proof', { id, type });
+    let manifest = null;
+    try { manifest = JSON.parse(gif.bytesToText(manifestBytes)); } catch (e) {}
+    if (!manifest || typeof manifest !== 'object') return tampered('the signed manifest is not JSON', { id, type });
+    return { status: 'valid', id, type, ts: sig.ts, rules, manifest };
+  }
+
   // ---- signing helpers (used by sign.html) ----------------------------------
   // Domain: sign entirely in-browser; the private key never leaves.
   // opts.rules — 1 writes a legacy block (every .assets/ file left out) for an
@@ -632,6 +721,7 @@
 
   GifOS.sign = {
     verify, readSig, writeSig, contentHash, statement, unpinnedAssets, rulesOfSig, RULES_CURRENT,
+    proofOf, checkProof, parseDomainKey, KEYSERVER,
     generateDomainKey, signDomain, emailStatement, attachEmailSig,
     isDomain, isEmail,
     // exposed for tests
