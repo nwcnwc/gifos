@@ -14,7 +14,7 @@ function check(name, cond, detail) {
 }
 const refuses = (fn, re) => { try { fn(); return false; } catch (e) { return re ? re.test(e.message) : true; } };
 const PAYEE = '0x209693Bc6afc0C5328bA36FaF03C514EF312287C';
-const ALL = ['paypal', 'x402', 'transfer', 'fednow', 'mpp'];
+const ALL = ['paypal', 'x402', 'fednow', 'mpp'];
 const manifest = (over) => Object.assign({ appId: 'shop', name: 'Shop', capabilities: { pay: ALL }, pay: { to: PAYEE, chain: 'eip155:84532' } }, over || {});
 const FIAT_ONLY = { appId: 'x', capabilities: { pay: true } };
 const VALID = { status: 'valid', id: 'nathan.example.com', type: 'domain', ts: 1786000000000 };
@@ -119,33 +119,35 @@ check('a fiat-only app\'s sheet offers NO chain rail (never a rail with a null p
 // is a refusal — a typo must never widen or empty what the author meant.
 check('"pay": true allows PayPal ONLY', JSON.stringify(C.railsAllowed(FIAT_ONLY)) === '["paypal"]');
 check('a list allows exactly the rails it names, in the author\'s order',
-  JSON.stringify(C.railsAllowed(manifest({ capabilities: { pay: ['transfer', 'x402'] } }))) === '["transfer","x402"]');
+  JSON.stringify(C.railsAllowed(manifest({ capabilities: { pay: ['fednow', 'x402'] } }))) === '["fednow","x402"]');
+check('"transfer" is no longer a payment method (removed 2026-09-28) — listing it is refused, not ignored',
+  refuses(() => C.railsAllowed(manifest({ capabilities: { pay: ['x402', 'transfer'] } })), /unknown payment method "transfer"/));
 check('an EMPTY list is refused', refuses(() => C.railsAllowed(manifest({ capabilities: { pay: [] } })), /must be true \(PayPal only\) or a list/));
 check('an UNKNOWN rail name is refused, not ignored', refuses(() => C.railsAllowed(manifest({ capabilities: { pay: ['paypal', 'venmo'] } })), /unknown payment method "venmo"/));
 check('a DUPLICATE rail is refused', refuses(() => C.railsAllowed(manifest({ capabilities: { pay: ['x402', 'x402'] } })), /twice/));
 check('"pay": false / a string / an object is refused', ['false', '"paypal"', '{}'].every((v) => refuses(() => C.railsAllowed(manifest({ capabilities: { pay: JSON.parse(v) } })))));
 check('a CHAIN rail with no manifest.pay.to is refused — there is nobody to pay',
-  refuses(() => C.railsAllowed({ appId: 'x', capabilities: { pay: ['paypal', 'transfer'] } }), /allows transfer but manifest\.pay\.to names no address/));
+  refuses(() => C.railsAllowed({ appId: 'x', capabilities: { pay: ['paypal', 'x402'] } }), /allows x402 but manifest\.pay\.to names no address/));
 check('eligibility carries the author\'s rails, and refuses a malformed list', (() => {
   const good = C.eligibility(VALID, manifest({ capabilities: { pay: ['x402'] } }));
   const badL = C.eligibility(VALID, manifest({ capabilities: { pay: ['cash'] } }));
   return good.allowed && JSON.stringify(good.rails) === '["x402"]' && badL.allowed === false && /unknown payment method/.test(badL.reason);
 })());
 check('the sheet draws ONLY the rails the author allowed — USDC-only has no PayPal button', (() => {
-  const s2 = C.sheet(C.eligibility(VALID, manifest({ capabilities: { pay: ['x402', 'transfer'] } })), ok, 'Shop');
-  return s2.rails.paypal === null && s2.rails.fednow === null && s2.rails.x402.address === PAYEE && s2.rails.transfer.address === PAYEE;
+  const s2 = C.sheet(C.eligibility(VALID, manifest({ capabilities: { pay: ['x402'] } })), ok, 'Shop');
+  return s2.rails.paypal === null && s2.rails.fednow === null && s2.rails.mpp === null && s2.rails.x402.address === PAYEE;
 })());
 check('…and PayPal-only has no chain button even with a pay.to in the manifest', (() => {
   const s2 = C.sheet(C.eligibility(VALID, manifest({ capabilities: { pay: true } })), ok, 'Shop');
-  return s2.rails.paypal === 'payments@nathan.example.com' && s2.rails.x402 === null && s2.rails.transfer === null;
+  return s2.rails.paypal === 'payments@nathan.example.com' && s2.rails.x402 === null;
 })());
 check('the Worker\'s answer narrows further: an allowed rail it cannot process gets no button', (() => {
-  const s2 = C.sheet(elig, ok, 'Shop', { paypal: false, x402: true, transfer: true, fednow: false });
-  return s2.rails.paypal === null && s2.rails.fednow === null && !!s2.rails.x402 && !!s2.rails.transfer;
+  const s2 = C.sheet(elig, ok, 'Shop', { paypal: false, x402: true, fednow: false, mpp: true });
+  return s2.rails.paypal === null && s2.rails.fednow === null && !!s2.rails.x402 && !!s2.rails.mpp;
 })());
 check('…but can never ADD a rail the author did not allow', (() => {
-  const s2 = C.sheet(C.eligibility(VALID, FIAT_ONLY), ok, 'X', { paypal: true, x402: true, transfer: true, fednow: true, mpp: true });
-  return !!s2.rails.paypal && s2.rails.x402 === null && s2.rails.transfer === null && s2.rails.fednow === null && s2.rails.mpp === null;
+  const s2 = C.sheet(C.eligibility(VALID, FIAT_ONLY), ok, 'X', { paypal: true, x402: true, fednow: true, mpp: true });
+  return !!s2.rails.paypal && s2.rails.x402 === null && s2.rails.fednow === null && s2.rails.mpp === null;
 })());
 check('the AGENT rail gets a sheet button when the author allowed it and the Worker can take it', (() => {
   const on = C.sheet(elig, ok, 'Shop', { mpp: true });

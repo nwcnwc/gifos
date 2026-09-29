@@ -30,15 +30,15 @@
   // sits inside the signature's content hash like everything else in the
   // manifest:
   //   "pay": true                       -> PayPal only
-  //   "pay": ["x402", "transfer", …]    -> exactly the rails listed
+  //   "pay": ["paypal", "x402", …]      -> exactly the rails listed
   // Anything else — an empty list, an unknown name, a duplicate, a chain rail
   // listed with no manifest.pay.to to pay — is a malformed manifest, refused
   // outright: a typo must never silently widen or empty what the author meant.
   // The OS sheet draws only these rails and the pay Worker refuses every other
   // one, so a buyer who skips the sheet cannot pay over a rail the author
   // turned down.
-  const RAILS = ['paypal', 'x402', 'transfer', 'fednow', 'mpp'];
-  const CHAIN_RAILS = ['x402', 'transfer'];
+  const RAILS = ['paypal', 'x402', 'fednow', 'mpp'];
+  const CHAIN_RAILS = ['x402'];
   function railsAllowed(manifest) {
     const p = manifest && manifest.capabilities && manifest.capabilities.pay;
     if (p === true) return ['paypal'];
@@ -191,10 +191,6 @@
       rails: {
         paypal: allow('paypal') ? (elig.paypal || null) : null,
         x402: allow('x402') && elig.payee ? { address: elig.payee.to, chain: CHAIN_NAME } : null,
-        // The universal rail: send exactly X to the signed payee, from ANY
-        // self-custody wallet (RockWallet included) — same address authority
-        // as x402, no connection needed.
-        transfer: allow('transfer') && elig.payee ? { address: elig.payee.to, chain: CHAIN_NAME } : null,
         // FedNow rides the verified identity like PayPal does; whether that
         // identity is REGISTERED with the provider is the Worker's answer.
         fednow: allow('fednow') ? { identity: elig.identity.id } : null,
@@ -216,8 +212,8 @@
 
   // ---- the receipt the OS records, and hands back ---------------------------
   function receipt(sheetData, txId, atMs, rail) {
-    rail = rail || 'x402';                  // 'paypal' | 'x402' | 'transfer' | 'fednow' | 'mpp'
-    const onChain = rail === 'x402' || rail === 'transfer';
+    rail = rail || 'x402';                  // 'paypal' | 'x402' | 'fednow' | 'mpp'
+    const onChain = rail === 'x402';
     return {
       ok: true,
       rail,
@@ -257,7 +253,7 @@
   const PAID_BY = {
     paypal: 'by PayPal',
     x402: 'in USDC (Base Sepolia)',
-    transfer: 'in USDC (wallet transfer)',
+    transfer: 'in USDC (wallet transfer)',   // the rail is gone (2026-09-28); its old test receipts still read
     fednow: 'by bank transfer (FedNow)',
     mpp: 'by card, through an AI agent (Stripe Link)',
   };

@@ -19,8 +19,6 @@
  *                          this Worker refuses to take payments for
  *   RETURN_BASE            https://pay.gifos.app
  *   FACILITATOR_URL        (optional) x402 settle backend; absent -> 501
- *   BASE_RPC               (optional) Base Sepolia JSON-RPC for the wallet-
- *                          transfer rail; absent -> 501
  *   FEDNOW_API             (optional) the FedNow provider's API base (FedNow
  *                          itself has no public API); absent -> 501
  *   FEDNOW_KEY             (secret) the provider's API key
@@ -78,7 +76,6 @@ async function init(env) {
     blocked: env.BLOCKED ? JSON.parse(env.BLOCKED) : [],
     returnBase: env.RETURN_BASE,
     facilitatorUrl: env.FACILITATOR_URL || null,
-    rpcUrl: env.BASE_RPC || null,
     fednowApi: env.FEDNOW_API || null,
     fednowKey: env.FEDNOW_KEY || null,
     fednowPayees: env.FEDNOW_PAYEES ? JSON.parse(env.FEDNOW_PAYEES) : {},

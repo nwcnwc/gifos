@@ -36,9 +36,10 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
     'index.html': '<p>' + appId + '</p>',
   }), DOMAIN, keyPair, 1786000000000);
   const proofs = {
-    usdc: await sign.proofOf(await build('usdc-shop', { pay: ['x402', 'transfer'] }, { pay: { to: AUTHOR } })),
+    usdc: await sign.proofOf(await build('usdc-shop', { pay: ['x402'] }, { pay: { to: AUTHOR } })),
+    oldTransfer: await sign.proofOf(await build('old-transfer', { pay: ['x402', 'transfer'] }, { pay: { to: AUTHOR } })),
     paypal: await sign.proofOf(await build('paypal-shop', { pay: true }, { pay: { to: AUTHOR } })),
-    all: await sign.proofOf(await build('every-rail', { pay: ['paypal', 'x402', 'transfer', 'fednow', 'mpp'] }, { pay: { to: AUTHOR } })),
+    all: await sign.proofOf(await build('every-rail', { pay: ['paypal', 'x402', 'fednow', 'mpp'] }, { pay: { to: AUTHOR } })),
     nopay: await sign.proofOf(await build('no-pay-cap', { db: true })),
     badrails: await sign.proofOf(await build('bad-rails', { pay: ['paypal', 'venmo'] })),
   };
@@ -81,13 +82,13 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
 
   // ---- /rails: what the sheet may draw ------------------------------------------
   const rUsdc = await post(H, '/rails', { proof: proofs.usdc });
-  check('/rails reads the author\'s list from the SIGNED manifest', rUsdc.status === 200 && JSON.stringify(rUsdc.body.allowed) === '["x402","transfer"]' && rUsdc.body.payingTo === DOMAIN, JSON.stringify(rUsdc.body && rUsdc.body.allowed));
-  check('…USDC-only: PayPal and FedNow closed as NOT ALLOWED, x402 and transfer open',
+  check('/rails reads the author\'s list from the SIGNED manifest', rUsdc.status === 200 && JSON.stringify(rUsdc.body.allowed) === '["x402"]' && rUsdc.body.payingTo === DOMAIN, JSON.stringify(rUsdc.body && rUsdc.body.allowed));
+  check('…USDC-only: PayPal, FedNow and the agent rail closed as NOT ALLOWED, x402 open',
     rUsdc.body.rails.paypal.ok === false && /does not accept PayPal/.test(rUsdc.body.rails.paypal.why)
-    && rUsdc.body.rails.fednow.ok === false && rUsdc.body.rails.x402.ok === true && rUsdc.body.rails.transfer.ok === true, JSON.stringify(rUsdc.body.rails));
+    && rUsdc.body.rails.fednow.ok === false && rUsdc.body.rails.mpp.ok === false && rUsdc.body.rails.x402.ok === true && !('transfer' in rUsdc.body.rails), JSON.stringify(rUsdc.body.rails));
   const rPp = await post(H, '/rails', { proof: proofs.paypal });
   check('"pay": true -> PayPal ONLY, even though the manifest carries a pay.to',
-    JSON.stringify(rPp.body.allowed) === '["paypal"]' && rPp.body.rails.paypal.ok === true && rPp.body.rails.x402.ok === false && rPp.body.rails.transfer.ok === false);
+    JSON.stringify(rPp.body.allowed) === '["paypal"]' && rPp.body.rails.paypal.ok === true && rPp.body.rails.x402.ok === false);
   const rPending = await post(core({ paypalPartner: 'pending' }), '/rails', { proof: proofs.paypal });
   check('while PayPal\'s partner approval is pending, the PayPal rail reports closed and says why',
     rPending.body.rails.paypal.ok === false && /approves GifOS as a platform partner/.test(rPending.body.rails.paypal.why));
@@ -112,8 +113,10 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
   const ppOnUsdc = await post(H, '/checkout', { proof: proofs.usdc, amount: '5000000', reason: 'x' });
   check('PayPal checkout for a USDC-only app is refused by NAME — the sheet was skipped, the Worker still says no',
     ppOnUsdc.status === 403 && /does not accept PayPal/.test(ppOnUsdc.body.error), ppOnUsdc.body && ppOnUsdc.body.error);
-  const invOnPp = await post(H, '/transfer/invoice', { proof: proofs.paypal, amount: '3000000' });
-  check('a wallet transfer to a PayPal-only app is refused, pay.to or not', invOnPp.status === 403 && /does not accept USDC wallet transfers/.test(invOnPp.body.error));
+  const x402OnPp = await post(H, '/x402/settle', { proof: proofs.paypal, amount: '1000000', transfers: [{ to: AUTHOR, amount: '970000' }, { to: TREASURY, amount: '30000' }], payloads: [{}, {}] });
+  check('x402 to a PayPal-only app is refused, pay.to or not', x402OnPp.status === 403 && /does not accept USDC from a connected wallet/.test(x402OnPp.body.error));
+  const oldT = await post(H, '/rails', { proof: proofs.oldTransfer });
+  check('an app signed while "transfer" existed is refused as naming an unknown method (removed 2026-09-28)', oldT.status === 403 && /unknown payment method "transfer"/.test(oldT.body.error));
   const settleThief = await post(H, '/x402/settle', { proof: proofs.usdc, amount: '1000000', transfers: [{ to: THIEF, amount: '970000' }, { to: TREASURY, amount: '30000' }], payloads: [{}, {}] });
   check('x402 paying anyone but the SIGNED pay.to is refused', settleThief.status === 403 && /signed manifest names/.test(settleThief.body.error));
 
@@ -127,8 +130,8 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
     && JSON.parse(unit.custom_id).a === 'paypal-shop', JSON.stringify(unit.payee));
   const pend = await post(core({ paypalPartner: 'pending' }), '/checkout', { proof: proofs.paypal, amount: '5000000', reason: 'x' });
   check('…and while partner approval is pending, checkout says so plainly instead of a PayPal 422', pend.status === 503 && /platform partner/.test(pend.body.error));
-  const inv = await post(H, '/transfer/invoice', { proof: proofs.usdc, amount: '3000000', sku: null });
-  check('a USDC-allowed app gets a transfer invoice naming the SIGNED payee', inv.status === 200 && inv.body.payTo === AUTHOR && !!inv.body.token);
+  const gone = await post(H, '/transfer/invoice', { proof: proofs.usdc, amount: '3000000', sku: null });
+  check('the wallet-transfer endpoints are gone', gone.status === 404);
   const offer = await post(H, '/mpp/offer', { proof: proofs.all, amount: '5000000', sku: 'agentpack' });
   check('an mpp-allowed app gets a signed agent-checkout link', offer.status === 200 && /^https:\/\/pay\.example\/mpp\/charge\/[\w-]+\.[\w-]+$/.test(offer.body.url), offer.body && offer.body.url);
   const offerNo = await post(H, '/mpp/offer', { proof: proofs.usdc, amount: '5000000' });
