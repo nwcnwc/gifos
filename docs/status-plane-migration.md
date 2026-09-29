@@ -115,12 +115,33 @@ Landed so far on `status-digest`:
     section-mates who hear it, while everyone else shows the badge;
   - `statusOf` stays within C²-1 plus the open DataChannels (the V2 bound).
 
+- **Default ON** (`a1f3486b`). `window.GIFOS_DIGEST = false` restores the
+  pre-plane flood.
+- **The digest's wire form** (this step). Default fields stay off the wire,
+  and so does the author on the two digests nobody echoes: the room fold on
+  PONG and the Section-1 table on S1SYNC. Measured per node per tick, settled
+  harness, N=150: 698 bytes with the digest off, 1,685 with it on as first
+  built, 1,092 now. At N=500: 282 off, 437 now. This buys the flat O(C) fold
+  in place of an O(N) status flood; at N=1,000 that flood is ~2,000
+  frames/s per browser.
+- **MESH_SKEW** (`a848dc87`) runs any sim or JS mesh suite on per-seat clocks.
+  The whole JS mesh tier is green under MESH_SKEW=5000.
+
+Flakes seen on this branch that also fail on unmodified main (A/B on the
+same box):
+- e2e-stage-onerow: 2 of 5 red on main.
+- e2e-irl: red on main under load.
+- flood-burst 1000 on a Pi: main itself deadlocked once at 338/1000; timings
+  there swing 51-105s run to run.
+
 Known, measured and NOT fixed here: S1SYNC's claim-birth `b` is also an
 absolute tick carried across seats. In the sim with per-seat clocks (N=600,
 20% churn plus two targeted kills, seeds 1-3) it changes trajectories but
 never correctness (CHECK PASS, dups 0). It gates a tie-break, not a count.
-The fix has the same shape (send the age) but belongs in its own sim-first
-change to the seating laws.
+The fix has the same shape (send the age). It is parked, unmerged, on branch
+`claim-birth-age`: it perturbs repro-compaction's chaotic seed-9 depth leg,
+and no suite yet shows the bug. It needs a suite that makes a ghost's tie win
+observable under skew before it can land.
 
 1. **Measure first.** A browser-side gauge of status frames/node/period (txStats +
    the harness), recorded at N = 25, 100, 500 on today's code — the baseline the
