@@ -25,6 +25,38 @@
 
   const isAddress = (a) => typeof a === 'string' && /^0x[0-9a-fA-F]{40}$/.test(a);
 
+  // ---- WHICH RAILS THE AUTHOR ALLOWS, out of the SIGNED manifest --------------
+  // capabilities.pay is the author's own word on how they may be paid, and it
+  // sits inside the signature's content hash like everything else in the
+  // manifest:
+  //   "pay": true                       -> PayPal only
+  //   "pay": ["x402", "transfer", …]    -> exactly the rails listed
+  // Anything else — an empty list, an unknown name, a duplicate, a chain rail
+  // listed with no manifest.pay.to to pay — is a malformed manifest, refused
+  // outright: a typo must never silently widen or empty what the author meant.
+  // The OS sheet draws only these rails and the pay Worker refuses every other
+  // one, so a buyer who skips the sheet cannot pay over a rail the author
+  // turned down.
+  const RAILS = ['paypal', 'x402', 'transfer', 'fednow', 'mpp'];
+  const CHAIN_RAILS = ['x402', 'transfer'];
+  function railsAllowed(manifest) {
+    const p = manifest && manifest.capabilities && manifest.capabilities.pay;
+    if (p === true) return ['paypal'];
+    const shape = 'capabilities.pay must be true (PayPal only) or a list of payment methods from: ' + RAILS.join(', ');
+    if (!Array.isArray(p) || !p.length) throw new Error(shape);
+    const out = [];
+    for (const r of p) {
+      if (RAILS.indexOf(r) === -1) throw new Error('capabilities.pay names an unknown payment method "' + String(r).slice(0, 32) + '" — ' + shape);
+      if (out.indexOf(r) !== -1) throw new Error('capabilities.pay lists "' + r + '" twice');
+      out.push(r);
+    }
+    const chain = out.filter((r) => CHAIN_RAILS.indexOf(r) !== -1);
+    if (chain.length && !(manifest.pay && isAddress(manifest.pay.to))) {
+      throw new Error('capabilities.pay allows ' + chain.join(' and ') + ' but manifest.pay.to names no address to pay');
+    }
+    return out;
+  }
+
   // ---- the CHAIN payee, out of the SIGNED manifest ---------------------------
   // manifest.pay = { to: "0x…", chain: "eip155:84532" } — OPTIONAL since the
   // PayPal rail (below) derives its payee from the signing identity and needs
@@ -85,12 +117,16 @@
     if (manifest && manifest.pay != null) {
       try { payee = payeeOf(manifest); } catch (e) { return { allowed: false, reason: e.message }; }
     }
+    // The author's own list of rails. Malformed is a refusal, not a guess.
+    let rails;
+    try { rails = railsAllowed(manifest); } catch (e) { return { allowed: false, reason: e.message }; }
     // The fiat rail derives from the identity that just verified. It cannot
     // fail for a valid identity, but guard anyway rather than half-answer.
     let paypal = null;
     try { paypal = paypalPayeeOf(identity); } catch (e) { return { allowed: false, reason: e.message }; }
     return {
       allowed: true,
+      rails,                       // the author's allowed rails, in their order
       payee,                       // chain rail: { to, chain } | null
       paypal,                      // fiat rail: the derived PayPal payee email
       // What the human is shown. An address means nothing to a person; the
@@ -139,26 +175,29 @@
 
   // ---- what the human is shown, BEFORE any passkey prompt --------------------
   // A WebAuthn dialog says only "use your passkey". This is the trusted display.
-  function sheet(elig, request, appName) {
+  // accepted: the Worker's answer to "which of these can you process right
+  // now?" (registry, onboarding, configured providers) — a map rail -> true,
+  // or undefined to skip that narrowing (tests, and the pure shape).
+  function sheet(elig, request, appName, accepted) {
+    const allow = (r) => (elig.rails || []).indexOf(r) !== -1 && (!accepted || accepted[r] === true);
     return {
       app: appName || '',
       payingTo: elig.identity.id,
       payingToType: elig.identity.type,
       verified: true,
-      // The rails this app can be paid on. PayPal always (derived); the chain
-      // only when the signed manifest carries an address. The sheet renders a
-      // button per rail — never a rail with a null payee.
+      // The rails this app can be paid on: the ones its AUTHOR allowed in the
+      // signed manifest, narrowed to the ones the Worker can process now. The
+      // sheet renders a button per rail — never a rail with a null payee.
       rails: {
-        paypal: elig.paypal || null,
-        x402: elig.payee ? { address: elig.payee.to, chain: CHAIN_NAME } : null,
+        paypal: allow('paypal') ? (elig.paypal || null) : null,
+        x402: allow('x402') && elig.payee ? { address: elig.payee.to, chain: CHAIN_NAME } : null,
         // The universal rail: send exactly X to the signed payee, from ANY
         // self-custody wallet (RockWallet included) — same address authority
         // as x402, no connection needed.
-        transfer: elig.payee ? { address: elig.payee.to, chain: CHAIN_NAME } : null,
+        transfer: allow('transfer') && elig.payee ? { address: elig.payee.to, chain: CHAIN_NAME } : null,
         // FedNow rides the verified identity like PayPal does; whether that
-        // identity is REGISTERED with the provider is the Worker's answer at
-        // request time, not a claim made here.
-        fednow: elig.paypal ? { identity: elig.identity.id } : null,
+        // identity is REGISTERED with the provider is the Worker's answer.
+        fednow: allow('fednow') ? { identity: elig.identity.id } : null,
       },
       // Back-compat fields (address/chain) kept while the x402 rail is the
       // only on-chain one; prefer rails.* in new code.
@@ -261,6 +300,7 @@
 
   GifOS.charge = {
     CHAIN, CHAIN_NAME, DECLINED, PAID_BY,
+    RAILS, railsAllowed,
     payeeOf, paypalPayeeOf, eligibility, validateRequest, sheet, receipt, receiptFile,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -29,7 +29,7 @@ const THIEF  = '0xdeadBEEFdeadBEEFdeadBEEFdeadBEEFdeadBEEF';
 
 const manifestFor = (payTo) => JSON.stringify({
   gifos: '1.0', appId: 'paid-shop', name: 'Paid Shop', entry: 'index.html',
-  capabilities: { db: true }, pay: { to: payTo, chain: 'eip155:84532' },
+  capabilities: { db: true, pay: ['x402', 'transfer'] }, pay: { to: payTo, chain: 'eip155:84532' },
 });
 
 (async () => {
