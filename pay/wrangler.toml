@@ -47,7 +47,9 @@ REGISTRY_URL = "https://gifos.app/pay/registry.json"
 # STRIPE_PROFILE_ID = "profile_test_…"
 # Authors onboarded for destination charges: signing identity -> acct_….
 STRIPE_PAYEES = "{}"
-# PAYPAL_CLIENT_ID is a var (it is public by nature); set it at deploy.
+# The PayPal REST app's client ID — public by nature (it ships in every PayPal
+# button). SANDBOX app "gifos-pay"; its secret is PAYPAL_CLIENT_SECRET.
+PAYPAL_CLIENT_ID = "BAAhbyY1zsQopKGzUKBQIx-06EA39p-VYaReH1fdSRiKhF_va2KrZA28h77DPB97P6RJf64uqP7F-xFwuI"
 
 # Branded domain — TWO bindings, same rationale as relay/wrangler.toml:
 # routes beat custom domains when both match, so the explicit zone route keeps
