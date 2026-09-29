@@ -60,9 +60,18 @@ async function until(url, ms) {
 (async () => {
   await need({ 8099: 'static site' });
 
-  // The Worker derives the payee from the PUBLISHED catalog — the suite
-  // publishes one, carrying the test app under its test signing identity.
+  // The Worker reads the seller from the app's SIGNATURE PROOF and fetches
+  // the author's key from https://<domain>/gifos.key — never the store. This
+  // server stands in for those domains (/keys/<domain>, filled once the page
+  // has minted the test keys) and for the published rails registry.
+  const testKeys = {};
   const catalog = http.createServer((req, res) => {
+    const km = /^\/keys\/([^/?]+)$/.exec(req.url);
+    if (km) {
+      const k = testKeys[decodeURIComponent(km[1])];
+      res.writeHead(k ? 200 : 404, { 'Content-Type': 'text/plain' });
+      return res.end(k || 'no key');
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     if (/registry/.test(req.url)) {
       // The rails registry: paytest is current; expired.example.com lapsed
@@ -72,19 +81,18 @@ async function until(url, ms) {
         'expired.example.com': { until: '2025-01-01' },
       } }));
     }
-    res.end(JSON.stringify({ apps: [
-      { appId: 'paytest', slug: 'paytest', signature: { type: 'domain', id: SIGN_DOMAIN }, pay: { to: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' } },
-      { appId: 'payfree', slug: 'payfree', signature: { type: 'domain', id: 'unregistered.example.com' }, pay: { to: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' } },
-      { appId: 'payold', slug: 'payold', signature: { type: 'domain', id: 'expired.example.com' }, pay: { to: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C' } },
-    ] }));
+    // Anything else is the STORE — which the Worker must never ask.
+    storeHits++;
+    res.end(JSON.stringify({ apps: [] }));
   }).listen(8798);
+  let storeHits = 0;
 
   serve('fake-paypal', [path.join(ROOT, 'test', 'servers', 'fake-paypal.js')]);
   serve('fake-facilitator', [path.join(ROOT, 'test', 'servers', 'fake-facilitator.js')]);
   serve('fake-chain', [path.join(ROOT, 'test', 'servers', 'fake-chain.js')]);
   serve('fake-fednow', [path.join(ROOT, 'test', 'servers', 'fake-fednow.js')]);
   serve('fake-stripe', [path.join(ROOT, 'test', 'servers', 'fake-stripe.js')]);
-  serve('pay-local', [path.join(ROOT, 'test', 'servers', 'pay-local.js')], { CATALOG_URL: 'http://127.0.0.1:8798/index.json', REGISTRY_URL: 'http://127.0.0.1:8798/registry.json' });
+  serve('pay-local', [path.join(ROOT, 'test', 'servers', 'pay-local.js')], { KEY_URL: 'http://127.0.0.1:8798/keys/{domain}', REGISTRY_URL: 'http://127.0.0.1:8798/registry.json' });
   await until('http://127.0.0.1:8795/_state');
   await until('http://127.0.0.1:8797/_state');
   await until('http://127.0.0.1:8799/_state');
@@ -135,7 +143,7 @@ async function until(url, ms) {
     'ent();' +
     '})();<\/script>';
 
-  appPubB64 = await page.evaluate(async ({ html, domain, chainPayee }) => {
+  const minted = await page.evaluate(async ({ html, domain, chainPayee }) => {
     const mk = (appId, extra) => GifOS.gif.encode(Object.assign({
       'manifest.json': JSON.stringify(Object.assign({ gifos: '1.0', appId, name: appId, entry: 'index.html', capabilities: { pay: true } }, extra)),
       'index.html': html,
@@ -143,8 +151,18 @@ async function until(url, ms) {
     // Signed seller: a fresh Ed25519 domain key, the same signDomain the real
     // signer uses. Its public half is served at the domain by the route above.
     const { keyPair, publicKeyB64 } = await GifOS.sign.generateDomainKey();
-    const raw = await mk('paytest', { pay: { to: chainPayee } });
+    // It lists EVERY rail (capabilities.pay) — "pay": true would be PayPal only.
+    const ALL = ['paypal', 'x402', 'transfer', 'fednow', 'mpp'];
+    const raw = await mk('paytest', { capabilities: { pay: ALL }, pay: { to: chainPayee } });
     const signed = await GifOS.sign.signDomain(raw, domain, keyPair, Date.now());
+    // Two more sellers, signed by identities the rails registry does not
+    // carry (never registered / lapsed) — the fee-free rails refuse them.
+    const others = {};
+    for (const [appId, dom] of [['payfree', 'unregistered.example.com'], ['payold', 'expired.example.com']]) {
+      const k = await GifOS.sign.generateDomainKey();
+      const b = await GifOS.sign.signDomain(await mk(appId, { capabilities: { pay: ['transfer', 'fednow', 'mpp'] }, pay: { to: chainPayee } }), dom, k.keyPair, Date.now());
+      others[appId] = { domain: dom, key: k.publicKeyB64, proof: await GifOS.sign.proofOf(b) };
+    }
     // Unsigned seller: same shape, no signature — must be refused outright.
     const unsigned = await mk('paynot', {});
     // An IMPOSTOR: unsigned, but wearing the real seller's appId. The purse is
@@ -156,8 +174,13 @@ async function until(url, ms) {
       await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: nm, parent: null, x, y: 320, iconSize: 64 });
     }
     await GifOS.desktop.load(); await GifOS.desktop.render();
-    return publicKeyB64;
+    return { publicKeyB64, proof: await GifOS.sign.proofOf(signed), others };
   }, { html: APP_HTML, domain: SIGN_DOMAIN, chainPayee: CHAIN_PAYEE });
+  appPubB64 = minted.publicKeyB64;
+  testKeys[SIGN_DOMAIN] = appPubB64;
+  for (const o of Object.values(minted.others)) testKeys[o.domain] = o.key;
+  const PROOF = minted.proof;
+  const postJson = (route, body) => fetch(PAY + route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
   const [app] = await Promise.all([
     context.waitForEvent('page'),
@@ -357,15 +380,15 @@ async function until(url, ms) {
   // These rails collect no cut, so they are open only to identities on the
   // published registry (fee not yet set). Refusals are PLAIN and name the
   // policy — and the fee-collecting rails stay open to everyone.
-  const invUnreg = await fetch(PAY + '/transfer/invoice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appId: 'payfree', amount: '3000000', sku: null, reason: 'x' }) });
+  const invUnreg = await postJson('/transfer/invoice', { proof: minted.others.payfree.proof, amount: '3000000', sku: null, reason: 'x' });
   check('an UNREGISTERED identity is refused the transfer rail, plainly',
     invUnreg.status === 403 && /not registered for the fee-free rails/.test((await invUnreg.json()).error));
-  const rfpUnreg = await fetch(PAY + '/fednow/rfp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appId: 'payfree', amount: '3000000', sku: null, reason: 'x' }) });
+  const rfpUnreg = await postJson('/fednow/rfp', { proof: minted.others.payfree.proof, amount: '3000000', sku: null, reason: 'x' });
   check('…and the FedNow rail', rfpUnreg.status === 403 && /not registered for the fee-free rails/.test((await rfpUnreg.json()).error));
-  const invOld = await fetch(PAY + '/transfer/invoice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appId: 'payold', amount: '3000000', sku: null, reason: 'x' }) });
+  const invOld = await postJson('/transfer/invoice', { proof: minted.others.payold.proof, amount: '3000000', sku: null, reason: 'x' });
   check('an EXPIRED registration is refused with its lapse date and the way back',
     invOld.status === 403 && /expired on 2025-01-01/.test((await invOld.json()).error));
-  const invReg = await fetch(PAY + '/transfer/invoice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appId: 'paytest', amount: '3000000', sku: null, reason: 'x' }) });
+  const invReg = await postJson('/transfer/invoice', { proof: PROOF, amount: '3000000', sku: null, reason: 'x' });
   check('a CURRENT registration still gets its invoice', invReg.status === 200 && !!(await invReg.json()).token);
 
   // ---- the AGENT rail: MPP 402 + a Stripe Shared Payment Token --------------
@@ -374,7 +397,13 @@ async function until(url, ms) {
   // to it, retry with the credential. fake-stripe stands where Stripe
   // stands, including the idempotent-replayed answer a replay must trip.
   const STRIPE = 'http://127.0.0.1:8801';
-  const MPP_URL = PAY + '/mpp/charge/paytest?sku=agentpack&amount=5000000';
+  // An agent holds no app bytes: the OS presents the proof once and gets a
+  // signed offer link for exactly one purchase (POST /mpp/offer).
+  const offerFor = async (proof, sku, amount) => { const r = await postJson('/mpp/offer', { proof, sku, amount }); return { status: r.status, body: await r.json() }; };
+  const offer1 = await offerFor(PROOF, 'agentpack', '5000000');
+  check('the OS gets a signed agent-checkout link for one purchase from the app\'s proof',
+    offer1.status === 200 && /\/mpp\/charge\/[\w-]+\.[\w-]+$/.test(offer1.body.url || ''), JSON.stringify(offer1.body).slice(0, 120));
+  const MPP_URL = PAY + '/mpp/charge/' + offer1.body.url.split('/mpp/charge/')[1];
   const c1 = await fetch(MPP_URL);
   const www = c1.headers.get('www-authenticate') || '';
   check('an agent with no credential gets 402, no-store, and a Payment challenge naming stripe/charge for THIS realm',
@@ -410,15 +439,16 @@ async function until(url, ms) {
   const tam = await fetch(MPP_URL, { headers: { Authorization: credential(Object.assign({}, ch, { request: tamperedReq }), { spt: await mintSpt(50) }) } });
   check('a credential with an EDITED amount fails the binding before any token reaches Stripe',
     tam.status === 402 && (await tam.json()).type === 'invalid-challenge' && (await (await fetch(STRIPE + '/_state')).json()).intents.length === 1);
-  const other = await fetch(PAY + '/mpp/charge/paytest?sku=other&amount=5000000', { headers: { Authorization: credential(ch, { spt: await mintSpt(500) }) } });
+  const offer2 = await offerFor(PROOF, 'other', '5000000');
+  const other = await fetch(PAY + '/mpp/charge/' + offer2.body.url.split('/mpp/charge/')[1], { headers: { Authorization: credential(ch, { spt: await mintSpt(500) }) } });
   check('a genuine challenge for ONE purchase does not pay for ANOTHER', other.status === 402 && (await other.json()).type === 'invalid-challenge');
   const garbage = await fetch(MPP_URL, { headers: { Authorization: 'Bearer nope' } });
   check('a malformed credential: 402 + malformed-credential problem + a fresh challenge (never 401)',
     garbage.status === 402 && garbage.headers.get('content-type') === 'application/problem+json' && (await garbage.json()).type === 'malformed-credential' && /^Payment /.test(garbage.headers.get('www-authenticate') || ''));
-  const notOnboarded = await fetch(PAY + '/mpp/charge/payfree?amount=5000000');
+  const notOnboarded = await postJson('/mpp/offer', { proof: minted.others.payfree.proof, amount: '5000000' });
   check('an author NOT onboarded for the agent rail gets a plain refusal naming the way back — no challenge',
     notOnboarded.status === 403 && /not onboarded for the agent rail/.test((await notOnboarded.json()).error) && !notOnboarded.headers.get('www-authenticate'));
-  const tooSmall = await fetch(PAY + '/mpp/charge/paytest?amount=100000');
+  const tooSmall = await postJson('/mpp/offer', { proof: PROOF, amount: '100000' });
   check('under Stripe\'s $0.50 minimum is refused up front, pointing at the USDC rails', tooSmall.status === 400 && /0\.50/.test((await tooSmall.json()).error));
   const asHuman = await fetch(MPP_URL, { headers: { Accept: 'text/html' } });
   check('a human who opens the agent URL is told what it is, in HTML', asHuman.status === 402 && /agent checkout/.test(await asHuman.text()));
@@ -587,6 +617,15 @@ async function until(url, ms) {
   await fr3.locator('#ent').filter({ hasText: /ent/ }).waitFor({ timeout: 8000 });
   const fakeEnt = await fr3.locator('#ent').textContent();
   check('an unsigned impostor wearing the paid appId cannot read its entitlement', /^ent-err:.*not signed/.test(fakeEnt), fakeEnt);
+
+  // ---- NO STORE: the whole suite paid through the app's own signature ------
+  const railsNow = await (await postJson('/rails', { proof: PROOF })).json();
+  check('/rails answers from the proof: the author\'s five rails, all serviceable on this deployment',
+    JSON.stringify(railsNow.allowed) === '["paypal","x402","transfer","fednow","mpp"]'
+    && ['paypal', 'x402', 'transfer', 'fednow', 'mpp'].every((r) => railsNow.rails[r] && railsNow.rails[r].ok === true), JSON.stringify(railsNow.rails));
+  const noProof = await postJson('/checkout', { appId: 'paytest', amount: '5000000', reason: 'x' });
+  check('an appId without a proof buys nothing — the old catalog wire is gone', noProof.status === 400);
+  check('the Worker never asked the store for anything', storeHits === 0, storeHits + ' store request(s)');
 
   await browser.close();
   catalog.close();
