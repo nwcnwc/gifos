@@ -13,6 +13,13 @@
  *                       against gifos.app's published key
  *   POST /x402/settle   forward the broker-built transfer payloads to the
  *                       x402 facilitator, sign the same receipt shape
+ *   POST /transfer/invoice  the WALLET-TRANSFER rail (RockWallet and every
+ *                       other self-custody wallet): mint a signed invoice
+ *                       token naming the signed payee and a dust-unique
+ *                       amount; /transfer/bind ties it to the payer's wallet;
+ *                       /transfer/receipt watches the chain for that exact
+ *                       USDC transfer (from that wallet) and signs the same
+ *                       receipt shape
  *   POST /fednow/rfp    the FEDNOW rail, via a provider (FedNow itself has
  *                       no public API): create a Request-for-Payment the
  *                       buyer approves in their own banking app;
@@ -234,8 +241,8 @@ export function makeCore(cfg) {
   };
 
   // ---- the rails registry ---------------------------------------------------
-  // The fee-free rail (FedNow) collects no per-transaction cut, so it is
-  // open only to signing identities REGISTERED on the
+  // The fee-free rails (wallet transfer, FedNow) collect no per-transaction
+  // cut, so they are open only to signing identities REGISTERED on the
   // published registry (docs/payments.md §Registration — an annual flat fee,
   // amount not yet set). The fee-collecting rails need none of this. Absent
   // or expired -> a plain refusal naming the policy, never a pretend rail.
@@ -279,6 +286,20 @@ export function makeCore(cfg) {
     return JSON.parse(new TextDecoder().decode(unb64u(body)));
   }
 
+  // ---- the chain, read-only -------------------------------------------------
+  let rpcId = 0;
+  async function rpc(method, params) {
+    if (!cfg.rpcUrl) throw new Error('no chain RPC is configured on this deployment');
+    const r = await F(cfg.rpcUrl, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method, params: params || [] }),
+    });
+    if (!r.ok) throw new Error('rpc ' + method + ' failed (HTTP ' + r.status + ')');
+    const b = await r.json();
+    if (b.error) throw new Error('rpc ' + method + ': ' + (b.error.message || JSON.stringify(b.error)));
+    return b.result;
+  }
+
   // ---- the signed receipt ---------------------------------------------------
   // Signed over the exact JSON STRING returned, so there is no canonicalization
   // to disagree about: the OS verifies the bytes it received.
@@ -309,6 +330,11 @@ export function makeCore(cfg) {
         out.x402 = !cfg.facilitatorUrl ? no('no x402 facilitator is configured on this deployment')
           : !seller.chainPayee ? no('the app names no address to pay')
           : { ok: true };
+      } else if (rail === 'transfer') {
+        const reg = cfg.rpcUrl && seller.chainPayee ? await registered() : null;
+        out.transfer = !cfg.rpcUrl ? no('the wallet-transfer rail is not configured on this deployment')
+          : !seller.chainPayee ? no('the app names no address to pay')
+          : reg ? no(reg) : { ok: true };
       } else if (rail === 'fednow') {
         const reg = cfg.fednowApi ? await registered() : null;
         out.fednow = !cfg.fednowApi ? no('the FedNow rail is not configured on this deployment')
@@ -549,6 +575,114 @@ export function makeCore(cfg) {
       amount: body.amount,
       payee: (transfers[0] && transfers[0].to) || null,
       tx: txs.join(','),
+      at: Date.now(),
+    });
+    return json({ status: 'COMPLETED', receiptJson, sig });
+  }
+
+  // ---- the wallet-transfer rail ---------------------------------------------
+  // RockWallet — and every other self-custody wallet — has exactly one
+  // universal integration surface: SEND EXACTLY X TO ADDRESS Y. So the
+  // invoice adds a random sub-cent DUST to the amount (0–9999 base units,
+  // under one cent) to make this payment's value unique among concurrent
+  // buyers of the same thing, and the receipt endpoint watches the chain for
+  // a USDC Transfer of exactly that value to the signed payee. The 3% is
+  // NOT collected on this rail (a direct wallet send cannot split, and
+  // routing it through a GifOS account would be custody) — the receipt says
+  // so: feeCollected:false. Honest bookkeeping beats silent fiction.
+  const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'; // keccak(Transfer(address,address,uint256))
+  const INVOICE_TTL_MS = 30 * 60 * 1000;
+
+  async function transferInvoice(req) {
+    if (!cfg.rpcUrl) return bad('the wallet-transfer rail is not configured on this deployment', 501);
+    let body; try { body = await req.json(); } catch (e) { return bad('body must be JSON'); }
+    const seller = await sellerFrom(body.proof);
+    requireRail(seller, 'transfer');
+    const appId = seller.appId;
+    if (typeof body.amount !== 'string' || !/^[0-9]+$/.test(body.amount) || BigInt(body.amount) <= 0n) return bad('bad amount');
+    const payTo = seller.chainPayee;
+    await assertRegistered(seller.identity);
+    const dustBytes = new Uint8Array(2); crypto.getRandomValues(dustBytes);
+    const dust = (dustBytes[0] * 256 + dustBytes[1]) % 10000;          // < one cent
+    const expected = String(BigInt(body.amount) + BigInt(dust));
+    const block = await rpc('eth_blockNumber');
+    const now = Date.now();
+    const token = await signToken({
+      v: 1, kind: 'gifos-pay-invoice', appId,
+      sku: body.sku == null ? null : String(body.sku).slice(0, 64),
+      amount: body.amount, expected, payTo,
+      asset: USDC_SEPOLIA, network: 'eip155:84532',
+      block, iat: now, exp: now + INVOICE_TTL_MS,
+    });
+    return json({
+      token, payTo, expected, asset: USDC_SEPOLIA, network: 'eip155:84532',
+      exp: now + INVOICE_TTL_MS,
+      // EIP-681, for wallets that register as handlers; everyone else copies.
+      uri: 'ethereum:' + USDC_SEPOLIA + '@84532/transfer?address=' + payTo + '&uint256=' + expected,
+    });
+  }
+
+  // The dust makes an amount unique among honest concurrent buyers; it does
+  // not make it secret. Someone minting invoices for every dust value of a
+  // popular price holds a token for whichever one a stranger's wallet later
+  // happens to send, and /transfer/receipt would sign that stranger's payment
+  // over to them. Binding the invoice to the PAYER closes it: the receipt
+  // then honours only a Transfer FROM that address. The buyer names the
+  // wallet they are sending from (the sheet asks), the same token is
+  // re-signed with `from`, and the amount and dust stay exactly as shown.
+  async function transferBind(req) {
+    let body; try { body = await req.json(); } catch (e) { return bad('body must be JSON'); }
+    let inv;
+    try { inv = await verifyToken(body.token); } catch (e) { return bad(String(e.message || e), 403); }
+    if (inv.kind !== 'gifos-pay-invoice') return bad('not an invoice token', 403);
+    if (Date.now() > inv.exp) return bad('this invoice expired — start the payment again', 410);
+    const from = String(body.from || '').toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(from)) return bad('from must be a 0x… wallet address');
+    if (inv.from && inv.from !== from) return bad('this invoice is already bound to another wallet', 409);
+    const token = await signToken(Object.assign({}, inv, { from }));
+    return json({ token, from });
+  }
+
+  async function transferReceipt(req) {
+    let body; try { body = await req.json(); } catch (e) { return bad('body must be JSON'); }
+    let inv;
+    try { inv = await verifyToken(body.token); } catch (e) { return bad(String(e.message || e), 403); }
+    if (inv.kind !== 'gifos-pay-invoice') return bad('not an invoice token', 403);
+    if (Date.now() > inv.exp) return bad('this invoice expired — start the payment again', 410);
+    // ONLY A BOUND INVOICE CAN BE RECEIPTED. The unbound token /transfer/invoice
+    // hands out still exists (the sheet shows the amount before it asks for
+    // the wallet), and the OS polls with it until the buyer binds — so an
+    // unbound poll is answered PENDING, never with the chain. Answering it
+    // from the chain is the pre-mint attack the comment above describes:
+    // whoever holds a token for a dust value would be signed a stranger's
+    // matching transfer. The chain is not asked, and no receipt is minted,
+    // until the token names the payer.
+    const pad = (a) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
+    if (!inv.from || !/^0x[0-9a-f]{40}$/.test(String(inv.from))) return json({ status: 'PENDING', needsPayer: true });
+    const logs = await rpc('eth_getLogs', [{
+      fromBlock: inv.block, toBlock: 'latest',
+      address: inv.asset,
+      topics: [TRANSFER_TOPIC, pad(inv.from), pad(inv.payTo)],
+    }]);
+    const hit = (logs || []).find((l) => {
+      try {
+        if (BigInt(l.data) !== BigInt(inv.expected)) return false;
+        // The node filtered on topics[1] already; check it here too, so a
+        // node that ignores a topic filter cannot widen the binding.
+        if (String((l.topics || [])[1] || '').toLowerCase() !== pad(inv.from)) return false;
+        if (String((l.topics || [])[2] || '').toLowerCase() !== pad(inv.payTo)) return false;
+        return true;
+      } catch (e) { return false; }
+    });
+    if (!hit) return json({ status: 'PENDING' });
+    const { receiptJson, sig } = await signedReceipt({
+      rail: 'transfer',
+      appId: inv.appId, sku: inv.sku,
+      amount: inv.amount,
+      payee: inv.payTo,
+      payer: inv.from,
+      tx: hit.transactionHash,
+      feeCollected: false,
       at: Date.now(),
     });
     return json({ status: 'COMPLETED', receiptJson, sig });
@@ -841,6 +975,9 @@ export function makeCore(cfg) {
     if (req.method === 'GET' && url.pathname === '/return') return returnPage(url);
     if (req.method === 'GET' && url.pathname === '/cancelled') return html('<p style="font:16px system-ui">Payment cancelled — you can close this window.</p>');
     if (req.method === 'POST' && url.pathname === '/x402/settle') return refusals(settle)(req);
+    if (req.method === 'POST' && url.pathname === '/transfer/invoice') return refusals(transferInvoice)(req);
+    if (req.method === 'POST' && url.pathname === '/transfer/bind') return transferBind(req);
+    if (req.method === 'POST' && url.pathname === '/transfer/receipt') return transferReceipt(req);
     if (req.method === 'POST' && url.pathname === '/fednow/rfp') return refusals(fednowRfp)(req);
     if (req.method === 'GET' && url.pathname.startsWith('/fednow/receipt/')) return fednowReceipt(decodeURIComponent(url.pathname.slice('/fednow/receipt/'.length)));
     if (req.method === 'POST' && url.pathname === '/mpp/offer') return refusals(mppOffer)(req);

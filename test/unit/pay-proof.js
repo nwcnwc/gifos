@@ -29,7 +29,7 @@ const AUTHOR = '0x209693Bc6afc0C5328bA36FaF03C514EF312287C';
 const THIEF = '0xdeadBEEFdeadBEEFdeadBEEFdeadBEEFdeadBEEF';
 const manifest = {
   gifos: '1.0', appId: 'paid-shop', name: 'Paid Shop', entry: 'index.html',
-  capabilities: { pay: ['paypal', 'x402'] }, pay: { to: AUTHOR },
+  capabilities: { pay: ['x402', 'transfer'] }, pay: { to: AUTHOR },
 };
 
 (async () => {
@@ -50,7 +50,7 @@ const manifest = {
   const ok = await sign.checkProof(proof, keyFor);
   check('an honest proof verifies, and yields the manifest AS SIGNED',
     ok.status === 'valid' && ok.id === 'author.example.com' && ok.type === 'domain'
-    && ok.manifest.pay.to === AUTHOR && JSON.stringify(ok.manifest.capabilities.pay) === '["paypal","x402"]', JSON.stringify(ok).slice(0, 160));
+    && ok.manifest.pay.to === AUTHOR && JSON.stringify(ok.manifest.capabilities.pay) === '["x402","transfer"]', JSON.stringify(ok).slice(0, 160));
   check('the proof carries hashes, never the app\'s code', !JSON.stringify(proof).includes('buy things') && !JSON.stringify(proof).includes('console.log'));
   check('the user\'s own .state never leaves in a proof — not even as a hash', !Object.keys(proof.hashes).some((p) => p.indexOf('.state/') === 0));
   check('the full verify() and the proof agree on this app', (await sign.verify(signed)).status !== 'tampered');
@@ -67,8 +67,8 @@ const manifest = {
   };
   await bad('REDIRECTING the payout (edited pay.to) fails the signature',
     (p) => { p.manifest = b64(JSON.stringify(Object.assign({}, manifest, { pay: { to: THIEF } }))); }, /does not match/);
-  await bad('WIDENING the allowed rails (adding fednow) fails the signature',
-    (p) => { p.manifest = b64(JSON.stringify(Object.assign({}, manifest, { capabilities: { pay: ['paypal', 'x402', 'fednow'] } }))); }, /does not match/);
+  await bad('WIDENING the allowed rails (adding paypal) fails the signature',
+    (p) => { p.manifest = b64(JSON.stringify(Object.assign({}, manifest, { capabilities: { pay: ['x402', 'transfer', 'paypal'] } }))); }, /does not match/);
   await bad('a FORGED file hash fails', (p) => { p.hashes['index.html'] = '00'.repeat(32); }, /does not match/);
   await bad('a DROPPED file fails', (p) => { delete p.hashes['js/app.js']; }, /does not match/);
   await bad('an ADDED file fails', (p) => { p.hashes['evil.js'] = 'ab'.repeat(32); }, /does not match/);

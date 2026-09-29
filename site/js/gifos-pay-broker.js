@@ -101,6 +101,13 @@
   }
   const wholeCents = (units) => BigInt(units) % CENT === 0n;
   const MPP_MIN = 50n * CENT;   // Stripe's card minimum, $0.50, in base units
+  // Exact USDC, six decimals, for the transfer rail — the buyer must send
+  // EXACTLY this, dust and all, so nothing here may round or trim.
+  function fmtUsdcExact(units) {
+    const n = BigInt(units);
+    return (n / 1000000n) + '.' + String(n % 1000000n).padStart(6, '0');
+  }
+
   // ---- the signature verdict, once per BYTES ---------------------------------
   // verify() fetches the author's published key, so it is cached for the
   // session — keyed by the SHA-256 of the bytes it judged, never by appId: an
@@ -237,6 +244,7 @@
         '<div id="gp-buttons" style="display:flex;flex-direction:column;gap:.5rem">' +
           (canPaypal ? '<button id="gp-paypal" style="padding:.6rem 1rem;border-radius:.5rem;border:none;background:#ffc439;color:#111;cursor:pointer;font:inherit;font-weight:600">Pay with PayPal (sandbox)</button>' : '') +
           (canX402 ? '<button id="gp-x402" ' + (walletReady ? '' : 'disabled ') + 'style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:' + (walletReady ? '#1652f0' : '#20203255') + ';color:' + (walletReady ? '#fff' : '#9a9ab5') + ';cursor:' + (walletReady ? 'pointer' : 'default') + ';font:inherit">Pay with USDC — connected wallet' + (walletReady ? '' : ' (none yet)') + '</button>' : '') +
+          (sheetData.rails.transfer ? '<button id="gp-transfer" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:#1d1d2c;color:#e8e8f4;cursor:pointer;font:inherit">Send USDC from any wallet (RockWallet, …)</button>' : '') +
           (sheetData.rails.fednow ? '<button id="gp-fednow" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:#1d1d2c;color:#e8e8f4;cursor:pointer;font:inherit">Pay from your bank (FedNow)</button>' : '') +
           (canMpp ? '<button id="gp-mpp" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:#1d1d2c;color:#e8e8f4;cursor:pointer;font:inherit">Pay with your AI agent (Stripe Link)</button>' : '') +
           '<button id="gp-decline" style="padding:.6rem 1rem;border-radius:.5rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">No thanks</button>' +
@@ -270,6 +278,12 @@
         const amt = amountNow();
         if (amt == null) return;
         done({ rail: 'x402', amount: amt });
+      };
+      const tb = box.querySelector('#gp-transfer');
+      if (tb) tb.onclick = () => {
+        const amt = amountNow();
+        if (amt == null) return;
+        done({ rail: 'transfer', amount: amt });
       };
       const mb = box.querySelector('#gp-mpp');
       if (mb) mb.onclick = () => {
@@ -399,6 +413,102 @@
     } finally { busyUi.close(); }
   }
 
+  // ---- the wallet-transfer rail (RockWallet and every other wallet) ---------
+  // The one integration surface every self-custody wallet has: send exactly X
+  // to address Y. The Worker mints a signed invoice with a dust-unique amount
+  // and watches the chain; this side shows the human WHAT to send, exactly,
+  // and polls for the receipt. Nothing connects, nothing signs here — the
+  // buyer's own wallet does the paying.
+  function showTransferSheet(inv) {
+    const doc = root.document;
+    const old2 = doc.getElementById('gifos-pay-transfer'); if (old2) old2.remove();
+    const bg = doc.createElement('div'); bg.id = 'gifos-pay-transfer';
+    bg.setAttribute('style', 'position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1.2rem;');
+    const box = doc.createElement('div');
+    box.setAttribute('style', 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.8rem;max-width:24rem;width:100%;padding:1.2rem;font:15px/1.55 system-ui,-apple-system,sans-serif;');
+    const exact = fmtUsdcExact(inv.expected);
+    box.innerHTML =
+      '<h3 style="margin:0 0 .35rem;font-size:1.05rem">Send from your wallet</h3>' +
+      '<p style="margin:0 0 .8rem;color:#b6b6cf;font-size:.86rem">Open RockWallet — or any wallet that holds USDC on <b>Base Sepolia</b> — and send <b>exactly</b> this amount to this address. The extra fraction of a cent is how this payment is recognised as yours.</p>' +
+      '<div style="background:#0e0e17;border:1px solid #23233a;border-radius:.6rem;padding:.8rem .9rem;margin-bottom:.9rem">' +
+        '<div style="color:#9a9ab5;font-size:.78rem">Amount (USDC)</div>' +
+        '<div style="display:flex;gap:.5rem;align-items:center"><b id="gpt-amt" style="font-size:1.05rem">' + esc(exact) + '</b><button data-copy="' + esc(exact) + '" class="gpt-copy" style="padding:.2rem .6rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.78rem">Copy</button></div>' +
+        '<div style="color:#9a9ab5;font-size:.78rem;margin-top:.6rem">To address</div>' +
+        '<div style="display:flex;gap:.5rem;align-items:center"><b style="font-size:.8rem;word-break:break-all">' + esc(inv.payTo) + '</b><button data-copy="' + esc(inv.payTo) + '" class="gpt-copy" style="padding:.2rem .6rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.78rem">Copy</button></div>' +
+        (/^ethereum:/i.test(String(inv.uri || '')) ? '<a href="' + esc(inv.uri) + '" style="display:inline-block;margin-top:.6rem;color:#9db4ff;font-size:.82rem">Open in a wallet on this device</a>' : '') +
+      '</div>' +
+      '<div style="background:#0e0e17;border:1px solid #23233a;border-radius:.6rem;padding:.8rem .9rem;margin-bottom:.9rem">' +
+        '<div style="color:#9a9ab5;font-size:.78rem">Sending from (your wallet address)</div>' +
+        '<div style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem"><input id="gpt-from" placeholder="0x…" spellcheck="false" style="flex:1;min-width:0;padding:.35rem .5rem;border-radius:.4rem;border:1px solid #2a2a3f;background:#14141f;color:#e8e8f4;font:inherit;font-size:.8rem"><button id="gpt-bind" style="padding:.3rem .7rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.78rem">Bind</button></div>' +
+        '<div id="gpt-bound" style="color:#9a9ab5;font-size:.78rem;margin-top:.4rem">Name the wallet you are sending from FIRST — the payment is watched for only after that, and only a transfer from that address can complete it. Nobody else can claim it.</div>' +
+      '</div>' +
+      '<p id="gpt-status" style="color:#b6b6cf;font-size:.86rem;margin:0 0 .8rem">Waiting for your wallet address (above) before watching for the transfer.</p>' +
+      '<div style="text-align:right"><button id="gpt-cancel" style="padding:.5rem 1.2rem;border-radius:.5rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit">Cancel</button></div>';
+    bg.appendChild(box); doc.body.appendChild(bg);
+    for (const b of box.querySelectorAll('.gpt-copy')) b.onclick = () => { try { root.navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; } catch (e) {} };
+    let cancelled = false;
+    box.querySelector('#gpt-cancel').onclick = () => { cancelled = true; };
+    const api = { cancelled: () => cancelled, close: () => bg.remove(), onBind: null };
+    const fromIn = box.querySelector('#gpt-from'), bindBtn = box.querySelector('#gpt-bind'), bound = box.querySelector('#gpt-bound');
+    bindBtn.onclick = () => {
+      const from = String(fromIn.value || '').trim();
+      if (!/^0x[0-9a-fA-F]{40}$/.test(from)) { bound.textContent = 'That is not a 0x… wallet address.'; return; }
+      if (!api.onBind) return;
+      bindBtn.disabled = true;
+      api.onBind(from).then(() => {
+        fromIn.disabled = true;
+        bound.textContent = 'Bound to ' + from.slice(0, 6) + '…' + from.slice(-4) + ' — only a transfer from that wallet completes this payment.';
+        const st = box.querySelector('#gpt-status'); if (st) st.textContent = 'Watching for your transfer…';
+      }, (e) => { bindBtn.disabled = false; bound.textContent = String(e && e.message || e); });
+    };
+    return api;
+  }
+
+  async function payWithTransfer(manifest, sheetData, amount, proof) {
+    const base = workerBase();
+    const r = await fetch(base + '/transfer/invoice', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proof, amount: String(amount), sku: sheetData.sku || null, reason: sheetData.reason }),
+    });
+    if (!r.ok) throw new Error('could not start the transfer (HTTP ' + r.status + '): ' + (await r.text()).slice(0, 200));
+    const inv = await r.json();
+    const ui = showTransferSheet(inv);
+    // Binding re-signs the same invoice with the payer's address (amount and
+    // dust unchanged); the poll below reads inv.token, so it follows. It is
+    // REQUIRED: the Worker answers an unbound token PENDING without looking
+    // at the chain (pay/src/core.js transferReceipt), so nothing completes —
+    // not even the buyer's own transfer — until the wallet is named.
+    ui.onBind = async (from) => {
+      const rb = await fetch(base + '/transfer/bind', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: inv.token, from }),
+      });
+      if (!rb.ok) throw new Error('could not bind the payment to that wallet (HTTP ' + rb.status + ')');
+      inv.token = (await rb.json()).token;
+    };
+    try {
+      while (Date.now() < inv.exp) {
+        if (ui.cancelled()) throw new Error(GifOS.charge.DECLINED);
+        const rr = await fetch(base + '/transfer/receipt', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: inv.token }),
+        }).catch(() => null);
+        if (rr && rr.ok) {
+          const body = await rr.json();
+          if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
+            const receipt = await verifyReceipt(body.receiptJson, body.sig);
+            bindReceipt(receipt, manifest, sheetData, amount, 'transfer');
+            return { receipt, receiptJson: body.receiptJson, sig: body.sig };
+          }
+        } else if (rr && rr.status === 410) {
+          throw new Error('the transfer window expired — start the payment again');
+        }
+        await sleep(3000);
+      }
+      throw new Error('the transfer window expired — start the payment again');
+    } finally { ui.close(); }
+  }
+
   // ---- the AGENT rail: a checkout link for the person's AI agent ------------
   // The Worker mints a signed offer for exactly this purchase; the person
   // hands its link to their agent (anything running Stripe's Link wallet —
@@ -515,7 +625,7 @@
     const now = await railsNow(proof);
     const sheetData = GifOS.charge.sheet(elig, request, appName || manifest.name, now.accepted);
     const r = sheetData.rails;
-    if (!r.paypal && !r.x402 && !r.fednow && !r.mpp) {
+    if (!r.paypal && !r.x402 && !r.transfer && !r.fednow && !r.mpp) {
       const reasons = elig.rails.map((k) => now.why[k]).filter(Boolean);
       throw new Error('this app cannot be paid right now: ' + (reasons.length ? reasons.join('; ') : 'no payment method is available'));
     }
@@ -532,6 +642,7 @@
 
     const paid = choice.rail === 'paypal' ? await payWithPaypal(manifest, sheetData, choice.amount, choice.win, proof)
       : choice.rail === 'x402' ? await payWithX402(manifest, sheetData, choice.amount, proof)
+      : choice.rail === 'transfer' ? await payWithTransfer(manifest, sheetData, choice.amount, proof)
       : choice.rail === 'mpp' ? await payWithAgent(manifest, sheetData, choice.amount, proof)
       : await payWithFednow(manifest, sheetData, choice.amount, proof);
     const receipt = paid.receipt;

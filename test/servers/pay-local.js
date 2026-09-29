@@ -28,6 +28,7 @@ const PAYPAL_BASE = process.env.PAYPAL_BASE || 'http://127.0.0.1:8795';
 const KEY_URL = process.env.KEY_URL || 'http://127.0.0.1:8798/keys/{domain}';
 const BLOCKED = process.env.BLOCKED ? JSON.parse(process.env.BLOCKED) : [];
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'http://127.0.0.1:8797';
+const BASE_RPC = process.env.BASE_RPC || 'http://127.0.0.1:8799/rpc';
 const FEDNOW_API = process.env.FEDNOW_API || 'http://127.0.0.1:8800';
 const REGISTRY_URL = process.env.REGISTRY_URL || 'http://127.0.0.1:8099/pay/registry.json';
 const STRIPE_API = process.env.STRIPE_API || 'http://127.0.0.1:8801';
@@ -52,6 +53,7 @@ const STRIPE_API = process.env.STRIPE_API || 'http://127.0.0.1:8801';
     blocked: BLOCKED,
     returnBase: 'http://127.0.0.1:' + PORT,
     facilitatorUrl: FACILITATOR_URL,
+    rpcUrl: BASE_RPC,
     fednowApi: FEDNOW_API,
     fednowKey: null,
     fednowPayees: { 'gifos.app': 'ACCT-GIFOS', 'paytest.example.com': 'ACCT-PAYTEST' },
