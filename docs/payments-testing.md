@@ -14,7 +14,11 @@ into a networked one. Payments will not repeat it.
 
 `test/unit/x402-wire.js`, `test/unit/pay-encoding.js` — and, added since:
 `charge-gate.js`, `charge-signed-payee.js`, `purse.js`, `cash-link.js`,
-`pay-proof.js` (an app's signature proven WITHOUT the app — every way to
+`pay-receipt-identity.js` (the self-deal attack itself — an app signed under
+another author's appId paying itself — run against the real Worker core and
+the real broker: the victim's app must NOT be entitled; then every rail's
+receipt must name the verified signer, and a sku must sell at its signed
+price), `pay-proof.js` (an app's signature proven WITHOUT the app — every way to
 forge a proof: edited pay.to, widened rails, forged/dropped/added hashes, a
 swapped picture, a re-attributed signature, the wrong key), `pay-seller.js`
 (the Worker's makeCore on a stubbed network: the store is never fetched, the

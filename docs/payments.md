@@ -526,7 +526,7 @@ cannot present a proof. Whoever holds the app (the OS) presents it once to
 `POST /mpp/offer {proof, sku, amount}` and gets back a signed
 `/mpp/charge/<offer>` link naming exactly that purchase; the agent pays the
 link. Stateless like the invoices — the token is the offer, signed with the
-receipt key, valid 24 hours.
+receipt key, valid 30 minutes.
 
 **On the OS sheet (2026-09-28).** An app that lists `mpp` gets a sheet
 button, "Pay with your AI agent (Stripe Link)". It mints an offer, shows the
@@ -540,10 +540,19 @@ entitlement, ledger, receipt file — with nothing for the person to carry
 back. For a person sitting at the sheet this is a card payment through
 their Link wallet with one extra hop; its point is the case where the
 agent is the one operating the app and the person only approves on their
-phone. **One link pays once:** the Stripe Idempotency-Key is the offer id,
-so the same credential comes back `idempotent-replayed` and a different
-token is refused by Stripe (`idempotency_error`); Stripe keeps keys 24
-hours, which is why offers live exactly that long.
+phone. **One link, one payment:** the Stripe Idempotency-Key is the offer
+id. An agent that RETRIES the same credential (its first answer was lost)
+gets the same payment back marked `idempotent-replayed`, and the same
+receipt — money is never taken without one. A different token on the same
+link is refused by Stripe (`idempotency_error`). A DECLINED first attempt
+is remembered under the key too, so the link is spent: the agent is told
+to ask for a new one, and `/mpp/status` answers `FAILED` so the sheet
+stops waiting. An offer lives 30 minutes — as long as the sheet waits.
+**The link outlives the sheet:** Cancel stops the waiting, not the link,
+so the OS remembers every offer (`pay.agent:<id>`, never exported) until
+it is paid, failed or expired, and `resumeAgentOffers()` — at boot,
+before each charge, on a timer while any is outstanding — records a
+payment that lands after the sheet is gone.
 
 **PayPal stays closed until the partner approval.** `PAYPAL_PARTNER` is
 `pending`: `/rails` reports the PayPal rail closed with the reason, and
@@ -553,14 +562,70 @@ Flip it to `approved` when PayPal approves GifOS as a platform partner.
 
 **What this costs.** A proof is roughly the size of the app's picture
 (233 KB for `tip-creators`, whose GIF is 180 KB), sent with each request that
-starts a payment. Releases archived before 2026-09-28 send no proof, so their
-payment sheets cannot pay this Worker; no payment was ever live on them.
+starts a payment. Releases archived before 2026-09-29 (0.9.15 and earlier)
+speak the old wire — no proof, receipts without an identity — so their
+payment sheets cannot pay this Worker; the next release carries the new
+one (Nathan, 2026-09-29: no backward compatibility). The Worker's request
+counts show no payment by anyone before that date.
 
 Tests: `test/unit/pay-proof.js` (the proof and every way to forge one),
 `test/unit/pay-seller.js` (the Worker's side, with a stubbed network: the
 store is never fetched, every refusal, the blocklist), `charge-gate.js`
 (the rails rule), and `e2e-pay.js` end to end (the suite counts store hits
 and requires zero).
+
+### WHO WAS PAID, AND AT WHAT PRICE (2026-09-29)
+
+An independent review of the 2026-09-28 work found that dropping the store
+lookup had opened a hole, and these rules close it.
+
+**The hole.** A receipt named only an `appId`, and an appId is a string any
+manifest can wear. With any signed app payable, an attacker could sign
+their own app under a victim's appId, pay THEMSELVES a hundredth of a cent,
+and hold a genuine gifos-signed receipt that unlocked the victim's app for
+whoever opened the file.
+
+- **Every receipt names the signer that was paid**: `payeeId` and
+  `payeeType`, the identity the Worker verified from the proof when the
+  payment started. Where a payment's only memory is a short provider field
+  (PayPal `custom_id`, a bank reference) it holds the identity's TAG; the
+  buyer's page names the identity when it asks for the receipt, and the
+  Worker signs only if it hashes to that tag — and checks claim and
+  identity BEFORE it captures anything.
+- **A purchase belongs to (signer, appId, sku).** The OS stores an
+  entitlement under `<identity>/<appId>` and grants it only to an app
+  signed by exactly that identity. A self-dealt receipt entitles the
+  attacker's own app and nobody else's; a colliding app cannot read,
+  unlock or block another signer's purchase. A receipt that names no
+  signer grants nothing and the Worker will not package it.
+- **A sku is sold at the author's signed price.** `manifest.pay.prices =
+  { "<sku>": "<base units>" }`. The amount of a sku purchase is never the
+  request's to choose: the OS sheet and every Worker route refuse a sku
+  the manifest does not price, or any amount but its price. (Before this
+  a buyer could post the author's own proof with amount "1" and hold a
+  receipt for a $20 sku.) A tip names no sku and may be any amount. What
+  this costs: prices are fixed when the app is signed — a sale or a new
+  tier is a re-sign.
+- **x402 settles only what can complete.** Every leg is verified before
+  any is settled. If the author leg fails, nothing moved. If the author
+  was paid and only the fee leg fails, the buyer still gets their receipt
+  — marked `feeCollected:false` — and the audit line names the payer.
+- **The kill switch cannot fail quietly.** `BLOCKED` must be a JSON list
+  of strings or the Worker does not start (a string would have blocked
+  nobody, silently); a blocked domain covers its subdomains; a block is
+  re-checked before an approved PayPal order is captured.
+- **Bounded costs.** Request bodies are capped at 4 MB; the author-key
+  fetch is capped, timed and its failures cached; names that can only be
+  private (`.internal`, `.local`, …) are never fetched, and the host's
+  HTTP status is not echoed to the caller.
+- **The audit trail.** The Worker writes one JSON line per money event
+  (`started`, `receipt`, `captured`, `refused`, `provider-refused`) and
+  `wrangler.toml` `[observability]` keeps them in Workers Logs. Retention
+  is the plan's; every line carries the provider's own reference, and the
+  providers' records are the permanent ones.
+
+Tests: `test/unit/pay-receipt-identity.js` runs the attack itself against
+the real Worker core and the real broker, then every rail's receipt.
 
 ### THE PAYEE RULE — money goes to the signing identity, derived, not declared
 

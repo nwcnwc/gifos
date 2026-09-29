@@ -112,7 +112,7 @@ http.createServer(async (req, res) => {
     const fee = b.application_fee_amount == null ? null : Number(b.application_fee_amount);
     if (fee != null && (!Number.isInteger(fee) || fee < 0 || fee > amount)) return answer(400, { error: { type: 'invalid_request_error', code: 'parameter_invalid', message: 'application_fee_amount out of range' } });
     t.deactivated_at = Math.floor(Date.now() / 1000); t.deactivated_reason = 'consumed';
-    const pi = { id: 'pi_test_' + (++seq), object: 'payment_intent', status: 'succeeded', amount, currency: b.currency,
+    const pi = { id: 'pi_test_' + (++seq), object: 'payment_intent', status: 'succeeded', created: Math.floor(Date.now() / 1000), amount, currency: b.currency,
       payment_method: 'pm_cloned_' + spt, shared_payment_granted_token: spt,
       transfer_data: dest ? { destination: dest } : null, application_fee_amount: fee, on_behalf_of: b.on_behalf_of || null,
       metadata: b.metadata || {}, livemode: /^sk_live_/.test(key), stripe_version: req.headers['stripe-version'] || null, idempotency_key: idemKey || null };
