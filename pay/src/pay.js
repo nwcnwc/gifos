@@ -11,7 +11,12 @@
  *   TREASURY_ADDRESS       the Base address the x402 fee leg must pay (the
  *                          broker's TREASURY; settle refuses any other)
  *   FEE_BPS                300
- *   CATALOG_URL            https://gifos.app/apps/index.json
+ *   PAYPAL_PARTNER         "approved" once PayPal approves GifOS as a platform
+ *                          partner; anything else keeps the PayPal rail
+ *                          closed (PayPal refuses platform_fees without it)
+ *   BLOCKED                JSON list: the kill switch — signing identities
+ *                          ("gifos.app") or single apps ("gifos.app/<appId>")
+ *                          this Worker refuses to take payments for
  *   RETURN_BASE            https://pay.gifos.app
  *   FACILITATOR_URL        (optional) x402 settle backend; absent -> 501
  *   BASE_RPC               (optional) Base Sepolia JSON-RPC for the wallet-
@@ -69,7 +74,8 @@ async function init(env) {
     treasuryEmail: env.TREASURY_EMAIL,
     treasuryAddress: env.TREASURY_ADDRESS || null,
     feeBps: Number(env.FEE_BPS || 300),
-    catalogUrl: env.CATALOG_URL,
+    paypalPartner: env.PAYPAL_PARTNER || 'pending',
+    blocked: env.BLOCKED ? JSON.parse(env.BLOCKED) : [],
     returnBase: env.RETURN_BASE,
     facilitatorUrl: env.FACILITATOR_URL || null,
     rpcUrl: env.BASE_RPC || null,

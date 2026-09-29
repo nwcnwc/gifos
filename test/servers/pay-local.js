@@ -13,7 +13,11 @@
 //
 // Usage: node test/servers/pay-local.js [port]     (default 8796)
 //   env: PAYPAL_BASE   (default http://127.0.0.1:8795 — fake-paypal)
-//        CATALOG_URL   (default http://127.0.0.1:8099/apps/index.json)
+//        KEY_URL       authors' gifos.key, {domain} substituted (default
+//                      http://127.0.0.1:8798/keys/{domain} — the suite serves
+//                      its test signing keys there, standing in for
+//                      https://<domain>/gifos.key)
+//        BLOCKED       JSON list for the kill switch (default [])
 //        FACILITATOR_URL (default http://127.0.0.1:8797 — fake-facilitator)
 'use strict';
 const http = require('http');
@@ -21,7 +25,8 @@ const { webcrypto } = require('crypto');
 
 const PORT = Number(process.argv[2] || process.env.PAY_PORT || 8796);
 const PAYPAL_BASE = process.env.PAYPAL_BASE || 'http://127.0.0.1:8795';
-const CATALOG_URL = process.env.CATALOG_URL || 'http://127.0.0.1:8099/apps/index.json';
+const KEY_URL = process.env.KEY_URL || 'http://127.0.0.1:8798/keys/{domain}';
+const BLOCKED = process.env.BLOCKED ? JSON.parse(process.env.BLOCKED) : [];
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'http://127.0.0.1:8797';
 const BASE_RPC = process.env.BASE_RPC || 'http://127.0.0.1:8799/rpc';
 const FEDNOW_API = process.env.FEDNOW_API || 'http://127.0.0.1:8800';
@@ -43,7 +48,9 @@ const STRIPE_API = process.env.STRIPE_API || 'http://127.0.0.1:8801';
     treasuryEmail: 'payments@gifos.app',
     treasuryAddress: '0x1111111111111111111111111111111111111111', // the broker's TREASURY
     feeBps: 300,
-    catalogUrl: CATALOG_URL,
+    keyUrlFor: (domain) => KEY_URL.replace('{domain}', encodeURIComponent(domain)),
+    paypalPartner: 'approved',   // fake-paypal takes platform_fees
+    blocked: BLOCKED,
     returnBase: 'http://127.0.0.1:' + PORT,
     facilitatorUrl: FACILITATOR_URL,
     rpcUrl: BASE_RPC,
@@ -83,5 +90,5 @@ const STRIPE_API = process.env.STRIPE_API || 'http://127.0.0.1:8801';
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: String(e && e.message || e) }));
     }
-  }).listen(PORT, () => console.log('pay-local on http://127.0.0.1:' + PORT + '  (paypal ' + PAYPAL_BASE + ', catalog ' + CATALOG_URL + ')'));
+  }).listen(PORT, () => console.log('pay-local on http://127.0.0.1:' + PORT + '  (paypal ' + PAYPAL_BASE + ', keys ' + KEY_URL + ')'));
 })();
