@@ -80,6 +80,10 @@ until the mainnet flag day — which is a deliberate, argued change, not a
 config drift (docs/payments.md "What this does NOT do").
 
 The `platform_fees` split needs GifOS approved as a PayPal
-marketplace/platform partner; until that approval, checkout works but the fee
-instruction is refused by PayPal — test against `test/servers/fake-paypal.js`
-(the gate does, hermetically: `test/browser/e2e-pay.js`).
+marketplace/platform partner. Until that approval PayPal refuses the WHOLE
+order, not just the fee: `422 UNPROCESSABLE_ENTITY`, issue
+`PLATFORM_FEES_NOT_SUPPORTED` (measured against the sandbox on the first
+deploy, 2026-09-28 — /checkout answers `502 PayPal refused the order` and the
+Worker log carries PayPal's reason). So the PayPal rail is dark until the
+partner approval lands; test it against `test/servers/fake-paypal.js` (the
+gate does, hermetically: `test/browser/e2e-pay.js`).
