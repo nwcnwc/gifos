@@ -44,8 +44,13 @@ const listing = JSON.parse(read('listing.json'));
 // ---- the manifest is a promise to the store ---------------------------------
 
 if (manifest.appId !== 'tip-creators') throw new Error('appId must be tip-creators');
-if (!manifest.capabilities || manifest.capabilities.pay !== true) {
-  throw new Error('manifest must declare capabilities.pay — asking for money is the whole app');
+// capabilities.pay is the author's list of payment methods (docs/payments.md
+// §The author chooses the rails): true would mean PayPal only. The listing
+// promises "pay with PayPal or with USDC", so the list is exactly those three
+// rails — a drift either way makes the listing false and stops this build.
+const TIP_RAILS = ['paypal', 'x402', 'transfer'];
+if (!manifest.capabilities || JSON.stringify(manifest.capabilities.pay) !== JSON.stringify(TIP_RAILS)) {
+  throw new Error('manifest must declare capabilities.pay = ' + JSON.stringify(TIP_RAILS) + ' — PayPal and USDC, as the listing promises');
 }
 // "It remembers nothing about you" rests on these being absent. If a future
 // edit adds one, the listing became false and this build must stop.

@@ -34,21 +34,25 @@
     57
   ],
   "capabilities": {
-    "pay": true
+    "pay": [
+      "paypal",
+      "x402",
+      "transfer"
+    ]
   },
   "cover": "/apps/tip-creators/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tip-creators/tip-creators.gif",
-  "bytes": 184214,
+  "bytes": 184233,
   "download": 0,
   "provides": null,
   "pay": {
     "to": "0x1111111111111111111111111111111111111111"
   },
-  "sha256": "a0fc040110b60322afe273244b4b06fe9176fa440b53a0e0bc6288ed40b4b284",
+  "sha256": "86fccf5182309477b566b09816f4e41b2e37628122d3f9f61859af079248b4d8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-26"
+    "ts": "2026-09-29"
   }
 }
