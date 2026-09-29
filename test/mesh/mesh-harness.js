@@ -76,6 +76,9 @@ function classifyEmit(env, from, to, m) {
 function makeFabric() {
   const env = {
     TICK: 0, HEALING: true, COMPACTION: true,
+    // MESH_SKEW=S puts every seat on its own clock (mesh.js LT(); the sim's
+    // `net skew=` / MESH_SKEW twin) — a whole suite run as real browsers run.
+    SKEW: Math.max(0, parseInt(process.env.MESH_SKEW, 10) || 0),
     seats: new Map(), bus: new Map(), openPairs: new Set(), seq: 0,
     relayGenesisKey: null, relayGreeters: new Map(),
     moves: 0, evict: 0,

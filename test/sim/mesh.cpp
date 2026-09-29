@@ -1237,6 +1237,7 @@ static long long converge(long long cap){ long long seated,s1c; long long start=
 int main(int argc,char**argv){
   // batch: ./mesh N [leaveFrac] [--threads=W] [--det]  |  service: ./mesh --service [--threads=W] [--det]
   bool service=false; int wthreads=1;
+  if(getenv("MESH_SKEW")) NET_SKEW=max(0,atoi(getenv("MESH_SKEW")));   // per-seat clocks for a WHOLE suite (same as `net skew=` before init)
   for(int a=1;a<argc;a++){ string s=argv[a];
     if(s=="--service") service=true;
     else if(s.rfind("--threads=",0)==0) wthreads=max(1,atoi(s.c_str()+10));
