@@ -75,6 +75,13 @@ PAYPAL_CLIENT_ID = "BAAhbyY1zsQopKGzUKBQIx-06EA39p-VYaReH1fdSRiKhF_va2KrZA28h77D
 enabled = true
 head_sampling_rate = 1
 
+# Only what the Worker itself writes. The automatic per-request log records
+# the request URL, and a receipt URL carries the buyer's claim and an agent
+# checkout URL carries the offer token — neither may sit in a log.
+[observability.logs]
+enabled = true
+invocation_logs = false
+
 # Branded domain — TWO bindings, same rationale as relay/wrangler.toml:
 # routes beat custom domains when both match, so the explicit zone route keeps
 # this Worker immune to any future wildcard on another Worker.

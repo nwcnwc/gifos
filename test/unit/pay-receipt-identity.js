@@ -50,7 +50,7 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   const victim = await mk('victim.example', { gifos: '1.0', appId: 'paid-shop', name: 'Paid Shop', entry: 'index.html', capabilities: { pay: RAILS }, pay: { to: VIC, prices: { pro: '5000000' } } });
   // An ordinary seller, for the rail-by-rail receipt checks further down.
   const SHOP = '0x3333333333333333333333333333333333333333';
-  const shop = await mk('shop.example', { gifos: '1.0', appId: 'paid-shop', name: 'Paid Shop', entry: 'index.html', capabilities: { pay: RAILS }, pay: { to: SHOP, prices: { pro: '5000000', mid: '3000000' } } });
+  const shop = await mk('shop.example', { gifos: '1.0', appId: 'paid-shop', name: 'Paid Shop', entry: 'index.html', capabilities: { pay: RAILS }, pay: { to: SHOP, prices: { pro: '5000000', mid: '3000000', mid2: '3000000' } } });
   // The attacker signs their OWN manifest, so they set their own price: 100 units.
   const attacker = await mk('evil.example', { gifos: '1.0', appId: 'paid-shop', name: 'Paid Shop', entry: 'index.html', capabilities: { pay: RAILS }, pay: { to: ATT, prices: { pro: '100' } } });
 
@@ -58,13 +58,15 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   const kp = await webcrypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   const payPub = Buffer.from(await webcrypto.subtle.exportKey('raw', kp.publicKey)).toString('base64');
   const orders = new Map(), rfps = new Map();
-  let chainLogs = [], stripeIntents = [];
+  let chainLogs = [], stripeIntents = [], settles = 0;
   const J = (o, status) => new Response(JSON.stringify(o), { status: status || 200, headers: { 'Content-Type': 'application/json' } });
   const fakeFetch = async (url, opts) => {
     const u = String(url), body = opts && opts.body ? String(opts.body) : '';
     const km = /^https:\/\/([^/]+)\/gifos\.key$/.exec(u);
     if (km) return keys[km[1]] ? new Response(keys[km[1]]) : new Response('no key', { status: 404 });
     if (u === '/gifos-pay.key') return new Response(payPub);
+    // The OS broker talks to the pay Worker at its default address.
+    if (u.indexOf('https://pay.gifos.app/') === 0) return H(new Request('https://pay.example' + u.slice('https://pay.gifos.app'.length), opts));
     if (u === 'https://reg.example/r.json') return J({ registered: { 'victim.example': { until: null }, 'evil.example': { until: null }, 'long.example': { until: null }, 'shop.example': { until: null } } });
     if (u.endsWith('/v1/oauth2/token')) return J({ access_token: 't' });
     if (u.endsWith('/v2/checkout/orders')) {
@@ -79,7 +81,7 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
       return J(o);
     }
     if (u.endsWith('/verify')) return J({ isValid: true });
-    if (u.endsWith('/settle')) return J({ success: true, transaction: '0xabc' });
+    if (u.endsWith('/settle')) return J({ success: true, transaction: '0xtx' + (++settles) });   // every settlement is its own transaction
     if (u === 'https://rpc.example/') {
       const q = JSON.parse(body);
       return J({ jsonrpc: '2.0', id: q.id, result: q.method === 'eth_blockNumber' ? '0x10' : chainLogs });
@@ -112,7 +114,7 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   const legs = (to, amount) => {
     const fee = (BigInt(amount) * 300n) / 10000n;
     const t = [{ to, amount: String(BigInt(amount) - fee), asset: USDC, network: 'eip155:84532' }, { to: TREASURY, amount: String(fee), asset: USDC, network: 'eip155:84532' }];
-    return { transfers: t, payloads: t.map((x) => ({ signature: '0x00', authorization: { to: x.to, value: x.amount } })) };
+    return { transfers: t, payloads: t.map((x, i) => ({ signature: '0x00', authorization: { from: '0x' + '99'.repeat(20), to: x.to, value: x.amount, nonce: '0x' + String(i + 1).padStart(64, '0') } })) };
   };
 
   // ---- THE ATTACK: self-deal under the victim's appId ---------------------------
@@ -135,7 +137,7 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   await payBroker.ingestReceiptFiles((await gif.decode(new Uint8Array(await realFile.raw.arrayBuffer()))).files);
   check('a genuine purchase from victim.example lands beside the attacker\'s, and entitles the victim\'s app',
     names(rc(real), WHO.victim) && (await payBroker.entitled(victim.manifest, 'pro', victim.bytes)) === true);
-  check('…with the GENUINE transaction as its license', (await payBroker.license(victim.manifest, 'pro', victim.bytes)) === '0xabc,0xabc');
+  check('…with the GENUINE transaction as its license', (await payBroker.license(victim.manifest, 'pro', victim.bytes)) === rc(real).tx && rc(real).tx !== dealt.tx, rc(real).tx);
 
   // ---- THE PRICE: the buyer does not name it ------------------------------------
   const under = await call('POST', '/x402/settle', Object.assign({ proof: victim.proof, sku: 'pro', amount: '100' }, legs(VIC, '100')));
@@ -160,7 +162,7 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   const co = await call('POST', '/checkout', { proof: shop.proof, amount: '5000000', sku: 'pro', reason: 'x' });
   const asVictim = await call('GET', '/receipt/' + co.body.id + q(co.body.claim, 'victim.example'));
   check('PayPal: naming ANOTHER identity does not open the order — and nothing is captured',
-    asVictim.status === 403 && /not the identity this payment was made to/.test(asVictim.body.error) && orders.get(co.body.id).status === 'APPROVED');
+    asVictim.status === 403 && /do not open this payment/.test(asVictim.body.error) && orders.get(co.body.id).status === 'APPROVED');
   const noWho = await call('GET', '/receipt/' + co.body.id + '?claim=' + co.body.claim);
   check('PayPal: naming NO identity does not open it either', noWho.status === 403 && orders.get(co.body.id).status === 'APPROVED');
   const badClaim = await call('GET', '/receipt/' + co.body.id + q('0'.repeat(32), 'shop.example'));
@@ -168,6 +170,16 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   const pp = await call('GET', '/receipt/' + co.body.id + q(co.body.claim, 'shop.example'));
   check('PayPal: the right claim and identity capture and sign a receipt naming the signer',
     pp.status === 200 && names(rc(pp), WHO.shop) && rc(pp).rail === 'paypal' && rc(pp).payee === 'payments@shop.example', JSON.stringify(rc(pp)));
+
+  check('PayPal: /return captures NOTHING — an order id alone moves no money', await (async () => {
+    const co2 = await call('POST', '/checkout', { proof: shop.proof, amount: '5000000', sku: 'pro', reason: 'x' });
+    const back = await call('GET', '/return?token=' + co2.body.id);
+    return back.status === 200 && orders.get(co2.body.id).status === 'APPROVED';
+  })());
+  // The OS checks WHERE the money went against WHO the receipt names.
+  const crossed = await sigOf({ v: 1, kind: 'gifos-pay-receipt', rail: 'paypal', appId: 'paid-shop', sku: 'pro', amount: '5000000', payee: 'payments@evil.example', payeeId: 'victim.example', payeeType: 'domain', tx: 'CAP-X', at: 1 });
+  check('a receipt that NAMES victim.example but PAID evil.example\'s mailbox is refused by the OS',
+    await payBroker.ingestReceiptFiles({ 'receipt.json': JSON.stringify(crossed) }).then(() => false, (e) => /names one signer and pays another/.test(e.message)));
 
   // Wallet transfer: the invoice token carries the identity.
   const inv = await call('POST', '/transfer/invoice', { proof: shop.proof, amount: '3000000', sku: 'mid' });
@@ -178,10 +190,22 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   const tr = await call('POST', '/transfer/receipt', { token: bound.body.token });
   check('wallet transfer: the receipt names the signer', tr.status === 200 && names(rc(tr), WHO.shop) && rc(tr).rail === 'transfer', JSON.stringify(rc(tr)));
 
+  // ONE TRANSFER, ONE PURCHASE. The amount's dust is derived from what is
+  // bought, so it cannot be re-drawn until two purchases share an amount…
+  const again1 = await call('POST', '/transfer/invoice', { proof: shop.proof, amount: '3000000', sku: 'mid' });
+  const other1 = await call('POST', '/transfer/invoice', { proof: shop.proof, amount: '3000000', sku: 'mid2' });
+  check('the same purchase always costs the same exact amount; a different sku at the same price costs a different one',
+    again1.body.expected === inv.body.expected && other1.status === 200 && other1.body.expected !== inv.body.expected, inv.body.expected + ' / ' + again1.body.expected + ' / ' + other1.body.expected);
+  // …and a transaction that already bought one thing here cannot buy another.
+  const reused = await sigOf({ v: 1, kind: 'gifos-pay-receipt', rail: 'transfer', appId: 'paid-shop', sku: 'mid2', amount: '3000000', payee: SHOP, payeeId: 'shop.example', payeeType: 'domain', tx: '0xt1', at: 2 });
+  await payBroker.ingestReceiptFiles({ 'receipt.json': JSON.stringify({ receiptJson: tr.body.receiptJson, sig: tr.body.sig }) });
+  check('a second receipt for the SAME transaction but another sku is refused by the OS',
+    await payBroker.ingestReceiptFiles({ 'receipt.json': JSON.stringify(reused) }).then(() => false, (e) => /one payment, one purchase/.test(e.message)));
+
   // FedNow: claim + identity, like PayPal.
   const rfp = await call('POST', '/fednow/rfp', { proof: shop.proof, amount: '3000000', sku: 'mid', reason: 'x' });
   check('FedNow: the payment request returns a claim, and its reference fits the bank\'s field whole',
-    rfp.status === 200 && /^[0-9a-f]{32}$/.test(rfp.body.claim) && rfps.get(rfp.body.id).reference.length <= 140 && !!JSON.parse(rfps.get(rfp.body.id).reference).i);
+    rfp.status === 200 && /^[0-9a-f]{32}$/.test(rfp.body.claim) && rfps.get(rfp.body.id).reference.length <= 140 && /^[0-9a-f]{32}$/.test(JSON.parse(rfps.get(rfp.body.id).reference).t));
   const fnBare = await call('GET', '/fednow/receipt/' + rfp.body.id);
   check('FedNow: a request id alone reads nothing', fnBare.status === 403);
   const fnOther = await call('GET', '/fednow/receipt/' + rfp.body.id + q(rfp.body.claim, 'victim.example'));
@@ -208,6 +232,30 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   stripeIntents = [{ id: 'pi_4', status: 'requires_payment_method', amount: 500, currency: 'usd', metadata: { gifos_offer: oid } }];
   check('agent rail: a DECLINED attempt is reported FAILED, so the waiting sheet stops',
     (await call('POST', '/mpp/status', { offer: offer.body.token, claim: offer.body.claim })).body.status === 'FAILED');
+
+  // ---- an agent payment found late, and found twice ---------------------------------
+  // The person closed the sheet; the agent paid at minute 10; GifOS is next
+  // opened at minute 45 — in two tabs at once.
+  const late = await call('POST', '/mpp/offer', { proof: shop.proof, amount: '5000000', sku: 'pro' });
+  const lateOid = JSON.parse(Buffer.from(late.body.token.split('.')[0], 'base64url').toString()).oid;
+  lsm.set('pay.agent:' + lateOid, JSON.stringify({ token: late.body.token, claim: late.body.claim, exp: late.body.exp, askUntil: late.body.askUntil,
+    appId: 'paid-shop', appName: 'Paid Shop', sku: 'pro', amount: '5000000', reason: 'Unlock', payingTo: 'shop.example', payingToType: 'domain' }));
+  stripeIntents = [{ id: 'pi_late', status: 'succeeded', amount: 500, currency: 'usd', created: 1790000600, metadata: { gifos_offer: lateOid }, transfer_data: { destination: 'acct_s' } }];
+  globalThis.GifOS.store = { uid: () => 'f' + Math.random(), putFile: async () => {} };   // the receipt file's home, stubbed
+  const realNow = Date.now;
+  Date.now = () => realNow() + 45 * 60 * 1000;
+  await Promise.all([payBroker.resumeAgentOffers(), payBroker.resumeAgentOffers()]);
+  Date.now = realNow;
+  const scope = payBroker.entScope('shop.example', 'paid-shop');
+  const lines = payBroker.purse().history(scope).filter((e) => e.tx === 'pi_late');
+  check('a payment found 45 minutes later — after the link expired — is still recorded', lines.length >= 1 && payBroker.purse().entitled(scope, 'pro'), JSON.stringify(lines));
+  check('…ONCE, though two tabs found it together', lines.length === 1 && !lsm.has('pay.agent:' + lateOid), lines.length + ' ledger line(s)');
+
+  // ---- ceilings and ledgers are per SIGNER too ----------------------------------------
+  payBroker.setMaxAmount(scope, '90000000');
+  check('a ceiling raised for shop.example\'s app is not inherited by evil.example\'s app of the same appId',
+    payBroker.maxAmountFor(scope) === '90000000' && payBroker.maxAmountFor(payBroker.entScope('evil.example', 'paid-shop')) === payBroker.DEFAULT_MAX);
+  check('an identity with "/" or ":" in it cannot blur the scope', payBroker.entScope('a/b:c@x.com', 'app') === 'a%2Fb%3Ac%40x.com/app');
 
   console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nall green');
   process.exit(failures ? 1 : 0);

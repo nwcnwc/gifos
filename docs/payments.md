@@ -547,7 +547,10 @@ receipt — money is never taken without one. A different token on the same
 link is refused by Stripe (`idempotency_error`). A DECLINED first attempt
 is remembered under the key too, so the link is spent: the agent is told
 to ask for a new one, and `/mpp/status` answers `FAILED` so the sheet
-stops waiting. An offer lives 30 minutes — as long as the sheet waits.
+stops waiting. An offer can be PAID for 30 minutes — as long as the sheet
+waits — and ASKED ABOUT for a day after that, so a payment made in its
+last seconds, or found by a computer that was switched off, is still
+answered and recorded.
 **The link outlives the sheet:** Cancel stops the waiting, not the link,
 so the OS remembers every offer (`pay.agent:<id>`, never exported) until
 it is paid, failed or expired, and `resumeAgentOffers()` — at boot,
@@ -588,13 +591,20 @@ whoever opened the file.
 - **Every receipt names the signer that was paid**: `payeeId` and
   `payeeType`, the identity the Worker verified from the proof when the
   payment started. Where a payment's only memory is a short provider field
-  (PayPal `custom_id`, a bank reference) it holds the identity's TAG; the
-  buyer's page names the identity when it asks for the receipt, and the
-  Worker signs only if it hashes to that tag — and checks claim and
-  identity BEFORE it captures anything.
+  (PayPal `custom_id`, a bank reference) it holds ONE TAG, 128 bits of
+  SHA-256 over the buyer's claim and the identity; the buyer's page
+  presents the claim and names the identity when it asks for the receipt,
+  and the Worker signs only if they hash to that tag. `/receipt` is the
+  ONLY place a PayPal order is captured, after claim, identity and the
+  kill switch are checked; `/return` captures nothing. The OS also checks
+  where the money went against who the receipt names: on PayPal the payout
+  must be the mailbox derived from `payeeId`.
 - **A purchase belongs to (signer, appId, sku).** The OS stores an
-  entitlement under `<identity>/<appId>` and grants it only to an app
-  signed by exactly that identity. A self-dealt receipt entitles the
+  entitlement under `<identity>/<appId>` (the identity percent-encoded)
+  and grants it only to an app signed by exactly that identity. The
+  ledger and the per-charge ceiling are kept under the same scope. **One
+  payment buys one thing:** a transaction already recorded for one
+  purchase on this computer is refused for another. A self-dealt receipt entitles the
   attacker's own app and nobody else's; a colliding app cannot read,
   unlock or block another signer's purchase. A receipt that names no
   signer grants nothing and the Worker will not package it.
@@ -607,20 +617,36 @@ whoever opened the file.
   this costs: prices are fixed when the app is signed — a sale or a new
   tier is a re-sign.
 - **x402 settles only what can complete.** Every leg is verified before
-  any is settled. If the author leg fails, nothing moved. If the author
-  was paid and only the fee leg fails, the buyer still gets their receipt
-  — marked `feeCollected:false` — and the audit line names the payer.
+  any is settled; both legs must be signed by one payer under different
+  nonces; and the FEE leg settles first. Settled author-first, a payer
+  funded for the author leg alone got the purchase 3% cheaper; fee-first a
+  payment that cannot cover both legs ends with no receipt. If the fee
+  settles and the author leg then fails, the audit line names the payer
+  and the fee transaction (`refundOwed`) so it can be returned.
+- **A wallet transfer's exact amount is the purchase's own.** The sub-cent
+  dust is derived from (identity, appId, sku, amount), not drawn at
+  random, so it cannot be re-drawn until two purchases share an amount
+  and one transfer receipts both. Two different purchases at one price
+  still collide by chance once in 10,000; the one-payment-one-purchase
+  rule above is what refuses the second receipt.
 - **The kill switch cannot fail quietly.** `BLOCKED` must be a JSON list
   of strings or the Worker does not start (a string would have blocked
-  nobody, silently); a blocked domain covers its subdomains; a block is
-  re-checked before an approved PayPal order is captured.
+  nobody, silently); a blocked domain covers its subdomains and every
+  mailbox at them; a block is re-checked before an approved PayPal order
+  is captured and when an agent offer is redeemed.
 - **Bounded costs.** Request bodies are capped at 4 MB; the author-key
   fetch is capped, timed and its failures cached; names that can only be
   private (`.internal`, `.local`, …) are never fetched, and the host's
-  HTTP status is not echoed to the caller.
+  HTTP status is not echoed to the caller. What caps cannot bound is CPU:
+  verifying a proof costs about 1.5 ms per 100 KB of picture and 15 µs per
+  file, and the free Workers plan allows 10 ms a request — the store's
+  smallest paid app already uses 6-9 ms. The Worker needs the paid plan
+  before apps with larger pictures or hundreds of files can be paid.
 - **The audit trail.** The Worker writes one JSON line per money event
   (`started`, `receipt`, `captured`, `refused`, `provider-refused`) and
-  `wrangler.toml` `[observability]` keeps them in Workers Logs. Retention
+  `wrangler.toml` `[observability]` keeps them in Workers Logs — with the
+  automatic per-request log OFF, because a request URL carries the
+  buyer's claim or an offer token. Retention
   is the plan's; every line carries the provider's own reference, and the
   providers' records are the permanent ones.
 

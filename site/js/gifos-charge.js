@@ -77,9 +77,9 @@
     const p = pay && typeof pay === 'object' ? pay.prices : undefined;
     if (p === undefined) return {};
     if (!p || typeof p !== 'object' || Array.isArray(p)) throw new Error('manifest.pay.prices must be an object of sku -> price in base units');
-    const out = {};
+    const out = Object.create(null);
     for (const sku of Object.keys(p)) {
-      if (!sku || sku.length > MAX_SKU || !/^[\w.\-:]+$/.test(sku)) throw new Error('manifest.pay.prices names a sku that is not a short plain identifier');
+      if (!sku || sku.length > MAX_SKU || !/^[\w.\-:]+$/.test(sku) || sku in Object.prototype) throw new Error('manifest.pay.prices names a sku that is not a short plain identifier');
       const v = p[sku];
       if (typeof v !== 'string' || !/^[0-9]+$/.test(v) || BigInt(v) <= 0n) throw new Error('manifest.pay.prices["' + sku + '"] must be a positive decimal integer string of base units ($1 = "1000000")');
       out[sku] = v;

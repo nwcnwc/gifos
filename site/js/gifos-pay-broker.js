@@ -182,9 +182,39 @@
         || receipt.rail !== rail
         || typeof receipt.payeeId !== 'string' || !receipt.payeeId
         || receipt.payeeId !== (sheetData && sheetData.payingTo)
-        || receipt.payeeType !== (sheetData && sheetData.payingToType)) {
+        || receipt.payeeType !== (sheetData && sheetData.payingToType)
+        || !payeeFits(receipt)
+        || (sheetData && sheetData.address && (rail === 'x402' || rail === 'transfer') && String(receipt.payee || '').toLowerCase() !== String(sheetData.address).toLowerCase())) {
       throw new Error('the signed receipt does not match this payment — refusing to record it');
     }
+  }
+  // WHERE the money went must agree with WHO the receipt says was paid. On
+  // PayPal the payout is derived from the identity (THE PAYEE RULE), so a
+  // receipt naming one signer and paying another's mailbox is refused —
+  // whatever else about it verifies.
+  function payeeFits(receipt) {
+    if (receipt.rail !== 'paypal') return true;
+    try { return receipt.payee === GifOS.charge.paypalPayeeOf({ verified: true, type: receipt.payeeType, id: receipt.payeeId }); }
+    catch (e) { return false; }
+  }
+  // ONE PAYMENT, ONE PURCHASE. A transaction that already bought something
+  // on this computer cannot buy a second thing.
+  function txSpentOn(tx, scope, sku) {
+    if (!tx) return false;
+    for (const k of store.keys()) {
+      if (k.indexOf('pay.ent:') !== 0) continue;
+      const e = store.get(k);
+      if (e && e.tx === tx && k !== 'pay.ent:' + scope + ':' + sku) return true;
+    }
+    return false;
+  }
+  // A ledger line per PAYMENT: a transaction already on the ledger (another
+  // tab recorded it, a resume ran twice) is not written again.
+  function recordOnce(scope, entry) {
+    const p = purse();
+    if (entry.tx && p.history(scope).some((e) => e && e.tx === entry.tx && e.rail === entry.rail)) return false;
+    p.record(scope, entry);
+    return true;
   }
 
   // ---- whose purchase it is ------------------------------------------------------
@@ -192,7 +222,13 @@
   // appId alone. Two apps wearing the same appId under different signers are
   // two different sellers, and neither can read, unlock or block the other's
   // purchases. The purse takes this scope where it takes an app id.
-  const entScope = (identityId, appId) => String(identityId) + '/' + String(appId);
+  // The identity is percent-encoded, so the scope reads back unambiguously
+  // whatever a mailbox name contains: pay.ent:<identity>/<appId>:<sku>. The
+  // LEDGER and the per-charge CEILING are kept under the same scope — an app
+  // that wears another author's appId shares none of them.
+  const entScope = (identityId, appId) => encodeURIComponent(String(identityId)) + '/' + String(appId);
+  // Names an object already owns cannot name an app.
+  const usableAppId = (appId) => typeof appId === 'string' && /^[\w.\-]{1,64}$/.test(appId) && !(appId in Object.prototype);
   // Who asks the Worker for a receipt names the identity that was paid; the
   // Worker signs only if it matches the tag the payment was started with.
   const whoQuery = (sheetData) => '&id=' + encodeURIComponent(sheetData.payingTo) + '&type=' + encodeURIComponent(sheetData.payingToType);
@@ -565,6 +601,8 @@
 
   const AGENT_KEY = 'pay.agent:';
   const AGENT_GRACE_MS = 2 * 60 * 1000;      // Stripe's search can trail a payment
+  const AGENT_KEEP_MS = 24 * 60 * 60 * 1000; // how long the Worker still answers for a link after it expires
+  const agentKeepUntil = (rec) => Number(rec.askUntil) || (Number(rec.exp) + AGENT_KEEP_MS);
   const agentLive = new Set();               // offers a sheet on THIS page is waiting on
   const agentId = (token) => { try { return JSON.parse(atob(String(token).split('.')[0].replace(/-/g, '+').replace(/_/g, '/'))).oid || null; } catch (e) { return null; } };
   async function agentStatus(rec) {
@@ -587,8 +625,9 @@
   async function settleAgentOffer(rec, paid) {
     const r = paid.receipt, p = purse();
     const tx = r.tx || null, at = r.at || Date.now();
-    if (rec.sku) p.grant(entScope(r.payeeId, rec.appId), rec.sku, { tx, amount: String(rec.amount), rail: 'mpp', at, payeeId: r.payeeId });
-    p.record(rec.appId, { amount: String(rec.amount), rail: 'mpp', sku: rec.sku || null, reason: rec.reason, payeeId: r.payeeId, tx, at });
+    const scope = entScope(r.payeeId, rec.appId);
+    if (!recordOnce(scope, { amount: String(rec.amount), rail: 'mpp', sku: rec.sku || null, reason: rec.reason, payeeId: r.payeeId, tx, at })) return;
+    if (rec.sku) p.grant(scope, rec.sku, { tx, amount: String(rec.amount), rail: 'mpp', at, payeeId: r.payeeId });
     try { await mintReceiptFile(paid, { sku: rec.sku }, { payingTo: rec.payingTo }, rec.appName); } catch (e) { try { console.warn('receipt file not minted:', e); } catch (e2) {} }
   }
   let agentTimer = null;
@@ -598,15 +637,17 @@
       const rec = store.get(k);
       if (!rec || !rec.token || !rec.claim) { store.del(k); continue; }
       if (agentLive.has(k)) { waiting++; continue; }
-      if (Date.now() > Number(rec.exp) + AGENT_GRACE_MS) { store.del(k); continue; }
+      if (Date.now() > agentKeepUntil(rec)) { store.del(k); continue; }
       let st;
       try { st = await agentStatus(rec); } catch (e) { store.del(k); continue; }   // a receipt that does not verify or bind is dropped, never recorded
       // Re-read: a sheet on another tab may have settled it while we asked.
       if (store.get(k) === undefined) continue;
       if (st.status === 'COMPLETED') { store.del(k); await settleAgentOffer(rec, st.paid); }
       else if (st.status === 'FAILED') store.del(k);
-      else if (st.status === 'EXPIRED' && Date.now() > Number(rec.exp) + AGENT_GRACE_MS) store.del(k);
-      else waiting++;
+      else if (st.status === 'EXPIRED') store.del(k);
+      // Past its paying window and still unpaid after the search lag: it
+      // stays on record (a late lookup still answers) but needs no timer.
+      else if (Date.now() <= Number(rec.exp) + AGENT_GRACE_MS) waiting++;
     }
     if (waiting && !agentTimer && typeof setTimeout === 'function') {
       agentTimer = setTimeout(() => { agentTimer = null; resumeAgentOffers().catch(() => {}); }, 20000);
@@ -626,7 +667,7 @@
     if (!oid) throw new Error('could not start the agent checkout: the link is malformed');
     const key = AGENT_KEY + oid;
     const rec = {
-      token: offer.token, claim: offer.claim, exp: Number(offer.exp) || (Date.now() + 30 * 60 * 1000),
+      token: offer.token, claim: offer.claim, exp: Number(offer.exp) || (Date.now() + 30 * 60 * 1000), askUntil: Number(offer.askUntil) || 0,
       appId: manifest.appId, appName: appName || manifest.name || manifest.appId,
       sku: sheetData.sku || null, amount: String(amount), reason: sheetData.reason,
       payingTo: sheetData.payingTo, payingToType: sheetData.payingToType,
@@ -638,12 +679,18 @@
       while (Date.now() < rec.exp + AGENT_GRACE_MS) {
         if (ui.cancelled()) throw new Error(GifOS.charge.DECLINED);
         const st = await agentStatus(rec);
-        if (st.status === 'COMPLETED') { store.del(key); return st.paid; }
+        if (st.status === 'COMPLETED') {
+          // Gone from the record = another tab already wrote this payment down.
+          const mine = store.get(key) !== undefined;
+          store.del(key);
+          return Object.assign({ recorded: !mine }, st.paid);
+        }
         if (st.status === 'FAILED') { store.del(key); throw new Error('your agent\u2019s payment did not go through — start the payment again for a new link'); }
-        if (st.status === 'EXPIRED' && Date.now() > rec.exp + AGENT_GRACE_MS) break;
+        if (st.status === 'EXPIRED') { store.del(key); break; }
         await sleep(3000);
       }
-      store.del(key);
+      // The record STAYS: a payment made in the link's last seconds is
+      // still found, and written down, by the next resume.
       throw new Error('the agent did not pay in time — start the payment again');
     } finally {
       agentLive.delete(key);
@@ -691,16 +738,18 @@
     if (!manifest || !manifest.capabilities || !manifest.capabilities.pay) {
       throw new Error('This app did not declare the "pay" capability.');
     }
+    if (!usableAppId(manifest.appId)) throw new Error('this app has no usable appId, so it cannot take payments');
     const verdict = await verdictFor(manifest, appBytes);
     const elig = GifOS.charge.eligibility(verdict, manifest);
     if (!elig.allowed) throw new Error(elig.reason);
+    const scope = entScope(elig.identity.id, manifest.appId);
     // An agent link paid after its sheet closed is recorded BEFORE this ask,
     // so "already purchased" is answered from what was really paid.
     try { await resumeAgentOffers(); } catch (e) {}
     const p = purse();
     const request = GifOS.charge.validateRequest(req, {
-      maxAmount: maxAmountFor(manifest.appId),
-      entitled: (sku) => p.entitled(entScope(elig.identity.id, manifest.appId), sku),
+      maxAmount: maxAmountFor(scope),
+      entitled: (sku) => p.entitled(scope, sku),
       prices: elig.prices,
     });
     // The proof is what the Worker verifies instead of consulting the store;
@@ -719,7 +768,7 @@
 
     // An edited (tip) amount still honors the app's ceiling — the human can
     // lower or raise a SUGGESTION, never outspend the app's own cap.
-    const cap = BigInt(maxAmountFor(manifest.appId));
+    const cap = BigInt(maxAmountFor(scope));
     if (choice.amount <= 0n) throw new Error(GifOS.charge.DECLINED);
     if (choice.amount > cap) throw new Error('that amount is over this app’s ceiling (' + fmtUsd(cap) + ')');
     sheetData.amount = String(choice.amount);
@@ -735,8 +784,11 @@
     // APP gets back is the pure-module shape — it never sees the Worker's raw
     // signed object, which names the payee account.
     const out = GifOS.charge.receipt(sheetData, receipt.tx || receipt.orderId || null, receipt.at || Date.now(), choice.rail);
-    if (request.sku) p.grant(entScope(receipt.payeeId, manifest.appId), request.sku, { tx: out.tx, amount: out.amount, rail: out.rail, at: out.at, payeeId: receipt.payeeId });
-    p.record(manifest.appId, { amount: String(choice.amount), rail: choice.rail, sku: request.sku || null, reason: request.reason, payeeId: sheetData.payingTo, tx: out.tx, at: out.at });
+    // (An agent payment another tab already wrote down is not written twice.)
+    if (paid.recorded) return out;
+    if (request.sku && txSpentOn(out.tx, scope, request.sku)) throw new Error('that payment already bought something else on this computer — one payment, one purchase');
+    if (!recordOnce(scope, { amount: String(choice.amount), rail: choice.rail, sku: request.sku || null, reason: request.reason, payeeId: receipt.payeeId, tx: out.tx, at: out.at })) return out;
+    if (request.sku) p.grant(scope, request.sku, { tx: out.tx, amount: out.amount, rail: out.rail, at: out.at, payeeId: receipt.payeeId });
     // The receipt becomes a FILE (docs/payments.md "The receipt is a file"):
     // proof you can hold, back up, and carry to a new computer. Best-effort
     // and AFTER the money facts are recorded — a mint failure must never
@@ -813,7 +865,10 @@
     // A receipt grants a purchase only to the signer it names as paid. One
     // that names nobody grants nothing: it cannot say whose app it bought.
     if (typeof receipt.payeeId !== 'string' || !receipt.payeeId) throw new Error('this receipt names no signing identity — it cannot be registered');
+    if (!payeeFits(receipt)) throw new Error('this receipt names one signer and pays another — it cannot be registered');
     if (receipt.sku && receipt.appId) {
+      if (!usableAppId(receipt.appId)) throw new Error('this receipt names no usable app — it cannot be registered');
+      if (txSpentOn(receipt.tx, entScope(receipt.payeeId, receipt.appId), receipt.sku)) throw new Error('that payment already bought something else on this computer — one payment, one purchase');
       purse().grant(entScope(receipt.payeeId, receipt.appId), receipt.sku, { tx: receipt.tx, amount: receipt.amount, rail: receipt.rail, at: receipt.at, payeeId: receipt.payeeId });
     }
     return receipt;
@@ -831,6 +886,11 @@
     return entitledTo(ent, who) && ent.tx ? String(ent.tx) : null;
   }
 
+  // Purchases recorded before 2026-09-29 sit under a bare appId
+  // (pay.ent:<appId>:<sku>) that nothing reads any more; they are removed
+  // rather than left as keys no screen can show or delete.
+  try { for (const k of store.keys()) if (/^pay\.ent:[^/:]+:/.test(k)) store.del(k); } catch (e) {}
+
   // At boot: record anything an agent paid while this page was closed.
   if (root.document && typeof setTimeout === 'function') setTimeout(() => { resumeAgentOffers().catch(() => {}); }, 1500);
 
@@ -839,7 +899,7 @@
     PENDING_KEY,
     // The Settings surface reads and writes through these — the panel owns no
     // storage of its own.
-    purse, maxAmountFor, setMaxAmount, fmtUsd,
+    purse, maxAmountFor, setMaxAmount, fmtUsd, entScope,
     DEFAULT_MAX, WORKER_KEY, POLICY_KEY,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

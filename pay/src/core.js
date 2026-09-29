@@ -45,8 +45,9 @@
  *                       can process right now — the OS sheet draws only those
  *
  * STATELESS by design — no KV, no Durable Object, no database. Everything a
- * receipt needs rides inside the PayPal order itself (custom_id carries
- * {appId, sku}); /receipt asks PayPal, not a store of ours. Restart the
+ * receipt needs rides inside the PayPal order itself (custom_id carries the
+ * appId, the sku and one tag binding the buyer's claim to the signer that
+ * is paid); /receipt asks PayPal, not a store of ours. Restart the
  * Worker and nothing is lost, because nothing was held.
  *
  * THE PAYEE AND THE RAILS COME FROM THE AUTHOR'S SIGNATURE — NEVER FROM THE
@@ -272,7 +273,10 @@ export function makeCore(cfg) {
       const slash = x.indexOf('/');
       const xid = slash === -1 ? x : x.slice(0, slash);
       const xapp = slash === -1 ? null : x.slice(slash + 1);
-      const covers = xid === who || (xid.indexOf('@') === -1 && who.indexOf('@') === -1 && who.endsWith('.' + xid));
+      // A domain entry covers the domain, every name under it, and every
+      // mailbox at either — whoever controls the domain controls them all.
+      const host = who.indexOf('@') === -1 ? who : who.slice(who.lastIndexOf('@') + 1);
+      const covers = xid === who || (xid.indexOf('@') === -1 && (host === xid || host.endsWith('.' + xid)));
       if (!covers) continue;
       if (xapp == null) return 'payments to "' + id + '" are blocked on GifOS';
       if (app && xapp === app) return 'payments to "' + id + '" for "' + appId + '" are blocked on GifOS';
@@ -287,15 +291,17 @@ export function makeCore(cfg) {
   // receipt carries the signing identity the Worker VERIFIED when the payment
   // started — payeeId + payeeType — and the OS grants a purchase only to an
   // app signed by exactly that identity. Where the payment's memory is a
-  // short provider field (a PayPal custom_id, a bank reference) it holds the
-  // identity's TAG; the buyer's page names the identity when it asks for the
-  // receipt, and the Worker signs it only if it hashes to that tag.
-  const idTag = async (identity) => (await sha256hex('gifos-identity\x00' + identity.type + '\x00' + identity.id)).slice(0, 16);
-  async function identityFor(tag, type, id) {
+  // short provider field (a PayPal custom_id, a bank reference) it holds ONE
+  // TAG — 128 bits of SHA-256(claim, type, id). To read the receipt the
+  // buyer's page presents the claim (which only it was given) AND names the
+  // identity; another identity under the same claim hashes elsewhere.
+  const payTag = async (claim, identity) => (await sha256hex('gifos-pay-tag\x00' + claim + '\x00' + identity.type + '\x00' + identity.id)).slice(0, 32);
+  async function identityFor(tag, claim, type, id) {
+    if (!/^[0-9a-f]{32}$/.test(String(claim || ''))) throw new Refusal('a receipt is read with the claim its payment returned', 403);
     if ((type !== 'domain' && type !== 'email') || typeof id !== 'string' || !id || id.length > 320) {
       throw new Refusal('a receipt is read naming the signing identity that was paid (id, type)', 403);
     }
-    if (!tag || (await idTag({ type, id })) !== tag) throw new Refusal('that is not the identity this payment was made to', 403);
+    if (typeof tag !== 'string' || tag.length !== 32 || (await payTag(claim, { type, id })) !== tag) throw new Refusal('that claim and identity do not open this payment', 403);
     return { type, id };
   }
 
@@ -313,7 +319,7 @@ export function makeCore(cfg) {
     if (v.status !== 'valid') throw new Refusal('this app\'s signature does not verify (' + (v.detail || v.status) + '), so it cannot be paid', 403);
     const m = v.manifest;
     const appId = String(m.appId || '');
-    if (!/^[\w.\-]{1,64}$/.test(appId)) throw new Refusal('the signed manifest has no usable appId', 403);
+    if (!/^[\w.\-]{1,64}$/.test(appId) || appId in Object.prototype) throw new Refusal('the signed manifest has no usable appId', 403);
     const why = blockedWhy(v.id, appId);
     if (why) throw new Refusal(why, 403);
     if (!m.capabilities || !m.capabilities.pay) throw new Refusal('"' + appId + '" did not declare the "pay" capability', 403);
@@ -334,7 +340,8 @@ export function makeCore(cfg) {
   // any amount. Returns the sku, validated.
   function pricedSku(seller, rawSku, amount) {
     if (rawSku == null || rawSku === '') return null;
-    const sku = String(rawSku);
+    if (typeof rawSku !== 'string') throw new Refusal('bad sku', 400);
+    const sku = rawSku;
     if (!/^[\w.\-:]{1,64}$/.test(sku)) throw new Refusal('bad sku', 400);
     try { CHARGE.priceFor(seller.prices, sku, amount); } catch (e) { throw new Refusal(e.message, 403); }
     return sku;
@@ -503,7 +510,7 @@ export function makeCore(cfg) {
     // and /receipt answers only to the claim that hashes to it. Stateless,
     // like everything else here — the order IS the memory.
     const claim = randHex(16);
-    const customId = JSON.stringify({ a: appId, s: sku, c: (await sha256hex(claim)).slice(0, 16), i: await idTag(seller.identity) });
+    const customId = JSON.stringify({ a: appId, s: sku, t: await payTag(claim, seller.identity) });
     if (customId.length > 127) return bad('appId and sku are too long together for a PayPal order (' + customId.length + ' > 127 chars)');
 
     const payee = seller.paypal; // THE PAYEE RULE (gifos-charge.js paypalPayeeOf) — one home
@@ -557,21 +564,8 @@ export function makeCore(cfg) {
     const unit = ((order && order.purchase_units) || [])[0] || {};
     let meta = null;
     try { meta = JSON.parse(unit.custom_id || (unit.payments.captures[0].custom_id)); } catch (e) {}
-    return { unit, meta: meta && typeof meta === 'object' ? meta : { a: null, s: null, c: null, i: null } };
+    return { unit, meta: meta && typeof meta === 'object' ? meta : { a: null, s: null, t: null } };
   }
-  // The kill switch against an identity known only by its tag.
-  async function blockedTag(tag, appId) {
-    for (const e of cfg.blocked || []) {
-      const x = String(e).trim(); const slash = x.indexOf('/');
-      const xid = (slash === -1 ? x : x.slice(0, slash)).toLowerCase();
-      const xapp = slash === -1 ? null : x.slice(slash + 1).toLowerCase();
-      if (xapp != null && xapp !== String(appId || '').toLowerCase()) continue;
-      const type = xid.indexOf('@') === -1 ? 'domain' : 'email';
-      if ((await idTag({ type, id: xid })) === tag) return true;
-    }
-    return false;
-  }
-
   async function receiptFor(orderId, q) {
     const claim = q.get('claim');
     if (!/^[0-9a-f]{32}$/.test(String(claim || ''))) return bad('a receipt is read with the claim its checkout returned', 403);
@@ -581,14 +575,15 @@ export function makeCore(cfg) {
     // The claim and the identity are checked BEFORE anything is captured: an
     // order id alone must not be able to move money, only its buyer's page.
     const { meta } = orderMeta(order);
-    if (!meta.c || (await sha256hex(claim)).slice(0, 16) !== meta.c) return bad('that claim does not open this order', 403);
-    const identity = await identityFor(meta.i, q.get('type'), q.get('id'));
-    // The buyer approved but the return page never captured (closed tab, flaky
-    // network): capture here. /receipt converges on COMPLETED from either path.
+    const identity = await identityFor(meta.t, claim, q.get('type'), q.get('id'));
+    // THIS is the only place an approved order is captured — the one place
+    // that knows WHO is being paid, so the kill switch is read in full
+    // (subdomains, mailboxes, single apps) before any money moves.
     if (order.status === 'APPROVED') {
       const why = blockedWhy(identity.id, meta.a);
       if (why) throw new Refusal(why, 403);
       const cap = await pp('/v2/checkout/orders/' + encodeURIComponent(orderId) + '/capture', 'POST', {});
+      audit('captured', { rail: 'paypal', appId: meta.a, sku: meta.s, payeeId: identity.id, ref: orderId, ok: !!cap.ok });
       if (cap.ok) order = cap.body;
     }
     if (order.status !== 'COMPLETED') return json({ status: order.status || 'PENDING' });
@@ -614,20 +609,13 @@ export function makeCore(cfg) {
   async function returnPage(url) {
     const orderId = url.searchParams.get('token') || '';
     if (!orderId) return html('<p>Missing order.</p>', 400);
-    // Capture immediately — the poll in the OS page turns COMPLETED on its
-    // next tick. A failure here is NOT fatal: /receipt retries the capture.
-    // Only an order THIS Worker made, for a seller not blocked since.
-    try {
-      const got = await pp('/v2/checkout/orders/' + encodeURIComponent(orderId));
-      const { meta } = orderMeta(got.ok ? got.body : null);
-      if (got.ok && got.body.status === 'APPROVED' && meta.i && meta.c && !(await blockedTag(meta.i, meta.a))) {
-        const cap = await pp('/v2/checkout/orders/' + encodeURIComponent(orderId) + '/capture', 'POST', {});
-        audit('captured', { rail: 'paypal', appId: meta.a, sku: meta.s, ref: orderId, ok: !!cap.ok });
-      }
-    } catch (e) {}
+    // Nothing is captured here. This page is reached by an order id alone,
+    // and it cannot know who is being paid; the buyer's own page is polling
+    // /receipt, which checks claim, identity and the kill switch and THEN
+    // captures.
     return html('<!doctype html><meta charset="utf-8"><title>Payment complete</title>' +
       '<body style="font:16px/1.5 system-ui;background:#14141f;color:#e8e8f4;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">' +
-      '<div style="text-align:center"><h2>✓ Payment complete</h2><p>You can close this window.</p></div>' +
+      '<div style="text-align:center"><h2>✓ Approved</h2><p>You can close this window — GifOS is finishing the payment.</p></div>' +
       '<script>setTimeout(function(){ try { window.close(); } catch(e){} }, 800);</script>');
   }
 
@@ -731,23 +719,33 @@ export function makeCore(cfg) {
       }
       legsToSettle.push({ paymentPayload, paymentRequirements });
     }
-    const payer = String((payloads[0].authorization && payloads[0].authorization.from) || '') || null;
-    const txs = [];
-    let feeCollected = true;
-    for (let i = 0; i < legsToSettle.length; i++) {
+    // ONE payer signs every leg, each under its own nonce: a second leg
+    // signed by an empty wallet, or re-using a nonce, is a leg built to fail.
+    const payer = String((payloads[0].authorization && payloads[0].authorization.from) || '').toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(payer)) return bad('payload 0 names no payer (authorization.from)');
+    const nonces = new Set();
+    for (let i = 0; i < payloads.length; i++) {
+      const a = payloads[i].authorization;
+      if (String(a.from || '').toLowerCase() !== payer) return bad('every transfer must be signed by the same payer');
+      const n = String(a.nonce == null ? '' : a.nonce).toLowerCase();
+      if (!n || nonces.has(n)) return bad('every transfer needs its own nonce');
+      nonces.add(n);
+    }
+    // THE FEE LEG SETTLES FIRST. Settled author-first, a payer funded for
+    // the author leg alone got the purchase 3% cheaper. Fee-first there is
+    // nothing to gain: a payment that cannot cover both legs ends with no
+    // receipt. If the fee settles and the author leg then fails, the audit
+    // line names the payer and the fee transaction so it can be returned.
+    const txs = new Array(legsToSettle.length).fill(null);
+    const order = legsToSettle.length > 1 ? [1, 0] : [0];
+    for (const i of order) {
       const st = await facilitator('/settle', Object.assign({ x402Version: 1 }, legsToSettle[i]));
       if (!st.ok || !st.body || st.body.success !== true || !st.body.transaction) {
         console.log('facilitator did not settle transfer', i, st.status, String((st.body && (st.body.errorReason || st.body.error)) || st.text || '').slice(0, 200));
-        audit('provider-refused', { rail: 'x402', step: 'settle', leg: i, appId, payeeId: seller.identity.id, amount: body.amount, payer, settled: txs });
-        // The AUTHOR leg failed: nothing has moved, nothing is owed.
-        if (i === 0) return bad('the facilitator did not settle transfer ' + i, 502);
-        // The author WAS paid and only the fee leg failed. The buyer bought
-        // the thing: they get their receipt, it says the fee was not
-        // collected, and the audit line above names the payer.
-        feeCollected = false;
-        break;
+        audit('provider-refused', { rail: 'x402', step: 'settle', leg: i, appId, payeeId: seller.identity.id, amount: body.amount, payer, feeTx: txs[1] || null, refundOwed: !!txs[1] });
+        return bad('the facilitator did not settle transfer ' + i, 502);
       }
-      txs.push(st.body.transaction);
+      txs[i] = st.body.transaction;
     }
     const fields = {
       rail: 'x402',
@@ -760,7 +758,6 @@ export function makeCore(cfg) {
       tx: txs.join(','),
       at: Date.now(),
     };
-    if (!feeCollected) fields.feeCollected = false;
     const { receiptJson, sig } = await signedReceipt(fields);
     audit('receipt', fields);
     return json({ status: 'COMPLETED', receiptJson, sig });
@@ -789,8 +786,13 @@ export function makeCore(cfg) {
     const sku = pricedSku(seller, body.sku, body.amount);
     const payTo = seller.chainPayee;
     await assertRegistered(seller.identity);
-    const dustBytes = new Uint8Array(2); crypto.getRandomValues(dustBytes);
-    const dust = (dustBytes[0] * 256 + dustBytes[1]) % 10000;          // < one cent
+    // The dust is derived from WHAT is being bought, not drawn at random. A
+    // random dust could be re-drawn until two different purchases at the
+    // same price shared an amount, and one transfer then receipted both.
+    // Derived, a purchase always costs the same exact amount and nobody can
+    // re-draw it. Two buyers of the same thing are told apart by the wallet
+    // each invoice is bound to, not by the amount.
+    const dust = parseInt((await sha256hex('gifos-dust\x00' + seller.identity.type + '\x00' + seller.identity.id + '\x00' + appId + '\x00' + (sku == null ? '' : sku) + '\x00' + body.amount)).slice(0, 8), 16) % 10000;   // < one cent
     const expected = String(BigInt(body.amount) + BigInt(dust));
     const block = await rpc('eth_blockNumber');
     const now = Date.now();
@@ -905,7 +907,7 @@ export function makeCore(cfg) {
     // A CUT reference is money taken and nothing granted, so one that does
     // not fit is refused before the request exists.
     const claim = randHex(16);
-    const reference = JSON.stringify({ a: appId, s: sku, u: body.amount, c: (await sha256hex(claim)).slice(0, 16), i: await idTag(identity) });
+    const reference = JSON.stringify({ a: appId, s: sku, u: body.amount, t: await payTag(claim, identity) });
     if (reference.length > 140) return bad('appId and sku are too long together for a bank payment reference (' + reference.length + ' > 140 chars)');
     const r = await F(cfg.fednowApi + '/rfp', {
       method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, cfg.fednowKey ? { Authorization: 'Bearer ' + cfg.fednowKey } : {}),
@@ -937,8 +939,8 @@ export function makeCore(cfg) {
     const b = await r.json();
     let meta = null;
     try { meta = JSON.parse(b.reference); } catch (e) {}
-    if (!meta || typeof meta !== 'object' || !meta.c || (await sha256hex(claim)).slice(0, 16) !== meta.c) return bad('that claim does not open this payment request', 403);
-    const identity = await identityFor(meta.i, q.get('type'), q.get('id'));
+    if (!meta || typeof meta !== 'object') return bad('that claim does not open this payment request', 403);
+    const identity = await identityFor(meta.t, claim, q.get('type'), q.get('id'));
     if (b.status !== 'SETTLED') return json({ status: b.status || 'PENDING' });
     const fields = {
       rail: 'fednow',
@@ -1018,15 +1020,19 @@ export function makeCore(cfg) {
       iat: now, exp: now + OFFER_TTL_MS,
     });
     audit('started', { rail: 'mpp', appId: seller.appId, sku, amount, payeeId: seller.identity.id, payee: byIdentity(cfg.stripePayees, seller.identity.id), ref: oid });
-    return json({ url: cfg.returnBase + '/mpp/charge/' + token, token, claim, exp: now + OFFER_TTL_MS });
+    return json({ url: cfg.returnBase + '/mpp/charge/' + token, token, claim, exp: now + OFFER_TTL_MS, askUntil: now + OFFER_TTL_MS + OFFER_ASK_MS });
   }
 
-  // Verify an offer token as THIS Worker's, unexpired, well-formed.
-  async function offerFrom(token) {
+  // Verify an offer token as THIS Worker's and well-formed. PAYING stops at
+  // `exp`; ASKING whether it was paid does not — a payment made in the last
+  // seconds, or found by a computer that was switched off, must still be
+  // answered, so the status lookup honours an offer for a day past `exp`.
+  const OFFER_ASK_MS = 24 * 60 * 60 * 1000;
+  async function offerFrom(token, askOnly) {
     let offer;
     try { offer = await verifyToken(token); } catch (e) { throw new Refusal('this is not a valid GifOS agent checkout link', 404); }
     if (offer.kind !== 'gifos-mpp-offer' || !/^[0-9a-f]{24}$/.test(String(offer.oid || ''))) throw new Refusal('this is not a valid GifOS agent checkout link', 404);
-    if (Date.now() > offer.exp) throw new Refusal('this checkout link has expired — ask for a new one', 410);
+    if (Date.now() > Number(offer.exp) + (askOnly ? OFFER_ASK_MS : 0)) throw new Refusal('this checkout link has expired — ask for a new one', 410);
     return offer;
   }
   // `at` is the PAYMENT's own time, so the charge, a replayed charge and the
@@ -1058,7 +1064,7 @@ export function makeCore(cfg) {
   async function mppStatus(req) {
     if (!cfg.stripeKey) return bad('the agent (MPP) rail is not configured on this deployment', 501);
     const body = await readJson(req);
-    const offer = await offerFrom(String(body.offer || ''));
+    const offer = await offerFrom(String(body.offer || ''), true);
     if (!/^[0-9a-f]{32}$/.test(String(body.claim || '')) || (await sha256hex(body.claim)).slice(0, 16) !== offer.c) {
       return bad('that claim does not open this checkout', 403);
     }
@@ -1163,7 +1169,8 @@ export function makeCore(cfg) {
     const replayed = r.headers.get('idempotent-replayed') === 'true';
     if (!r.ok) {
       const kind = pi && pi.error && pi.error.type;
-      console.log('stripe refused', r.status, String((pi && pi.error && pi.error.message) || text || '').slice(0, 200));
+      // Stripe's message can echo the token it refused; the log must not hold one.
+      console.log('stripe refused', r.status, String((pi && pi.error && pi.error.message) || text || '').replace(/spt_[A-Za-z0-9_]+/g, 'spt_…').slice(0, 200));
       audit('provider-refused', { rail: 'mpp', appId, payeeId: identity.id, amount, offer: offer.oid, status: r.status, kind, replayed });
       if (kind === 'idempotency_error') return challenge('invalid-challenge', 'a payment was already attempted on this checkout link with a different token — one link, one payment; ask for a new link');
       return challenge('verification-failed', replayed

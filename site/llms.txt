@@ -379,6 +379,7 @@ PAYMENTS — gifos.charge / entitled / license  [capabilities.pay]
      tampered app, sku not priced in the manifest or amount not its
      price, sku already bought, amount over the person's per-app ceiling
      (default $20), no method available right now.
+   appId must be plain ([A-Za-z0-9_.-], <= 64) — a paying app needs one.
    A purchase belongs to (the SIGNER that was paid, appId, sku). Re-sign
    the app under another identity and its earlier purchases do not
    follow; another author's app that wears your appId cannot read,

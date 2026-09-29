@@ -35,7 +35,7 @@ proves about one it proves about the other.
 | `POST /x402/settle` | the standard x402 facilitator wire (verify + settle per transfer of the 97/3 split), same signed-receipt shape |
 | `POST /transfer/invoice` | the wallet-transfer rail (RockWallet + every self-custody wallet): signed stateless invoice, dust-unique amount, the signed manifest's `pay.to` |
 | `POST /transfer/bind` | re-sign that invoice bound to the payer's wallet address (amount and dust unchanged), so only a transfer FROM that wallet completes it |
-| `POST /transfer/receipt` | watch the chain (read-only `BASE_RPC`) for the exact transfer, from the bound wallet when there is one; same signed receipt, `feeCollected:false` |
+| `POST /transfer/receipt` | watch the chain (read-only `BASE_RPC`) for the exact transfer, from the wallet the invoice was bound to (an unbound invoice is never receipted); same signed receipt, `feeCollected:false` |
 | `POST /fednow/rfp` | FedNow via a provider (`FEDNOW_API`, Finzly-shaped — FedNow itself has no public API); payee = the registered account for the signing identity (`FEDNOW_PAYEES`) |
 | `GET /fednow/receipt/:id` | poll the RfP to settlement; same signed receipt, `feeCollected:false` |
 | `POST /mpp/offer` | `{proof, sku, amount}` → a signed `/mpp/charge/<offer>` link for exactly that purchase (an agent holds no app bytes, so the OS presents the proof once), plus a one-time `claim`; valid 30 minutes, one payment |

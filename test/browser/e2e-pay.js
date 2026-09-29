@@ -281,10 +281,10 @@ async function until(url, ms) {
   check('the x402 tip settles', tipped === 'ok:x402:3000000', tipped);
 
   const facState = await (await fetch('http://127.0.0.1:8797/_state')).json();
-  check('ONE approval settled TWO transfers on the STANDARD wire: 97% to the signed payee, 3% to the treasury',
+  check('ONE approval settled TWO transfers on the STANDARD wire — the 3% to the treasury FIRST, then 97% to the signed payee',
     facState.settled.length === 2
-    && facState.settled[0].to === CHAIN_PAYEE && facState.settled[0].value === '2910000'
-    && facState.settled[1].to === TREASURY && facState.settled[1].value === '90000',
+    && facState.settled[0].to === TREASURY && facState.settled[0].value === '90000'
+    && facState.settled[1].to === CHAIN_PAYEE && facState.settled[1].value === '2910000',
     JSON.stringify(facState.settled.map((t) => t.value)));
   const signedTds = await app.evaluate(() => window.__signedTypedData);
   check('what the wallet signed IS EIP-3009 for the displayed split — built by the OS, not the app',

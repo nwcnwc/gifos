@@ -3052,18 +3052,28 @@
   function payUsd(units) {
     try { const c = BigInt(units) / 10000n; return '$' + (c / 100n) + '.' + String(c % 100n).padStart(2, '0'); } catch (e) { return '$?'; }
   }
+  // "<percent-encoded identity>/<appId>" -> "appId — sold by identity".
+  function payScopeName(scope) {
+    const i = String(scope).indexOf('/');
+    if (i === -1) return String(scope);
+    let by = scope.slice(0, i); try { by = decodeURIComponent(by); } catch (e) {}
+    return scope.slice(i + 1) + ' — sold by ' + by;
+  }
   function payLedger() {
-    const apps = {};
+    const apps = Object.create(null);   // keyed by text out of storage: never an object with a prototype
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       let m;
-      if ((m = /^pay\.led:(.+):(\d+)$/.exec(k))) {
-        try { (apps[m[1]] = apps[m[1]] || { led: [], ent: [] }).led.push(JSON.parse(localStorage.getItem(k))); } catch (e) { /* one corrupt ledger row must not close Settings */ }
-      } else if ((m = /^pay\.ent:([^/:]+)\/([^:]+):(.+)$/.exec(k))) {
-        // pay.ent:<signing identity>/<appId>:<sku> — a purchase belongs to
-        // the signer that was paid (gifos-pay-broker.js entScope).
-        (apps[m[2]] = apps[m[2]] || { led: [], ent: [] }).ent.push({ sku: m[3], by: m[1], key: k });
-      }
+      // Both are kept under a SCOPE, <percent-encoded signing identity>/<appId>
+      // (gifos-pay-broker.js entScope): a purchase and a payment belong to
+      // the signer that was paid. A ledger key ends <seq>-<suffix>.
+      try {
+        if ((m = /^pay\.led:([^/:]+\/[^/:]+):(\d+)(?:-[a-z0-9]+)?$/.exec(k))) {
+          (apps[m[1]] = apps[m[1]] || { led: [], ent: [] }).led.push(JSON.parse(localStorage.getItem(k)));
+        } else if ((m = /^pay\.ent:([^/:]+\/[^/:]+):(.+)$/.exec(k))) {
+          (apps[m[1]] = apps[m[1]] || { led: [], ent: [] }).ent.push({ sku: m[2], key: k });
+        }
+      } catch (e) { /* one corrupt row must not close Settings */ }
     }
     for (const a of Object.values(apps)) a.led.sort((x, y) => (x.seq || 0) - (y.seq || 0));
     return apps;
@@ -3081,10 +3091,10 @@
         escapeHtml(e.reason || '') + ' <span class="pay-dim">' + escapeHtml(e.rail || '') +
         (e.at ? ' · ' + new Date(e.at).toLocaleDateString() : '') + '</span></div>').join('');
       const ent = a.ent.map((e) =>
-        '<span class="pay-ent" data-app="' + escapeHtml(id) + '" data-sku="' + escapeHtml(e.sku) + '" title="Bought from ' + escapeHtml(e.by) + '">' + escapeHtml(e.sku) +
+        '<span class="pay-ent" data-app="' + escapeHtml(id) + '" data-sku="' + escapeHtml(e.sku) + '">' + escapeHtml(e.sku) +
         ' <button class="pay-ent-del row-del" data-key="' + escapeHtml(e.key) + '" data-app="' + escapeHtml(id) + '" data-sku="' + escapeHtml(e.sku) + '" title="Forget this purchase on this computer (the payment is not refunded)">' + DEL_ICON + '</button></span>').join(' ');
       return '<div class="pay-app" data-app="' + escapeHtml(id) + '">' +
-        '<div class="pay-head"><b>' + escapeHtml(id) + '</b><span class="pay-dim">' + a.led.length + ' payment' + (a.led.length === 1 ? '' : 's') + ' · ' + payUsd(String(spent)) + ' total</span></div>' +
+        '<div class="pay-head"><b>' + escapeHtml(payScopeName(id)) + '</b><span class="pay-dim">' + a.led.length + ' payment' + (a.led.length === 1 ? '' : 's') + ' · ' + payUsd(String(spent)) + ' total</span></div>' +
         (ent ? '<div class="pay-ents">Purchased: ' + ent + '</div>' : '') +
         led +
         '<div class="pay-cap-row">Per-charge ceiling $<input class="pay-cap" data-app="' + escapeHtml(id) + '" type="number" min="0" step="1" value="' + (function () { try { return Number(BigInt(cap) / 10000n) / 100; } catch (e) { return ''; } })() + '"></div>' +

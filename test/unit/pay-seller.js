@@ -173,6 +173,24 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
     paidNow.body.status === 'COMPLETED' && rec.rail === 'mpp' && rec.tx === 'pi_live_1' && rec.sku === 'agentpack' && rec.amount === '5000000' && rec.payeeId === DOMAIN && rec.appId === 'every-rail', JSON.stringify(rec));
   searchData = [];
 
+  // A payment is still ANSWERED FOR after its link can no longer be paid.
+  const realNow = Date.now;
+  Date.now = () => realNow() + 31 * 60 * 1000;
+  const lateCharge = await H(new Request(offer.body.url));
+  searchData = [{ id: 'pi_live_1', status: 'succeeded', amount: 500, currency: 'usd', metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_test_author' } }];
+  const lateAsk = await st(offer.body.claim);
+  Date.now = () => realNow() + 26 * 60 * 60 * 1000;
+  const tooLate = await st(offer.body.claim);
+  Date.now = realNow;
+  searchData = [];
+  check('after 30 minutes the link can no longer be PAID…', lateCharge.status === 410);
+  check('…but a payment made on it is still reported, with its receipt', lateAsk.status === 200 && lateAsk.body.status === 'COMPLETED' && !!lateAsk.body.receiptJson, lateAsk.status + ' ' + JSON.stringify(lateAsk.body).slice(0, 80));
+  check('…until a day later, when the link is forgotten', tooLate.status === 410);
+
+  const protoApp = await sign.proofOf(await build('__proto__', { pay: true }, { pay: {} }));
+  const proto = await post(H, '/rails', { proof: protoApp });
+  check('an appId that names something every object already owns is refused', proto.status === 403 && /no usable appId/.test(proto.body.error));
+
   // ---- the agent pays the link: retry, second token, decline -------------------
   // What `link-cli mpp pay` does: take the 402 challenge, answer it with a
   // credential carrying a Stripe Link token.
@@ -216,23 +234,33 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
   const x402 = (amount) => {
     const fee = (BigInt(amount) * 300n) / 10000n;
     const t = [{ to: AUTHOR, amount: String(BigInt(amount) - fee), asset: USDC, network: 'eip155:84532' }, { to: TREASURY, amount: String(fee), asset: USDC, network: 'eip155:84532' }];
-    return { proof: proofs.usdc, amount, sku: 'pro', transfers: t, payloads: t.map((x) => ({ signature: '0x00', authorization: { from: BUYER, to: x.to, value: x.amount } })) };
+    return { proof: proofs.usdc, amount, sku: 'pro', transfers: t, payloads: t.map((x, i) => ({ signature: '0x00', authorization: { from: BUYER, to: x.to, value: x.amount, nonce: '0x' + String(i + 1).padStart(64, '0') } })) };
   };
   const rcpt = (r) => (r.body && r.body.receiptJson ? JSON.parse(r.body.receiptJson) : null);
   fac = { verifyFails: -1, settleFails: -1, verified: 0, settled: 0 };
   const paid = await post(H, '/x402/settle', x402('5000000'));
-  check('an x402 purchase settles both legs and the receipt names the signer, the payer and the split\'s transactions',
-    paid.status === 200 && rcpt(paid).payeeId === DOMAIN && rcpt(paid).payer === BUYER && rcpt(paid).tx === '0xleg0,0xleg1' && rcpt(paid).feeCollected === undefined && rcpt(paid).payee === AUTHOR, JSON.stringify(rcpt(paid)));
+  check('an x402 purchase settles both legs — the FEE leg first — and the receipt names the signer, the payer and both transactions (author, fee)',
+    paid.status === 200 && rcpt(paid).payeeId === DOMAIN && rcpt(paid).payer === BUYER && rcpt(paid).tx === '0xleg1,0xleg0' && rcpt(paid).feeCollected === undefined && rcpt(paid).payee === AUTHOR, JSON.stringify(rcpt(paid)));
   fac = { verifyFails: 1, settleFails: -1, verified: 0, settled: 0 };
   const unverifiable = await post(H, '/x402/settle', x402('5000000'));
   check('if the FEE leg cannot be verified, NOTHING is settled — not even the author leg', unverifiable.status === 502 && fac.settled === 0 && !unverifiable.body.receiptJson);
   fac = { verifyFails: -1, settleFails: 0, verified: 0, settled: 0 };
-  const authorFails = await post(H, '/x402/settle', x402('5000000'));
-  check('if the AUTHOR leg fails to settle, nothing moved and there is no receipt', authorFails.status === 502 && fac.settled === 1 && !authorFails.body.receiptJson);
-  fac = { verifyFails: -1, settleFails: 1, verified: 0, settled: 0 };
   const feeFails = await post(H, '/x402/settle', x402('5000000'));
-  check('if the author WAS paid and only the fee leg fails, the buyer still gets their receipt — marked feeCollected:false',
-    feeFails.status === 200 && rcpt(feeFails).feeCollected === false && rcpt(feeFails).tx === '0xleg0' && rcpt(feeFails).payer === BUYER, JSON.stringify(rcpt(feeFails)));
+  check('if the FEE leg (settled first) fails, nothing moved, the author leg is never tried, and there is no receipt',
+    feeFails.status === 502 && fac.settled === 1 && !feeFails.body.receiptJson);
+  fac = { verifyFails: -1, settleFails: 1, verified: 0, settled: 0 };
+  const authorFails = await post(H, '/x402/settle', x402('5000000'));
+  check('a payer who cannot cover BOTH legs gets NO receipt — the 3% cannot be skipped by funding the author leg alone',
+    authorFails.status === 502 && fac.settled === 2 && !authorFails.body.receiptJson);
+  fac = { verifyFails: -1, settleFails: -1, verified: 0, settled: 0 };
+  const twoPayers = x402('5000000'); twoPayers.payloads[1].authorization.from = '0x' + '88'.repeat(20);
+  const split = await post(H, '/x402/settle', twoPayers);
+  check('a fee leg signed by ANOTHER wallet is refused before anything settles', split.status === 400 && /same payer/.test(split.body.error) && fac.settled === 0);
+  const sameNonce = x402('5000000'); sameNonce.payloads[1].authorization.nonce = sameNonce.payloads[0].authorization.nonce;
+  const reused = await post(H, '/x402/settle', sameNonce);
+  check('two legs under ONE nonce are refused before anything settles', reused.status === 400 && /own nonce/.test(reused.body.error) && fac.settled === 0);
+  const objSku = await post(H, '/x402/settle', Object.assign(x402('5000000'), { sku: { toString: 1 } }));
+  check('a sku that is not a string is a 400, not a crash', objSku.status === 400 && /bad sku/.test(objSku.body.error));
   fac = { verifyFails: -1, settleFails: -1, verified: 0, settled: 0 };
 
   // ---- the author's key is fetched only from a public name ---------------------------
