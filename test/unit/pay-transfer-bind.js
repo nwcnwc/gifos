@@ -52,7 +52,7 @@ const pad = (a) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
   const handle = makeCore({
     fetch: fakeFetch, subtle: webcrypto.subtle,
     paypalBase: 'https://api-m.sandbox.paypal.com', paypalClientId: 'x', paypalClientSecret: 'y',
-    treasuryEmail: 't@example.com', feeBps: 300, catalogUrl: 'http://127.0.0.1:1/apps/index.json', returnBase: 'http://127.0.0.1:1',
+    treasuryEmail: 't@example.com', feeBps: 300, returnBase: 'http://127.0.0.1:1',
     rpcUrl: 'http://127.0.0.1:1/rpc',
     signKey: { privateKey: kp.privateKey, publicKey: kp.publicKey },
   });

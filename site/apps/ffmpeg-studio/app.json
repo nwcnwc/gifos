@@ -47,7 +47,6 @@
   "download": 32232419,
   "requiredCount": 1,
   "provides": null,
-  "pay": null,
   "sha256": "a26e74a075a5f32f36cfff11986ecb41cd0b4872fa3f3ce8b84851a557feac7f",
   "signature": {
     "type": "domain",
