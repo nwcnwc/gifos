@@ -14,6 +14,10 @@
 //      exactly what the room flood delivers;
 //   4. NEGATIVE CONTROL — the room flood's frames/node/beat grow with N, so the
 //      gauge demonstrably sees the thing it guards;
+//   6. MIXED VERSIONS — seats running the pre-plane gossip code (they know only
+//      'GSP' and re-flood whatever they take to every link) cannot leak a
+//      scoped heartbeat out of its section: they never take one. The control
+//      feeds them the scope-as-a-field encoding and must leak.
 //   5. BACKLOG — ephemeral heartbeats never enter the re-fan backlog, and a chat
 //      line gossiped room-wide still reaches every seat while they flow.
 'use strict';
@@ -47,7 +51,7 @@ function heartbeat(env, mode) {
   const rx = new Map(), heard = new Map();
   for (const s of seated) { rx.set(s.id, 0); heard.set(s.id, new Set()); }
   const baseSend = env.send;
-  env.send = (from, to, m) => { if (m && m.t === 'GSP' && rx.has(to)) rx.set(to, rx.get(to) + 1); baseSend(from, to, m); };
+  env.send = (from, to, m) => { if (m && (m.t === 'GSP' || m.t === 'GSPS') && rx.has(to)) rx.set(to, rx.get(to) + 1); baseSend(from, to, m); };
   const prev = new Map();
   for (const s of seated) { prev.set(s.id, s.onGossip); s.onGossip = (src, m) => { if (m && m.hb) heard.get(s.id).add(src); }; }
   for (let b = 0; b < BEATS; b++) {
@@ -136,6 +140,46 @@ console.log('\n=== 5) BACKLOG — heartbeats stay out of it; a chat line still r
   for (const s of seated) s.onGossip = prev.get(s.id);
   check('no ephemeral heartbeat sits in any re-fan backlog', ephInBacklog === 0, { ephInBacklog });
   check(`the chat line reached every seat while section heartbeats flowed (${got.size}/${seated.length})`, got.size === seated.length);
+}
+
+console.log('\n=== 6) MIXED VERSIONS — an old client cannot re-flood a scoped heartbeat');
+// Every rollout is a mixed room. The pre-plane _gspRecv (main, 2026-09) knows
+// nothing of scope: it forwards what it takes to EVERY link as a plain 'GSP'.
+// `leaky` is the control: the same old seat handed scoped frames as if scope
+// were a field on 'GSP' (the first encoding) — measured then: ONE old seat at
+// N=400 carried section heartbeats to 385 seats.
+function mixedRoom(N, nOld, leaky) {
+  const env = settledRoom(N);
+  const seated = [...env.seats.values()].filter((s) => s.alive && s.state === 3 && s.hasCoord);
+  const byId = new Map(seated.map((s) => [s.id, s]));
+  const olds = seated.filter((s) => s.coord.pc !== 0).filter((s, i) => i % 7 === 0).slice(0, nOld);
+  for (const o of olds) {
+    const recv = o.recv.bind(o);
+    o.recv = (m) => { if (m && m.t === 'GSPS') { if (!leaky) return; m = Object.assign({}, m, { t: 'GSP' }); } recv(m); }; // an old recv() drops a type it does not know
+    o._gspRecv = function (m) {
+      const g = this.gseen = this.gseen || new Map();
+      if (g.has(m.gid)) return; g.set(m.gid, this.TICK);
+      if (this.onGossip) { try { this.onGossip(m.src, m.m); } catch (e) {} }
+      this._gspRemember(m.gid, m.src, m.m);
+      for (const p of this.linkPeers()) if (p !== m.src) this.emit(p, { t: 'GSP', gid: m.gid, src: m.src, m: m.m });
+    };
+  }
+  const oldIds = new Set(olds.map((o) => o.id));
+  const rx = new Map(); let leaks = 0; const leakedTo = new Set();
+  for (const s of seated) { rx.set(s.id, 0); s.onGossip = (src, m) => { if (!m || !m.hb || oldIds.has(src)) return; const y = byId.get(src); if (y && y.coord.pc !== s.coord.pc) { leaks++; leakedTo.add(s.id); } }; }
+  const base = env.send;
+  env.send = (f, t, m) => { if (m && (m.t === 'GSP' || m.t === 'GSPS') && rx.has(t)) rx.set(t, rx.get(t) + 1); base(f, t, m); };
+  for (let b = 0; b < BEATS; b++) { for (const s of seated) if (!oldIds.has(s.id)) s.gossip({ hb: 1, b }, { scope: 'section', ephemeral: true }); run(env, BEAT); }
+  run(env, BEAT * 2);
+  const per = seated.map((s) => rx.get(s.id) / BEATS).sort((a, b) => a - b);
+  return { olds: olds.length, leaks, leakedTo: leakedTo.size, seats: seated.length, max: per[per.length - 1], p50: per[per.length >> 1] };
+}
+{
+  const m = mixedRoom(400, 5, false);
+  check(`N=400 with ${m.olds} old clients: NOT ONE new heartbeat heard outside its section`, m.olds === 5 && m.leaks === 0, m);
+  check(`…and frames/node/beat stay under the section bound (max ${m.max.toFixed(0)} <= ${bound})`, m.max <= bound, m);
+  const c = mixedRoom(400, 1, true);
+  check(`control: scope as a FIELD on GSP leaks through ONE old client (${c.leakedTo}/${c.seats} seats)`, c.leakedTo > c.seats / 2, c);
 }
 
 console.log(fails ? `\n${fails} FAIL` : '\nALL PASS');

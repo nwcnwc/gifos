@@ -2051,15 +2051,15 @@
       for (const p of (sc !== undefined ? this.sectionPeers() : this.linkPeers())) this.emit(p, this._gspFrame({ gid, src: this.id, m: payload, sc, eph }));
     }
     _gspRecv(m) {
-      const scoped = m.sc !== undefined && m.sc !== null;
-      if (scoped && (!this.hasCoord || this.coord.pc !== m.sc)) return; // outside the section it was scoped to (a replay or a stale link)
+      const scoped = m.t === 'GSPS'; // the TYPE decides: a field on a 'GSP' frame scopes nothing
+      if (scoped && (!Number.isInteger(m.sc) || !this.hasCoord || this.coord.pc !== m.sc)) return; // outside the section it was scoped to (a replay or a stale link), or no scope at all
       const g = this.gseen = this.gseen || new Map();
       if (g.has(m.gid)) return;
       g.set(m.gid, this.TICK);
       if (g.size > 4096) { for (const [k, at] of g) if (this.TICK - at > 600) g.delete(k); } // horizon GC
       if (this.onGossip) { try { this.onGossip(m.src, m.m); } catch (e) {} }
       if (!m.eph) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined);
-      const e = { gid: m.gid, src: m.src, m: m.m, sc: scoped ? m.sc : undefined, eph: m.eph };
+      const e = { gid: m.gid, src: m.src, m: m.m, sc: scoped ? m.sc : undefined, eph: scoped ? m.eph : 0 };
       for (const p of (scoped ? this.sectionPeers() : this.linkPeers())) if (p !== m.src) this.emit(p, this._gspFrame(e));
     }
     // ANTI-ENTROPY, two repairs (dedup makes both idempotent):
@@ -2070,7 +2070,13 @@
     //    window arrives with no history; the first PHONE that teaches me a NEW
     //    occupant gets my recent backlog replayed.
     _gspRemember(gid, src, m, sc) { const g = this.grecent = this.grecent || []; const e = { gid, src, m, at: this.TICK }; if (sc !== undefined) e.sc = sc; g.push(e); if (g.length > 64) g.shift(); }
-    _gspFrame(e) { const f = { t: 'GSP', gid: e.gid, src: e.src, m: e.m }; if (e.sc !== undefined) f.sc = e.sc; if (e.eph) f.eph = 1; return f; }
+    // A SCOPED message rides its OWN frame type, 'GSPS'. A client from before
+    // the status plane knows only 'GSP' and drops an unknown type at recv()'s
+    // default — so it can never strip the scope and re-flood a heartbeat to
+    // the whole room (measured with sc as a field on 'GSP': ONE old seat at
+    // N=400 leaked section heartbeats to 385 seats). It still hears its
+    // row-mates' statuses over run.html's own DataChannel pulse.
+    _gspFrame(e) { const f = { t: e.sc !== undefined ? 'GSPS' : 'GSP', gid: e.gid, src: e.src, m: e.m }; if (e.sc !== undefined) f.sc = e.sc; if (e.eph) f.eph = 1; return f; }
     _gspRefan() {
       const g = this.grecent; if (!g || !g.length) return;
       this.grecent = g.filter((e) => this.TICK - e.at <= 256); // replay horizon (memory-bounded with the 64 cap)
@@ -2392,7 +2398,7 @@
         }
         case 'CHALLENGE': if (this.evil) { this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return; } if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return;
         case 'CONFIRM': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck && m.id !== this.id && m.id < this.id) { if (this.moving) this.rollbackMove(); else this.requeue(); } return;
-        case 'GSP': this._gspRecv(m); return;
+        case 'GSP': case 'GSPS': this._gspRecv(m); return;
         case 'MOVED': { // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
           if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.healTry.delete(m.ck); } // freed ⇒ admissible now
           if (m.mvd) { this.setOcc(m.mvd, m.id); this.liveMark(m.mvd); this.noteS1(m.mvd); }
