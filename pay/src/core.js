@@ -26,7 +26,9 @@
  *                       /fednow/receipt/:id polls it to the same receipt
  *   POST /mpp/offer     the OS presents the app's proof once and gets a signed
  *                       agent-checkout link for one purchase (an agent holds
- *                       no app bytes, so it cannot present a proof itself)
+ *                       no app bytes, so it cannot present a proof itself),
+ *                       plus a one-time claim; POST /mpp/status {offer,
+ *                       claim} is how the OS sheet waits for the agent to pay
  *   GET|POST /mpp/charge/<offer>
  *                       the AGENT rail — Machine Payments Protocol (HTTP
  *                       402, mpp.dev), the wire Stripe's Link agent wallet
@@ -756,19 +758,26 @@ export function makeCore(cfg) {
   // Stateless like every other rail: the challenge id is an HMAC over the
   // challenge itself (mpp.js), and the route — appId, sku, amount — is the
   // authority for what is being bought; a credential must echo a challenge
-  // for exactly this URL's purchase. Replay: Stripe's Idempotency-Key makes
-  // a second use of the same credential return the SAME intent marked
-  // `idempotent-replayed`, which we refuse — the hole mppx shipped with.
+  // for exactly this URL's purchase. ONE LINK PAYS ONCE: the Stripe
+  // Idempotency-Key is the offer's own id, so the same credential again comes
+  // back `idempotent-replayed` (refused — the hole mppx shipped with) and a
+  // second payment with a different token is refused by Stripe itself
+  // (idempotency_error: same key, different parameters). Stripe keeps keys
+  // for 24 hours, which is why an offer lives exactly that long.
   const MPP = makeMpp({ subtle });
   const STRIPE_VERSION = '2026-07-29.preview';   // SPTs are preview API surface
   const STRIPE_MIN_CENTS = 50n;                  // Stripe's card minimum
-  const OFFER_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  const OFFER_TTL_MS = 24 * 60 * 60 * 1000;
 
   // An agent holds no app bytes, so it cannot present a proof. The OS (or
   // anything holding the app) presents it ONCE, here, and gets back a signed
   // OFFER: a URL naming exactly one purchase — app, sku, amount, signing
   // identity — that any agent can pay. Stateless like the invoices: the
-  // token IS the offer, signed with the receipt key.
+  // token IS the offer, signed with the receipt key. It carries an offer id
+  // (stamped on the Stripe payment, so the OS can find it) and the tag of a
+  // one-time CLAIM returned only to the caller: the OS sheet waits on
+  // /mpp/status with it, and nobody else holding the link can read the
+  // receipt (the same claim design as PayPal's /receipt).
   async function mppOffer(req) {
     if (!cfg.stripeKey || !cfg.stripeProfileId || !cfg.mppSecret) return bad('the agent (MPP) rail is not configured on this deployment', 501);
     let body; try { body = await req.json(); } catch (e) { return bad('body must be JSON'); }
@@ -782,11 +791,52 @@ export function makeCore(cfg) {
     if (sku != null && !/^[\w.\-:]{1,64}$/.test(sku)) return bad('bad sku');
     if (!(cfg.stripePayees || {})[seller.identity.id]) return bad('"' + seller.identity.id + '" is not onboarded for the agent rail — Stripe onboarding is not open to other authors yet; the PayPal and x402 rails need none', 403);
     const now = Date.now();
+    const claim = randHex(16);
     const token = await signToken({
       v: 1, kind: 'gifos-mpp-offer', appId: seller.appId, name: seller.name,
-      id: seller.identity.id, type: seller.identity.type, sku, amount, iat: now, exp: now + OFFER_TTL_MS,
+      id: seller.identity.id, type: seller.identity.type, sku, amount,
+      oid: randHex(12), c: (await sha256hex(claim)).slice(0, 16),
+      iat: now, exp: now + OFFER_TTL_MS,
     });
-    return json({ url: cfg.returnBase + '/mpp/charge/' + token, exp: now + OFFER_TTL_MS });
+    return json({ url: cfg.returnBase + '/mpp/charge/' + token, token, claim, exp: now + OFFER_TTL_MS });
+  }
+
+  // Verify an offer token as THIS Worker's, unexpired, well-formed.
+  async function offerFrom(token) {
+    let offer;
+    try { offer = await verifyToken(token); } catch (e) { throw new Refusal('this is not a valid GifOS agent checkout link', 404); }
+    if (offer.kind !== 'gifos-mpp-offer' || !/^[0-9a-f]{24}$/.test(String(offer.oid || ''))) throw new Refusal('this is not a valid GifOS agent checkout link', 404);
+    if (Date.now() > offer.exp) throw new Refusal('this checkout link has expired — ask for a new one', 410);
+    return offer;
+  }
+  const offerReceipt = (offer, acct, piId) => signedReceipt({
+    rail: 'mpp', appId: offer.appId, appName: offer.name, sku: offer.sku, amount: offer.amount,
+    payee: acct, payeeId: offer.id, tx: piId, at: Date.now(),
+  });
+
+  // The OS sheet's wait: has the agent paid this offer yet? Found by the
+  // offer id stamped on the payment (Stripe's search API — eventually
+  // consistent, so a just-settled payment can take up to a minute to
+  // appear). Answers only to the claim the offer was minted with.
+  async function mppStatus(req) {
+    if (!cfg.stripeKey) return bad('the agent (MPP) rail is not configured on this deployment', 501);
+    let body; try { body = await req.json(); } catch (e) { return bad('body must be JSON'); }
+    const offer = await offerFrom(String(body.offer || ''));
+    if (!/^[0-9a-f]{32}$/.test(String(body.claim || '')) || (await sha256hex(body.claim)).slice(0, 16) !== offer.c) {
+      return bad('that claim does not open this checkout', 403);
+    }
+    const q = "metadata['gifos_offer']:'" + offer.oid + "'";
+    const r = await F(cfg.stripeApi + '/v1/payment_intents/search?query=' + encodeURIComponent(q), {
+      headers: { Authorization: 'Basic ' + btoa(cfg.stripeKey + ':'), 'Stripe-Version': STRIPE_VERSION },
+    });
+    if (!r.ok) { console.log('stripe search refused', r.status, (await r.text()).slice(0, 200)); return json({ status: 'PENDING' }); }
+    const found = ((await r.json()).data || []).find((pi) => pi && pi.status === 'succeeded'
+      && pi.metadata && pi.metadata.gifos_offer === offer.oid
+      && String(pi.amount) === String(BigInt(offer.amount) / CENT));
+    if (!found) return json({ status: 'PENDING' });
+    const acct = (found.transfer_data && found.transfer_data.destination) || null;
+    const { receiptJson, sig } = await offerReceipt(offer, acct, found.id);
+    return json({ status: 'COMPLETED', receiptJson, sig });
   }
 
   async function mppCharge(req, url) {
@@ -797,9 +847,8 @@ export function makeCore(cfg) {
     }
     if (!cfg.stripeKey || !cfg.stripeProfileId || !cfg.mppSecret) return bad('the agent (MPP) rail is not configured on this deployment', 501);
     let offer;
-    try { offer = await verifyToken(decodeURIComponent(url.pathname.slice('/mpp/charge/'.length))); } catch (e) { return bad('this is not a valid GifOS agent checkout link', 404); }
-    if (offer.kind !== 'gifos-mpp-offer') return bad('this is not a valid GifOS agent checkout link', 404);
-    if (Date.now() > offer.exp) return bad('this checkout link has expired — ask for a new one', 410);
+    try { offer = await offerFrom(decodeURIComponent(url.pathname.slice('/mpp/charge/'.length))); }
+    catch (e) { if (e instanceof Refusal) return bad(e.message, e.status); throw e; }
     const appId = offer.appId, amount = offer.amount, sku = offer.sku;
     const identity = { id: offer.id, type: offer.type };
     // The kill switch and the onboarding are read NOW, not when the offer was
@@ -856,6 +905,7 @@ export function makeCore(cfg) {
       application_fee_amount: String(feeCents),
       'metadata[gifos_app]': appId,
       'metadata[gifos_sku]': sku || '',
+      'metadata[gifos_offer]': offer.oid,
       'metadata[machine_payment]': 'true',
     });
     const r = await F(cfg.stripeApi + '/v1/payment_intents', {
@@ -863,23 +913,22 @@ export function makeCore(cfg) {
       headers: {
         Authorization: 'Basic ' + btoa(cfg.stripeKey + ':'),
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Idempotency-Key': 'mpp_' + cred.challenge.id + '_' + spt,
+        'Idempotency-Key': 'gifos_offer_' + offer.oid,
         'Stripe-Version': STRIPE_VERSION,
       },
       body: form.toString(),
     });
     const text = await r.text();
     let pi = null; try { pi = JSON.parse(text); } catch (e) {}
+    if (!r.ok && pi && pi.error && pi.error.type === 'idempotency_error') return challenge('invalid-challenge', 'this checkout link was already used — one link pays once; ask for a new one');
     if (!r.ok) { console.log('stripe refused', r.status, String((pi && pi.error && pi.error.message) || text || '').slice(0, 200)); return challenge('verification-failed', 'Stripe refused the payment'); }
     if (r.headers.get('idempotent-replayed') === 'true') return challenge('invalid-challenge', 'this credential was already used — a replay, not a payment');
     if (!pi || pi.status !== 'succeeded') return challenge('verification-failed', 'Stripe did not settle the payment (status ' + (pi && pi.status) + ')');
 
     const at = Date.now();
     // appName and payeeId ride the receipt so /receipt/file can label the
-    // file without looking anything up.
-    const { receiptJson, sig } = await signedReceipt({
-      rail: 'mpp', appId, appName: offer.name, sku, amount, payee: acct, payeeId: identity.id, tx: pi.id, at,
-    });
+    // file without looking anything up; /mpp/status signs the same fields.
+    const { receiptJson, sig } = await offerReceipt(offer, acct, pi.id);
     return new Response(JSON.stringify({
       status: 'COMPLETED', receiptJson, sig,
       // How the purchase reaches the human: package it as the receipt FILE
@@ -932,6 +981,7 @@ export function makeCore(cfg) {
     if (req.method === 'POST' && url.pathname === '/fednow/rfp') return refusals(fednowRfp)(req);
     if (req.method === 'GET' && url.pathname.startsWith('/fednow/receipt/')) return fednowReceipt(decodeURIComponent(url.pathname.slice('/fednow/receipt/'.length)));
     if (req.method === 'POST' && url.pathname === '/mpp/offer') return refusals(mppOffer)(req);
+    if (req.method === 'POST' && url.pathname === '/mpp/status') return refusals(mppStatus)(req);
     if ((req.method === 'GET' || req.method === 'POST') && url.pathname.startsWith('/mpp/charge/')) return mppCharge(req, url);
     if (req.method === 'POST' && url.pathname === '/receipt/file') return receiptFile(req);
     if (req.method === 'GET' && url.pathname === '/health') return json({ ok: true, mode: cfg.paypalBase.includes('sandbox') || cfg.paypalBase.includes('127.0.0.1') || cfg.paypalBase.includes('localhost') ? 'test' : 'LIVE' });

@@ -19,6 +19,7 @@
 //        (form: payment_method, usage_limits[currency|max_amount|expires_at])
 //   GET  /v1/shared_payment/granted_tokens/:id            inspect one
 //   POST /v1/payment_intents                              consume one
+//   GET  /v1/payment_intents/search?query=metadata['k']:'v'  find by metadata
 //   GET  /_state                                          everything
 //
 // Usage: node test/servers/fake-stripe.js [port]   (default 8801)
@@ -28,7 +29,7 @@ const http = require('http');
 const PORT = Number(process.argv[2] || process.env.STRIPE_PORT || 8801);
 const tokens = new Map();
 const intents = [];
-const idem = new Map();      // Idempotency-Key -> { status, body }
+const idem = new Map();      // Idempotency-Key -> { status, body, raw }
 let seq = 0;
 
 const readBody = (req) => new Promise((res) => {
@@ -84,11 +85,17 @@ http.createServer(async (req, res) => {
     const idemKey = req.headers['idempotency-key'];
     if (idemKey && idem.has(idemKey)) {
       const prior = idem.get(idemKey);
+      // Stripe: the same key with DIFFERENT parameters is refused outright,
+      // not replayed — that is what makes one offer pay once.
+      if (prior.raw !== raw) {
+        console.log('IDEMPOTENCY MISMATCH ' + idemKey);
+        return send(res, 400, { error: { type: 'idempotency_error', message: 'Keys for idempotent requests can only be used with the same parameters they were first used with.' } });
+      }
       console.log('REPLAY ' + idemKey);
       return send(res, prior.status, prior.body, { 'idempotent-replayed': 'true' });
     }
     const b = form(raw);
-    const answer = (status, body) => { if (idemKey) idem.set(idemKey, { status, body }); return send(res, status, body); };
+    const answer = (status, body) => { if (idemKey) idem.set(idemKey, { status, body, raw }); return send(res, status, body); };
     const spt = b.shared_payment_granted_token;
     if (!spt) return answer(400, { error: { type: 'invalid_request_error', code: 'parameter_missing', message: 'shared_payment_granted_token is required' } });
     const t = tokens.get(spt);
@@ -112,6 +119,15 @@ http.createServer(async (req, res) => {
     intents.push(pi);
     console.log('PI ' + pi.id + ' ' + amount + ' ' + b.currency + ' -> ' + (dest || 'platform') + ' fee ' + fee + ' via ' + spt);
     return answer(200, pi);
+  }
+
+  // Stripe's search, as far as the agent rail uses it: one metadata clause.
+  // (Real search is eventually consistent — up to a minute behind; this one
+  // answers at once, and says so here rather than pretending otherwise.)
+  if (req.method === 'GET' && url.pathname === '/v1/payment_intents/search') {
+    const m = /^metadata\['([\w]+)'\]:'([^']*)'$/.exec(url.searchParams.get('query') || '');
+    if (!m) return stripeError(res, 400, 'parameter_invalid', 'unsupported search query');
+    return send(res, 200, { object: 'search_result', data: intents.filter((pi) => pi.metadata && pi.metadata[m[1]] === m[2]) });
   }
 
   if (req.method === 'GET' && url.pathname === '/_state') return send(res, 200, { tokens: [...tokens.values()], intents });

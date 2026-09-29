@@ -198,6 +198,9 @@
         // FedNow rides the verified identity like PayPal does; whether that
         // identity is REGISTERED with the provider is the Worker's answer.
         fednow: allow('fednow') ? { identity: elig.identity.id } : null,
+        // The AGENT rail: the sheet hands the person a checkout link for
+        // their AI agent (Stripe Link); they approve in the Link app.
+        mpp: allow('mpp') ? { identity: elig.identity.id } : null,
       },
       // Back-compat fields (address/chain) kept while the x402 rail is the
       // only on-chain one; prefer rails.* in new code.

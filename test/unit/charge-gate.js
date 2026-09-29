@@ -144,8 +144,13 @@ check('the Worker\'s answer narrows further: an allowed rail it cannot process g
   return s2.rails.paypal === null && s2.rails.fednow === null && !!s2.rails.x402 && !!s2.rails.transfer;
 })());
 check('…but can never ADD a rail the author did not allow', (() => {
-  const s2 = C.sheet(C.eligibility(VALID, FIAT_ONLY), ok, 'X', { paypal: true, x402: true, transfer: true, fednow: true });
-  return !!s2.rails.paypal && s2.rails.x402 === null && s2.rails.transfer === null && s2.rails.fednow === null;
+  const s2 = C.sheet(C.eligibility(VALID, FIAT_ONLY), ok, 'X', { paypal: true, x402: true, transfer: true, fednow: true, mpp: true });
+  return !!s2.rails.paypal && s2.rails.x402 === null && s2.rails.transfer === null && s2.rails.fednow === null && s2.rails.mpp === null;
+})());
+check('the AGENT rail gets a sheet button when the author allowed it and the Worker can take it', (() => {
+  const on = C.sheet(elig, ok, 'Shop', { mpp: true });
+  const off = C.sheet(elig, ok, 'Shop', { mpp: false });
+  return on.rails.mpp && on.rails.mpp.identity === 'nathan.example.com' && off.rails.mpp === null;
 })());
 
 const r = C.receipt(s, '0xabc', 1786000000001);

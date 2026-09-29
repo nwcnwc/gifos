@@ -46,6 +46,7 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
   // ---- the stubbed network ----------------------------------------------------
   const seen = [];
   let keyUp = true;
+  let searchData = [];
   const answer = (status, body) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   const fakeFetch = async (url, opts) => {
     const u = String(url);
@@ -55,6 +56,7 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
     if (u.endsWith('/v2/checkout/orders')) return answer(201, { id: 'ORDER-1', links: [{ rel: 'approve', href: 'https://paypal.example/approve?token=ORDER-1' }] });
     if (u === 'https://registry.example/registry.json') return answer(200, { registered: { [DOMAIN]: { until: null } } });
     if (u === 'https://rpc.example/') return answer(200, { jsonrpc: '2.0', id: 1, result: '0x10' });
+    if (u.startsWith('https://stripe.example/v1/payment_intents/search')) return answer(200, { data: searchData });
     if (u.startsWith('https://gifos.app/')) return answer(500, 'THE STORE WAS CONSULTED');
     return answer(404, 'unexpected ' + u);
   };
@@ -135,6 +137,24 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
   check('the offer link answers an agent with a 402 Payment challenge', ch.status === 402 && /^Payment /.test(ch.headers.get('www-authenticate') || ''));
   const forged = await H(new Request(offer.body.url.replace(/\.[\w-]+$/, '.AAAA')));
   check('a forged offer link is not a checkout', forged.status === 404);
+
+  // ---- the OS sheet's wait: /mpp/status ------------------------------------
+  const oid = JSON.parse(Buffer.from(offer.body.token.split('.')[0], 'base64url').toString()).oid;
+  check('an offer carries an id to find its payment by, and a claim only its caller holds',
+    /^[0-9a-f]{24}$/.test(oid) && /^[0-9a-f]{32}$/.test(offer.body.claim) && !offer.body.url.includes(offer.body.claim));
+  const st = (claim) => post(H, '/mpp/status', { offer: offer.body.token, claim });
+  const wrong = await st('0'.repeat(32));
+  check('the wait answers only to the claim the offer was minted with', wrong.status === 403);
+  const waiting = await st(offer.body.claim);
+  check('nothing paid yet -> PENDING', waiting.status === 200 && waiting.body.status === 'PENDING');
+  searchData = [{ id: 'pi_wrong', status: 'succeeded', amount: 1, metadata: { gifos_offer: oid } }];
+  check('a payment for the WRONG amount does not complete the offer', (await st(offer.body.claim)).body.status === 'PENDING');
+  searchData = [{ id: 'pi_live_1', status: 'succeeded', amount: 500, metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_test_author' } }];
+  const paidNow = await st(offer.body.claim);
+  const rec = paidNow.body && paidNow.body.receiptJson ? JSON.parse(paidNow.body.receiptJson) : {};
+  check('once the agent has paid, the wait returns the signed receipt for exactly that offer',
+    paidNow.body.status === 'COMPLETED' && rec.rail === 'mpp' && rec.tx === 'pi_live_1' && rec.sku === 'agentpack' && rec.amount === '5000000' && rec.payeeId === DOMAIN && rec.appId === 'every-rail', JSON.stringify(rec));
+  searchData = [];
 
   // ---- the kill switch ----------------------------------------------------------
   const blockedAll = core({ blocked: [DOMAIN] });
