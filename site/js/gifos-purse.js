@@ -25,10 +25,17 @@
   const GifOS = (root.GifOS = root.GifOS || {});
   if (GifOS.purse) return;
 
-  const ENT = 'pay.ent:';    // pay.ent:<appId>:<sku>      -> receipt
+  // The "appId" an entitlement is keyed by is a SCOPE the broker composes:
+  // <signing identity>/<appId>. An appId alone is a string any manifest can
+  // wear; a purchase belongs to the signer that was paid.
+  const ENT = 'pay.ent:';    // pay.ent:<identity>/<appId>:<sku> -> receipt
   const LED = 'pay.led:';    // pay.led:<appId>:<seq>      -> entry
   const PERM = 'pay.perm:';  // pay.perm:<appId>           -> permission
-  const PREFIXES = [ENT, LED, PERM];
+  // pay.agent:<offer id> -> an agent checkout link still waiting to be paid
+  // (gifos-pay-broker.js). It holds the claim that reads the receipt, so it
+  // is as private as the rest.
+  const AGENT = 'pay.agent:';
+  const PREFIXES = [ENT, LED, PERM, AGENT];
 
   const big = (v) => BigInt(v || 0);
 

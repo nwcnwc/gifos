@@ -52,10 +52,19 @@
  */
 import { makeCore } from './core.js';
 
+// A variable that is not the JSON it must be stops the Worker with its NAME
+// in the log — never a silent default. (A kill switch that fails to parse
+// and quietly blocks nobody is the failure this exists to prevent.)
+function envJson(env, name, fallback) {
+  if (env[name] == null || env[name] === '') return fallback;
+  try { return JSON.parse(env[name]); } catch (e) { throw new Error('config: ' + name + ' is not valid JSON'); }
+}
+
 let handler = null;
 const b64uToB64 = (s) => { s = String(s || '').replace(/-/g, '+').replace(/_/g, '/'); return s + '='.repeat((4 - (s.length % 4)) % 4); };
 async function init(env) {
-  const jwk = JSON.parse(env.GIFOS_PAY_SIGN_JWK);
+  const jwk = envJson(env, 'GIFOS_PAY_SIGN_JWK', null);
+  if (!jwk) throw new Error('config: GIFOS_PAY_SIGN_JWK is not set');
   // The secret must be THE pay key. A deployment that signs with anything
   // else — most dangerously the app-provenance key that once stood in for it —
   // does not start. (JWK x is base64url; the published file is plain base64.)
@@ -75,18 +84,18 @@ async function init(env) {
     treasuryAddress: env.TREASURY_ADDRESS || null,
     feeBps: Number(env.FEE_BPS || 300),
     paypalPartner: env.PAYPAL_PARTNER || 'pending',
-    blocked: env.BLOCKED ? JSON.parse(env.BLOCKED) : [],
+    blocked: envJson(env, 'BLOCKED', []),
     returnBase: env.RETURN_BASE,
     facilitatorUrl: env.FACILITATOR_URL || null,
     rpcUrl: env.BASE_RPC || null,
     fednowApi: env.FEDNOW_API || null,
     fednowKey: env.FEDNOW_KEY || null,
-    fednowPayees: env.FEDNOW_PAYEES ? JSON.parse(env.FEDNOW_PAYEES) : {},
+    fednowPayees: envJson(env, 'FEDNOW_PAYEES', {}),
     registryUrl: env.REGISTRY_URL || null,
     stripeApi: env.STRIPE_API || 'https://api.stripe.com',
     stripeKey: env.STRIPE_SECRET_KEY || null,
     stripeProfileId: env.STRIPE_PROFILE_ID || null,
-    stripePayees: env.STRIPE_PAYEES ? JSON.parse(env.STRIPE_PAYEES) : {},
+    stripePayees: envJson(env, 'STRIPE_PAYEES', {}),
     // Same derivation as Stripe's own MPP sample, so one secret serves both.
     mppSecret: env.MPP_SECRET || (env.STRIPE_SECRET_KEY ? 'mpp-challenge-signing:' + env.STRIPE_SECRET_KEY : null),
     signKey: { privateKey, publicKey },
@@ -100,7 +109,9 @@ async function init(env) {
 // one call per 1.5–3 s per purchase, well inside the budget.
 const REQ_PER_MIN_PER_IP = 240;
 const CREATES_PER_MIN_PER_IP = 40;   // order/invoice/settle/rfp creation
-const CREATE_PATHS = new Set(['/checkout', '/x402/settle', '/transfer/invoice', '/transfer/bind', '/fednow/rfp', '/receipt/file']);
+// /rails is here too: it verifies a whole proof and fetches a key from a
+// host the CALLER names, which makes it as costly as starting a payment.
+const CREATE_PATHS = new Set(['/rails', '/checkout', '/x402/settle', '/transfer/invoice', '/transfer/bind', '/fednow/rfp', '/receipt/file', '/mpp/offer']);
 const ipHits = new Map();
 function ipKey(ip) {
   ip = String(ip || '');
@@ -119,7 +130,7 @@ function limited(ip, path, method) {
   const k = ipKey(ip);
   const e = ipHits.get(k) || { all: [], creates: [] };
   e.all = e.all.filter((t) => now - t < 60000); e.all.push(now);
-  const create = method === 'POST' && CREATE_PATHS.has(path) || path.startsWith('/mpp/');
+  const create = method === 'POST' && CREATE_PATHS.has(path) || path.startsWith('/mpp/charge/');
   if (create) { e.creates = e.creates.filter((t) => now - t < 60000); e.creates.push(now); }
   ipHits.set(k, e);
   if (ipHits.size > 10000) ipHits.clear();

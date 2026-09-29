@@ -65,6 +65,16 @@ PAYPAL_CLIENT_ID = "BAAhbyY1zsQopKGzUKBQIx-06EA39p-VYaReH1fdSRiKhF_va2KrZA28h77D
 [alias]
 "crypto" = "./src/no-node-crypto.js"
 
+# THE AUDIT TRAIL. Workers Logs keeps every console line this Worker writes,
+# searchable in the dashboard (Workers & Pages → gifos-pay → Logs). core.js
+# writes one JSON line per money event ({"audit":"gifos-pay","ev":…}):
+# started, receipt, captured, refused, provider-refused. Retention is the
+# plan's (3 days free, 7 paid); the providers' own records (PayPal, Stripe,
+# the chain) are the permanent ones, and every line carries their reference.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 # Branded domain — TWO bindings, same rationale as relay/wrangler.toml:
 # routes beat custom domains when both match, so the explicit zone route keeps
 # this Worker immune to any future wildcard on another Worker.

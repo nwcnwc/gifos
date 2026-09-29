@@ -3059,8 +3059,10 @@
       let m;
       if ((m = /^pay\.led:(.+):(\d+)$/.exec(k))) {
         try { (apps[m[1]] = apps[m[1]] || { led: [], ent: [] }).led.push(JSON.parse(localStorage.getItem(k))); } catch (e) { /* one corrupt ledger row must not close Settings */ }
-      } else if ((m = /^pay\.ent:([^:]+):(.+)$/.exec(k))) {
-        (apps[m[1]] = apps[m[1]] || { led: [], ent: [] }).ent.push(m[2]);
+      } else if ((m = /^pay\.ent:([^/:]+)\/([^:]+):(.+)$/.exec(k))) {
+        // pay.ent:<signing identity>/<appId>:<sku> — a purchase belongs to
+        // the signer that was paid (gifos-pay-broker.js entScope).
+        (apps[m[2]] = apps[m[2]] || { led: [], ent: [] }).ent.push({ sku: m[3], by: m[1], key: k });
       }
     }
     for (const a of Object.values(apps)) a.led.sort((x, y) => (x.seq || 0) - (y.seq || 0));
@@ -3078,9 +3080,9 @@
         '<div class="pay-led-row"><span class="mono">' + payUsd(e.amount) + '</span> ' +
         escapeHtml(e.reason || '') + ' <span class="pay-dim">' + escapeHtml(e.rail || '') +
         (e.at ? ' · ' + new Date(e.at).toLocaleDateString() : '') + '</span></div>').join('');
-      const ent = a.ent.map((sku) =>
-        '<span class="pay-ent" data-app="' + escapeHtml(id) + '" data-sku="' + escapeHtml(sku) + '">' + escapeHtml(sku) +
-        ' <button class="pay-ent-del row-del" data-app="' + escapeHtml(id) + '" data-sku="' + escapeHtml(sku) + '" title="Forget this purchase on this computer (the payment is not refunded)">' + DEL_ICON + '</button></span>').join(' ');
+      const ent = a.ent.map((e) =>
+        '<span class="pay-ent" data-app="' + escapeHtml(id) + '" data-sku="' + escapeHtml(e.sku) + '" title="Bought from ' + escapeHtml(e.by) + '">' + escapeHtml(e.sku) +
+        ' <button class="pay-ent-del row-del" data-key="' + escapeHtml(e.key) + '" data-app="' + escapeHtml(id) + '" data-sku="' + escapeHtml(e.sku) + '" title="Forget this purchase on this computer (the payment is not refunded)">' + DEL_ICON + '</button></span>').join(' ');
       return '<div class="pay-app" data-app="' + escapeHtml(id) + '">' +
         '<div class="pay-head"><b>' + escapeHtml(id) + '</b><span class="pay-dim">' + a.led.length + ' payment' + (a.led.length === 1 ? '' : 's') + ' · ' + payUsd(String(spent)) + ' total</span></div>' +
         (ent ? '<div class="pay-ents">Purchased: ' + ent + '</div>' : '') +
@@ -3105,7 +3107,7 @@
     }
     for (const btn of box.querySelectorAll('.pay-ent-del')) {
       btn.addEventListener('click', () => {
-        localStorage.removeItem('pay.ent:' + btn.dataset.app + ':' + btn.dataset.sku);
+        if (/^pay\.ent:/.test(btn.dataset.key || '')) localStorage.removeItem(btn.dataset.key);
         const chip = btn.closest('.pay-ent'); if (chip) chip.remove();
       });
     }

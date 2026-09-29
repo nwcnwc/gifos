@@ -66,7 +66,9 @@ const pad = (a) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
     return body + '.' + sig;
   }
   const now = Date.now();
-  const base = { v: 1, kind: 'gifos-pay-invoice', appId: 'paid-shop', sku: 'pro', amount: '5000000', expected: '5001234',
+  // As /transfer/invoice mints it: the token names the signing identity the
+  // Worker verified, which the receipt then carries as payeeId.
+  const base = { v: 1, kind: 'gifos-pay-invoice', appId: 'paid-shop', sku: 'pro', id: 'author.example.com', type: 'domain', amount: '5000000', expected: '5001234',
     payTo: PAYEE, asset: USDC, network: 'eip155:84532', block: '0x10', iat: now, exp: now + 15 * 60 * 1000 };
   const unbound = await token(base);
   const post = (p, body) => handle(new Request('http://pay.test' + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));

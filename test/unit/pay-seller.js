@@ -47,6 +47,7 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
   const seen = [];
   let keyUp = true;
   let searchData = [];
+  let stripeAnswer = null;   // what POST /v1/payment_intents answers next
   const answer = (status, body) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   const fakeFetch = async (url, opts) => {
     const u = String(url);
@@ -57,6 +58,10 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
     if (u === 'https://registry.example/registry.json') return answer(200, { registered: { [DOMAIN]: { until: null } } });
     if (u === 'https://rpc.example/') return answer(200, { jsonrpc: '2.0', id: 1, result: '0x10' });
     if (u.startsWith('https://stripe.example/v1/payment_intents/search')) return answer(200, { data: searchData });
+    if (u === 'https://stripe.example/v1/payment_intents') {
+      const a = stripeAnswer(new URLSearchParams(opts.body), opts.headers);
+      return new Response(JSON.stringify(a.body), { status: a.status, headers: Object.assign({ 'Content-Type': 'application/json' }, a.replayed ? { 'idempotent-replayed': 'true' } : {}) });
+    }
     if (u.startsWith('https://gifos.app/')) return answer(500, 'THE STORE WAS CONSULTED');
     return answer(404, 'unexpected ' + u);
   };
@@ -149,12 +154,55 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
   check('nothing paid yet -> PENDING', waiting.status === 200 && waiting.body.status === 'PENDING');
   searchData = [{ id: 'pi_wrong', status: 'succeeded', amount: 1, metadata: { gifos_offer: oid } }];
   check('a payment for the WRONG amount does not complete the offer', (await st(offer.body.claim)).body.status === 'PENDING');
-  searchData = [{ id: 'pi_live_1', status: 'succeeded', amount: 500, metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_test_author' } }];
+  searchData = [{ id: 'pi_live_1', status: 'succeeded', amount: 500, currency: 'usd', metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_test_author' } }];
   const paidNow = await st(offer.body.claim);
   const rec = paidNow.body && paidNow.body.receiptJson ? JSON.parse(paidNow.body.receiptJson) : {};
   check('once the agent has paid, the wait returns the signed receipt for exactly that offer',
     paidNow.body.status === 'COMPLETED' && rec.rail === 'mpp' && rec.tx === 'pi_live_1' && rec.sku === 'agentpack' && rec.amount === '5000000' && rec.payeeId === DOMAIN && rec.appId === 'every-rail', JSON.stringify(rec));
   searchData = [];
+
+  // ---- the agent pays the link: retry, second token, decline -------------------
+  // What `link-cli mpp pay` does: take the 402 challenge, answer it with a
+  // credential carrying a Stripe Link token.
+  const payLink = async (h, url, spt) => {
+    const c = await h(new Request(url));
+    const p = Object.fromEntries([...String(c.headers.get('www-authenticate')).slice('Payment '.length).matchAll(/(\w+)="((?:[^"\\]|\\.)*)"/g)].map((m) => [m[1], m[2].replace(/\\(.)/g, '$1')]));
+    const ch = { id: p.id, realm: p.realm, method: p.method, intent: p.intent, request: p.request, expires: p.expires, description: p.description };
+    const r = await h(new Request(url, { headers: { Authorization: 'Payment ' + Buffer.from(JSON.stringify({ challenge: ch, payload: { spt } })).toString('base64url') } }));
+    let j = null; try { j = await r.clone().json(); } catch (e) {}
+    return { status: r.status, body: j, receipt: j && j.receiptJson ? JSON.parse(j.receiptJson) : null };
+  };
+  const link = (await post(H, '/mpp/offer', { proof: proofs.all, amount: '5000000', sku: 'retry' })).body;
+  const linkOid = JSON.parse(Buffer.from(link.token.split('.')[0], 'base64url').toString()).oid;
+  const settledPi = { id: 'pi_once', status: 'succeeded', amount: 500, currency: 'usd', created: 1790000000, metadata: { gifos_offer: linkOid }, transfer_data: { destination: 'acct_test_author' } };
+  let sentKey = null;
+  stripeAnswer = (form, headers) => { sentKey = headers['Idempotency-Key']; return { status: 200, body: settledPi }; };
+  const first = await payLink(H, link.url, 'spt_a');
+  check('the agent pays the link once: settled, a receipt naming the signer, keyed to the offer',
+    first.status === 200 && first.receipt.tx === 'pi_once' && first.receipt.payeeId === DOMAIN && first.receipt.payeeType === 'domain' && sentKey === 'gifos_offer_' + linkOid, JSON.stringify(first.receipt));
+  stripeAnswer = () => ({ status: 200, body: settledPi, replayed: true });
+  const retry = await payLink(H, link.url, 'spt_a');
+  check('the agent RETRYING after a lost answer gets the SAME receipt — money taken is never left without one',
+    retry.status === 200 && retry.body.receiptJson === first.body.receiptJson, retry.status + ' ' + JSON.stringify(retry.body).slice(0, 120));
+  stripeAnswer = () => ({ status: 400, body: { error: { type: 'idempotency_error', message: 'Keys for idempotent requests can only be used with the same parameters they were first used with.' } } });
+  const second = await payLink(H, link.url, 'spt_b');
+  check('a SECOND token on the same link is refused — one link, one payment — and no receipt is issued',
+    second.status === 402 && second.body.type === 'invalid-challenge' && /one link, one payment/.test(second.body.detail) && !second.body.receiptJson, JSON.stringify(second.body));
+  stripeAnswer = () => ({ status: 402, body: { error: { type: 'card_error', code: 'card_declined', message: 'Your card was declined.' } }, replayed: true });
+  const declined = await payLink(H, link.url, 'spt_a');
+  check('a link whose one attempt was DECLINED says so, and says to ask for a new link — never "already paid"',
+    declined.status === 402 && declined.body.type === 'verification-failed' && /refused by Stripe/.test(declined.body.detail) && /new link/.test(declined.body.detail) && !/already used|already paid/.test(declined.body.detail), JSON.stringify(declined.body));
+  stripeAnswer = () => ({ status: 200, body: Object.assign({}, settledPi, { metadata: { gifos_offer: 'someone-elses' } }), replayed: true });
+  const foreign = await payLink(H, link.url, 'spt_a');
+  check('a replayed payment that is NOT this offer\'s earns no receipt', foreign.status === 402 && !foreign.body.receiptJson);
+  const expired = await H(new Request(link.url.replace(/\/mpp\/charge\/.*/, '/mpp/charge/%E0%A4%A')));
+  check('a malformed link is a 404, not a crash', expired.status === 404);
+
+  // ---- oversized bodies -----------------------------------------------------------
+  const huge = await H(new Request('https://pay.example/rails', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proof: { visual: 'A'.repeat(5 * 1024 * 1024) } }) }));
+  check('a request body over the cap is refused (413) before any proof is checked', huge.status === 413);
+  const lied = await H(new Request('https://pay.example/rails', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': '99999999' }, body: '{}' }));
+  check('…and a declared Content-Length over the cap is refused unread', lied.status === 413);
 
   // ---- the kill switch ----------------------------------------------------------
   const blockedAll = core({ blocked: [DOMAIN] });
@@ -167,6 +215,16 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
   check('blocking ONE app ("identity/appId") leaves the author\'s other apps payable', b3.status === 403 && b4.status === 200);
   const b5 = await blockedAll(new Request(offer.body.url));
   check('a block also kills offers minted BEFORE it', b5.status === 403);
+
+  // A DOMAIN entry covers its subdomains; config that would fail silently does not start.
+  const parent = await post(core({ blocked: ['example.com'] }), '/rails', { proof: proofs.usdc });
+  check('blocking a domain blocks every name under it (author.example.com under example.com)', parent.status === 403 && /blocked on GifOS/.test(parent.body.error));
+  const lookalike = await post(core({ blocked: ['ample.com', 'thor.example.com'] }), '/rails', { proof: proofs.usdc });
+  check('…but not a name that merely ENDS the same way', lookalike.status === 200);
+  const throws = (cfg2) => { try { core(cfg2); return false; } catch (e) { return /must be a JSON/.test(e.message); } };
+  check('BLOCKED written as a STRING refuses to start — it would have blocked nobody, silently', throws({ blocked: 'author.example.com' }));
+  check('BLOCKED written as an OBJECT refuses to start', throws({ blocked: {} }));
+  check('a payee map that is not identity -> account refuses to start', throws({ stripePayees: ['acct_x'] }) && throws({ fednowPayees: 'x' }));
 
   // ---- the author's key -----------------------------------------------------------
   keyUp = false;
