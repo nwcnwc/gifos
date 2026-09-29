@@ -301,15 +301,15 @@ async function until(url, ms) {
   const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   const leg = (to, amount) => ({ to, amount, asset: USDC, network: 'eip155:84532' });
   const auth = (to, value) => ({ signature: '0x00', authorization: { to, value } });
-  const short = await settlePost({ appId: 'paytest', sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '1'), leg(TREASURY, '1')], payloads: [auth(CHAIN_PAYEE, '1'), auth(TREASURY, '1')] });
+  const short = await settlePost({ proof: PROOF, sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '1'), leg(TREASURY, '1')], payloads: [auth(CHAIN_PAYEE, '1'), auth(TREASURY, '1')] });
   check('settle refuses transfers that do not add up to the receipt amount', short.status === 400 && /fee rule requires/.test((await short.json()).error));
-  const noFee = await settlePost({ appId: 'paytest', sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '5000000')], payloads: [auth(CHAIN_PAYEE, '5000000')] });
+  const noFee = await settlePost({ proof: PROOF, sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '5000000')], payloads: [auth(CHAIN_PAYEE, '5000000')] });
   check('settle refuses a body with no treasury leg', noFee.status === 400 && /expected 2 transfer/.test((await noFee.json()).error));
-  const wrongTreasury = await settlePost({ appId: 'paytest', sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '4850000'), leg(CHAIN_PAYEE, '150000')], payloads: [auth(CHAIN_PAYEE, '4850000'), auth(CHAIN_PAYEE, '150000')] });
+  const wrongTreasury = await settlePost({ proof: PROOF, sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '4850000'), leg(CHAIN_PAYEE, '150000')], payloads: [auth(CHAIN_PAYEE, '4850000'), auth(CHAIN_PAYEE, '150000')] });
   check('settle refuses a fee leg that does not pay the treasury', wrongTreasury.status === 400 && /treasury/.test((await wrongTreasury.json()).error));
-  const otherAsset = await settlePost({ appId: 'paytest', sku: 'pro', amount: '5000000', transfers: [Object.assign(leg(CHAIN_PAYEE, '4850000'), { asset: '0x' + '2'.repeat(40) }), leg(TREASURY, '150000')], payloads: [auth(CHAIN_PAYEE, '4850000'), auth(TREASURY, '150000')] });
+  const otherAsset = await settlePost({ proof: PROOF, sku: 'pro', amount: '5000000', transfers: [Object.assign(leg(CHAIN_PAYEE, '4850000'), { asset: '0x' + '2'.repeat(40) }), leg(TREASURY, '150000')], payloads: [auth(CHAIN_PAYEE, '4850000'), auth(TREASURY, '150000')] });
   check('settle refuses any asset but the pinned USDC', otherAsset.status === 400 && /asset must be/.test((await otherAsset.json()).error));
-  const mismatch = await settlePost({ appId: 'paytest', sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '4850000'), leg(TREASURY, '150000')], payloads: [auth(CHAIN_PAYEE, '1'), auth(TREASURY, '150000')] });
+  const mismatch = await settlePost({ proof: PROOF, sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '4850000'), leg(TREASURY, '150000')], payloads: [auth(CHAIN_PAYEE, '1'), auth(TREASURY, '150000')] });
   check('settle refuses an authorization that does not name its transfer', mismatch.status === 400 && /does not authorize/.test((await mismatch.json()).error));
 
   // ---- the WALLET-TRANSFER rail (RockWallet and every other wallet) ---------
