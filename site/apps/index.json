@@ -9121,7 +9121,7 @@
         57
       ],
       "cover": "/apps/tip-creators/cover.jpg",
-      "bytes": 184223,
+      "bytes": 184233,
       "download": 0,
       "provides": null,
       "signature": {
@@ -9129,7 +9129,7 @@
         "id": "gifos.app",
         "ts": "2026-09-29"
       },
-      "sha256": "bf00e0ac2fc9c9aeef91bc2999544013b0a9fb4b328eee0604358b16264c233a"
+      "sha256": "86fccf5182309477b566b09816f4e41b2e37628122d3f9f61859af079248b4d8"
     },
     {
       "slug": "tosios",

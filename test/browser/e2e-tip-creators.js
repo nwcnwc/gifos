@@ -1,16 +1,16 @@
-// End-to-end: the SHIPPED Tip GifOS Creators app — the real signed GIF,
-// verified against the real published key — offers exactly the rails its
-// signed manifest lists, and completes one.
+// End-to-end: the SHIPPED Tip GifOS Creators app — the real signed GIF, the
+// real catalog, the real registry — offers all FOUR rails and completes one.
 //
 // e2e-pay proves every rail's machinery on a synthetic app it signs itself;
-// this suite proves the app people actually install is wired to it: the
-// store-built, gifos.app-SIGNED tip-creators.gif mounts, verifies against
-// the REAL published key (site/gifos.key — no substitute, on the OS page AND
-// at the pay Worker, which reads the payee from the app's own signature
-// proof), and its sheet offers exactly capabilities.pay: PayPal and
-// connected-wallet USDC (x402), nothing else. The x402 rail then runs to a
-// signed receipt with the app's default $10, split 97/3 — both legs to the
-// committed treasury, since the tip jar's payee IS the treasury.
+// this suite proves the app people actually install is wired to all of it:
+// the store-built, gifos.app-SIGNED tip-creators.gif mounts, verifies against
+// the REAL published key (site/gifos.key — no substitute), derives
+// payments@gifos.app, and its sheet offers PayPal, connected-wallet USDC,
+// wallet transfer (RockWallet et al) and FedNow. The wallet-transfer rail
+// then runs to a signed receipt with the app's default $10, and FedNow to a
+// settled RfP — the two rails whose availability also depends on live
+// catalog + registry facts (pay.to committed, gifos.app registered
+// perpetual), which is exactly what could silently rot.
 //
 // Needs: static server on 8099. Spawns the payment fixtures itself, same
 // ports as e2e-pay (the two suites must not run concurrently).
@@ -50,12 +50,15 @@ async function until(url, ms) {
   await need({ 8099: 'static site' });
   serve('fake-paypal', [path.join(ROOT, 'test', 'servers', 'fake-paypal.js')]);
   serve('fake-facilitator', [path.join(ROOT, 'test', 'servers', 'fake-facilitator.js')]);
-  // pay-local fetches the author's key for the proof from the static site's
-  // own /gifos.key — the REAL committed site/gifos.key, standing in for
-  // https://gifos.app/gifos.key (the only signer this suite's app has).
-  serve('pay-local', [path.join(ROOT, 'test', 'servers', 'pay-local.js')], { KEY_URL: BASE + '/gifos.key' });
+  serve('fake-chain', [path.join(ROOT, 'test', 'servers', 'fake-chain.js')]);
+  serve('fake-fednow', [path.join(ROOT, 'test', 'servers', 'fake-fednow.js')]);
+  // pay-local against the REAL published catalog and registry on 8099 — the
+  // point of this suite is that those committed facts serve the shipped app.
+  serve('pay-local', [path.join(ROOT, 'test', 'servers', 'pay-local.js')]);
   await until('http://127.0.0.1:8795/_state');
   await until('http://127.0.0.1:8797/_state');
+  await until('http://127.0.0.1:8799/_state');
+  await until('http://127.0.0.1:8800/_state');
   await until(PAY + '/health');
   const receiptPub = await (await fetch(PAY + '/test-pubkey')).text();
   // The app's signature must verify against the REAL published key — if this
@@ -100,24 +103,7 @@ async function until(url, ms) {
   const fr = app.frameLocator('iframe');
   await app.locator('.perm-modal .done').first().click({ timeout: 8000 }).catch(() => {});
 
-  // An EIP-1193 fake stands where the Base Account provider stands, so the
-  // REAL adapter runs its whole path; only the signature is fake, and the
-  // facilitator fake says so. Installed before the sheet opens, so the x402
-  // button is live.
-  await app.evaluate(() => {
-    window.__signedTypedData = [];
-    window.__gifosTestProvider = {
-      request: async ({ method, params }) => {
-        if (method === 'eth_requestAccounts') return ['0x' + 'ab'.repeat(20)];
-        if (method === 'eth_chainId') return '0x14a34';
-        if (method === 'wallet_switchEthereumChain') return null;
-        if (method === 'eth_signTypedData_v4') { window.__signedTypedData.push(JSON.parse(params[1])); return '0x' + '11'.repeat(65); }
-        throw new Error('test provider: unexpected ' + method);
-      },
-    };
-  });
-
-  // ---- the sheet offers exactly the rails the signed manifest lists --------
+  // ---- the sheet offers all FOUR rails --------------------------------------
   await fr.locator('#send').click();
   await app.waitForSelector('#gifos-pay-sheet', { timeout: 10000 });
   const sheet = await app.locator('#gifos-pay-sheet').textContent();
@@ -126,26 +112,63 @@ async function until(url, ms) {
   const rails = await app.evaluate(() => ({
     paypal: !!document.getElementById('gp-paypal'),
     x402: !!document.getElementById('gp-x402'),
+    transfer: !!document.getElementById('gp-transfer'),
     fednow: !!document.getElementById('gp-fednow'),
-    mpp: !!document.getElementById('gp-mpp'),
   }));
-  check('EXACTLY the listed rails are offered: PayPal and connected-wallet USDC, and nothing else',
-    rails.paypal && rails.x402 && !rails.fednow && !rails.mpp, JSON.stringify(rails));
+  check('ALL FOUR rails are offered: PayPal, connected-wallet USDC, wallet transfer, FedNow',
+    rails.paypal && rails.x402 && rails.transfer && rails.fednow, JSON.stringify(rails));
   check('the tip is editable on the sheet (the human chooses the amount)',
     await app.evaluate(() => !!document.getElementById('gp-amt')));
 
-  // ---- x402, end to end, at the app's default $10 --------------------------
-  await app.locator('#gp-x402').click();
+  // ---- the wallet-transfer rail, end to end, at the app's default $10 -------
+  await app.locator('#gp-transfer').click();
+  await app.waitForSelector('#gifos-pay-transfer', { timeout: 10000 });
+  const exact = await app.locator('#gpt-amt').textContent();
+  check('the invoice is the default $10 plus dust, payable to the committed treasury',
+    /^10\.00[0-9]{4}$/.test(exact), exact);
+  const tSheet = await app.locator('#gifos-pay-transfer').textContent();
+  check('the transfer sheet names the treasury address from the SIGNED manifest',
+    tSheet.includes(TREASURY), tSheet.replace(/\s+/g, ' ').slice(0, 80));
+  const units = String(BigInt(Math.round(Number(exact) * 1e6)));
+  // THE PRE-MINT ATTACK, at the shipped app: a stranger's transfer of the
+  // exact dusted amount lands BEFORE the tipper has named a wallet. The
+  // invoice is unbound, so the Worker must not even look — nobody is
+  // thanked, the sheet stays up, and the tipper's own wallet is still asked for.
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: TREASURY, value: units, from: '0x' + '22'.repeat(20) }) });
+  await sleep(4500);
+  check('a stranger\'s exact-amount transfer does NOT complete an UNBOUND invoice',
+    await app.evaluate(() => !!document.getElementById('gifos-pay-transfer')), 'sheet still up');
+  check('…and the sheet says it is waiting for the wallet address, not watching the chain',
+    /Waiting for your wallet address/.test(await app.locator('#gpt-status').textContent()));
+  // The tipper names their wallet; only a transfer FROM it completes the tip.
+  const TIPPER = '0x' + '11'.repeat(20);
+  await app.locator('#gpt-from').fill(TIPPER);
+  await app.locator('#gpt-bind').click();
+  await app.locator('#gpt-bound').filter({ hasText: /Bound to/ }).waitFor({ timeout: 8000 });
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: TREASURY, value: units, from: TIPPER }) });
   await fr.locator('#thanks-line').waitFor({ timeout: 20000 });
   check('the shipped app says thanks, naming the rail\'s own words',
     /went through in USDC/.test(await fr.locator('#thanks-line').textContent()),
     await fr.locator('#thanks-line').textContent());
-  const fac = await (await fetch('http://127.0.0.1:8797/_state')).json();
-  check('the $10 settled as the 97/3 split, both legs to the committed treasury (the tip jar\'s signed payee)',
-    fac.settled.length === 2
-    && fac.settled[0].to === TREASURY && fac.settled[0].value === '9700000'
-    && fac.settled[1].to === TREASURY && fac.settled[1].value === '300000',
-    JSON.stringify(fac.settled.map((t) => t.to.slice(0, 6) + ':' + t.value)));
+
+  // ---- FedNow: gifos.app is registered (registry) and provisioned (payees) --
+  await fr.locator('#again').click();
+  await fr.locator('#send').click();
+  await app.waitForSelector('#gifos-pay-sheet', { timeout: 5000 });
+  await app.locator('#gp-fednow').click();
+  await app.waitForFunction(() => {
+    const el = document.getElementById('gpb-msg');
+    return el && /banking app/.test(el.textContent);
+  }, null, { timeout: 10000 });
+  const fnState = await (await fetch('http://127.0.0.1:8800/_state')).json();
+  const rfp = fnState.rfps[fnState.rfps.length - 1];
+  check('the RfP runs under gifos.app\'s registered account, for the default $10',
+    rfp.account === 'ACCT-GIFOS' && rfp.amount === '10.00', JSON.stringify({ account: rfp.account, amount: rfp.amount }));
+  await fetch('http://127.0.0.1:8800/_approve?id=' + rfp.id, { method: 'POST' });
+  await fr.locator('#thanks-line').waitFor({ timeout: 15000 });
+  check('the bank approval lands as a thank-you in the shipped app',
+    /went through from your bank/.test(await fr.locator('#thanks-line').textContent()),
+    await fr.locator('#thanks-line').textContent());
 
   await browser.close();
   for (const k of kids) { try { k.kill(); } catch (e) {} }

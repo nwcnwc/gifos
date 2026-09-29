@@ -15,7 +15,8 @@
   "capabilities": {
     "pay": [
       "paypal",
-      "x402"
+      "x402",
+      "transfer"
     ]
   },
   "pay": {

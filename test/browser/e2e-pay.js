@@ -21,7 +21,7 @@
 //
 // Needs: static server on 8099. Spawns its own: fake-paypal (8795),
 // pay-local (8796), fake-facilitator (8797), a test catalog (8798),
-// fake-fednow (8800) and fake-stripe (8801).
+// fake-chain (8799), fake-fednow (8800) and fake-stripe (8801).
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
@@ -89,11 +89,13 @@ async function until(url, ms) {
 
   serve('fake-paypal', [path.join(ROOT, 'test', 'servers', 'fake-paypal.js')]);
   serve('fake-facilitator', [path.join(ROOT, 'test', 'servers', 'fake-facilitator.js')]);
+  serve('fake-chain', [path.join(ROOT, 'test', 'servers', 'fake-chain.js')]);
   serve('fake-fednow', [path.join(ROOT, 'test', 'servers', 'fake-fednow.js')]);
   serve('fake-stripe', [path.join(ROOT, 'test', 'servers', 'fake-stripe.js')]);
   serve('pay-local', [path.join(ROOT, 'test', 'servers', 'pay-local.js')], { KEY_URL: 'http://127.0.0.1:8798/keys/{domain}', REGISTRY_URL: 'http://127.0.0.1:8798/registry.json' });
   await until('http://127.0.0.1:8795/_state');
   await until('http://127.0.0.1:8797/_state');
+  await until('http://127.0.0.1:8799/_state');
   await until('http://127.0.0.1:8800/_state');
   await until('http://127.0.0.1:8801/_state');
   await until(PAY + '/health');
@@ -150,7 +152,7 @@ async function until(url, ms) {
     // signer uses. Its public half is served at the domain by the route above.
     const { keyPair, publicKeyB64 } = await GifOS.sign.generateDomainKey();
     // It lists EVERY rail (capabilities.pay) — "pay": true would be PayPal only.
-    const ALL = ['paypal', 'x402', 'fednow', 'mpp'];
+    const ALL = ['paypal', 'x402', 'transfer', 'fednow', 'mpp'];
     const raw = await mk('paytest', { capabilities: { pay: ALL }, pay: { to: chainPayee } });
     const signed = await GifOS.sign.signDomain(raw, domain, keyPair, Date.now());
     // Two more sellers, signed by identities the rails registry does not
@@ -158,7 +160,7 @@ async function until(url, ms) {
     const others = {};
     for (const [appId, dom] of [['payfree', 'unregistered.example.com'], ['payold', 'expired.example.com']]) {
       const k = await GifOS.sign.generateDomainKey();
-      const b = await GifOS.sign.signDomain(await mk(appId, { capabilities: { pay: ['fednow', 'mpp'] } }), dom, k.keyPair, Date.now());
+      const b = await GifOS.sign.signDomain(await mk(appId, { capabilities: { pay: ['transfer', 'fednow', 'mpp'] }, pay: { to: chainPayee } }), dom, k.keyPair, Date.now());
       others[appId] = { domain: dom, key: k.publicKeyB64, proof: await GifOS.sign.proofOf(b) };
     }
     // Unsigned seller: same shape, no signature — must be refused outright.
@@ -310,6 +312,50 @@ async function until(url, ms) {
   const mismatch = await settlePost({ proof: PROOF, sku: 'pro', amount: '5000000', transfers: [leg(CHAIN_PAYEE, '4850000'), leg(TREASURY, '150000')], payloads: [auth(CHAIN_PAYEE, '1'), auth(TREASURY, '150000')] });
   check('settle refuses an authorization that does not name its transfer', mismatch.status === 400 && /does not authorize/.test((await mismatch.json()).error));
 
+  // ---- the WALLET-TRANSFER rail (RockWallet and every other wallet) ---------
+  // No connection, no adapter: the sheet shows exactly-this-much to
+  // exactly-this-address, the "wallet" (fake-chain's test hook) sends it, the
+  // Worker finds the transfer on the chain and signs the same receipt shape.
+  await fr.locator('#tip').click();
+  await app.waitForSelector('#gifos-pay-sheet', { timeout: 5000 });
+  await app.locator('#gp-transfer').click();
+  await app.waitForSelector('#gifos-pay-transfer', { timeout: 10000 });
+  const tExact = await app.locator('#gpt-amt').textContent();
+  check('the transfer sheet demands an EXACT dust-unique amount (sub-cent uniqueness)',
+    /^3\.00[0-9]{4}$/.test(tExact) && tExact !== '3.000000', tExact);
+  const tSheet = await app.locator('#gifos-pay-transfer').textContent();
+  check('the transfer sheet names RockWallet, the chain, and the signed payee address',
+    /RockWallet/.test(tSheet) && /Base Sepolia/.test(tSheet) && tSheet.includes(CHAIN_PAYEE),
+    tSheet.replace(/\s+/g, ' ').slice(0, 120));
+  // The buyer names the wallet they send from: the invoice is re-signed
+  // bound to it, and the amount on the sheet does not move.
+  const MY_WALLET = '0x' + '11'.repeat(20), OTHER_WALLET = '0x' + '22'.repeat(20);
+  // BEFORE binding, the exact amount from anyone is a stranger's money: an
+  // unbound invoice is never receipted (the pre-minted-dust attack, closed
+  // at the Worker — pay/src/core.js transferReceipt, test/unit/pay-transfer-bind.js).
+  const tUnitsEarly = String(BigInt(Math.round(Number(tExact) * 1e6)));
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: tUnitsEarly, from: OTHER_WALLET }) });
+  await sleep(4000);
+  check('the exact amount arriving while the invoice is UNBOUND is not claimed', await app.evaluate(() => !!document.getElementById('gifos-pay-transfer')));
+  await app.locator('#gpt-from').fill(MY_WALLET);
+  await app.locator('#gpt-bind').click();
+  await app.locator('#gpt-bound').filter({ hasText: /Bound to/ }).waitFor({ timeout: 8000 });
+  check('binding keeps the exact amount the sheet already showed', (await app.locator('#gpt-amt').textContent()) === tExact);
+  // a WRONG amount from someone else's payment must not complete this invoice
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: '3000000', from: MY_WALLET }) });
+  await sleep(4000);
+  check('a transfer of the WRONG amount is not claimed', await app.evaluate(() => !!document.getElementById('gifos-pay-transfer')));
+  const tUnits = String(BigInt(Math.round(Number(tExact) * 1e6)));
+  // …and the EXACT amount from a wallet that is not the bound one is a
+  // stranger's payment, not this buyer's — the pre-minted-dust attack.
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: tUnits, from: OTHER_WALLET }) });
+  await sleep(4000);
+  check('the exact amount from ANOTHER wallet is not claimed (the invoice is bound to the payer)', await app.evaluate(() => !!document.getElementById('gifos-pay-transfer')));
+  await fetch('http://127.0.0.1:8799/_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: CHAIN_PAYEE, value: tUnits, from: MY_WALLET }) });
+  await fr.locator('#out').filter({ hasText: /ok:|err:/ }).waitFor({ timeout: 20000 });
+  check('the exact transfer completes the payment with the same signed-receipt proof',
+    (await fr.locator('#out').textContent()) === 'ok:transfer:3000000', await fr.locator('#out').textContent());
+
   // ---- the FEDNOW rail ------------------------------------------------------
   // The buyer approves in their own BANKING APP — nothing of ours renders
   // there, so the fake's approval is a test hook, exactly as its header says.
@@ -365,20 +411,20 @@ async function until(url, ms) {
   check('ONE LINK PAYS ONCE: a second payment with a new token is refused (Stripe: same key, different parameters)',
     again.status === 402 && againBody.type === 'invalid-challenge' && /already used/.test(againBody.detail || ''), JSON.stringify(againBody).slice(0, 140));
 
-  // ---- the rails REGISTRY: the fee-free rail is registered-only ------------
-  // FedNow collects no cut, so it is open only to identities on the
+  // ---- the rails REGISTRY: the fee-free rails are registered-only -----------
+  // These rails collect no cut, so they are open only to identities on the
   // published registry (fee not yet set). Refusals are PLAIN and name the
   // policy — and the fee-collecting rails stay open to everyone.
+  const invUnreg = await postJson('/transfer/invoice', { proof: minted.others.payfree.proof, amount: '3000000', sku: null, reason: 'x' });
+  check('an UNREGISTERED identity is refused the transfer rail, plainly',
+    invUnreg.status === 403 && /not registered for the fee-free rails/.test((await invUnreg.json()).error));
   const rfpUnreg = await postJson('/fednow/rfp', { proof: minted.others.payfree.proof, amount: '3000000', sku: null, reason: 'x' });
-  check('an UNREGISTERED identity is refused the FedNow rail, plainly',
-    rfpUnreg.status === 403 && /not registered for the fee-free rails/.test((await rfpUnreg.json()).error));
-  const rfpOld = await postJson('/fednow/rfp', { proof: minted.others.payold.proof, amount: '3000000', sku: null, reason: 'x' });
+  check('…and the FedNow rail', rfpUnreg.status === 403 && /not registered for the fee-free rails/.test((await rfpUnreg.json()).error));
+  const invOld = await postJson('/transfer/invoice', { proof: minted.others.payold.proof, amount: '3000000', sku: null, reason: 'x' });
   check('an EXPIRED registration is refused with its lapse date and the way back',
-    rfpOld.status === 403 && /expired on 2025-01-01/.test((await rfpOld.json()).error));
-  const rfpReg = await postJson('/fednow/rfp', { proof: PROOF, amount: '3000000', sku: null, reason: 'x' });
-  check('a CURRENT registration still gets its payment request', rfpReg.status === 200 && !!(await rfpReg.json()).id);
-  const gone = await postJson('/transfer/invoice', { proof: PROOF, amount: '3000000', sku: null, reason: 'x' });
-  check('the wallet-transfer rail is gone (removed 2026-09-28)', gone.status === 404);
+    invOld.status === 403 && /expired on 2025-01-01/.test((await invOld.json()).error));
+  const invReg = await postJson('/transfer/invoice', { proof: PROOF, amount: '3000000', sku: null, reason: 'x' });
+  check('a CURRENT registration still gets its invoice', invReg.status === 200 && !!(await invReg.json()).token);
 
   // ---- the AGENT rail: MPP 402 + a Stripe Shared Payment Token --------------
   // No browser here on purpose: the buyer is an agent, and this is what its
@@ -456,8 +502,8 @@ async function until(url, ms) {
     const inFolder = items.filter((i) => i.parent === 'sys_purchases');
     return { count: inFolder.length, names: inFolder.map((i) => i.name), queue: localStorage.getItem('gifos_pay_pending') };
   });
-  check('all four receipts were filed INTO the folder and the queue was drained',
-    placed.count === 4 && placed.queue === null, JSON.stringify(placed));
+  check('all five receipts were filed INTO the folder and the queue was drained',
+    placed.count === 5 && placed.queue === null, JSON.stringify(placed));
 
   // A FRESH computer: hand it nothing but the receipt file, open it, and the
   // entitlement re-grants there — restore with no account anywhere.
@@ -548,8 +594,8 @@ async function until(url, ms) {
     }
     return out;
   });
-  check('the ledger holds one line per payment — four rails, four lines',
-    purse.led.length === 4 && purse.ent.length === 1, JSON.stringify(purse));
+  check('the ledger holds one line per payment — five rails, five lines',
+    purse.led.length === 5 && purse.ent.length === 1, JSON.stringify(purse));
 
   // ---- over-ceiling and unsigned --------------------------------------------
   // The broker cached the VALID verdict for these exact BYTES when the real
@@ -604,9 +650,9 @@ async function until(url, ms) {
 
   // ---- NO STORE: the whole suite paid through the app's own signature ------
   const railsNow = await (await postJson('/rails', { proof: PROOF })).json();
-  check('/rails answers from the proof: the author\'s four rails, all serviceable on this deployment',
-    JSON.stringify(railsNow.allowed) === '["paypal","x402","fednow","mpp"]'
-    && ['paypal', 'x402', 'fednow', 'mpp'].every((r) => railsNow.rails[r] && railsNow.rails[r].ok === true), JSON.stringify(railsNow.rails));
+  check('/rails answers from the proof: the author\'s five rails, all serviceable on this deployment',
+    JSON.stringify(railsNow.allowed) === '["paypal","x402","transfer","fednow","mpp"]'
+    && ['paypal', 'x402', 'transfer', 'fednow', 'mpp'].every((r) => railsNow.rails[r] && railsNow.rails[r].ok === true), JSON.stringify(railsNow.rails));
   const noProof = await postJson('/checkout', { appId: 'paytest', amount: '5000000', reason: 'x' });
   check('an appId without a proof buys nothing — the old catalog wire is gone', noProof.status === 400);
   check('the Worker never asked the store for anything', storeHits === 0, storeHits + ' store request(s)');

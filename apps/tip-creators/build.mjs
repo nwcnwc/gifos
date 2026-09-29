@@ -46,10 +46,9 @@ const listing = JSON.parse(read('listing.json'));
 if (manifest.appId !== 'tip-creators') throw new Error('appId must be tip-creators');
 // capabilities.pay is the author's list of payment methods (docs/payments.md
 // §The author chooses the rails): true would mean PayPal only. The listing
-// promises "pay with PayPal or with USDC", so the list is exactly PayPal and
-// connected-wallet USDC — a drift either way makes the listing false and
-// stops this build.
-const TIP_RAILS = ['paypal', 'x402'];
+// promises "pay with PayPal or with USDC", so the list is exactly those three
+// rails — a drift either way makes the listing false and stops this build.
+const TIP_RAILS = ['paypal', 'x402', 'transfer'];
 if (!manifest.capabilities || JSON.stringify(manifest.capabilities.pay) !== JSON.stringify(TIP_RAILS)) {
   throw new Error('manifest must declare capabilities.pay = ' + JSON.stringify(TIP_RAILS) + ' — PayPal and USDC, as the listing promises');
 }

@@ -36,16 +36,17 @@
   "capabilities": {
     "pay": [
       "paypal",
-      "x402"
+      "x402",
+      "transfer"
     ]
   },
   "cover": "/apps/tip-creators/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tip-creators/tip-creators.gif",
-  "bytes": 184223,
+  "bytes": 184233,
   "download": 0,
   "provides": null,
-  "sha256": "bf00e0ac2fc9c9aeef91bc2999544013b0a9fb4b328eee0604358b16264c233a",
+  "sha256": "86fccf5182309477b566b09816f4e41b2e37628122d3f9f61859af079248b4d8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
