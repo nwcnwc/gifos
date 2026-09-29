@@ -82,6 +82,45 @@ Landed so far on `status-digest`:
   `setLeaf`/`roomDigest` on mesh-wire and `digSane` at every wire intake,
   `test/mesh/digest.js` legs 6-11 (83/83). Whole sim tier + C-sweep 2..5 and
   test/mesh 19/19 green.
+- **G0b — a digest carries its AGE, never a clock** (`6ec3f4f2`). Found by the
+  first real-browser run past one section: every page's tick starts at its own
+  load, the fold compared stamps across pages, and ten browsers read the room as
+  four. The sim had one global clock. Now `ag` rides the wire and the reader
+  re-stamps on its own clock. It was built sim-first: `net skew=` puts each seat
+  on its own clock, and the absolute-stamp reading is kept as a negative control
+  that must collapse. repro-digest 89/89, digest.js 98/98.
+- **run.html consumers, behind the flag** (this step): the heartbeat is
+  section-scoped and ephemeral, except an admin's. Each beat also sets this
+  seat's leaf facts (`pushLeaf`). The room-wide views merge the section's own
+  statuses with the fold's top-K, and a fresh section status always beats the
+  fold. Per consumer:
+  - hand queue and banner total;
+  - Stage candidates, filtered by `canStage` and the vote exclusion;
+  - sing and screen flags;
+  - app ads and ad-carriers;
+  - folded vote tallies past one section;
+  - the count label (`displayCount`, a label only, G2);
+  - mod changes and app stops: one room-wide flood per change (G6);
+  - devOf from the status `dv` where the relay attested none.
+
+  Consent past one section is the unanimity of the section seats I actually
+  hear. Seats my tree names in OTHER sections (the up/down links) are left out,
+  or they would hold the room blurred forever. The digest's `refuse` is a room
+  badge only (G1). `test/browser/e2e-status-plane.js` proves all of it in real
+  browsers: ten pages at C=2, four sections, 21/21. Its legs:
+  - count;
+  - confinement (the median seat hears 1-4 of 9);
+  - a deep hand, a deep Stage claim and a deep mod change reach every seat;
+  - consent clears the room, then one refuser blurs only itself and the
+    section-mates who hear it, while everyone else shows the badge;
+  - `statusOf` stays within C²-1 plus the open DataChannels (the V2 bound).
+
+Known, measured and NOT fixed here: S1SYNC's claim-birth `b` is also an
+absolute tick carried across seats. In the sim with per-seat clocks (N=600,
+20% churn plus two targeted kills, seeds 1-3) it changes trajectories but
+never correctness (CHECK PASS, dups 0). It gates a tie-break, not a count.
+The fix has the same shape (send the age) but belongs in its own sim-first
+change to the seating laws.
 
 1. **Measure first.** A browser-side gauge of status frames/node/period (txStats +
    the harness), recorded at N = 25, 100, 500 on today's code — the baseline the

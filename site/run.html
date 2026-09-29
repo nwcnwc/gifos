@@ -1912,6 +1912,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (vt) { const dv = devFor(id); if (dv && (vt.down[dv] || 0) >= vt.need) continue; }
         out.push([id, t]);
       }
+      // Stagers beyond my section arrive as the fold's 2C earliest claims (G9);
+      // the same filters apply — admin grants, the vote exclusion — and a fresh
+      // section status about the same person wins over the fold.
+      const dg = digLists();
+      if (dg) {
+        const have = new Set(out.map((x) => x[0]));
+        for (const e of dg.stage) {
+          if (!e.id || have.has(e.id) || e.id === myId || freshSt(e.id) || !notTomb(e.id) || !canStage(e.id)) continue;
+          if (vt) { const dv = e.dv || devFor(e.id); if (dv && (vt.down[dv] || 0) >= vt.need) continue; }
+          out.push([e.id, e.k]);
+        }
+      }
       return out.sort((a, b) => (a[1] - b[1]) || (a[0] < b[0] ? -1 : 1)).slice(0, SCALE.C).map((x) => x[0]);
     };
     // The room DIRECTORY: everyone we know to be in the room — the mesh occ
@@ -1937,6 +1949,38 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (Date.now() - at < RELAY_NOSOCK_MS) return true;
       relayNoSock.delete(id); return false;
     };
+    // ============================ THE STATUS PLANE ============================
+    // docs/status-plane-migration.md; healing-laws § G and G9. With the rollup
+    // digest on (window.GIFOS_DIGEST), a heartbeat reaches only its sender's
+    // SECTION — the C×C seats sharing its pc, which is the whole room below C²
+    // people (G8) — and the four room-global facts the room-wide flood used to
+    // carry (hands, the Stage roster, the room-app ad, stage-vote tallies)
+    // arrive folded in the digest. Room-global views MERGE the two: my section's
+    // statuses exactly, the rest of the room as the digest's top-K, and a fresh
+    // section status always beats a fold about the same person. Counts and vote
+    // tallies cannot merge (that double-counts) and switch source by room size.
+    // Everything the digest feeds is DISPLAY or a self-owned act (G1): nothing
+    // here may evict, seat, or release a camera's blur. Admins keep a ROOM-wide
+    // heartbeat — their signed mod frame is the proof of admin presence, valid
+    // whoever carries it, and admins are few.
+    const digestMode = () => (typeof window !== 'undefined' && window.GIFOS_DIGEST === true) && !!meshNode && typeof meshNode.roomDigest === 'function';
+    const roomDig = () => { if (!digestMode()) return null; const d = meshNode.roomDigest(); return d && d.age <= 120 ? d : null; }; // 2 × DIG_TTL: an older fold is not the room
+    const roomPastSection = () => { const d = roomDig(); return !!d && d.n > SCALE.C * SCALE.C; };
+    // The fold's LISTS, only where they carry something my section cannot (G8):
+    // at or below C² people every status reaches me first-hand, so a small room
+    // reads exactly what it read before the digest — a halted pulse still
+    // freezes a shared app, a stale status still drops a hand. The switch reads
+    // the fold's n to choose a DISPLAY SOURCE only (G2): inflating it past C² in
+    // a small room changes nothing (the section is the room), deflating it in a
+    // big one falls back to first-hand statuses, which only hides far facts.
+    const digLists = () => (roomPastSection() ? roomDig() : null);
+    const freshSt = (id) => { const st = statusOf.get(id); return !!st && Date.now() - (st.at || 0) <= 15000; };
+    const digStageEntry = (id) => { const d = digLists(); return d ? d.stage.find((e) => e.id === id) || null : null; };
+    // devOf entries the RELAY attested (roster / peer-join). A status may carry
+    // its sender's own room-salted tag, which fills a gap but never overwrites
+    // one of these — it is exactly as trustworthy as the tag the same client
+    // self-asserts to the relay at connect (the relay enforces uniqueness only).
+    const devRelay = new Set();
     // ---- rows from COORDS (no more roster arithmetic, no deacons) ----------
     // My row is a fact of my SEAT: the occupants of (pc, r, 0..C-1). The old
     // computeRows derived rows from relay-roster join order with row 0 as the
@@ -2000,6 +2044,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function stageVoteTallies() {
       const now = Date.now();
       if (now - stgTallyCache.at < 500) return stgTallyCache;
+      // PAST ONE SECTION the tallies are the fold's (docs/vote-scale.md V1-V3,
+      // healing-laws G9): per-target sums over the whole room, truncated to the
+      // most-voted K and clamped by population — they may only UNDER-count — and
+      // the bar is measured against the folded room minus its away devices.
+      if (roomPastSection()) {
+        const dg = roomDig(), up = {}, down = {};
+        for (const v of dg.votes) { if (v.up) up[v.tgt] = v.up; if (v.dn) down[v.tgt] = v.dn; }
+        const roomN = Math.max(1, dg.n - dg.awayN);
+        stgTallyCache = { at: now, up, down, upVoters: {}, need: Math.max(2, Math.floor(roomN / 2) + 1), folded: true };
+        return stgTallyCache;
+      }
       const bagUp = Object.create(null), bagDn = Object.create(null); // a peer's vup:['__proto__'] must not find Object.prototype here
       const add = (bag, voterDev, list) => {
         for (const d of (Array.isArray(list) ? list : [])) {
@@ -2045,11 +2100,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         need: Math.max(2, Math.floor(roomN / 2) + 1) };
       return stgTallyCache;
     }
-    const devFor = (id) => (id === myId ? myDevHash : devOf[id]);
+    const devFor = (id) => (id === myId ? myDevHash : (devOf[id] || (digStageEntry(id) || {}).dv));
     // The exact voter set behind MY step-up tally — declining remembers this
     // signature, so the same standing votes can't bounce me straight back up.
     const myUpVoteSig = () => {
-      const s = stageVoteTallies().upVoters[myDevHash];
+      const vt = stageVoteTallies();
+      if (vt.folded) return 'n' + (vt.up[myDevHash] || 0); // a fold carries counts, not voters: a changed count is a changed tally
+      const s = vt.upVoters[myDevHash];
       return s ? Array.from(s).sort().join(',') : '';
     };
     let vupDismissedSig = null;
@@ -2087,6 +2144,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // hoarder can't bloat everyone's gossip.
       if (!hasAdminRoom()) {
         const present = new Set(Object.values(devOf));
+        const dgp = digLists(); if (dgp) for (const e of dgp.stage) if (e.dv) present.add(e.dv); // a stager beyond my section is present by the fold
         const slice = (s) => Array.from(s).filter((d) => present.has(d)).slice(0, STAGE_VOTE_CAP);
         myStatus.vup = slice(myStageVotes.up);
         myStatus.vdn = slice(myStageVotes.down);
@@ -2100,12 +2158,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // name AND my own network address (learned privately via whoami) go out
       // encrypted under the room key, so the relay routes opaque peer ids over
       // a roster whose identity fields it cannot read.
-      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable, modw: gossipModW(), name: myName(), ip: myIp };
+      const payload = { kind: 'status', s: myStatus, conns: myConns(), sid: mySid(), mod: modTable, modw: gossipModW(), name: myName(), ip: myIp, dv: myDevHash || undefined };
       // The mod table's authority is its SIGNATURE now (§9) — an admin's
       // heartbeat rides the same free DC path as everyone else's; receivers
       // verify the proof, not the transport.
-      fanOut(payload, (p) => { txStats.dcStatus++; dcSend(p, { k: 'sig', msg: payload }); });
+      const scoped = digestMode() && !(hasAdminRoom() && amAdmin);
+      fanOut(payload, (p) => { txStats.dcStatus++; dcSend(p, { k: 'sig', msg: payload }); }, scoped ? { scope: 'section', ephemeral: true } : undefined);
+      if (digestMode()) pushLeaf();
       updateTile('me');
+    }
+    // My OWN room-global facts into the fold (healing-laws G9), and my own
+    // first-hand consent — the only place a refusal is born (G3).
+    function pushLeaf() {
+      if (!meshNode || typeof meshNode.setLeaf !== 'function') return;
+      const a = myStatus.app;
+      meshNode.setLeaf({ nm: String(myName()).slice(0, 24), dv: myDevHash || '',
+        hand: myStatus.hand || 0, stage: myStatus.stg || 0,
+        sf: (myStatus.sing ? 1 : 0) | (myStatus.scr ? 2 : 0) | (a ? 4 : 0),
+        app: a ? (a.ts || 0) : 0,
+        ad: a ? { s: a.s, k: a.k, relay: a.relay, name: a.name, mesh: !!a.mesh, pk: a.pk, ts: a.ts, byName: a.byName, audio: !!a.audio } : null,
+        away: !!myStatus.away, vup: myStatus.vup || [], vdn: myStatus.vdn || [] });
+      if (typeof meshNode.setRefuses === 'function') meshNode.setRefuses(!consents(myStatus));
     }
     // Presence: the mesh occ map IS the count — distinct peers at distinct
     // coords in my view of the tree, me included. (The deck aggregation
@@ -2620,10 +2693,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (hasAdminRoom() && !amAdmin) { setStatus('🛡 Only this room' + String.fromCharCode(39) + 's admins can ' + (field === 'mute' ? 'mute' : 'blur') + ' someone for everyone.'); return; }
       const mine = modTable[target] = modTable[target] || {};
       mine[field] = { on, by: myName(), byId: myId, at: Date.now() };
-      for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable, modw: gossipModW() });
+      modFlood();
       refreshAllTiles();
     }
     function modOf(id) { return modTable[id === 'me' ? myId : id] || {}; }
+    // A moderation CHANGE reaches the whole room. Past one section that is one
+    // room-wide flood (G6: on change, never a per-member unicast); a section
+    // status still carries the table, so a late joiner learns it from its
+    // neighbours.
+    function modFlood() {
+      const m = { kind: 'mod', mod: modTable, modw: gossipModW() };
+      if (roomPastSection()) { fanOut(m); return; }   // a small room keeps today's per-link send (G8)
+      for (const pid of gossipIds()) sendSig(pid, m);
+    }
     // An admin can turn a guest's VIDEO off room-wide (stronger than blur): the
     // directive is a per-target mod.cam entry, signature-verified (§SIG) like
     // every other admin action. Enforced on BOTH sides — an honest guest whose cam an admin
@@ -2677,7 +2759,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // rule doctrine (above) forbids. A peer with no FRESH status (churn residue,
     // a ghost) counts as NOT consenting: clear is the deliberate unanimous
     // state, never the default. Same 15s freshness renderFromOcc uses.
-    const roomConsentIds = () => (typeof rosterIds !== 'undefined' && Array.isArray(rosterIds)) ? rosterIds : Array.from(peers.keys());
+    const roomConsentIds = () => {
+      const all = (typeof rosterIds !== 'undefined' && Array.isArray(rosterIds)) ? rosterIds : Array.from(peers.keys());
+      if (!roomPastSection()) return all;
+      // PAST ONE SECTION unanimity is my SECTION's (the status plane, G1): the
+      // statuses that prove consent reach only section-mates now, so a seat my
+      // tree names in ANOTHER section (my up or down link) would read as
+      // "not ready" forever and hold the room blurred. A peer whose seat I do
+      // not know stays in — unknown never counts as consent (fail closed).
+      const c = meshCoord(), s = meshSeat();
+      if (!c || !s) return all;
+      const pcOf = new Map();
+      for (const [k, v] of s.occ) { if (!v) continue; try { const t = net.topo.unck(k); if (t) pcOf.set(v, t.pc); } catch (e) {} }
+      return all.filter((pid) => !pcOf.has(pid) || pcOf.get(pid) === c.pc);
+    };
     // G1 + Nathan's call (2026-07-25): an away phone's PRIOR deliberate
     // consent stands while it is still provably present (stHold) — a pocketed
     // phone must not flap the whole room between clear and blurred. A ghost
@@ -2724,8 +2819,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const c = allConsent();
         if (c !== lastCons) {
           if (lastCons !== null && participantCount() > 1 && roomPw) {
-            setStatus(c ? 'Everyone is ready — this room is clear video now.'
-              : 'Back to blurred — clear video needs everyone here ready (camera on, No blur).');
+            setStatus(roomPastSection()
+              ? (c ? 'Your section is ready — clear video here now.' : 'Back to blurred — clear video needs everyone in your section ready (camera on, No blur).')
+              : (c ? 'Everyone is ready — this room is clear video now.' : 'Back to blurred — clear video needs everyone here ready (camera on, No blur).'));
           }
           lastCons = c;
         }
@@ -3549,6 +3645,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function participantCount() {
       return Math.max(leafCount(), knownTotal() || 0);
     }
+    // The count people SEE. Past one section it is the fold's n — a LABEL (G2):
+    // it may be displayed and may never gate behaviour, so the bitrate ladder and
+    // every other decision keep reading participantCount().
+    function displayCount() { return roomPastSection() ? Math.max(participantCount(), roomDig().n) : participantCount(); }
     // BATTERY TIERS (Nathan 2026-07-26): encode watts are the meeting's
     // biggest phone cost, so quality follows the battery — ON BATTERY at all
     // sends one rung lighter, under 50% two rungs, under 25% three rungs and
@@ -3977,7 +4077,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (n > 1) {
         if (!roomPw) extra = ' · a password unlocks clear video';
         else if (hasAdminRoom() && admins.length === 0) extra = ' · no admin here — everyone stays blurred';
-        else if (!adminPresent() && !allConsent()) extra = ' · clear video when everyone is ready (' + consentCount() + '/' + n + ')';
+        else if (!adminPresent() && !allConsent()) extra = roomPastSection()
+          ? ' · clear video when your section is ready (' + consentCount() + '/' + (roomConsentIds().length + 1) + ')'   // past one section, unanimity is your section's (G1)
+          : ' · clear video when everyone is ready (' + consentCount() + '/' + n + ')';
+        if (roomPastSection() && !hasAdminRoom()) { const dg = roomDig(); extra += dg.refuse === 0 && !dg.part ? ' · the whole room is ready' : ' · ' + dg.refuse + ' in the room not ready yet'; } // the room-wide BADGE — display only (G1)
       }
       // A REMEMBERED LOCK MUST BE VISIBLE (§LOCK, 2026-08-06). The host side of
       // the stale-password trap is silent by construction: her page works, her
@@ -3987,7 +4090,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // waiting for the guest who is being refused.
       const savedLock = (n === 1 && roomPw && pwFromStore) ? ' · 🔒 locked with a password you saved earlier — guests need it' : '';
       statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link has no expiry'
-        : n + ' in the meeting · ' + q.label) + link + savedLock + extra;
+        : displayCount() + ' in the meeting · ' + q.label) + link + savedLock + extra;
     }
 
     // ---- mesh plumbing ---------------------------------------------------------
@@ -4373,12 +4476,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // now, so relay {t:'gossip'} no longer reaches the room and is gone. DC
     // pairs absorb the idempotent duplicate (status is timestamped, chat is
     // deduped by id — the same discipline as before).
-    function fanOut(msg, viaDc) {
+    function fanOut(msg, viaDc, opts) {
       if (viaDc) for (const pid of gossipIds()) {
         const p = peers.get(pid);
         if (p && p.dc && p.dc.readyState === 'open') viaDc(p);
       }
-      if (meshNode) meshNode.gossip({ a: 1, msg });
+      if (meshNode) meshNode.gossip({ a: 1, msg }, opts); // opts: { scope: 'section', ephemeral } for the heartbeat — see THE STATUS PLANE
     }
     const myName = () => GifOS.store.identity().name || 'Guest';
 
@@ -4776,8 +4879,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (st.hand && Date.now() - (st.at || 0) <= 15000) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…' });
       }
       if (myStatus.hand) q.set(myId, { i: myId, t: myStatus.hand, n: myName() });
+      // Beyond my section the room's hands arrive folded — the K earliest (G9).
+      // A section-mate's own fresh status wins over a fold about it.
+      const dg = digLists();
+      if (dg) for (const e of dg.hands) {
+        if (!e.id || e.id === myId || q.has(e.id) || freshSt(e.id) || !notTomb(e.id)) continue;
+        q.set(e.id, { i: e.id, t: e.k, n: (peers.get(e.id) || {}).name || rosterNames[e.id] || e.nm || '…' });
+      }
       return Array.from(q.values()).sort((a, b) => (a.t - b.t) || (a.i < b.i ? -1 : 1));
     }
+    // How many hands are up in the WHOLE room: the fold's total past one section.
+    function handTotal(q) { const dg = digLists(); return Math.max(q.length, dg ? dg.handN : 0); }
     function learn(from, msg, p, adm) {
       if (msg.name && p) { const nm = String(msg.name).slice(0, 40); p.name = nm; p.label.textContent = nm; p.avatar.textContent = (nm[0] || '?').toUpperCase(); }
       if (msg.name) rosterNames[from] = String(msg.name).slice(0, 40);
@@ -4911,6 +5023,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // straight out of rosterNames / ipsOf.
         if (msg.name) rosterNames[from] = String(msg.name).slice(0, 40);
         if (msg.ip) ipsOf[from] = String(msg.ip).slice(0, 64);
+        if (typeof msg.dv === 'string' && msg.dv && !devRelay.has(from)) devOf[from] = msg.dv.slice(0, 16); // fills a gap; a relay-attested tag always wins
         const sp = peers.get(from);
         if (sp) {
           sp.lastHeard = Date.now();
@@ -6073,6 +6186,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (relayRosterScope === 'full' && pendingDoorGrant) { const g = pendingDoorGrant; pendingDoorGrant = null; g(); }
         roomBan = m.ban || []; // admins[] comes from VERIFIED signatures (adminsNow, \u00a79), never the relay
         Object.assign(devOf, m.devs || {}); // MERGE (absence grace keeps tiles whose Ban button must work)
+        for (const k of Object.keys(m.devs || {})) devRelay.add(k);
         // \u00a7LOCK, ADMIN ROOMS \u2014 A STORED PASSWORD IS PROVISIONAL UNTIL THE DOOR
         // VOUCHES (2026-07-29). In an admin room only a SIGNED setpw gates the
         // door, so the roster's `locked` is an admin-rooted verdict on my
@@ -6175,7 +6289,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Greeters only: a socket joined the session. Keeps the full list
         // exact without the relay re-sending it on every connect.
         if (m.peer) { relaySocketed.add(m.peer); relayNoSock.delete(m.peer); }
-        if (m.peer && m.dev) { devOf[m.peer] = m.dev; syncVotes(); }
+        if (m.peer && m.dev) { devOf[m.peer] = m.dev; devRelay.add(m.peer); syncVotes(); }
       }
       else if (m.t === 'peer-leave') {
         relaySocketed.delete(m.peer); // the relay no longer reaches it (the delta a greeter's full list lives on)
@@ -6425,8 +6539,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       handqEl.classList.toggle('on', q.length > 0);
       const seg = (e, i) => '<span class="hq" data-id="' + esc(e.i) + '">'
         + (i === 0 ? '<b>' + esc(e.n) + '</b>' : esc(e.n)) + '</span>';
+      const tot = handTotal(q), shown = Math.min(q.length, 8);
       const html = !q.length ? ''
-        : '✋ ' + q.length + ' waiting: ' + q.slice(0, 8).map(seg).join(', ') + (q.length > 8 ? ', +' + (q.length - 8) : '');
+        : '✋ ' + tot + ' waiting: ' + q.slice(0, 8).map(seg).join(', ') + (tot > shown ? ', +' + (tot - shown) : '');
       if (html === handqHtml) return;
       handqHtml = html;
       handqEl.innerHTML = html;
@@ -9969,7 +10084,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const v = el.querySelector('video');
       if (v.srcObject !== stream) { v.srcObject = stream; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
       stadiumEl.classList.add('on');
-      compOf.set('sd', { via: 'mosaic', streamId: stream.id, stream, names: [], rws: [], cnt: knownTotal() });
+      compOf.set('sd', { via: 'mosaic', streamId: stream.id, stream, names: [], rws: [], cnt: roomPastSection() ? displayCount() : knownTotal() });
     }
     // A STAGER NEVER WATCHES ITSELF THROUGH ITS OWN COMPOSITE.
     //
@@ -10088,7 +10203,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // small for a burned name/frame — bake only the tapestry + a talking dot.
       // Driven by the gossiped room size, so every seat AND every up-tree
       // compositor (where a face's overlay is burned) agrees on tiny-or-not.
-      const stadTiny = MM.stadiumTiny(knownTotal());
+      const stadTiny = MM.stadiumTiny(roomPastSection() ? displayCount() : knownTotal()); // a display threshold — the fold's n is a label (G2)
       const stadLbl = (pid) => stadTiny ? { dot: true, talking: labelFor(pid).talking } : labelFor(pid);
       const stagers = stageIds();               // gossiped, ordered, <=C
       const amStager = stagers.includes(myId);
@@ -11026,6 +11141,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const st = id === myId ? myStatus : statusOf.get(id);
         if (st && st.scr && (id === myId || stHold(id))) out.push(id);
       }
+      // A sharer is a stager; beyond my section it arrives as a folded stage claim (G9).
+      const dg = digLists();
+      if (dg) for (const e of dg.stage) if (e.id && (e.f & 2) && out.indexOf(e.id) < 0 && e.id !== myId && !freshSt(e.id) && notTomb(e.id)) out.push(e.id);
       return out;
     };
     function paintShare() {
@@ -11348,7 +11466,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // own gossiped status, and the room is singing iff someone ON STAGE says
     // so. Idempotent, timestamp-free convergence — and the song ends by itself
     // if the leader steps down or leaves.
-    const singOf = (id) => !!(id === myId ? myStatus.sing : (statusOf.get(id) || {}).sing);
+    const singOf = (id) => {
+      if (id === myId) return !!myStatus.sing;
+      if (freshSt(id)) return !!statusOf.get(id).sing;
+      const e = digStageEntry(id); return !!(e && (e.f & 1)); // a stager beyond my section: its folded flag (G9)
+    };
     const roomSingOn = () => stageIds().some(singOf);
     const singLeaderName = () => {
       const pid = stageIds().find(singOf);
@@ -12253,7 +12375,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         mine.blur = { on, by: myName(), byId: myId, at: now };
         changed = true;
       }
-      if (changed) for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable, modw: gossipModW() });
+      if (changed) modFlood();
       refreshAllTiles(); updateBlurAllBtn();
       setStatus(on ? 'Blurred every guest.' : 'Unblurred every guest.');
     };
@@ -12279,7 +12401,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const mine = modTable[pid] = modTable[pid] || {};
         mine.cam = { on, by: myName(), byId: myId, at: now };
       }
-      for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable, modw: gossipModW() });
+      modFlood();
       refreshAllTiles(); updateCamAllBtn();
       setStatus(on ? 'Turned every guest\'s video off.' : 'Guests may turn their video back on.');
     };
@@ -13053,12 +13175,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const adCarriers = () => {
         const out = [];
         for (const [pid, st] of statusOf) if (pid !== myId && st && st.app && st.app.s === ad.s && (st.app.ts || 0) <= at && !meshGone.has(pid)) out.push(pid);
+        const dg = digLists();
+        if (dg) for (const e of dg.apps) if (e.id && e.id !== myId && e.a && e.a.s === ad.s && (e.a.ts || e.k) <= at && !meshGone.has(e.id) && out.indexOf(e.id) < 0) out.push(e.id);
         return out;
       };
+      let flooded = false;
       const fan = (w) => {
         const tgts = new Set(gossipIds());
         for (const pid of adCarriers()) tgts.add(pid);
         for (const pid of tgts) sendSig(pid, { kind: 'appstop', s: ad.s, at, by: myName(), w });
+        // Past my section a stop is an EVENT for the whole room: one room-wide
+        // flood (G6 — the chat shape, O(1) per node), the unicasts above still
+        // retrying the ad-carriers until they are observed to withdraw.
+        if (roomPastSection() && !flooded) { flooded = true; fanOut({ kind: 'appstop', s: ad.s, at, by: myName(), w }); }
       };
       const refan = (w, tries) => setTimeout(() => {
         if (tries <= 0 || !adCarriers().length) return;
@@ -13088,6 +13217,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // (stHold keeps a pocketed phone's app alive through the away-holdover —
       // G1 doctrine; a CONFIRMED departure (meshGone) kills the ad instantly.)
       for (const [pid, st] of statusOf) if (st && st.app && stHold(pid) && !meshGone.has(pid)) consider(pid, st.app);
+      // Beyond my section the room's app ads arrive folded — the newest K (G9).
+      const dgA = digLists();
+      if (dgA) for (const e of dgA.apps) { if (!e.id || !e.a || e.id === myId || meshGone.has(e.id) || stHold(e.id)) continue; consider(e.id, Object.assign({}, e.a, { ts: e.a.ts || e.k })); }
       // Remember WHOSE ad won — and WHEN — retained across null returns: when
       // the ad later vanishes, ownerAway() must ask whether that owner's SEAT
       // is gone or only their STATUS PATH, and by then the ad that named them
@@ -13989,6 +14121,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // backdate the beat clock (renderer-freeze simulation for the resume self-heal drill)
       freezeGapForTest: (ms) => { hbLastAt = Date.now() - (ms | 0); },
       stageVoteNeed: () => stageVoteTallies().need,
+      // THE STATUS PLANE, as this seat sees it (e2e-status-plane.js).
+      statusPlane: () => { const d = roomDig(); return { id: myId, mode: digestMode(), past: roomPastSection(), n: d ? d.n : null, age: d ? d.age : null,
+        refuse: d ? d.refuse : null, part: d ? !!d.part : null, handN: d ? d.handN : null, hands: d ? d.hands.map((e) => e.id) : [], stage: d ? d.stage.map((e) => e.id) : [],
+        apps: d ? d.apps.map((e) => e.id) : [], votes: d ? d.votes.length : 0, display: displayCount(), consentIds: roomConsentIds().length,
+        fresh: Array.from(statusOf.keys()).filter((id) => id !== myId && freshSt(id)), coord: meshCoord(), label: statusEl.textContent,
+        statusN: statusOf.size, dcLinks: Array.from(peers.values()).filter((p) => p.dc && p.dc.readyState === 'open').length }; },
       totalCount: () => knownTotal() || 0,
       handQueue: () => handQueue().map((e) => ({ id: e.i, name: e.n, t: e.t })),
       handqShown: () => handqEl.classList.contains('on'),
@@ -14002,7 +14140,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       forgeModForTest: (target, field) => {
         const m = modTable[target] = modTable[target] || {};
         m[field] = { on: true, by: myName(), byId: myId, at: Date.now() };
-        for (const pid of gossipIds()) sendSig(pid, { kind: 'mod', mod: modTable, modw: gossipModW() });
+        modFlood();
       },
       zoomRow: (row) => { const el = stadiumEl.querySelector('[data-row="' + String(row) + '"]'); if (el) el.classList.toggle('zoom'); return !!el && el.classList.contains('zoom'); },
       // stage + buses
