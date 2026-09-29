@@ -376,6 +376,41 @@ async function until(url, ms) {
   check('the bank approval settles it — same receipt shape, fee honestly marked uncollected',
     (await fr.locator('#out').textContent()) === 'ok:fednow:3000000', await fr.locator('#out').textContent());
 
+  // ---- the AGENT rail on the OS sheet ---------------------------------------
+  // The person taps "Pay with your AI agent", GifOS shows a checkout link,
+  // and their agent pays it (the test plays the agent: what `link-cli mpp
+  // pay` does). The sheet finishes ON ITS OWN — it waits on /mpp/status with
+  // a claim only it holds — and the purchase lands like every other rail's.
+  const STRIPE = 'http://127.0.0.1:8801';
+  const mintSpt = async (max) => (await (await fetch(STRIPE + '/v1/test_helpers/shared_payment/granted_tokens', {
+    method: 'POST', headers: { Authorization: 'Basic ' + Buffer.from('sk_test_fake:').toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'payment_method=pm_card_visa&usage_limits[currency]=usd&usage_limits[max_amount]=' + max,
+  })).json()).id;
+  const credential = (ch, payload) => 'Payment ' + Buffer.from(JSON.stringify({ challenge: ch, payload })).toString('base64url');
+  const parseChallenge = (www) => {
+    const p = Object.fromEntries([...String(www).slice('Payment '.length).matchAll(/(\w+)="((?:[^"\\]|\\.)*)"/g)].map((m) => [m[1], m[2].replace(/\\(.)/g, '$1')]));
+    return { id: p.id, realm: p.realm, method: p.method, intent: p.intent, request: p.request, expires: p.expires, description: p.description };
+  };
+  await fr.locator('#tip').click();
+  await app.waitForSelector('#gifos-pay-sheet', { timeout: 5000 });
+  check('the sheet offers the agent rail the author listed', (await app.locator('#gp-mpp').count()) === 1);
+  await app.locator('#gp-mpp').click();
+  await app.waitForSelector('#gifos-pay-agent', { timeout: 10000 });
+  const agentUrl = (await app.locator('#gpa-url').textContent()).trim();
+  check('the sheet hands the person a checkout link for their agent, and names the Link app as where they approve',
+    /\/mpp\/charge\/[\w-]+\.[\w-]+$/.test(agentUrl) && /Link app/.test(await app.locator('#gifos-pay-agent').textContent()), agentUrl.slice(0, 80));
+  const a402 = await fetch(agentUrl);
+  const aCh = parseChallenge(a402.headers.get('www-authenticate') || '');
+  const aPaid = await fetch(agentUrl, { headers: { Authorization: credential(aCh, { spt: await mintSpt(300) }) } });
+  check('the agent pays the link: a 402 challenge, a Stripe Link token, settled', a402.status === 402 && aPaid.status === 200, a402.status + ' then ' + aPaid.status);
+  await fr.locator('#out').filter({ hasText: /ok:|err:/ }).waitFor({ timeout: 20000 });
+  check('the OS sheet sees the payment land and finishes on its own — same receipt, same ledger, no action from the person',
+    (await fr.locator('#out').textContent()) === 'ok:mpp:3000000', await fr.locator('#out').textContent());
+  const again = await fetch(agentUrl, { headers: { Authorization: credential(parseChallenge((await fetch(agentUrl)).headers.get('www-authenticate') || ''), { spt: await mintSpt(300) }) } });
+  const againBody = await again.json();
+  check('ONE LINK PAYS ONCE: a second payment with a new token is refused (Stripe: same key, different parameters)',
+    again.status === 402 && againBody.type === 'invalid-challenge' && /already used/.test(againBody.detail || ''), JSON.stringify(againBody).slice(0, 140));
+
   // ---- the rails REGISTRY: the fee-free rails are registered-only -----------
   // These rails collect no cut, so they are open only to identities on the
   // published registry (fee not yet set). Refusals are PLAIN and name the
@@ -396,7 +431,6 @@ async function until(url, ms) {
   // wallet (link-cli) does — probe, decode the challenge, get a token scoped
   // to it, retry with the credential. fake-stripe stands where Stripe
   // stands, including the idempotent-replayed answer a replay must trip.
-  const STRIPE = 'http://127.0.0.1:8801';
   // An agent holds no app bytes: the OS presents the proof once and gets a
   // signed offer link for exactly one purchase (POST /mpp/offer).
   const offerFor = async (proof, sku, amount) => { const r = await postJson('/mpp/offer', { proof, sku, amount }); return { status: r.status, body: await r.json() }; };
@@ -414,12 +448,8 @@ async function until(url, ms) {
   check('…the request is what link-cli decodes: "500" usd cents, networkId = the PLATFORM profile, card + link',
     reqJson.amount === '500' && reqJson.currency === 'usd' && reqJson.methodDetails.networkId === 'profile_test_gifos'
     && reqJson.methodDetails.paymentMethodTypes.join() === 'card,link' && params.expires > new Date().toISOString(), JSON.stringify(reqJson));
-  const mintSpt = async (max) => (await (await fetch(STRIPE + '/v1/test_helpers/shared_payment/granted_tokens', {
-    method: 'POST', headers: { Authorization: 'Basic ' + Buffer.from('sk_test_fake:').toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'payment_method=pm_card_visa&usage_limits[currency]=usd&usage_limits[max_amount]=' + max,
-  })).json()).id;
-  const credential = (ch, payload) => 'Payment ' + Buffer.from(JSON.stringify({ challenge: ch, payload })).toString('base64url');
   const ch = { id: params.id, realm: params.realm, method: params.method, intent: params.intent, request: params.request, expires: params.expires, description: params.description };
+  const intentsBefore = (await (await fetch(STRIPE + '/_state')).json()).intents.length;
   const spt = await mintSpt(500);
   const paid = await fetch(MPP_URL, { headers: { Authorization: credential(ch, { spt }) } });
   const paidBody = await paid.json();
@@ -428,17 +458,17 @@ async function until(url, ms) {
     paid.status === 200 && paidBody.status === 'COMPLETED' && paidReceipt.rail === 'mpp' && paidReceipt.sku === 'agentpack' && paidReceipt.amount === '5000000'
     && JSON.parse(Buffer.from(paid.headers.get('payment-receipt') || '', 'base64url').toString() || '{}').reference === paidReceipt.tx, JSON.stringify(paidBody).slice(0, 160));
   const stState = await (await fetch(STRIPE + '/_state')).json();
-  const pi = stState.intents[0] || {};
-  check('it was a Connect DESTINATION charge to the AUTHOR\'s connected account (the platform\'s record, never the client), 3% as the application fee, preview API, idempotent',
-    stState.intents.length === 1 && pi.transfer_data && pi.transfer_data.destination === 'acct_test_paytest' && pi.application_fee_amount === 15 && pi.amount === 500
-    && pi.stripe_version === '2026-07-29.preview' && /^mpp_/.test(pi.idempotency_key) && pi.metadata.gifos_app === 'paytest', JSON.stringify(pi));
+  const pi = stState.intents.find((x) => x.metadata && x.metadata.gifos_sku === 'agentpack') || {};
+  check('it was a Connect DESTINATION charge to the AUTHOR\'s connected account (the platform\'s record, never the client), 3% as the application fee, preview API, one payment per offer',
+    stState.intents.length === intentsBefore + 1 && pi.transfer_data && pi.transfer_data.destination === 'acct_test_paytest' && pi.application_fee_amount === 15 && pi.amount === 500
+    && pi.stripe_version === '2026-07-29.preview' && /^gifos_offer_[0-9a-f]{24}$/.test(pi.idempotency_key) && pi.metadata.gifos_offer === pi.idempotency_key.slice('gifos_offer_'.length) && pi.metadata.gifos_app === 'paytest', JSON.stringify(pi));
   const replay = await fetch(MPP_URL, { headers: { Authorization: credential(ch, { spt }) } });
   check('REPLAYING the credential is refused (Stripe said idempotent-replayed) — invalid-challenge, with a fresh challenge, no second receipt',
     replay.status === 402 && (await replay.json()).type === 'invalid-challenge' && /^Payment /.test(replay.headers.get('www-authenticate') || ''));
   const tamperedReq = Buffer.from(JSON.stringify(Object.assign({}, reqJson, { amount: '50' }))).toString('base64url');
   const tam = await fetch(MPP_URL, { headers: { Authorization: credential(Object.assign({}, ch, { request: tamperedReq }), { spt: await mintSpt(50) }) } });
   check('a credential with an EDITED amount fails the binding before any token reaches Stripe',
-    tam.status === 402 && (await tam.json()).type === 'invalid-challenge' && (await (await fetch(STRIPE + '/_state')).json()).intents.length === 1);
+    tam.status === 402 && (await tam.json()).type === 'invalid-challenge' && (await (await fetch(STRIPE + '/_state')).json()).intents.length === intentsBefore + 1);
   const offer2 = await offerFor(PROOF, 'other', '5000000');
   const other = await fetch(PAY + '/mpp/charge/' + offer2.body.url.split('/mpp/charge/')[1], { headers: { Authorization: credential(ch, { spt: await mintSpt(500) }) } });
   check('a genuine challenge for ONE purchase does not pay for ANOTHER', other.status === 402 && (await other.json()).type === 'invalid-challenge');
@@ -472,8 +502,8 @@ async function until(url, ms) {
     const inFolder = items.filter((i) => i.parent === 'sys_purchases');
     return { count: inFolder.length, names: inFolder.map((i) => i.name), queue: localStorage.getItem('gifos_pay_pending') };
   });
-  check('all four receipts were filed INTO the folder and the queue was drained',
-    placed.count === 4 && placed.queue === null, JSON.stringify(placed));
+  check('all five receipts were filed INTO the folder and the queue was drained',
+    placed.count === 5 && placed.queue === null, JSON.stringify(placed));
 
   // A FRESH computer: hand it nothing but the receipt file, open it, and the
   // entitlement re-grants there — restore with no account anywhere.
@@ -564,8 +594,8 @@ async function until(url, ms) {
     }
     return out;
   });
-  check('the ledger holds one line per payment — four rails, four lines',
-    purse.led.length === 4 && purse.ent.length === 1, JSON.stringify(purse));
+  check('the ledger holds one line per payment — five rails, five lines',
+    purse.led.length === 5 && purse.ent.length === 1, JSON.stringify(purse));
 
   // ---- over-ceiling and unsigned --------------------------------------------
   // The broker cached the VALID verdict for these exact BYTES when the real
