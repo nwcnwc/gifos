@@ -126,6 +126,47 @@
     return verdicts.get(key);
   }
 
+  // ---- the signature PROOF the Worker verifies ------------------------------
+  // The Worker never looks the app up in the store: every request that starts
+  // a payment carries this proof (the picture, the manifest, every other
+  // file's hash — gifos-sign.js proofOf), and the Worker checks it against
+  // the author's own key. Built once per BYTES, like the verdict above.
+  const proofs = new Map();
+  async function proofFor(appBytes) {
+    const bytes = appBytes instanceof Uint8Array ? appBytes : new Uint8Array(appBytes || 0);
+    let key;
+    try { key = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), (b) => b.toString(16).padStart(2, '0')).join(''); }
+    catch (e) { key = 'len:' + bytes.length; }
+    if (!proofs.has(key)) {
+      const p = GifOS.sign.proofOf(bytes);
+      proofs.set(key, p);
+      p.catch(() => proofs.delete(key));
+    }
+    return proofs.get(key);
+  }
+
+  // Which of the author's allowed rails the Worker can process right now
+  // (provider configured, registry, onboarding, PayPal's partner approval).
+  // The sheet draws only those, so nobody picks a rail that refuses them
+  // after the click. Returns { accepted: {rail: true}, why: {rail: reason} }.
+  async function railsNow(proof) {
+    let r;
+    try {
+      r = await fetch(workerBase() + '/rails', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proof }),
+      });
+    } catch (e) { throw new Error('payments cannot be reached right now — check your connection and try again'); }
+    let body = null; try { body = await r.json(); } catch (e) {}
+    if (!r.ok) throw new Error((body && body.error) || ('payments are unavailable right now (HTTP ' + r.status + ')'));
+    const accepted = {}, why = {};
+    for (const rail of Object.keys((body && body.rails) || {})) {
+      const s = body.rails[rail];
+      if (s && s.ok === true) accepted[rail] = true; else why[rail] = (s && s.why) || 'unavailable';
+    }
+    return { accepted, why };
+  }
+
   // ---- receipt ↔ request binding -----------------------------------------------
   // A verified receipt still has to be THIS payment's: same amount, same app,
   // same sku, and the rail that was actually driven. (A receipt for a cheaper
@@ -274,14 +315,14 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---- the PayPal rail -------------------------------------------------------
-  async function payWithPaypal(manifest, sheetData, amount, win) {
+  async function payWithPaypal(manifest, sheetData, amount, win, proof) {
     const base = workerBase();
     const busyUi = showBusy('Starting the PayPal checkout…');
     try {
       const r = await fetch(base + '/checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          appId: manifest.appId,
+          proof,
           amount: String(amount),
           sku: sheetData.sku || null,
           reason: sheetData.reason,
@@ -328,7 +369,7 @@
   // TWO transfers from ONE approval — the 97/3 split needs no contract because
   // this broker constructs the payment (docs/payments.md). The wallet adapter
   // signs; the Worker's facilitator endpoint settles. Testnet only.
-  async function payWithX402(manifest, sheetData, amount) {
+  async function payWithX402(manifest, sheetData, amount, proof) {
     const wallet = GifOS.payWallet;
     if (!wallet || !wallet.available()) throw new Error('no wallet is available on this computer');
     const base = workerBase();
@@ -350,7 +391,7 @@
       busyUi.say('Settling on Base Sepolia…');
       const r = await fetch(base + '/x402/settle', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appId: manifest.appId, sku: sheetData.sku || null, amount: String(amount), transfers, payloads }),
+        body: JSON.stringify({ proof, sku: sheetData.sku || null, amount: String(amount), transfers, payloads }),
       });
       if (!r.ok) throw new Error('settlement failed (HTTP ' + r.status + '): ' + (await r.text()).slice(0, 200));
       const body = await r.json(); // { status, receiptJson, sig }
@@ -412,11 +453,11 @@
     return api;
   }
 
-  async function payWithTransfer(manifest, sheetData, amount) {
+  async function payWithTransfer(manifest, sheetData, amount, proof) {
     const base = workerBase();
     const r = await fetch(base + '/transfer/invoice', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ appId: manifest.appId, amount: String(amount), sku: sheetData.sku || null, reason: sheetData.reason }),
+      body: JSON.stringify({ proof, amount: String(amount), sku: sheetData.sku || null, reason: sheetData.reason }),
     });
     if (!r.ok) throw new Error('could not start the transfer (HTTP ' + r.status + '): ' + (await r.text()).slice(0, 200));
     const inv = await r.json();
@@ -461,13 +502,13 @@
   // A Request-for-Payment through the provider; the human approves it in
   // their own banking app — there is nothing of ours to render there, so this
   // side only says what to do and waits for the settled receipt.
-  async function payWithFednow(manifest, sheetData, amount) {
+  async function payWithFednow(manifest, sheetData, amount, proof) {
     const base = workerBase();
     const busyUi = showBusy('Sending the payment request to your bank…');
     try {
       const r = await fetch(base + '/fednow/rfp', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appId: manifest.appId, amount: String(amount), sku: sheetData.sku || null, reason: sheetData.reason }),
+        body: JSON.stringify({ proof, amount: String(amount), sku: sheetData.sku || null, reason: sheetData.reason }),
       });
       if (!r.ok) throw new Error('bank payment not available: ' + (await r.text()).slice(0, 200));
       const rfp = await r.json();
@@ -503,8 +544,16 @@
       maxAmount: maxAmountFor(manifest.appId),
       entitled: (sku) => p.entitled(manifest.appId, sku),
     });
-    const sheetData = GifOS.charge.sheet(elig, request, appName || manifest.name);
-    if (!sheetData.rails.paypal && !sheetData.rails.x402) throw new Error('this app has no rail it can be paid on');
+    // The proof is what the Worker verifies instead of consulting the store;
+    // /rails narrows the author's allowed rails to what can be processed now.
+    const proof = await proofFor(appBytes);
+    const now = await railsNow(proof);
+    const sheetData = GifOS.charge.sheet(elig, request, appName || manifest.name, now.accepted);
+    const r = sheetData.rails;
+    if (!r.paypal && !r.x402 && !r.transfer && !r.fednow) {
+      const reasons = elig.rails.filter((k) => k !== 'mpp').map((k) => now.why[k]).filter(Boolean);
+      throw new Error('this app cannot be paid right now' + (reasons.length ? ': ' + reasons.join('; ') : ''));
+    }
 
     const choice = await showSheet(sheetData);
     if (choice.declined) throw new Error(GifOS.charge.DECLINED);
@@ -516,10 +565,10 @@
     if (choice.amount > cap) throw new Error('that amount is over this app’s ceiling (' + fmtUsd(cap) + ')');
     sheetData.amount = String(choice.amount);
 
-    const paid = choice.rail === 'paypal' ? await payWithPaypal(manifest, sheetData, choice.amount, choice.win)
-      : choice.rail === 'x402' ? await payWithX402(manifest, sheetData, choice.amount)
-      : choice.rail === 'transfer' ? await payWithTransfer(manifest, sheetData, choice.amount)
-      : await payWithFednow(manifest, sheetData, choice.amount);
+    const paid = choice.rail === 'paypal' ? await payWithPaypal(manifest, sheetData, choice.amount, choice.win, proof)
+      : choice.rail === 'x402' ? await payWithX402(manifest, sheetData, choice.amount, proof)
+      : choice.rail === 'transfer' ? await payWithTransfer(manifest, sheetData, choice.amount, proof)
+      : await payWithFednow(manifest, sheetData, choice.amount, proof);
     const receipt = paid.receipt;
 
     // Record: entitlement (if a sku), then the ledger line. The receipt the
