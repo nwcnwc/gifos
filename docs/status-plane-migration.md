@@ -141,6 +141,40 @@ Landed so far on `status-digest`:
   After the merge, the 21 meeting suites plus e2e-status-plane and e2e-pay
   are all green (`e5b1c838`).
 
+- **Independent review, 2026-09-29, and what it changed.** A second reviewer
+  went through the branch adversarially. Landed from its findings:
+  - `1d650bc7`: scoped gossip rides its own frame type, `GSPS`. With scope as
+    a field on `GSP`, one old client at N=400 re-flooded section heartbeats to
+    385 of 400 seats, so every rollout would have undone the fix.
+    status-plane.js leg 6 pins it, with a control that must leak.
+  - `5f895cd6`: a status is dated by its arrival on the reader's clock. The
+    sender's `st.at` was compared to the reader's clock at eight sites, so a
+    phone 15 s slow was never fresh and blurred everyone who heard it. Gossip
+    frames now carry their relayed age. e2e-status-plane runs two of its ten
+    pages a minute wrong; the old code fails it.
+  - `8608d1c3`: unchanged digests travel as stubs (healing-laws G0c). A
+    Section-1 seat's control traffic with every list at its cap fell from
+    88,878 to 5,773 bytes per tick. G4 checks the echo's author before its
+    age, in both twins.
+  - `e5fd7451`: an admin's status is section-scoped; its signed presence rides
+    a room-wide beat every ~8 s. Ban acts only on a relay-attested device tag.
+    `test/browser/e2e-status-plane-admin.js` (deep admin, 19/19) covers admin
+    rooms past one section.
+  Recorded, not changed:
+  - The vote bar reads the fold's `n` (healing-laws G9, accepted residual).
+  - App ads still ride the fold whole. With stubs they cost bytes only when
+    they change. A pointer plus a fetch from the owner needs a routed request
+    that old clients in the path would drop.
+  - Chat, reactions and captions still flood the room: O(1) per message per
+    node, but the message rate grows with the room. A design item.
+  - All joins pass through one relay object, which caps the join rate.
+  - The tick counter stops while a tab is frozen, so a held fold's age is
+    under-reported by the freeze. Display only.
+  **Open, Nathan's call:** consent past one section. As built, clear video
+  needs the section seats I hear to be unanimous, and the fold's `refuse` is a
+  badge. The reviewer's stricter option: clear only when the section is
+  unanimous AND the fold shows zero refusals, so the digest can only add blur.
+
 Flakes seen on this branch that also fail on unmodified main (A/B on the
 same box):
 - e2e-stage-onerow: 2 of 5 red on main.
@@ -156,8 +190,11 @@ absolute tick carried across seats. In the sim with per-seat clocks (N=600,
 never correctness (CHECK PASS, dups 0). It gates a tie-break, not a count.
 The fix has the same shape (send the age). It is parked, unmerged, on branch
 `claim-birth-age`: it perturbs repro-compaction's chaotic seed-9 depth leg,
-and no suite yet shows the bug. It needs a suite that makes a ghost's tie win
-observable under skew before it can land.
+and no suite yet shows the bug. The review wrote that suite: a crafted
+S1SYNC entry, deterministic, red on this branch and green on the fix (a page
+older than 5 minutes rejects a genuine contender as ancient). It should land
+as its own change, with that test in test/mesh and a decision on
+repro-compaction's seed-9 depth allowance.
 
 1. **Measure first.** A browser-side gauge of status frames/node/period (txStats +
    the harness), recorded at N = 25, 100, 500 on today's code — the baseline the
