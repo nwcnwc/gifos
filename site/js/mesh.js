@@ -1865,20 +1865,50 @@
       const o = this.ownerId(); if (o != null && o !== this.id) out.add(o);
       return out;
     }
-    gossip(payload) {
+    // SECTION-SCOPED GOSSIP (docs/status-plane-migration.md). A room-wide flood
+    // costs every node O(N) frames per message — right for an EVENT (a chat
+    // line, a stop, a grant: once per change) and wrong for a HEARTBEAT, which
+    // every participant re-sends every period: that is the scale-audit V1
+    // status flood. `scope: 'section'` delivers and forwards only inside the
+    // sender's section (the C×C seats sharing its pc), over the links that stay
+    // inside it — row, cross and the Section-1 rook; never up or down — so a
+    // heartbeat costs O(C²) per node whatever N is. Below C² participants the
+    // room IS Section 1, so a section flood is the room flood (G8).
+    // `ephemeral` keeps a message out of the re-fan/replay backlog: a heartbeat
+    // is superseded by the next beat, and remembering it only re-sent it for
+    // nothing and pushed chat and events out of the 64-entry backlog before
+    // their re-fan could protect them.
+    sectionPeers() {
+      const out = new Set();
+      if (!this.hasCoord) return out;
+      for (const olc of topo.ownedLinks(this.coord)) {
+        if (olc.pc !== this.coord.pc) continue; // the down link leaves the section; the owner (up) is never added
+        const x = this.occGet(ck(olc)); if (x != null && x !== this.id) out.add(x);
+      }
+      return out;
+    }
+    gossip(payload, opts) {
+      const sc = opts && opts.scope === 'section' ? (this.hasCoord ? this.coord.pc : null) : undefined;
+      if (sc === null) return; // an unseated seat has no section to speak to
+      const eph = !!(opts && opts.ephemeral);
       this.gseq = (this.gseq || 0) + 1; const gid = this.id + ':' + this.gseq;
       (this.gseen = this.gseen || new Map()).set(gid, this.TICK);
-      this._gspRemember(gid, this.id, payload);
-      for (const p of this.linkPeers()) this.emit(p, { t: 'GSP', gid, src: this.id, m: payload });
+      if (!eph) this._gspRemember(gid, this.id, payload, sc);
+      // A FRESH frame per emit: transports stamp to/from onto the object they
+      // are handed, so one shared frame would reach only its last recipient.
+      for (const p of (sc !== undefined ? this.sectionPeers() : this.linkPeers())) this.emit(p, this._gspFrame({ gid, src: this.id, m: payload, sc, eph }));
     }
     _gspRecv(m) {
+      const scoped = m.sc !== undefined && m.sc !== null;
+      if (scoped && (!this.hasCoord || this.coord.pc !== m.sc)) return; // outside the section it was scoped to (a replay or a stale link)
       const g = this.gseen = this.gseen || new Map();
       if (g.has(m.gid)) return;
       g.set(m.gid, this.TICK);
       if (g.size > 4096) { for (const [k, at] of g) if (this.TICK - at > 600) g.delete(k); } // horizon GC
       if (this.onGossip) { try { this.onGossip(m.src, m.m); } catch (e) {} }
-      this._gspRemember(m.gid, m.src, m.m);
-      for (const p of this.linkPeers()) if (p !== m.src) this.emit(p, { t: 'GSP', gid: m.gid, src: m.src, m: m.m });
+      if (!m.eph) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined);
+      const e = { gid: m.gid, src: m.src, m: m.m, sc: scoped ? m.sc : undefined, eph: m.eph };
+      for (const p of (scoped ? this.sectionPeers() : this.linkPeers())) if (p !== m.src) this.emit(p, this._gspFrame(e));
     }
     // ANTI-ENTROPY, two repairs (dedup makes both idempotent):
     // 1. BEAT RE-FAN — a one-shot flood races topology convergence: a seat whose
@@ -1887,16 +1917,17 @@
     // 2. NEW-NEIGHBOUR REPLAY — a seat that was UNSEATED during the whole flood
     //    window arrives with no history; the first PHONE that teaches me a NEW
     //    occupant gets my recent backlog replayed.
-    _gspRemember(gid, src, m) { const g = this.grecent = this.grecent || []; g.push({ gid, src, m, at: this.TICK }); if (g.length > 64) g.shift(); }
+    _gspRemember(gid, src, m, sc) { const g = this.grecent = this.grecent || []; const e = { gid, src, m, at: this.TICK }; if (sc !== undefined) e.sc = sc; g.push(e); if (g.length > 64) g.shift(); }
+    _gspFrame(e) { const f = { t: 'GSP', gid: e.gid, src: e.src, m: e.m }; if (e.sc !== undefined) f.sc = e.sc; if (e.eph) f.eph = 1; return f; }
     _gspRefan() {
       const g = this.grecent; if (!g || !g.length) return;
       this.grecent = g.filter((e) => this.TICK - e.at <= 256); // replay horizon (memory-bounded with the 64 cap)
       for (const e of this.grecent) {
         if (this.TICK - e.at > 32) continue; // beat re-fan only while fresh
-        for (const p of this.linkPeers()) this.emit(p, { t: 'GSP', gid: e.gid, src: e.src, m: e.m });
+        for (const p of (e.sc !== undefined ? this.sectionPeers() : this.linkPeers())) this.emit(p, this._gspFrame(e));
       }
     }
-    _gspReplay(to) { if (this.grecent) for (const e of this.grecent) this.emit(to, { t: 'GSP', gid: e.gid, src: e.src, m: e.m }); }
+    _gspReplay(to) { if (this.grecent) for (const e of this.grecent) this.emit(to, this._gspFrame(e)); } // a scoped entry reaching a seat outside its section is dropped there
 
     // ---- message dispatch ----
     recv(m) {

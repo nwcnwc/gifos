@@ -756,7 +756,7 @@
       recvCtl(m) { if (!stopped && seat && m) ingest(m); },
       // Room-wide app traffic (chat/status/votes/files): flood over the mesh —
       // the relay session is only the greeter pool now, not the room.
-      gossip(payload) { if (!stopped && seat) seat.gossip(payload); },
+      gossip(payload, opts) { if (!stopped && seat) seat.gossip(payload, opts); }, // opts: { scope: 'section', ephemeral } — see mesh.js gossip()
       // App access to the wire's relay socket (the ONE socket): signaling
       // fallback ({t:'peer'}), moderation verbs (setpw/ban/votekick), etc.
       // Recreates the socket on demand, same as the mesh's own sends.
