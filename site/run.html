@@ -1960,9 +1960,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // section status always beats a fold about the same person. Counts and vote
     // tallies cannot merge (that double-counts) and switch source by room size.
     // Everything the digest feeds is DISPLAY or a self-owned act (G1): nothing
-    // here may evict, seat, or release a camera's blur. Admins keep a ROOM-wide
-    // heartbeat — their signed mod frame is the proof of admin presence, valid
-    // whoever carries it, and admins are few.
+    // here may evict, seat, or release a camera's blur. An admin's status is
+    // its section's too; its signed presence rides a slower room-wide beat.
     const digestMode = () => !(typeof window !== 'undefined' && window.GIFOS_DIGEST === false) && !!meshNode && typeof meshNode.roomDigest === 'function'; // ON by default; GIFOS_DIGEST=false is the pre-plane room flood
     const roomDig = () => { if (!digestMode()) return null; const d = meshNode.roomDigest(); return d && d.age <= 120 ? d : null; }; // 2 × DIG_TTL: an older fold is not the room
     const roomPastSection = () => { const d = roomDig(); return !!d && d.n > SCALE.C * SCALE.C; };
@@ -1975,7 +1974,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // big one falls back to first-hand statuses, which only hides far facts.
     const digLists = () => (roomPastSection() ? roomDig() : null);
     const stSeen = (st) => (st ? (st.rx || st.at || 0) : 0); // when a status was said, on MY clock (takeStatus)
-    let gossipAgeMs = 0;                                      // set while a relayed gossip message is being handled
+    let gossipAgeMs = 0;
+    let admBeatAt = 0;                                        // my last room-wide admin presence beat                                      // set while a relayed gossip message is being handled
     const freshSt = (id) => { const st = statusOf.get(id); return !!st && Date.now() - stSeen(st) <= 15000; };
     const digStageEntry = (id) => { const d = digLists(); return d ? d.stage.find((e) => e.id === id) || null : null; };
     // devOf entries the RELAY attested (roster / peer-join). A status may carry
@@ -2164,8 +2164,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // The mod table's authority is its SIGNATURE now (§9) — an admin's
       // heartbeat rides the same free DC path as everyone else's; receivers
       // verify the proof, not the transport.
-      const scoped = digestMode() && !(hasAdminRoom() && amAdmin);
+      const scoped = digestMode();
       fanOut(payload, (p) => { txStats.dcStatus++; dcSend(p, { k: 'sig', msg: payload }); }, scoped ? { scope: 'section', ephemeral: true } : undefined);
+      // AN ADMIN IS PRESENT FOR THE WHOLE ROOM. Its status is its section's like
+      // anyone's; what the room needs is the SIGNED proof that an admin is here
+      // (takeMod credits presence from the signature, whoever carries it). That
+      // rides a room-wide beat of its own — ephemeral, so it is never re-fanned
+      // or replayed — every other heartbeat: three chances inside the 30 s
+      // presence window. A CHANGE to the table still floods at once (modFlood).
+      if (scoped && hasAdminRoom() && amAdmin && roomPastSection() && Date.now() - admBeatAt >= 7500) {
+        admBeatAt = Date.now();
+        fanOut({ kind: 'mod', mod: modTable, modw: gossipModW() }, null, { ephemeral: true });
+      }
       if (digestMode()) pushLeaf();
       updateTile('me');
     }
@@ -3021,9 +3031,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         modbar.addEventListener('click', (e) => {
           if (e.target.dataset.adm === 'ban') {
             e.stopPropagation();
-            const dev = devOf[id];
+            // A BAN NAMES A DEVICE, so the tag must be one the RELAY attested
+            // (roster / peer-join). A tag a peer merely asserts in its own
+            // status may be somebody else's: banning the impostor would ban
+            // the victim. Unattested ⇒ ask the door once, and say so.
+            const dev = devRelay.has(id) ? devOf[id] : '';
             if (window.__banDebug) console.error('[banclick]', id, dev, amAdmin, relayUp());
-            if (!amAdmin || !dev) return;
+            if (!amAdmin) return;
+            if (!dev) { relaySendObj({ t: 'who' }); setStatus('🛡 The door has not vouched for this person' + String.fromCharCode(39) + 's device yet — try Ban again in a moment.'); return; }
             rememberBanName(dev, (peers.get(id) || {}).name || rosterNames[id] || '');
             admSigned('ban', { dev }).then((w) => { if (w) relaySendObj({ t: 'ban', dev, w }); }); // no name, no by: the relay carries a device tag and the order's author id
             return;
@@ -5031,7 +5046,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // straight out of rosterNames / ipsOf.
         if (msg.name) rosterNames[from] = String(msg.name).slice(0, 40);
         if (msg.ip) ipsOf[from] = String(msg.ip).slice(0, 64);
-        if (typeof msg.dv === 'string' && msg.dv && !devRelay.has(from)) devOf[from] = msg.dv.slice(0, 16); // fills a gap; a relay-attested tag always wins
+        // A status may fill a GAP in devOf with its sender's own tag (votes and
+        // the fold key on it) — never over a relay-attested tag, and never a
+        // tag somebody ELSE already holds: one device, one seat.
+        if (typeof msg.dv === 'string' && msg.dv && !devRelay.has(from)) {
+          const dv = msg.dv.slice(0, 16); let taken = dv === myDevHash;
+          if (!taken) for (const k in devOf) if (k !== from && devOf[k] === dv) { taken = true; break; }
+          if (!taken) devOf[from] = dv;
+        }
         const sp = peers.get(from);
         if (sp) {
           sp.lastHeard = Date.now();
@@ -14135,6 +14157,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // backdate the beat clock (renderer-freeze simulation for the resume self-heal drill)
       freezeGapForTest: (ms) => { hbLastAt = Date.now() - (ms | 0); },
       stageVoteNeed: () => stageVoteTallies().need,
+      devInfo: () => ({ devOf: Object.assign({}, devOf), attested: Array.from(devRelay) }), // which device tags the RELAY vouched for (Ban needs one)
       // THE STATUS PLANE, as this seat sees it (e2e-status-plane.js).
       statusPlane: () => { const d = roomDig(); return { id: myId, mode: digestMode(), past: roomPastSection(), n: d ? d.n : null, age: d ? d.age : null,
         refuse: d ? d.refuse : null, part: d ? !!d.part : null, handN: d ? d.handN : null, hands: d ? d.hands.map((e) => e.id) : [], stage: d ? d.stage.map((e) => e.id) : [],
