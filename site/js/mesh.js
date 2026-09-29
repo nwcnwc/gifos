@@ -214,6 +214,16 @@
     }
     return o;
   };
+  // The wire form drops every field still at its default — digSane restores
+  // them (absent list ⇒ [], absent count ⇒ 0), so a packed report reads back
+  // identically and the G4 fidelity key (digListKey) cannot tell the two apart.
+  // Measured: an empty-list digest was ~2.3× the control plane's bytes/node.
+  const digPack = (o) => {
+    if (!o.freeC) delete o.freeC; if (o.dmin === 99) delete o.dmin; if (!o.part) delete o.part; if (!o.ag) delete o.ag;
+    if (!o.handN) delete o.handN; if (!o.awayN) delete o.awayN;
+    for (const f of ['hands', 'stage', 'apps', 'votes']) if (!o[f] || !o[f].length) delete o[f];
+    return o;
+  };
   const leCopy = (e) => { const c = Object.assign({}, e); if (e.a) c.a = Object.assign({}, e.a); return c; };
   const digCopy = (d) => ({ n: d.n, refuse: d.refuse, freeC: d.freeC, at: d.at, by: d.by, dmin: d.dmin, part: d.part, handN: d.handN || 0, awayN: d.awayN || 0,
     hands: (d.hands || []).map(leCopy), stage: (d.stage || []).map(leCopy), apps: (d.apps || []).map(leCopy), votes: (d.votes || []).map((v) => ({ tgt: v.tgt, up: v.up, dn: v.dn })) });
@@ -352,7 +362,7 @@
     // IS env.TICK (each page's own, from its own load); the harness's env.SKEW
     // gives each seat an offset, twin of the sim's `net skew=`.
     LT() { return this.env.TICK + (this.skew || 0); }
-    wireDig(d) { const o = digCopy(d); const st = d.rx != null ? d.rx : d.at; o.ag = st >= 0 ? Math.max(0, this.LT() - st) : 0; return o; } // send the AGE, never my receipt stamp
+    wireDig(d, keep) { const o = digCopy(d); const st = d.rx != null ? d.rx : d.at; o.ag = st >= 0 ? Math.max(0, this.LT() - st) : 0; return keep ? o : digPack(o); } // send the AGE, never my receipt stamp; defaults stay off the wire
     rxDig(d) { if (this.env.DIG_ABS) { d.rx = d.at; return d; } const a = Number.isInteger(d.ag) ? Math.min(Math.max(d.ag, 0), 1 << 20) : 0; d.rx = this.LT() - a; return d; } // re-stamp on MY clock at intake
     rng() { this.rs = (this.rs + 0x6d2b79f5) >>> 0; let t = this.rs; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
     shuf(a) { for (let k = a.length - 1; k > 0; k--) { const j = (this.rng() * (k + 1)) | 0; const t = a[k]; a[k] = a[j]; a[j] = t; } return a; }
@@ -1618,7 +1628,7 @@
     // ========================================================================
     digOn() { return this.env.DIGEST === true && this.state === 3; }
     pubDig(d) {
-      const o = this.wireDig(d);
+      const o = this.wireDig(d, true);
       // The adversary knob (tests only). Mode 1 SUPPRESSES — refusals and the
       // partial flag stripped: the ONE dangerous direction (G4.2) and the only
       // one the checker needs to catch; mode 2 inflates n, harmless by G2.
@@ -1628,7 +1638,7 @@
       else if (this.lie === 2) { o.n += 1000; }
       else if (this.lie === 3) { o.hands = []; o.stage = []; o.apps = []; o.votes = []; o.handN = 0; o.awayN = 0; }
       else if (this.lie === 4) { for (const v of o.votes) { v.up += 1000; v.dn += 1000; } o.votes.push({ tgt: 'zz-fabricated', up: 1000, dn: 1000 }); }
-      return o;
+      return digPack(o);
     }
     // § G9: the application sets THIS seat's own room-global facts; the next
     // fold reads them. Nothing here is sent anywhere by itself (G0).
@@ -1823,7 +1833,7 @@
       // A liar that strips its fold strips the echo too (`lie 1` models it) —
       // exactly what check (1) catches, since the peer holds the original.
       if (this.digOn()) {
-        pong.dgRoot = this.wireDig(this.rootDig);
+        pong.dgRoot = this.wireDig(this.rootDig); delete pong.dgRoot.by; // nobody echoes the room fold: its author is dead weight on every PONG
         const isDownKid = kk === ck(topo.down(this.coord));
         pong.dgPub = this.pubDig(isDownKid ? this.myDig : ((this.coord.pc !== 0 && this.coord.i === 0) ? this.rowDig : this.myDig));
         if (isDownKid) pong.dgEcho = this.pubDig(this.downUsed);
@@ -1920,6 +1930,7 @@
       if (this.digOn()) {
         digs = [{ k: ck(this.coord), d: this.pubDig(this.myDig) }];
         for (const [k, d] of this.s1tab) if (k !== ck(this.coord) && this.LT() - d.rx <= DIG_TTL) digs.push({ k, d: this.wireDig(d) });
+        for (const e of digs) delete e.d.by; // the Section-1 table is never echoed (G4 runs below Section 1): the author is dead weight on the room's busiest frame
       }
       for (const t of tg) { const msg = { t: 'S1SYNC', ent }; if (digs) msg.digs = digs; this.emit(t, msg); }
     }
