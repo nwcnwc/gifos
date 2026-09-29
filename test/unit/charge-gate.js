@@ -72,7 +72,8 @@ check('a MAINNET payee is refused (chain pinned in code)', (() => {
 })());
 
 // ---- the request ------------------------------------------------------------
-const ok = C.validateRequest({ amount: '2000000', reason: 'Unlock the full app', sku: 'pro' }, { maxAmount: '5000000' });
+const PRICES = { pro: '2000000' };
+const ok = C.validateRequest({ amount: '2000000', reason: 'Unlock the full app', sku: 'pro' }, { maxAmount: '5000000', prices: PRICES });
 check('a well-formed unlock validates', String(ok.amount) === '2000000' && ok.sku === 'pro' && ok.reason === 'Unlock the full app');
 
 check('REFUSES a charge with no ceiling set (a new app charges nothing)',
@@ -89,7 +90,23 @@ check('REFUSES a reason too long to display honestly',
 check('REFUSES a junk sku', refuses(() => C.validateRequest({ amount: '100', reason: 'r', sku: 'a b/../c' }, { maxAmount: '500' }), /short plain identifier/));
 
 check('REFUSES buying the same sku twice on this computer',
-  refuses(() => C.validateRequest({ amount: '100', reason: 'r', sku: 'pro' }, { maxAmount: '500', entitled: (s) => s === 'pro' }), /already purchased/));
+  refuses(() => C.validateRequest({ amount: '100', reason: 'r', sku: 'pro' }, { maxAmount: '500', prices: { pro: '100' }, entitled: (s) => s === 'pro' }), /already purchased/));
+
+// ---- THE PRICE: a sku is sold at the author's signed price, or not at all -----
+check('a sku the signed manifest does not price cannot be sold',
+  refuses(() => C.validateRequest({ amount: '2000000', reason: 'r', sku: 'gold' }, { maxAmount: '5000000', prices: PRICES }), /sets no price for "gold"/));
+check('a sku cannot be sold for LESS than its signed price',
+  refuses(() => C.validateRequest({ amount: '1', reason: 'r', sku: 'pro' }, { maxAmount: '5000000', prices: PRICES }), /costs 2000000 .* not 1/));
+check('…nor for more', refuses(() => C.validateRequest({ amount: '2000001', reason: 'r', sku: 'pro' }, { maxAmount: '5000000', prices: PRICES }), /costs 2000000/));
+check('a sku named like an Object built-in is not "priced" by accident',
+  refuses(() => C.validateRequest({ amount: '100', reason: 'r', sku: 'constructor' }, { maxAmount: '500', prices: PRICES }), /sets no price/));
+check('a TIP (no sku) is any amount — it buys nothing', C.validateRequest({ amount: '123', reason: 'Tip', editable: true }, { maxAmount: '500', prices: PRICES }).amount === 123n);
+check('manifest.pay.prices is read from the manifest, validated', (() => {
+  const m = (prices) => ({ appId: 'x', capabilities: { pay: true }, pay: { prices } });
+  const good = C.eligibility(VALID, m({ pro: '2000000', 'pack:1': '500000' }));
+  return good.allowed && good.prices.pro === '2000000' && good.payee === null
+    && [{ pro: 2000000 }, { pro: '1.5' }, { pro: '0' }, { 'a b': '100' }, ['x']].every((bad) => C.eligibility(VALID, m(bad)).allowed === false);
+})());
 
 check('a tip (editable amount) is allowed and unlocks nothing',
   (() => { const t = C.validateRequest({ amount: '1000', reason: 'Tip the author', editable: true }, { maxAmount: '500000' });

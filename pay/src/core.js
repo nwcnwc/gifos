@@ -215,15 +215,22 @@ export function makeCore(cfg) {
       return t == null ? await r.text() : t;
     };
     if (type === 'domain') {
+      // The host is the CALLER's choice. Names that can only be private
+      // (RFC 6762 / 8375 / common intranet suffixes) are never fetched.
+      if (!cfg.keyUrlFor && /\.(internal|local|localhost|lan|home|corp|intranet|private|arpa)$/i.test('.' + id)) {
+        throw new Error('"' + id + '" is not a public domain');
+      }
       const url = cfg.keyUrlFor ? cfg.keyUrlFor(id) : 'https://' + id + '/gifos.key';
       // A redirect is not followed: the key lives AT the derived location.
       const r = await F(url, Object.assign({ redirect: 'manual', headers: { Accept: 'text/plain' } }, timed()));
-      if (r.status !== 200) throw new Error('no gifos.key at ' + id + ' (HTTP ' + r.status + ')');
+      // The status is logged, not echoed: what a chosen host answers is not
+      // the caller's to learn through this Worker.
+      if (r.status !== 200) { console.log('author key fetch', id, r.status); throw new Error('no gifos.key could be read at ' + id); }
       return SIGN.parseDomainKey(await cappedText(r, 4096, 'the gifos.key at ' + id));
     }
     if (type === 'email') {
       const r = await F(SIGN.KEYSERVER + encodeURIComponent(id), timed());
-      if (!r.ok) throw new Error('no key on the keyserver for ' + id + ' (HTTP ' + r.status + ')');
+      if (!r.ok) { console.log('keyserver fetch', r.status); throw new Error('no key on the keyserver for ' + id); }
       const key = SIGN._dearmor(await cappedText(r, 65536, 'the keyserver answer for ' + id));
       if (!key) throw new Error('could not parse the key for ' + id);
       return key;
@@ -319,7 +326,18 @@ export function makeCore(cfg) {
       rails: elig.rails,
       chainPayee: elig.payee ? elig.payee.to : null,
       paypal: elig.paypal,
+      prices: elig.prices,
     };
+  }
+  // A sku is sold at the author's SIGNED price (manifest.pay.prices), or not
+  // at all — the amount is never the request's to choose. A tip (no sku) is
+  // any amount. Returns the sku, validated.
+  function pricedSku(seller, rawSku, amount) {
+    if (rawSku == null || rawSku === '') return null;
+    const sku = String(rawSku);
+    if (!/^[\w.\-:]{1,64}$/.test(sku)) throw new Refusal('bad sku', 400);
+    try { CHARGE.priceFor(seller.prices, sku, amount); } catch (e) { throw new Refusal(e.message, 403); }
+    return sku;
   }
   function requireRail(seller, rail) {
     if (seller.rails.indexOf(rail) === -1) {
@@ -335,6 +353,14 @@ export function makeCore(cfg) {
     }
   };
 
+  // An identity is looked up WITHOUT regard to case: "A@b.co" and "a@b.co"
+  // are one mailbox, and a payee map must not be dodged by re-casing.
+  function byIdentity(map, id) {
+    const want = String(id || '').toLowerCase();
+    for (const k of Object.keys(map || {})) if (k.toLowerCase() === want) return map[k];
+    return undefined;
+  }
+
   // ---- the rails registry ---------------------------------------------------
   // The fee-free rails (wallet transfer, FedNow) collect no per-transaction
   // cut, so they are open only to signing identities REGISTERED on the
@@ -349,7 +375,7 @@ export function makeCore(cfg) {
       if (!r.ok) throw new Refusal('rails registry unreachable (HTTP ' + r.status + ')', 503);
       registryCache = { at: Date.now(), reg: (await r.json()).registered || {} };
     }
-    const e = registryCache.reg[identity.id];
+    const e = byIdentity(registryCache.reg, identity.id);
     if (!e) throw new Refusal('"' + identity.id + '" is not registered for the fee-free rails — registration is not open to other authors yet; list paypal or x402 instead, which need none', 403);
     const untilMs = e.until == null ? null : Date.parse(e.until);
     if (untilMs != null && (Number.isNaN(untilMs) || Date.now() > untilMs)) {
@@ -366,17 +392,20 @@ export function makeCore(cfg) {
   const sha256hex = async (str) => hex(new Uint8Array(await subtle.digest('SHA-256', new TextEncoder().encode(String(str)))));
   const b64u = (bytes) => { let s2 = ''; for (const b of bytes) s2 += String.fromCharCode(b); return btoa(s2).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
   const unb64u = (str) => { const b = atob(String(str).replace(/-/g, '+').replace(/_/g, '/')); const out = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) out[i] = b.charCodeAt(i); return out; };
+  // Tokens and receipts share one key, so a token is signed under a label a
+  // receipt (bare JSON) can never begin with: neither can pass as the other.
+  const TOKEN_LABEL = 'gifos-pay-token\x00';
   async function signToken(obj) {
     const json = JSON.stringify(obj);
     const body = b64u(new TextEncoder().encode(json));
-    const sig = b64u(new Uint8Array(await subtle.sign('Ed25519', cfg.signKey.privateKey, new TextEncoder().encode(body))));
+    const sig = b64u(new Uint8Array(await subtle.sign('Ed25519', cfg.signKey.privateKey, new TextEncoder().encode(TOKEN_LABEL + body))));
     return body + '.' + sig;
   }
   async function verifyToken(token) {
     const [body, sig] = String(token || '').split('.');
     if (!body || !sig) throw new Error('malformed token');
     if (!cfg.signKey.publicKey) throw new Error('this deployment cannot verify tokens');
-    const ok = await subtle.verify('Ed25519', cfg.signKey.publicKey, unb64u(sig), new TextEncoder().encode(body));
+    const ok = await subtle.verify('Ed25519', cfg.signKey.publicKey, unb64u(sig), new TextEncoder().encode(TOKEN_LABEL + body));
     if (!ok) throw new Error('the token does not verify — refusing it');
     return JSON.parse(new TextDecoder().decode(unb64u(body)));
   }
@@ -434,11 +463,11 @@ export function makeCore(cfg) {
         const reg = cfg.fednowApi ? await registered() : null;
         out.fednow = !cfg.fednowApi ? no('the FedNow rail is not configured on this deployment')
           : reg ? no(reg)
-          : !(cfg.fednowPayees || {})[seller.identity.id] ? no('"' + seller.identity.id + '" is not registered for bank payments')
+          : !byIdentity(cfg.fednowPayees, seller.identity.id) ? no('"' + seller.identity.id + '" is not registered for bank payments')
           : { ok: true };
       } else if (rail === 'mpp') {
         out.mpp = !cfg.stripeKey || !cfg.stripeProfileId || !cfg.mppSecret ? no('the agent (MPP) rail is not configured on this deployment')
-          : !(cfg.stripePayees || {})[seller.identity.id] ? no('"' + seller.identity.id + '" is not onboarded for the agent rail')
+          : !byIdentity(cfg.stripePayees, seller.identity.id) ? no('"' + seller.identity.id + '" is not onboarded for the agent rail')
           : { ok: true };
       }
     }
@@ -462,8 +491,7 @@ export function makeCore(cfg) {
     if (typeof body.amount !== 'string' || !/^[0-9]+$/.test(body.amount)) return bad('amount must be a decimal integer string of base units');
     let value; try { value = usdValue(body.amount); } catch (e) { return bad(e.message); }
     const reason = String(body.reason || '').slice(0, 140);
-    const sku = body.sku == null ? null : String(body.sku).slice(0, 64);
-    if (sku != null && !/^[\w.\-:]{1,64}$/.test(sku)) return bad('bad sku');
+    const sku = pricedSku(seller, body.sku, body.amount);
     // custom_id is what the receipt is rebuilt from after capture; PayPal
     // cuts it at 127 chars, and a cut JSON is a receipt with no app and no
     // sku — money taken, nothing granted. Refuse BEFORE an order exists.
@@ -636,8 +664,7 @@ export function makeCore(cfg) {
     requireRail(seller, 'x402');
     const appId = seller.appId;
     if (typeof body.amount !== 'string' || !/^[0-9]+$/.test(body.amount)) return bad('bad amount');
-    const sku = body.sku == null ? null : String(body.sku);
-    if (sku != null && !/^[\w.\-:]{1,64}$/.test(sku)) return bad('bad sku');
+    const sku = pricedSku(seller, body.sku, body.amount);
     const transfers = body.transfers, payloads = body.payloads;
     if (!Array.isArray(transfers) || !transfers.length || !Array.isArray(payloads) || payloads.length !== transfers.length) {
       return bad('transfers/payloads mismatch');
@@ -670,7 +697,9 @@ export function makeCore(cfg) {
         return bad('payload ' + i + ' does not authorize transfer ' + i + ' (to/value differ)');
       }
     }
-    const txs = [];
+    // EVERY leg is verified before ANY leg is settled, so a payment that
+    // cannot complete is refused while nothing has moved.
+    const legsToSettle = [];
     for (let i = 0; i < transfers.length; i++) {
       const t = transfers[i], pl = payloads[i];
       const network = FACILITATOR_NETWORKS[t && t.network];
@@ -697,15 +726,26 @@ export function makeCore(cfg) {
       const v = await facilitator('/verify', { x402Version: 1, paymentPayload, paymentRequirements });
       if (!v.ok || !v.body || v.body.isValid !== true) {
         console.log('facilitator refused transfer', i, v.status, String((v.body && (v.body.invalidReason || v.body.error)) || v.text || '').slice(0, 200));
-        audit('provider-refused', { rail: 'x402', step: 'verify', leg: i, appId, payeeId: seller.identity.id, amount: body.amount, settled: txs });
+        audit('provider-refused', { rail: 'x402', step: 'verify', leg: i, appId, payeeId: seller.identity.id, amount: body.amount });
         return bad('the facilitator refused transfer ' + i, 502);
       }
-      const st = await facilitator('/settle', { x402Version: 1, paymentPayload, paymentRequirements });
+      legsToSettle.push({ paymentPayload, paymentRequirements });
+    }
+    const payer = String((payloads[0].authorization && payloads[0].authorization.from) || '') || null;
+    const txs = [];
+    let feeCollected = true;
+    for (let i = 0; i < legsToSettle.length; i++) {
+      const st = await facilitator('/settle', Object.assign({ x402Version: 1 }, legsToSettle[i]));
       if (!st.ok || !st.body || st.body.success !== true || !st.body.transaction) {
         console.log('facilitator did not settle transfer', i, st.status, String((st.body && (st.body.errorReason || st.body.error)) || st.text || '').slice(0, 200));
-        // `settled` names any leg that DID move before this one failed.
-        audit('provider-refused', { rail: 'x402', step: 'settle', leg: i, appId, payeeId: seller.identity.id, amount: body.amount, settled: txs });
-        return bad('the facilitator did not settle transfer ' + i, 502);
+        audit('provider-refused', { rail: 'x402', step: 'settle', leg: i, appId, payeeId: seller.identity.id, amount: body.amount, payer, settled: txs });
+        // The AUTHOR leg failed: nothing has moved, nothing is owed.
+        if (i === 0) return bad('the facilitator did not settle transfer ' + i, 502);
+        // The author WAS paid and only the fee leg failed. The buyer bought
+        // the thing: they get their receipt, it says the fee was not
+        // collected, and the audit line above names the payer.
+        feeCollected = false;
+        break;
       }
       txs.push(st.body.transaction);
     }
@@ -716,9 +756,11 @@ export function makeCore(cfg) {
       amount: body.amount,
       payee: (transfers[0] && transfers[0].to) || null,
       payeeId: seller.identity.id, payeeType: seller.identity.type,
+      payer,
       tx: txs.join(','),
       at: Date.now(),
     };
+    if (!feeCollected) fields.feeCollected = false;
     const { receiptJson, sig } = await signedReceipt(fields);
     audit('receipt', fields);
     return json({ status: 'COMPLETED', receiptJson, sig });
@@ -744,8 +786,7 @@ export function makeCore(cfg) {
     requireRail(seller, 'transfer');
     const appId = seller.appId;
     if (typeof body.amount !== 'string' || !/^[0-9]+$/.test(body.amount) || BigInt(body.amount) <= 0n) return bad('bad amount');
-    const sku = body.sku == null ? null : String(body.sku);
-    if (sku != null && !/^[\w.\-:]{1,64}$/.test(sku)) return bad('bad sku');
+    const sku = pricedSku(seller, body.sku, body.amount);
     const payTo = seller.chainPayee;
     await assertRegistered(seller.identity);
     const dustBytes = new Uint8Array(2); crypto.getRandomValues(dustBytes);
@@ -856,10 +897,9 @@ export function makeCore(cfg) {
     let value; try { value = usdValue(body.amount); } catch (e) { return bad(e.message); }
     const identity = seller.identity;
     await assertRegistered(identity);
-    const account = (cfg.fednowPayees || {})[identity.id];
+    const account = byIdentity(cfg.fednowPayees, identity.id);
     if (!account) return bad('"' + identity.id + '" is not registered for bank payments — this rail is not available for it', 403);
-    const sku = body.sku == null ? null : String(body.sku);
-    if (sku != null && !/^[\w.\-:]{1,64}$/.test(sku)) return bad('bad sku');
+    const sku = pricedSku(seller, body.sku, body.amount);
     // The reference is this payment's whole memory, exactly as a PayPal
     // custom_id is: app, sku, amount, the claim's tag and the identity's tag.
     // A CUT reference is money taken and nothing granted, so one that does
@@ -966,9 +1006,8 @@ export function makeCore(cfg) {
     if (!/^[0-9]+$/.test(amount)) return bad('amount must be a decimal integer string of base units ($1 = 1000000)');
     let value; try { value = usdValue(amount); } catch (e) { return bad(e.message); }
     if (BigInt(amount) / CENT < STRIPE_MIN_CENTS) return bad('Stripe takes nothing under $0.50 on this rail — $' + value + ' is too small; the USDC rails have no minimum');
-    const sku = body.sku == null || body.sku === '' ? null : String(body.sku);
-    if (sku != null && !/^[\w.\-:]{1,64}$/.test(sku)) return bad('bad sku');
-    if (!(cfg.stripePayees || {})[seller.identity.id]) return bad('"' + seller.identity.id + '" is not onboarded for the agent rail — Stripe onboarding is not open to other authors yet; the PayPal and x402 rails need none', 403);
+    const sku = pricedSku(seller, body.sku, amount);
+    if (!byIdentity(cfg.stripePayees, seller.identity.id)) return bad('"' + seller.identity.id + '" is not onboarded for the agent rail — Stripe onboarding is not open to other authors yet; the PayPal and x402 rails need none', 403);
     const now = Date.now();
     const claim = randHex(16);
     const oid = randHex(12);
@@ -978,7 +1017,7 @@ export function makeCore(cfg) {
       oid, c: (await sha256hex(claim)).slice(0, 16),
       iat: now, exp: now + OFFER_TTL_MS,
     });
-    audit('started', { rail: 'mpp', appId: seller.appId, sku, amount, payeeId: seller.identity.id, payee: cfg.stripePayees[seller.identity.id], ref: oid });
+    audit('started', { rail: 'mpp', appId: seller.appId, sku, amount, payeeId: seller.identity.id, payee: byIdentity(cfg.stripePayees, seller.identity.id), ref: oid });
     return json({ url: cfg.returnBase + '/mpp/charge/' + token, token, claim, exp: now + OFFER_TTL_MS });
   }
 
@@ -1028,7 +1067,7 @@ export function makeCore(cfg) {
       headers: { Authorization: 'Basic ' + btoa(cfg.stripeKey + ':'), 'Stripe-Version': STRIPE_VERSION },
     });
     if (!r.ok) { console.log('stripe search refused', r.status, (await r.text()).slice(0, 200)); return json({ status: 'PENDING' }); }
-    const acct = (cfg.stripePayees || {})[offer.id];
+    const acct = byIdentity(cfg.stripePayees, offer.id);
     const mine = ((await r.json()).data || []).filter((pi) => pi && pi.metadata && pi.metadata.gifos_offer === offer.oid);
     const found = mine.find((pi) => paysOffer(pi, offer, acct));
     if (found) {
@@ -1059,7 +1098,7 @@ export function makeCore(cfg) {
     // Onboarded authors only: a destination charge needs a connected account,
     // and that mapping is the platform's record (like FEDNOW_PAYEES), never
     // a client value. Absent -> a plain refusal naming the way back.
-    const acct = (cfg.stripePayees || {})[identity.id];
+    const acct = byIdentity(cfg.stripePayees, identity.id);
     if (!acct) return bad('"' + identity.id + '" is not onboarded for the agent rail — Stripe onboarding is not open to other authors yet; the PayPal and x402 rails need none', 403);
     const cents = BigInt(amount) / CENT;
     const app = { name: offer.name };

@@ -701,6 +701,7 @@
     const request = GifOS.charge.validateRequest(req, {
       maxAmount: maxAmountFor(manifest.appId),
       entitled: (sku) => p.entitled(entScope(elig.identity.id, manifest.appId), sku),
+      prices: elig.prices,
     });
     // The proof is what the Worker verifies instead of consulting the store;
     // /rails narrows the author's allowed rails to what can be processed now.

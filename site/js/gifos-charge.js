@@ -64,6 +64,36 @@
   // signature's content hash — editing it breaks the signature, which is what
   // makes `eligibility()` below meaningful. Absent block = no chain rail;
   // MALFORMED block = refused outright (a wrong address is never "no rail").
+  // ---- THE PRICE of each sku, out of the SIGNED manifest -----------------------
+  // manifest.pay.prices = { "<sku>": "<USDC base units>" }. A sku UNLOCKS
+  // something, so what it costs is the author's word, signed like the payee:
+  // without it the amount was whatever the request said, and a buyer who
+  // skipped the sheet could post the author's own proof with amount "1" and
+  // hold a genuine receipt for a $20 sku. A charge that names a sku must
+  // name one the manifest prices, at exactly that price — on the OS sheet
+  // and again at the pay Worker. A TIP names no sku and may be any amount.
+  function pricesOf(manifest) {
+    const pay = manifest && manifest.pay;
+    const p = pay && typeof pay === 'object' ? pay.prices : undefined;
+    if (p === undefined) return {};
+    if (!p || typeof p !== 'object' || Array.isArray(p)) throw new Error('manifest.pay.prices must be an object of sku -> price in base units');
+    const out = {};
+    for (const sku of Object.keys(p)) {
+      if (!sku || sku.length > MAX_SKU || !/^[\w.\-:]+$/.test(sku)) throw new Error('manifest.pay.prices names a sku that is not a short plain identifier');
+      const v = p[sku];
+      if (typeof v !== 'string' || !/^[0-9]+$/.test(v) || BigInt(v) <= 0n) throw new Error('manifest.pay.prices["' + sku + '"] must be a positive decimal integer string of base units ($1 = "1000000")');
+      out[sku] = v;
+    }
+    return out;
+  }
+  // The amount a sku must be charged at, or a refusal.
+  function priceFor(prices, sku, amount) {
+    const price = prices && Object.prototype.hasOwnProperty.call(prices, sku) ? prices[sku] : undefined;
+    if (price === undefined) throw new Error('this app\u2019s signed manifest sets no price for "' + sku + '" (manifest.pay.prices), so it cannot be sold');
+    if (String(amount) !== price) throw new Error('"' + sku + '" costs ' + price + ' in this app\u2019s signed manifest, not ' + String(amount));
+    return price;
+  }
+
   function payeeOf(manifest) {
     const pay = manifest && manifest.pay;
     if (!pay || typeof pay !== 'object') throw new Error('this app declares no payee (manifest.pay), so it cannot be paid');
@@ -113,10 +143,13 @@
     const identity = { id: v.id, type: v.type, verified: true, signedAt: v.ts || null };
     // The chain rail rides on manifest.pay, and the block is optional — but a
     // block that is PRESENT and wrong is a refusal, never a silent "no rail".
+    // (A pay block that carries only prices names no chain payee at all.)
     let payee = null;
-    if (manifest && manifest.pay != null) {
+    if (manifest && manifest.pay != null && (typeof manifest.pay !== 'object' || manifest.pay.to !== undefined || manifest.pay.chain !== undefined)) {
       try { payee = payeeOf(manifest); } catch (e) { return { allowed: false, reason: e.message }; }
     }
+    let prices;
+    try { prices = pricesOf(manifest); } catch (e) { return { allowed: false, reason: e.message }; }
     // The author's own list of rails. Malformed is a refusal, not a guess.
     let rails;
     try { rails = railsAllowed(manifest); } catch (e) { return { allowed: false, reason: e.message }; }
@@ -127,6 +160,7 @@
     return {
       allowed: true,
       rails,                       // the author's allowed rails, in their order
+      prices,                      // the author's signed price per sku
       payee,                       // chain rail: { to, chain } | null
       paypal,                      // fiat rail: the derived PayPal payee email
       // What the human is shown. An address means nothing to a person; the
@@ -136,7 +170,7 @@
   }
 
   // ---- the request the app made ----------------------------------------------
-  // policy: { maxAmount: string, entitled: (sku)=>bool }
+  // policy: { maxAmount: string, entitled: (sku)=>bool, prices: {sku: units} }
   function validateRequest(req, policy) {
     const r = req || {}, p = policy || {};
     const out = { kind: 'charge' };
@@ -161,6 +195,8 @@
     }
     const amount = BigInt(r.amount);
     if (amount <= 0n) throw new Error('amount must be positive');
+    // A sku is sold at the author's SIGNED price, or not at all.
+    if (out.sku) priceFor(p.prices, out.sku, r.amount);
     const cap = BigInt(p.maxAmount || 0);
     if (cap <= 0n) throw new Error('no spending ceiling is set for this app — nothing may be charged');
     if (amount > cap) throw new Error('this app asked for ' + amount + ' but its ceiling is ' + cap);
@@ -303,7 +339,7 @@
 
   GifOS.charge = {
     CHAIN, CHAIN_NAME, DECLINED, PAID_BY,
-    RAILS, railsAllowed,
+    RAILS, railsAllowed, pricesOf, priceFor,
     payeeOf, paypalPayeeOf, eligibility, validateRequest, sheet, receipt, receiptFile,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

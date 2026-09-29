@@ -58,11 +58,11 @@ const pad = (a) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
   });
 
   // Mint an invoice token the way the Worker does (same wire shape, same
-  // signer), skipping /transfer/invoice's catalog + registry lookups.
+  // signer, same label), skipping /transfer/invoice's proof and registry.
   const b64u = (bytes) => Buffer.from(bytes).toString('base64url');
-  async function token(inv) {
+  async function token(inv, label) {
     const body = b64u(new TextEncoder().encode(JSON.stringify(inv)));
-    const sig = b64u(new Uint8Array(await webcrypto.subtle.sign('Ed25519', kp.privateKey, new TextEncoder().encode(body))));
+    const sig = b64u(new Uint8Array(await webcrypto.subtle.sign('Ed25519', kp.privateKey, new TextEncoder().encode((label == null ? 'gifos-pay-token\x00' : label) + body))));
     return body + '.' + sig;
   }
   const now = Date.now();
@@ -107,6 +107,11 @@ const pad = (a) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
 
   // Sanity: the public key exported above is the one the site would publish.
   check('the signing key exports as a 32-byte Ed25519 public key', pubRaw.length === 32);
+
+  // Tokens and receipts share a key; a token is signed under its own label.
+  const unlabelled = await post('/transfer/receipt', { token: await token(Object.assign({}, base, { from: '0x' + '11'.repeat(20) }), '') });
+  check('a token signed WITHOUT the token label — the way a receipt is signed — is not a token',
+    unlabelled.status === 403 && /does not verify/.test((await unlabelled.json()).error));
 
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);

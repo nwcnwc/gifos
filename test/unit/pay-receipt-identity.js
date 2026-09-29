@@ -47,8 +47,12 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
     return { key: k.publicKeyB64, bytes, manifest, proof: await sign.proofOf(bytes) };
   };
   const RAILS = ['paypal', 'x402', 'transfer', 'fednow', 'mpp'];
-  const victim = await mk('victim.example', { gifos: '1.0', appId: 'paid-shop', name: 'Paid Shop', entry: 'index.html', capabilities: { pay: RAILS }, pay: { to: VIC } });
-  const attacker = await mk('evil.example', { gifos: '1.0', appId: 'paid-shop', name: 'Paid Shop', entry: 'index.html', capabilities: { pay: RAILS }, pay: { to: ATT } });
+  const victim = await mk('victim.example', { gifos: '1.0', appId: 'paid-shop', name: 'Paid Shop', entry: 'index.html', capabilities: { pay: RAILS }, pay: { to: VIC, prices: { pro: '5000000' } } });
+  // An ordinary seller, for the rail-by-rail receipt checks further down.
+  const SHOP = '0x3333333333333333333333333333333333333333';
+  const shop = await mk('shop.example', { gifos: '1.0', appId: 'paid-shop', name: 'Paid Shop', entry: 'index.html', capabilities: { pay: RAILS }, pay: { to: SHOP, prices: { pro: '5000000', mid: '3000000' } } });
+  // The attacker signs their OWN manifest, so they set their own price: 100 units.
+  const attacker = await mk('evil.example', { gifos: '1.0', appId: 'paid-shop', name: 'Paid Shop', entry: 'index.html', capabilities: { pay: RAILS }, pay: { to: ATT, prices: { pro: '100' } } });
 
   // ---- the stubbed world: keys, PayPal, the facilitator, the chain, the bank, Stripe
   const kp = await webcrypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
@@ -61,7 +65,7 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
     const km = /^https:\/\/([^/]+)\/gifos\.key$/.exec(u);
     if (km) return keys[km[1]] ? new Response(keys[km[1]]) : new Response('no key', { status: 404 });
     if (u === '/gifos-pay.key') return new Response(payPub);
-    if (u === 'https://reg.example/r.json') return J({ registered: { 'victim.example': { until: null }, 'evil.example': { until: null }, 'long.example': { until: null } } });
+    if (u === 'https://reg.example/r.json') return J({ registered: { 'victim.example': { until: null }, 'evil.example': { until: null }, 'long.example': { until: null }, 'shop.example': { until: null } } });
     if (u.endsWith('/v1/oauth2/token')) return J({ access_token: 't' });
     if (u.endsWith('/v2/checkout/orders')) {
       const unit = JSON.parse(body).purchase_units[0]; const id = 'ORD-' + (orders.size + 1);
@@ -91,9 +95,9 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
     fetch: fakeFetch, subtle: webcrypto.subtle, feeBps: 300, treasuryAddress: TREASURY, treasuryEmail: 'payments@gifos.app',
     paypalBase: 'https://paypal.example', paypalClientId: 'id', paypalClientSecret: 's', paypalPartner: 'approved',
     facilitatorUrl: 'https://fac.example', rpcUrl: 'https://rpc.example/', registryUrl: 'https://reg.example/r.json',
-    fednowApi: 'https://bank.example', fednowPayees: { 'victim.example': 'ACCT-V', 'evil.example': 'ACCT-E', 'long.example': 'ACCT-L' },
+    fednowApi: 'https://bank.example', fednowPayees: { 'victim.example': 'ACCT-V', 'evil.example': 'ACCT-E', 'long.example': 'ACCT-L', 'shop.example': 'ACCT-S' },
     stripeApi: 'https://stripe.example', stripeKey: 'sk_test_x', stripeProfileId: 'profile_test_x', mppSecret: 'm',
-    stripePayees: { 'victim.example': 'acct_v', 'evil.example': 'acct_e' },
+    stripePayees: { 'victim.example': 'acct_v', 'evil.example': 'acct_e', 'shop.example': 'acct_s' },
     returnBase: 'https://pay.example', signKey: { privateKey: kp.privateKey, publicKey: kp.publicKey },
   });
   const call = async (method, route, body) => {
@@ -103,7 +107,7 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
   };
   const rc = (x) => (x.body && x.body.receiptJson ? JSON.parse(x.body.receiptJson) : {});
   const names = (r, who) => r.payeeId === who.id && r.payeeType === 'domain' && r.appId === 'paid-shop';
-  const WHO = { evil: { id: 'evil.example' }, victim: { id: 'victim.example' } };
+  const WHO = { evil: { id: 'evil.example' }, victim: { id: 'victim.example' }, shop: { id: 'shop.example' } };
   const q = (claim, id) => '?claim=' + claim + '&id=' + encodeURIComponent(id) + '&type=domain';
   const legs = (to, amount) => {
     const fee = (BigInt(amount) * 300n) / 10000n;
@@ -133,6 +137,11 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
     names(rc(real), WHO.victim) && (await payBroker.entitled(victim.manifest, 'pro', victim.bytes)) === true);
   check('…with the GENUINE transaction as its license', (await payBroker.license(victim.manifest, 'pro', victim.bytes)) === '0xabc,0xabc');
 
+  // ---- THE PRICE: the buyer does not name it ------------------------------------
+  const under = await call('POST', '/x402/settle', Object.assign({ proof: victim.proof, sku: 'pro', amount: '100' }, legs(VIC, '100')));
+  check('the VICTIM\'s own proof posted with amount "100" is refused: "pro" costs what the author signed',
+    under.status === 403 && /costs 5000000/.test(under.body.error) && !under.body.receiptJson, under.body && under.body.error);
+
   // ---- a receipt that names nobody ------------------------------------------------
   const sigOf = async (obj) => {
     const receiptJson = JSON.stringify(obj);
@@ -148,52 +157,52 @@ const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
 
   // ---- every rail's receipt names the verified signer -------------------------------
   // PayPal: the order remembers the identity's TAG; the receipt is read by naming it.
-  const co = await call('POST', '/checkout', { proof: attacker.proof, amount: '5000000', sku: 'pro', reason: 'x' });
+  const co = await call('POST', '/checkout', { proof: shop.proof, amount: '5000000', sku: 'pro', reason: 'x' });
   const asVictim = await call('GET', '/receipt/' + co.body.id + q(co.body.claim, 'victim.example'));
   check('PayPal: naming ANOTHER identity does not open the order — and nothing is captured',
     asVictim.status === 403 && /not the identity this payment was made to/.test(asVictim.body.error) && orders.get(co.body.id).status === 'APPROVED');
   const noWho = await call('GET', '/receipt/' + co.body.id + '?claim=' + co.body.claim);
   check('PayPal: naming NO identity does not open it either', noWho.status === 403 && orders.get(co.body.id).status === 'APPROVED');
-  const badClaim = await call('GET', '/receipt/' + co.body.id + q('0'.repeat(32), 'evil.example'));
+  const badClaim = await call('GET', '/receipt/' + co.body.id + q('0'.repeat(32), 'shop.example'));
   check('PayPal: a wrong claim is refused BEFORE capture — an order id alone moves no money', badClaim.status === 403 && orders.get(co.body.id).status === 'APPROVED');
-  const pp = await call('GET', '/receipt/' + co.body.id + q(co.body.claim, 'evil.example'));
+  const pp = await call('GET', '/receipt/' + co.body.id + q(co.body.claim, 'shop.example'));
   check('PayPal: the right claim and identity capture and sign a receipt naming the signer',
-    pp.status === 200 && names(rc(pp), WHO.evil) && rc(pp).rail === 'paypal' && rc(pp).payee === 'payments@evil.example', JSON.stringify(rc(pp)));
+    pp.status === 200 && names(rc(pp), WHO.shop) && rc(pp).rail === 'paypal' && rc(pp).payee === 'payments@shop.example', JSON.stringify(rc(pp)));
 
   // Wallet transfer: the invoice token carries the identity.
-  const inv = await call('POST', '/transfer/invoice', { proof: attacker.proof, amount: '3000000', sku: 'pro' });
+  const inv = await call('POST', '/transfer/invoice', { proof: shop.proof, amount: '3000000', sku: 'mid' });
   const FROM = '0x' + '22'.repeat(20);
   const bound = await call('POST', '/transfer/bind', { token: inv.body.token, from: FROM });
   const pad = (a) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
-  chainLogs = [{ data: '0x' + BigInt(inv.body.expected).toString(16), topics: ['0xddf2', pad(FROM), pad(ATT)], transactionHash: '0xt1' }];
+  chainLogs = [{ data: '0x' + BigInt(inv.body.expected).toString(16), topics: ['0xddf2', pad(FROM), pad(SHOP)], transactionHash: '0xt1' }];
   const tr = await call('POST', '/transfer/receipt', { token: bound.body.token });
-  check('wallet transfer: the receipt names the signer', tr.status === 200 && names(rc(tr), WHO.evil) && rc(tr).rail === 'transfer', JSON.stringify(rc(tr)));
+  check('wallet transfer: the receipt names the signer', tr.status === 200 && names(rc(tr), WHO.shop) && rc(tr).rail === 'transfer', JSON.stringify(rc(tr)));
 
   // FedNow: claim + identity, like PayPal.
-  const rfp = await call('POST', '/fednow/rfp', { proof: attacker.proof, amount: '3000000', sku: 'pro', reason: 'x' });
+  const rfp = await call('POST', '/fednow/rfp', { proof: shop.proof, amount: '3000000', sku: 'mid', reason: 'x' });
   check('FedNow: the payment request returns a claim, and its reference fits the bank\'s field whole',
     rfp.status === 200 && /^[0-9a-f]{32}$/.test(rfp.body.claim) && rfps.get(rfp.body.id).reference.length <= 140 && !!JSON.parse(rfps.get(rfp.body.id).reference).i);
   const fnBare = await call('GET', '/fednow/receipt/' + rfp.body.id);
   check('FedNow: a request id alone reads nothing', fnBare.status === 403);
   const fnOther = await call('GET', '/fednow/receipt/' + rfp.body.id + q(rfp.body.claim, 'victim.example'));
   check('FedNow: naming another identity reads nothing', fnOther.status === 403);
-  const fn = await call('GET', '/fednow/receipt/' + rfp.body.id + q(rfp.body.claim, 'evil.example'));
-  check('FedNow: the receipt names the signer', fn.status === 200 && names(rc(fn), WHO.evil) && rc(fn).rail === 'fednow', JSON.stringify(rc(fn)));
-  const long = await mk('long.example', { gifos: '1.0', appId: 'a'.repeat(64), name: 'x', entry: 'index.html', capabilities: { pay: ['fednow'] } });
+  const fn = await call('GET', '/fednow/receipt/' + rfp.body.id + q(rfp.body.claim, 'shop.example'));
+  check('FedNow: the receipt names the signer', fn.status === 200 && names(rc(fn), WHO.shop) && rc(fn).rail === 'fednow', JSON.stringify(rc(fn)));
+  const long = await mk('long.example', { gifos: '1.0', appId: 'a'.repeat(64), name: 'x', entry: 'index.html', capabilities: { pay: ['fednow'] }, pay: { prices: { ['s'.repeat(64)]: '3000000' } } });
   const tooLong = await call('POST', '/fednow/rfp', { proof: long.proof, amount: '3000000', sku: 's'.repeat(64), reason: 'x' });
   check('FedNow: an appId and sku too long for the reference are refused BEFORE a request exists — never cut', tooLong.status === 400 && /too long together/.test(tooLong.body.error) && rfps.size === 1);
 
   // Agent rail: the offer carries the identity; the status lookup signs it.
-  const offer = await call('POST', '/mpp/offer', { proof: attacker.proof, amount: '5000000', sku: 'pro' });
+  const offer = await call('POST', '/mpp/offer', { proof: shop.proof, amount: '5000000', sku: 'pro' });
   const oid = JSON.parse(Buffer.from(offer.body.token.split('.')[0], 'base64url').toString()).oid;
-  stripeIntents = [{ id: 'pi_1', status: 'succeeded', amount: 500, currency: 'usd', created: 1790000000, metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_e' } }];
+  stripeIntents = [{ id: 'pi_1', status: 'succeeded', amount: 500, currency: 'usd', created: 1790000000, metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_s' } }];
   const st = await call('POST', '/mpp/status', { offer: offer.body.token, claim: offer.body.claim });
   check('agent rail: the receipt names the signer, and is dated by the payment itself',
-    st.body.status === 'COMPLETED' && names(rc(st), WHO.evil) && rc(st).rail === 'mpp' && rc(st).at === 1790000000000, JSON.stringify(rc(st)));
+    st.body.status === 'COMPLETED' && names(rc(st), WHO.shop) && rc(st).rail === 'mpp' && rc(st).at === 1790000000000, JSON.stringify(rc(st)));
   stripeIntents = [{ id: 'pi_2', status: 'succeeded', amount: 500, currency: 'usd', metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_SOMEONE_ELSE' } }];
   check('agent rail: a payment that went to another account does not complete the offer',
     (await call('POST', '/mpp/status', { offer: offer.body.token, claim: offer.body.claim })).body.status === 'PENDING');
-  stripeIntents = [{ id: 'pi_3', status: 'succeeded', amount: 500, currency: 'eur', metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_e' } }];
+  stripeIntents = [{ id: 'pi_3', status: 'succeeded', amount: 500, currency: 'eur', metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_s' } }];
   check('agent rail: a payment in another currency does not complete the offer',
     (await call('POST', '/mpp/status', { offer: offer.body.token, claim: offer.body.claim })).body.status === 'PENDING');
   stripeIntents = [{ id: 'pi_4', status: 'requires_payment_method', amount: 500, currency: 'usd', metadata: { gifos_offer: oid } }];
