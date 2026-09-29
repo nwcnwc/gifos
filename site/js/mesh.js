@@ -2057,9 +2057,10 @@
       if (g.has(m.gid)) return;
       g.set(m.gid, this.TICK);
       if (g.size > 4096) { for (const [k, at] of g) if (this.TICK - at > 600) g.delete(k); } // horizon GC
-      if (this.onGossip) { try { this.onGossip(m.src, m.m); } catch (e) {} }
-      if (!m.eph) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined);
-      const e = { gid: m.gid, src: m.src, m: m.m, sc: scoped ? m.sc : undefined, eph: scoped ? m.eph : 0 };
+      const ag = Number.isInteger(m.ag) && m.ag > 0 ? Math.min(m.ag, 1 << 20) : 0;
+      if (this.onGossip) { try { this.onGossip(m.src, m.m, ag); } catch (e) {} }
+      if (!(scoped && m.eph)) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined, ag);
+      const e = { gid: m.gid, src: m.src, m: m.m, sc: scoped ? m.sc : undefined, eph: scoped ? m.eph : 0, ag0: ag };
       for (const p of (scoped ? this.sectionPeers() : this.linkPeers())) if (p !== m.src) this.emit(p, this._gspFrame(e));
     }
     // ANTI-ENTROPY, two repairs (dedup makes both idempotent):
@@ -2069,14 +2070,18 @@
     // 2. NEW-NEIGHBOUR REPLAY — a seat that was UNSEATED during the whole flood
     //    window arrives with no history; the first PHONE that teaches me a NEW
     //    occupant gets my recent backlog replayed.
-    _gspRemember(gid, src, m, sc) { const g = this.grecent = this.grecent || []; const e = { gid, src, m, at: this.TICK }; if (sc !== undefined) e.sc = sc; g.push(e); if (g.length > 64) g.shift(); }
+    // ag0: how old the message already was when I took it (ticks, summed over
+    // every holder before me). What I send on is ag0 + my own hold — an AGE,
+    // never a stamp (G0b): a re-fanned or replayed message must not read as
+    // newly said, and no two seats share a clock to date it by.
+    _gspRemember(gid, src, m, sc, ag0) { const g = this.grecent = this.grecent || []; const e = { gid, src, m, at: this.TICK }; if (sc !== undefined) e.sc = sc; if (ag0) e.ag0 = ag0; g.push(e); if (g.length > 64) g.shift(); }
     // A SCOPED message rides its OWN frame type, 'GSPS'. A client from before
     // the status plane knows only 'GSP' and drops an unknown type at recv()'s
     // default — so it can never strip the scope and re-flood a heartbeat to
     // the whole room (measured with sc as a field on 'GSP': ONE old seat at
     // N=400 leaked section heartbeats to 385 seats). It still hears its
     // row-mates' statuses over run.html's own DataChannel pulse.
-    _gspFrame(e) { const f = { t: e.sc !== undefined ? 'GSPS' : 'GSP', gid: e.gid, src: e.src, m: e.m }; if (e.sc !== undefined) f.sc = e.sc; if (e.eph) f.eph = 1; return f; }
+    _gspFrame(e) { const f = { t: e.sc !== undefined ? 'GSPS' : 'GSP', gid: e.gid, src: e.src, m: e.m }; if (e.sc !== undefined) f.sc = e.sc; if (e.eph) f.eph = 1; const ag = (e.ag0 || 0) + (e.at != null ? Math.max(0, this.TICK - e.at) : 0); if (ag > 0) f.ag = ag; return f; }
     _gspRefan() {
       const g = this.grecent; if (!g || !g.length) return;
       this.grecent = g.filter((e) => this.TICK - e.at <= 256); // replay horizon (memory-bounded with the 64 cap)

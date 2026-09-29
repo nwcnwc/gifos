@@ -18,6 +18,7 @@
 //      'GSP' and re-flood whatever they take to every link) cannot leak a
 //      scoped heartbeat out of its section: they never take one. The control
 //      feeds them the scope-as-a-field encoding and must leak.
+//   7. AGE — a relayed message carries how long relays held it.
 //   5. BACKLOG — ephemeral heartbeats never enter the re-fan backlog, and a chat
 //      line gossiped room-wide still reaches every seat while they flow.
 'use strict';
@@ -180,6 +181,25 @@ function mixedRoom(N, nOld, leaky) {
   check(`…and frames/node/beat stay under the section bound (max ${m.max.toFixed(0)} <= ${bound})`, m.max <= bound, m);
   const c = mixedRoom(400, 1, true);
   check(`control: scope as a FIELD on GSP leaks through ONE old client (${c.leakedTo}/${c.seats} seats)`, c.leakedTo > c.seats / 2, c);
+}
+
+console.log('\n=== 7) A RELAYED MESSAGE CARRIES ITS AGE — a replay never reads as newly said');
+// A latecomer is handed the backlog (new-neighbour replay). The message it
+// receives must say how long relays held it, or a two-minute-old status reads
+// as fresh on arrival. Ages are relative (G0b): no stamp crosses a link.
+{
+  const env = settledRoom(60);
+  const seated = [...env.seats.values()].filter((s) => s.alive && s.state === 3);
+  const first = [];
+  for (const s of seated) s.onGossip = (src, m, ag) => { if (m && m.note) first.push(ag || 0); };
+  seated[0].gossip({ note: 1 });
+  run(env, 16);
+  check(`the first wave hears it young (max age ${Math.max(0, ...first)} ticks, ${first.length} seats)`, first.length >= seated.length - 1 && Math.max(0, ...first) <= 16, { n: first.length });
+  run(env, 84);
+  const late = H.spawnOne(env); let lateAge = -1;
+  late.onGossip = (src, m, ag) => { if (m && m.note) lateAge = ag || 0; };
+  run(env, 200);
+  check(`a latecomer seated ${late.state === 3} receives the replay WITH its age (${lateAge} ticks >= 96)`, late.state === 3 && lateAge >= 96, { lateAge });
 }
 
 console.log(fails ? `\n${fails} FAIL` : '\nALL PASS');

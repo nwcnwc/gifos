@@ -1895,7 +1895,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const stgOf = (id) => {
         if (id === myId) return myStatus.stg || 0;
         const st = statusOf.get(id);
-        if (!st || Date.now() - (st.at || 0) > 15000) return 0;
+        if (!st || Date.now() - stSeen(st) > 15000) return 0;
         return st.stg || 0;
       };
       const out = [];
@@ -1974,7 +1974,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // a small room changes nothing (the section is the room), deflating it in a
     // big one falls back to first-hand statuses, which only hides far facts.
     const digLists = () => (roomPastSection() ? roomDig() : null);
-    const freshSt = (id) => { const st = statusOf.get(id); return !!st && Date.now() - (st.at || 0) <= 15000; };
+    const stSeen = (st) => (st ? (st.rx || st.at || 0) : 0); // when a status was said, on MY clock (takeStatus)
+    let gossipAgeMs = 0;                                      // set while a relayed gossip message is being handled
+    const freshSt = (id) => { const st = statusOf.get(id); return !!st && Date.now() - stSeen(st) <= 15000; };
     const digStageEntry = (id) => { const d = digLists(); return d ? d.stage.find((e) => e.id === id) || null : null; };
     // devOf entries the RELAY attested (roster / peer-join). A status may carry
     // its sender's own room-salted tag, which fills a gap but never overwrites
@@ -2073,7 +2075,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       else if (myDevHash) awayDevs.add(myDevHash);
       for (const [pid, st] of statusOf) {
         if (st.away) { if (devOf[pid]) awayDevs.add(devOf[pid]); continue; }
-        if (now - (st.at || 0) > 15000) continue; // stale voter = no vote
+        if (now - stSeen(st) > 15000) continue; // stale voter = no vote
         add(bagUp, devOf[pid], st.vup); add(bagDn, devOf[pid], st.vdn);
         if (devOf[pid]) engagedDevs.add(devOf[pid]);
       }
@@ -2216,7 +2218,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // only while we have actually HEARD something recently), at the
         // count's own 30s window.
         const heardAt = Math.max(p ? (p.lastHeard || 0) : 0, p ? (p.meshRxAt || 0) : 0, st ? (st.rx || 0) : 0);
-        if ((st && now - (st.at || 0) < 30000) || (p && p.connected && now - heardAt < 30000)
+        if ((st && now - stSeen(st) < 30000) || (p && p.connected && now - heardAt < 30000)
             || (now - (occFirstSeen.get(v) || 0) < 25000)) ids.add(v);
       }
       for (const id of rosterIds) ids.add(id);
@@ -2653,7 +2655,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const stHold = (pid) => {
       const st = statusOf.get(pid);
       if (!st) return false;
-      const age = Date.now() - (st.at || 0) - starveDebtSince(st.at || 0);
+      const age = Date.now() - stSeen(st) - starveDebtSince(stSeen(st));
       if (age < 15000) return true;
       if (age >= HOLDOVER_MS) return false;
       const p = peers.get(pid);
@@ -4850,8 +4852,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const tomb = meshGone.get(from);
       if (tomb !== undefined && Date.now() - tomb <= TOMB_GRACE) return false;
       const cur = statusOf.get(from);
-      if (cur && (cur.at || 0) > (st.at || 0)) return false; // stale gossip loses
-      st.rx = Date.now(); // RECEIPT time (local clock) — the departure tombstone (notTomb) trusts only statuses that arrived after its verdict
+      if (cur && (cur.at || 0) > (st.at || 0)) return false; // stale gossip loses (st.at orders ONE sender's own pulses — the only thing a sender's clock is ever used for)
+      // WHEN IT WAS SAID, ON MY CLOCK: receipt minus the time relays held it.
+      // Every freshness test reads this (stSeen), never st.at — st.at is the
+      // SENDER's wall clock, and a phone 15 s slow was never fresh to anyone:
+      // never counted, never on the Stage, and a permanent blur on everyone
+      // who heard it. A second copy of the same pulse keeps the first stamp.
+      st.rx = Date.now() - gossipAgeMs; // the departure tombstone (notTomb) trusts only statuses that arrived after its verdict
+      if (cur && (cur.at || 0) === (st.at || 0) && (cur.rx || 0) > st.rx) st.rx = cur.rx;
       statusOf.set(from, st);
       // §LOCK EPOCH FLOOR: a member whose sealed frames I can OPEN is speaking
       // my key generation — so its epoch number is mine too, and adopting the
@@ -4876,7 +4884,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // must not linger in the banner until the roster machinery drops
         // them; a briefly-quiet live peer re-beats well inside 15s (hidden
         // tabs pulse every 12s), so an honest hand never flickers.
-        if (st.hand && Date.now() - (st.at || 0) <= 15000) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…' });
+        if (st.hand && Date.now() - stSeen(st) <= 15000) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…' });
       }
       if (myStatus.hand) q.set(myId, { i: myId, t: myStatus.hand, n: myName() });
       // Beyond my section the room's hands arrive folded — the K earliest (G9).
@@ -6027,14 +6035,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Room-wide app traffic arrives on the mesh gossip lane (fanOut's
         // counterpart): the same sealed payload shapes as ever, routed to the
         // same handlers.
-        onGossip: (src, g) => {
+        onGossip: (src, g, ageMs) => {
           if (!g || g.a !== 1 || !g.msg) return;
           // DEBUG-TREE (inert unless DEBUG=on rides the URL).
           if (g.msg.__probe) { if (DEBUG_ON && meshNode) meshNode.gossip({ a: 1, msg: { __ack: g.msg.__probe, r: meshSelfReport() } }); return; }
           if (g.msg.__ack) { if (DEBUG_ON) { const M = (window.__meshCensus = window.__meshCensus || {}); if (g.msg.r && g.msg.r.from) M[g.msg.r.from] = g.msg.r; } return; }
           // end DEBUG-TREE
-          if (g.msg.kind) onSignal(src, g.msg);
-          else if (g.msg.k) onRemote(src, g.msg);
+          // How long relays HELD this message before it reached me (re-fan,
+          // new-neighbour replay): takeStatus dates a status by it, so a
+          // replayed pulse never reads as newly said.
+          gossipAgeMs = ageMs > 0 ? ageMs : 0;
+          try {
+            if (g.msg.kind) onSignal(src, g.msg);
+            else if (g.msg.k) onRemote(src, g.msg);
+          } finally { gossipAgeMs = 0; }
         },
         // R6 — "not one of the greeter blobs opens", which the wire also fires
         // for the door's own 'password required'. THAT SENTENCE HAS TWO CAUSES
@@ -6374,7 +6388,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (seatOcc && seatOcc.occ) for (const v of seatOcc.occ.values()) if (v) occLive.add(v);
         for (const [pid, st] of statusOf) {
           if (pid === myId || peers.has(pid) || occLive.has(pid)) continue;
-          const seen = Math.max((st && st.rx) || 0, (st && st.at) || 0);
+          const seen = stSeen(st);
           if (now - seen - starveDebtSince(seen) > HOLDOVER_MS) statusOf.delete(pid);
         }
       }
@@ -13994,7 +14008,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             // conn=false + relay set is a WORKING call over the fallback path —
             // liveLinks alone reads it as an outage (the 01:48 forensics gap).
             relay: (p && p.relayed) ? String(p.relayed).slice(0, 12) : null }; };
-        const ghosts = rosterIds.filter((pid) => { const st = statusOf.get(pid); return !st || now - (st.at || 0) > 15000; });
+        const ghosts = rosterIds.filter((pid) => { const st = statusOf.get(pid); return !st || now - stSeen(st) > 15000; });
         const at = new Map(); const dups = []; for (const [pid, k] of coordOfPeer) { if (at.has(k)) dups.push({ coord: k, a: at.get(k).slice(0, 8), b: String(pid).slice(0, 8) }); else at.set(k, String(pid)); }
         let mos = null; try { mos = window.__gifosVideo.mosaic(); } catch (e) { mos = { err: String(e).slice(0, 60) }; }
         return {

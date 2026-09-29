@@ -90,7 +90,7 @@
   //                   call node.chooseFork(id). Faces: Stage, else Stadium.
   //   homeFaces()     optional: greeter attaches {stage:[pid], stadium:[pid]}
   //                   on HOME for the pick-one UI
-  //   onGossip(src,m) room-wide app traffic delivery (exact-once)
+  //   onGossip(src,m,ageMs) room-wide app traffic delivery (exact-once); ageMs = time held by relays
   //   onRelayMsg(m)   every relay frame the wire does not consume — 'whoami',
   //                   'pw', 'ban', 'votes', 'joined', app-layer sealed 'peer'
   //                   frames (incl. fragments) — so the app keeps its existing
@@ -738,7 +738,7 @@
       seat = new mesh.Seat(peer, env);
       seat.myKey = myKey;
       if (s4on) { seat.s4 = true; seat.identity = identity; seat.pins = ident.newPins(); }
-      if (opts.onGossip) seat.onGossip = (src, m) => { if (!stopped) opts.onGossip(src, m); };
+      if (opts.onGossip) seat.onGossip = (src, m, ag) => { if (!stopped) opts.onGossip(src, m, (ag || 0) * tickMs); }; // third argument: how old the message is, in ms (relayed age, G0b)
       node.seat = seat;
       makeSock();
       seat.join();

@@ -16,6 +16,7 @@
 //   6. clear-video consent is my SECTION's unanimity (G1): the whole
 //      consenting room clears; one refuser blurs its own section only and
 //      every other seat shows the room badge instead — never a stuck room.
+//   Two of the ten pages run with clocks a minute wrong (one slow, one fast).
 //   7. statusOf is bounded by the plane (section + DataChannel pairs), not by
 //      the room (scale-audit V2).
 //
@@ -37,9 +38,16 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   const room = 'plane' + Math.random().toString(36).slice(2, 8);
   const pages = [];
   const errs = [];
+  // TWO PHONES WITH WRONG CLOCKS, because real rooms have them: P2 runs a
+  // minute slow and P5 a minute fast. Every leg below must hold regardless —
+  // a status is dated by when it ARRIVED on the reader's clock, never by the
+  // sender's (a slow phone was once never fresh to anyone: uncounted, barred
+  // from the Stage, and a permanent blur on everyone who heard it).
+  const SKEW = { 2: -60000, 5: 60000 };
+  const skewOf = (i) => (SKEW[i] ? `(function(){var D=Date.now.bind(Date),k=${SKEW[i]};Date.now=function(){return D()+k;};})();` : '');
   const mk = async (i) => {
     const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
-    await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}');localStorage.setItem('gifos_meet_bar','0')}catch(e){}; window.GIFOS_SCALE={C:2};` });
+    await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}');localStorage.setItem('gifos_meet_bar','0')}catch(e){}; window.GIFOS_SCALE={C:2};` + skewOf(i) });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => { errs.push('P' + i + ': ' + String(e).slice(0, 160)); console.log(`  [P${i}] PAGEERROR`, String(e).slice(0, 160)); });
     await page.goto(BASE + '/run.html#v=' + room);
