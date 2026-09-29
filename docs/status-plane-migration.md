@@ -127,10 +127,26 @@ Landed so far on `status-digest`:
 - **MESH_SKEW** (`a848dc87`) runs any sim or JS mesh suite on per-seat clocks.
   The whole JS mesh tier is green under MESH_SKEW=5000.
 
+- **The whole release gate on the branch** (default ON, `--behavior=skip`, one
+  box): 314 green, 3 flaky, 6 red, 4 needs-fleet. Every tier ran: unit, mesh,
+  relay, browser, drills and sim, including c-sweep. Each red was A/B'd
+  against unmodified main on the same box, and none is the status plane:
+  - app-modals needs `acorn`, which that box lacks (green where it exists).
+  - e2e-pay and e2e-tip-creators were payments work the branch lacked; after
+    merging main, e2e-pay is 71/71.
+  - e2e-perms-share was green in both A/B rounds.
+  - e2e-irl and e2e-pingpong-2p are red on main too (pingpong-2p 3 of 4).
+  - The flaky e2e-sing-relay went 13/13 with the digest ON in isolation and
+    red once with it OFF.
+  After the merge, the 21 meeting suites plus e2e-status-plane and e2e-pay
+  are all green (`e5b1c838`).
+
 Flakes seen on this branch that also fail on unmodified main (A/B on the
 same box):
 - e2e-stage-onerow: 2 of 5 red on main.
 - e2e-irl: red on main under load.
+- e2e-pingpong-2p: 3 of 4 red on main.
+- e2e-sing-relay: 1 of 8 red with the digest OFF; 0 of 13 with it ON.
 - flood-burst 1000 on a Pi: main itself deadlocked once at 338/1000; timings
   there swing 51-105s run to run.
 
@@ -158,5 +174,10 @@ observable under skew before it can land.
    hands, stage + scr + sing, app ads + stop, votes, mod table, consent.
 6. **Remove the room flood for status** (G8 gate green), cap `statusOf`, move the
    cap assertion into `e2e-status-map.js`; flip `GIFOS_DIGEST` on by default.
+   DONE on the branch. The statusOf bound is asserted in e2e-status-plane, the
+   one suite that spans sections.
 7. **Prove it at scale:** the gauge flat across N; flood harness at 1,000; the AWS
-   swarm (1,000 real browsers) with per-node status traffic measured.
+   swarm (1,000 real browsers) with per-node status traffic measured. The
+   harness side is done (status-plane.js, digest.js, flood-burst 1000). The
+   AWS run is ready but NOT run: `SITE=1 meet-swarm.sh relay` serves the
+   branch, then `bots` / `world`. It costs money and needs Nathan's go.
