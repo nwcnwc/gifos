@@ -32,9 +32,19 @@ struct KV { uint64_t k; int v; };
 //   part   — 1 if any member of the scope could not be folded (informs G3).
 //   freeC  — admissible frontier cells in the scope. G7: MEASURED ONLY here;
 //            it may bias a FIND's descent ORDER if ever wired, never a decision.
-//   at     — the AGGREGATOR's stamp (re-stamped at every fold, so staleness is
-//            per-hop, not cumulative). Sim uses global TICK; production needs a
-//            relative age (a stamp is not a clock you can trust across peers).
+//   at     — the AUTHOR's stamp, on the AUTHOR's clock (re-stamped at every
+//            fold). It is an IDENTIFIER — G4 matches an echo to the report it
+//            names by it — and is never compared on anyone else's clock.
+//   ag     — G0b RELATIVE AGE, the only time a digest carries across a link:
+//            how long the SENDER has held it (0 for a fold it just made). The
+//            receiver re-stamps rx = its own now - ag, so freshness is always
+//            read on the reader's clock and a relayed fold ages across hops.
+//            (Every browser's tick starts at its own page load: the absolute-
+//            stamp comparison this replaced threw away every child report the
+//            moment two pages' clocks differed by more than DIG_TTL — a room of
+//            ten read as four. `net skew=` gives each seat its own clock.)
+//   rx     — LOCAL ONLY: when I made (rx=at) or received this digest, on MY
+//            clock. Never sent.
 // NOTE what is NOT here: `epoch`. The audit's sketch carried the max lock-epoch;
 // G6 removed it — an inflated max is a LOCKOUT, which is not a fail-safe
 // direction. Nothing security-authoritative may ride a digest.
@@ -61,7 +71,7 @@ struct KV { uint64_t k; int v; };
 // vote counts, handN and awayN to its scope's n (population-bounded claims).
 struct LE { int id=-1, k=0; uint8_t f=0; bool operator==(const LE&o)const{ return id==o.id&&k==o.k&&f==o.f; } };
 struct VE { int tgt=-1, up=0, dn=0; bool operator==(const VE&o)const{ return tgt==o.tgt&&up==o.up&&dn==o.dn; } };
-struct Dig { int n=0, refuse=0, freeC=0, at=-1, by=-1, dmin=99; uint8_t part=0;
+struct Dig { int n=0, refuse=0, freeC=0, at=-1, by=-1, dmin=99, ag=0, rx=-1; uint8_t part=0;
   int handN=0, awayN=0; vector<LE> hands, stage, apps; vector<VE> votes; };
 struct DigE { uint64_t k; Dig d; };
 static const size_t K_HAND=8, K_STAGE=2*C, K_APP=3, K_VOTE=16;
@@ -228,6 +238,8 @@ static long long NOROOM_BYDEPTH[16]={0};
 // rollup adds no frame and no decision, so ON and OFF must produce identical
 // seating trajectories — if they ever diverge, something in the digest actuated.
 static bool DIGEST=true;
+static int NET_SKEW=0;
+static bool DIG_ABS=false;   // NEGATIVE CONTROL only (`digabs 1`): read a digest's AUTHOR stamp as if it were on my clock — the pre-G0b browser bug   // net skew=S: every seat's clock runs S-bounded ticks ahead of the global one (seat-local, like a browser's page-load tick)
 // A fold is fresh only within this window. Every aggregator RE-STAMPS its own
 // fold, so this bounds one hop, not the whole chain (the chain's staleness is
 // O(depth x period) and is a separate, structural bound). Sized at the
@@ -459,7 +471,11 @@ struct Seat {
   long long framesIn=0, framesIn0=0;        // GAUGE: frames delivered to me (all types); framesIn0 = window base
   void rollup();                            // fold my scopes — once per pulse period, O(C) work, N never appears
   bool scopeGap(uint64_t k);                // G3: is this scope member a PERSON I have lost (=> blur), or a stale occ echo (=> never)?
-  Dig  pubDig(const Dig& d);                // what I publish (identity unless `lie`)
+  Dig  pubDig(const Dig& d);                // what I publish (identity unless `lie`), carrying its RELATIVE age (G0b)
+  int  skew=0;                              // my clock's offset from the global tick (net skew=; 0 = the shared clock)
+  int  LT() const { return (int)(TICK+skew); }             // MY clock — every digest stamp and freshness read uses it
+  Dig  wireDig(const Dig& d) const { Dig o=d; int st=d.rx>=0?d.rx:d.at; o.ag=st>=0?max(0,LT()-st):0; o.rx=-1; return o; }   // G0b: send the age, never the local receipt
+  void rxDig(Dig& d) const { if(DIG_ABS){ d.rx=d.at; return; } int a=d.ag<0?0:(d.ag>(1<<20)?(1<<20):d.ag); d.rx=LT()-a; }                                 // G0b: re-stamp on MY clock at intake
   void noteUp(const Dig& d);                              // remember what I published upward (G4 ground truth)
   bool upRefuted(const Dig& pub,const Dig& echo,int base);// G4: does this published fold + its echo contradict what I actually sent?
   // ---- T: atomic seat switching (mover's lease) ----
@@ -478,7 +494,7 @@ struct Seat {
   int lastAsked=-1;                            // the target of my outstanding FIND — ANY answer to the ask proves ITS chain alive, not just the chain-tail that authored the reply
   uint32_t rs;
   Seat(int i):id(i){ uint32_t h=2166136261u; char b[16]; int n=snprintf(b,16,"p%08d",i); for(int k=0;k<n;k++){h^=(unsigned char)b[k]; h*=16777619u;} rs=h^0x9e3779b9u;
-    uint64_t z=((uint64_t)i+1)*0x9e3779b97f4a7c15ull; z=(z^(z>>30))*0xbf58476d1ce4e5b9ull; z=(z^(z>>27))*0x94d049bb133111ebull; myKey=(z^(z>>31))|1ull; }   // per-seat throwaway genesis key (nonzero)
+    uint64_t z=((uint64_t)i+1)*0x9e3779b97f4a7c15ull; z=(z^(z>>30))*0xbf58476d1ce4e5b9ull; z=(z^(z>>27))*0x94d049bb133111ebull; myKey=(z^(z>>31))|1ull; if(NET_SKEW>0) skew=(int)((h>>3)%(uint32_t)(NET_SKEW+1)); }   // per-seat throwaway genesis key (nonzero); a seat-local clock under net skew=
   inline double rng(){ rs=(rs+0x6d2b79f5u); uint32_t t=rs; t=(t^(t>>15))*(t|1u); t^=t+(t^(t>>7))*(t|61u); return ((t^(t>>14))>>0)/4294967296.0; }
   template<class T> void shuf(vector<T>&a){ for(int k=(int)a.size()-1;k>0;k--){ int j=(int)(rng()*(k+1)); T tmp=a[k];a[k]=a[j];a[j]=tmp; } }
 
@@ -1324,8 +1340,8 @@ int main(int argc,char**argv){
     else if(op=="det"){ DETERM=(tk.size()>1 && (tk[1]=="on"||tk[1]=="1")); printf("OK det=%d\n",(int)DETERM); }
     else if(op=="net"){   // net loss=.. lat=.. sever=.. subnets=.. density=.. qual=..   (set BEFORE init)
       for(size_t z=1;z<tk.size();z++){ auto&t=tk[z]; size_t e=t.find('='); if(e==string::npos)continue; string k=t.substr(0,e); double v=atof(t.substr(e+1).c_str());
-        if(k=="loss")NET_LOSS=v; else if(k=="lat")NET_LAT=(int)v; else if(k=="sever")NET_SEVER=v; else if(k=="subnets")NUM_SUBNETS=max(1,(int)v); else if(k=="density")REACH_DENSITY=v; else if(k=="qual")NET_QUAL_MIN=v; else if(k=="spine")NET_SPINE=(int)v; else if(k=="relayk")RELAY_K=(int)v; }
-      printf("OK net loss=%.4f lat=%d sever=%.4f subnets=%d density=%.2f qual=%.2f spine=%d relayk=%d\n",NET_LOSS,NET_LAT,NET_SEVER,NUM_SUBNETS,REACH_DENSITY,NET_QUAL_MIN,NET_SPINE,RELAY_K); }
+        if(k=="loss")NET_LOSS=v; else if(k=="lat")NET_LAT=(int)v; else if(k=="sever")NET_SEVER=v; else if(k=="subnets")NUM_SUBNETS=max(1,(int)v); else if(k=="density")REACH_DENSITY=v; else if(k=="qual")NET_QUAL_MIN=v; else if(k=="spine")NET_SPINE=(int)v; else if(k=="relayk")RELAY_K=(int)v; else if(k=="skew")NET_SKEW=max(0,(int)v); }
+      printf("OK net loss=%.4f lat=%d sever=%.4f subnets=%d density=%.2f qual=%.2f spine=%d relayk=%d skew=%d\n",NET_LOSS,NET_LAT,NET_SEVER,NUM_SUBNETS,REACH_DENSITY,NET_QUAL_MIN,NET_SPINE,RELAY_K,NET_SKEW); }
     else if(op=="subnets"){   // measure: subtree subnet-clustering + does Section 1 span mutually-unreachable subnets?
       // Section-1 subnet spread + reachability of its internal mesh
       vector<int> s1sub; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3&&seats[q]->coord.pc==0) s1sub.push_back(seats[q]->subnet);
@@ -1592,6 +1608,7 @@ int main(int argc,char**argv){
       for(int d=1;d<=13;d++) if(freeByDepth.count(d)) printf("%s%d:%d",d>1?",":"",d,freeByDepth[d]);
       printf("\n"); }
     // ---- V1 ROLLUP DIGEST verbs (healing-laws § G) --------------------------
+    else if(op=="digabs"){ DIG_ABS=(tk.size()<2)||(tk[1]!="0"); printf("OK digabs=%d\n",(int)DIG_ABS); }
     else if(op=="digeston"){ DIGEST=(tk.size()<2)||(tk[1]!="0"); printf("OK digest=%d\n",(int)DIGEST); }
     // refuse <id|all|frac F> [0|1] — set a participant's OWN first-hand consent
     // state. G1: this is local truth, the only place a refusal is ever born.

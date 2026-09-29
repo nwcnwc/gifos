@@ -768,7 +768,7 @@
       roomDigest() {
         if (!seat || !env.DIGEST || !seat.rootDig || seat.rootDig.at < 0) return null;
         const d = seat.rootDig;
-        return { at: d.at, age: env.TICK - d.at, n: d.n, refuse: d.refuse, part: d.part, handN: d.handN || 0, awayN: d.awayN || 0,
+        return { at: d.at, age: seat.LT() - (d.rx != null ? d.rx : d.at), n: d.n, refuse: d.refuse, part: d.part, handN: d.handN || 0, awayN: d.awayN || 0,
           hands: (d.hands || []).map((e) => Object.assign({}, e)), stage: (d.stage || []).map((e) => Object.assign({}, e)),
           apps: (d.apps || []).map((e) => Object.assign({}, e)), votes: (d.votes || []).map((v) => Object.assign({}, v)) };
       },

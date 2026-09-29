@@ -33,6 +33,10 @@
 #                     row-mates whose contribution it altered) and by nobody
 #                     else; its corruption is CONFINED to its own subtree; and
 #                     G5 holds — nothing is evicted, CHECK still passes.
+#   6-10) G9 LISTS  — hands, Stage, app ads, away, votes (see each leg).
+#   11) CLOCKS      — G0b: every seat on its own clock (net skew=); the fold,
+#                     the lists and G4 must not care, and the absolute-stamp
+#                     control must collapse.
 #
 # Usage: test/sim/repro-digest.sh          (auto-gated by the release battery's
 #                                           test/sim/repro-*.sh glob)
@@ -317,6 +321,39 @@ for N in 300 2000; do
 done
 echo "  peak per-node digest state with lists populated: N=300 $st300, N=2000 $st2000"
 [ "$st2000" -le "$st300" ] && ok "digest state does not grow with N with the lists in use" || bad "digest state grew with N ($st300 -> $st2000)"
+
+# ---------------------------------------------------------------------------
+echo
+echo "=== 11) PER-SEAT CLOCKS — G0b: a digest carries its AGE, never a clock ==="
+# Every browser's tick starts at its own page load, so no two seats share a
+# clock. `net skew=S` gives each seat its own offset in [0,S]. The fold must
+# still be exact and unanimous, the lists exact, an honest room unrefuted, a
+# liar still refuted by its designated checkers alone — and the NEGATIVE
+# CONTROL (`digabs 1`, the pre-G0b absolute-stamp reading, found 2026-09-28 by
+# e2e-status-plane: ten browsers read as four) must collapse, or this leg is
+# not measuring clocks at all.
+for N in 20 600 2000; do
+  out=$(run "det on" "seed 3" "net skew=5000" "init $N 0" "converge 60000" "${facts[@]}" "tick 800" "digest" "lists" "check")
+  d=$(grep '^DIGEST' <<<"$out"); Ls=$(grep '^LISTS' <<<"$out"); o=$(fld "$d" obs)
+  chk "N=$N skewed clocks: root n == true at ALL $o observers" "$(fld "$d" rootExact)" "$o"
+  chk "N=$N skewed clocks: fold complete (partial=0)" "$(fld "$d" partial)" "0"
+  chk "N=$N skewed clocks: no refutations in an honest room" "$(fld "$d" mismatch)" "0"
+  okall=1; for f in handExact handNExact stageExact appExact awayExact voteExact; do [ "$(fld "$Ls" $f)" = "$(fld "$Ls" obs)" ] || okall=0; done
+  [ "$okall" = 1 ] && ok "N=$N skewed clocks: every root list equals the truth" || bad "N=$N skewed clocks: a root list disagrees — $Ls"
+done
+out=$(run "det on" "seed 3" "net skew=5000" "digabs 1" "init 600 0" "converge 60000" "tick 800" "digest")
+d=$(grep '^DIGEST' <<<"$out")
+echo "  negative control (absolute stamps): rootExact $(fld "$d" rootExact)/$(fld "$d" obs), rootMax $(fld "$d" rootMax), mismatch $(fld "$d" mismatch)"
+[ "$(fld "$d" rootExact)" -lt "$(fld "$d" obs)" ] && ok "the control COLLAPSES under skew — the leg measures clocks" \
+                                                  || bad "absolute stamps survived skew: this leg cannot see the bug"
+out=$(MESH_DIGLOG=1 run "det on" "seed 1" "net skew=5000" "init 600 0" "converge 60000" "refuse frac 0.10" \
+          "tick 400" "digest" "digest reset" "lie $LIAR 1" "tick 400" "digest" "check")
+mapfile -t dl < <(grep '^DIGEST' <<<"$out")
+chk "skewed clocks: the honest fold's refusals are exact" "$(fld "${dl[0]}" refuseMax)" "$(fld "${dl[0]}" trueRefuse)"
+[ "$(fld "${dl[1]}" mismatch)" -gt 0 ] && ok "skewed clocks: a suppressing liar is still REFUTED" || bad "skewed clocks: the liar went unrefuted"
+chk "skewed clocks: exactly ONE aggregator is accused" "$(grep '^DIGMISMATCH' <<<"$out" | sed -nE 's/.*aggregator=([0-9]+).*/\1/p' | sort -u | wc -l)" "1"
+A=$(trajL 1 7); B=$(trajL 0 7)
+[ "$A" = "$B" ] && ok "digests ON == OFF tick-for-tick (G0/G1 still, with G0b's age field)" || bad "G0b changed the trajectory"
 
 # ---------------------------------------------------------------------------
 echo

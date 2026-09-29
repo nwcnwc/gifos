@@ -955,6 +955,22 @@ digests-ON run must be **trajectory-identical** to a digests-OFF run at the same
 seed — same convergence tick, same moves, same evictions, same seating. That
 equality is the mechanical form of G1, and `repro-digest.sh` asserts it.
 
+**G0b. A digest carries its AGE across a link, never a clock.** (2026-09-28.)
+No two seats share a tick: every browser counts from its own page load. A
+digest's `at` is its AUTHOR's stamp on the AUTHOR's clock — an identifier, which
+G4 matches an echo against, and which only its author ever reads as a time.
+What crosses a link is `ag`, how long the sender has held the digest (0 for a
+fold it just made); the receiver re-stamps `rx = its own now − ag`, and every
+freshness test (DIG_TTL, which of two root folds is newer, the display's age)
+reads `rx` on the reader's own clock. A relayed fold therefore ages across hops
+and can never look fresher than it is. The sim modelled one global clock, so the
+August digest compared stamps across seats and nobody saw it; the first real-
+browser run (e2e-status-plane.js, ten pages at C=2) read the room as four,
+because every fold discarded every child report as stale. `net skew=S` (sim) and
+`env.SKEW` (browser twin) put every seat on its own clock; the absolute-stamp
+reading survives as a NEGATIVE CONTROL (`digabs 1` / `env.DIG_ABS`) that must
+collapse (measured: 0 of 600 observers exact, 30,916 false refutations).
+
 **G1. Digests inform DISPLAY, never ACTUATION.** This is E2's discipline
 ("gossip informs routing, NEVER evicts") generalized one level up: a digest may
 never evict, resurrect, seat, move, admit, heal, or release any privacy-bearing
@@ -1152,15 +1168,16 @@ move, admit, heal, or release privacy state, and no list field is
 security-AUTHORITATIVE (G6): admin grants and bans stay on the signed,
 on-change path, and the consumer applies them to the candidates.
 
-**Where it is checked — in BOTH twins.** `test/sim/repro-digest.sh` (72
+**Where it is checked — in BOTH twins.** `test/sim/repro-digest.sh` (89
 assertions) is the C++ reference gate: root convergence to the true count at
 N=2000 det within the staleness bound, refusal propagation, fail-closed
 partiality, the ON≡OFF trajectory identity (G1/G0), the designated checker
 firing on a lying aggregator *and only there* (G4) with the seating trajectory
-unchanged (G5), and the O(C) gauges under churn. The sim's gauge verb is
-`digest`; `digeston 0|1`, `refuse`, and `lie` are its knobs.
+unchanged (G5), the O(C) gauges under churn, and every one of those again with
+every seat on its own clock (G0b, leg 11). The sim's gauge verb is `digest`;
+`digeston 0|1`, `refuse`, `lie`, `net skew=` and `digabs` are its knobs.
 
-`test/mesh/digest.js` (86 assertions) is the same gate against the BROWSER twin
+`test/mesh/digest.js` (98 assertions) is the same gate against the BROWSER twin
 (`site/js/mesh.js`), over `mesh-harness.js`'s fabric. The port landed 2026-08-06
 — a faithful one: same function names, same constants (DIG_TTL 60, DIG_LOSS_H
 300), nothing redesigned. **It is flag-gated and DEFAULT OFF** (`env.DIGEST`;

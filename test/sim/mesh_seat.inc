@@ -920,11 +920,11 @@ void Seat::onPhone(Msg& m){
   // § G UP-LEG: the phoner's digest arrives as PAYLOAD on the beat it already
   // sends (G0). Which scope it names is decided by the phoner's RELATION to me,
   // which I read from its coord — never from anything it asserts.
-  if(DIGEST && state==3 && m.dgUp.at>=0){ uint64_t pk=ckey(m.coord);
-    if(pk==ckey(down(coord)))                                                        downDig=m.dgUp;                 // my down-child head published MY OWNED CHILD ROW
+  if(DIGEST && state==3 && m.dgUp.at>=0){ uint64_t pk=ckey(m.coord); Dig u=m.dgUp; rxDig(u);   // G0b: freshness on MY clock
+    if(pk==ckey(down(coord)))                                                        downDig=u;                      // my down-child head published MY OWNED CHILD ROW
     else if(coord.pc==0 && m.coord.pc==0){ auto it=s1tab.find(pk);                                                   // a rook peer published ITS SECTION
-      if(it==s1tab.end() || it->second.at<=m.dgUp.at) s1tab[pk]=m.dgUp; }
-    else if(coord.pc!=0 && coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r) rowKids[pk]=m.dgUp;             // a row-mate published ITS SUBTREE
+      if(it==s1tab.end() || it->second.rx<=u.rx) s1tab[pk]=u; }
+    else if(coord.pc!=0 && coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r) rowKids[pk]=u;                  // a row-mate published ITS SUBTREE
   }
   uint64_t ck=ckey(m.coord); int prev=occGet(ck);
   // D5: my first-hand hearing of prev ENDS at my own transport loss (an
@@ -959,7 +959,7 @@ void Seat::onPhone(Msg& m){
   //                        is already its owner's C3-designated healer)
   //   to a ROW-MATE     -> my ROW fold, which must contain that mate's own
   //                        contribution (checker = each mate, for itself only)
-  if(DIGEST && state==3){ p.dgRoot=rootDig;
+  if(DIGEST && state==3){ p.dgRoot=wireDig(rootDig);
     bool isDownKid = ckey(m.coord)==ckey(down(coord));
     p.dgPub  = pubDig( isDownKid ? myDig : ((coord.pc!=0&&coord.i==0)?rowDig:myDig) );
     // ...and the ECHO: the report I actually folded FROM THIS PEER. A liar that
@@ -1054,11 +1054,12 @@ void Seat::s1Sync(){
   // rides it — no new frame (G0), and the fold completes in two beats. Relaying
   // another section's digest is second-hand BY CONSTRUCTION; that is safe for
   // exactly one reason (G1): a digest can never actuate. Entries carry their
-  // AUTHOR's stamp, relayed unchanged, so a relayed fold can never look fresher
-  // than it is.
+  // AUTHOR's stamp relayed unchanged (the G4 identifier) and their RELATIVE age
+  // grown by every hop that held them (G0b), so a relayed fold can never look
+  // fresher than it is.
   vector<DigE> digs;
   if(DIGEST && state==3){ digs.push_back({ckey(coord),pubDig(myDig)});
-    for(auto&e:s1tab) if(e.first!=ckey(coord) && TICK-e.second.at<=DIG_TTL) digs.push_back({e.first,e.second}); }
+    for(auto&e:s1tab) if(e.first!=ckey(coord) && LT()-e.second.rx<=DIG_TTL) digs.push_back({e.first,wireDig(e.second)}); }
   for(int t:tg){ Msg m;m.t=S1SYNC;m.ent=ent;m.digs=digs; emit(t,m); }
 }
 void Seat::rowSweep(){
@@ -1190,7 +1191,7 @@ bool Seat::translostConfirmed(uint64_t k){
 // => <= C reports in, ONE out. N never appears. G0: not one new frame.
 // ============================================================================
 Dig Seat::pubDig(const Dig& d){
-  Dig o=d;
+  Dig o=wireDig(d);
   // The adversary knob. Mode 1 SUPPRESSES — it publishes a fold with the
   // refusals (and the partial flag) stripped. That is the ONE dangerous
   // direction (G4.2) and the only one the checker needs to catch; mode 2
@@ -1207,7 +1208,7 @@ Dig Seat::pubDig(const Dig& d){
 // G4: remember every report I published upward, keyed by its own stamp. The
 // aggregator must ECHO the report it folded, and this ring is the ground truth
 // that echo is checked against.
-void Seat::noteUp(const Dig& d){ upLog[upLogI&15]={d.at,d.n,d.refuse,digListHash(d)}; upLogI++; if(upSince<0) upSince=TICK; }
+void Seat::noteUp(const Dig& d){ upLog[upLogI&15]={d.at,d.n,d.refuse,digListHash(d)}; upLogI++; if(upSince<0) upSince=TICK; }   // d.at is MY stamp: the ring is keyed on my own clock
 // (the ring is keyed by stamp; echo.by==id is checked by the caller before lookup)
 // G4, THE AUTHOR'S REFUTATION — the only check any node performs, and it is over
 // a value that node itself authored. No votes (G4.4), no adjudication (G5).
@@ -1247,7 +1248,7 @@ bool Seat::upRefuted(const Dig& pub,const Dig& echo,int base){
   // changes.
   if(echo.at<0){ emptyEcho++; digArm=3; return emptyEcho>2*DIG_TTL/8; }
   emptyEcho=0;
-  if(TICK-echo.at>2*DIG_TTL){ digArm=3; return true; }
+  if(LT()-echo.at>2*DIG_TTL){ digArm=3; return true; }   // echo.at is MY stamp on the report it names — read on my own clock
   if(echo.by!=id) return false;   // the echo names a DIFFERENT author — my cell's previous occupant's report, not mine. Not evidence.
   const UpRec* r=nullptr; for(int q=0;q<16;q++) if(upLog[q].at==echo.at){ r=&upLog[q]; break; }
   if(!r) return false;                                     // older than my ring — no record, so no accusation
@@ -1302,7 +1303,7 @@ void Seat::rollup(){
   int svFind=findNc; findNc=-1;
   struct R{ int* p; int v; ~R(){ *p=v; } } _r{&findNc,svFind};
   // --- (1) my SUBTREE = me + the child row I own -----------------------------
-  Dig d; d.n=1; d.refuse=refuses?1:0; d.at=(int)TICK; d.by=id; d.part=0; d.freeC=0;
+  Dig d; d.n=1; d.refuse=refuses?1:0; d.at=LT(); d.rx=d.at; d.by=id; d.part=0; d.freeC=0;
   // G9 my own leaf facts. An away device sits out voting — its votes and its
   // place in the denominator both (awayN).
   if(handT){ d.handN=1; d.hands.push_back({id,handT,0}); }
@@ -1322,15 +1323,15 @@ void Seat::rollup(){
     for(int c2=0;c2<C;c2++){ uint64_t k=ckey(rc[c2]); if(occ.count(k)||sitting.count(k)) continue; uint64_t dk2=ckey(down(rc[c2])); if(occ.count(dk2)||sitting.count(dk2)) continue; d.freeC++; }
     if(d.freeC) d.dmin=pcDepth(coord.pc)+1; }
   uint64_t dk=ckey(down(coord)); digGap=0; downUsed=Dig();
-  if(downDig.at>=0 && TICK-downDig.at<=DIG_TTL){ digFold(d,downDig); downUsed=downDig; }
+  if(downDig.at>=0 && LT()-downDig.rx<=DIG_TTL){ digFold(d,downDig); downUsed=downDig; }
   else if(scopeGap(dk)){ d.part=1; d.refuse+=1; digGap=1; }   // G3 FAIL-CLOSED: a subtree I believe populated but cannot currently hear counts as REFUSING, never as zero
   digTrim(d);
   myDig=d;
   // --- (2) deep ROW HEAD: fold my row (my owner is linked only to me) --------
   if(coord.pc!=0 && coord.i==0){
-    Dig r=myDig; r.at=(int)TICK; r.by=id; rowUsed.clear();
+    Dig r=myDig; r.at=LT(); r.rx=r.at; r.by=id; rowUsed.clear();
     for(int j=1;j<C;j++){ uint64_t rk=ckey({coord.pc,coord.r,(uint8_t)j}); auto it=rowKids.find(rk);
-      if(it!=rowKids.end() && TICK-it->second.at<=DIG_TTL){ digFold(r,it->second); rowUsed[rk]=it->second; }
+      if(it!=rowKids.end() && LT()-it->second.rx<=DIG_TTL){ digFold(r,it->second); rowUsed[rk]=it->second; }
       else if(scopeGap(rk)){ r.part=1; r.refuse+=1; digGap|=2; } }
     digTrim(r);
     rowDig=r;
@@ -1339,11 +1340,11 @@ void Seat::rollup(){
   // Section 1 has no owner, so the room fold happens HERE, C^2 times over (each
   // S1 seat computes it independently — there is no root to fight over, § P).
   if(coord.pc==0){
-    Dig R; R.at=(int)TICK; R.by=id;
+    Dig R; R.at=LT(); R.rx=R.at; R.by=id;
     for(int r0=0;r0<C;r0++) for(int i0=0;i0<C;i0++){ uint64_t k=ckey({0,(uint8_t)r0,(uint8_t)i0});
       if(hasCoord && k==ckey(coord)){ digFold(R,myDig); continue; }
       auto it=s1tab.find(k);
-      if(it!=s1tab.end() && TICK-it->second.at<=DIG_TTL) digFold(R,it->second);
+      if(it!=s1tab.end() && LT()-it->second.rx<=DIG_TTL) digFold(R,it->second);
       else if(scopeGap(k)){ R.part=1; R.refuse+=1; digGap|=4; } }
     digTrim(R);
     rootDig=R;
@@ -1538,11 +1539,12 @@ void Seat::recv(Msg& m){
       return; }
     case GREETWALK: return;   // H6 RETIRED — folded into E3 (Section-1 seats knock directly as the greeter pool)
     case S1SYNC: {
-      // § G root fold: merge the relayed section table, freshest AUTHOR stamp
-      // wins. Purely additive display state — it touches nothing below.
+      // § G root fold: merge the relayed section table, the FRESHEST on my clock
+      // wins (G0b relative ages). Purely additive display state — it touches
+      // nothing below.
       if(DIGEST && state==3 && hasCoord && coord.pc==0)
         for(auto&e:m.digs){ if((e.k>>16)!=0) continue; if(hasCoord && e.k==ckey(coord)) continue;   // never take a relayed claim about MY OWN section — I fold that first-hand
-          if(TICK-e.d.at>DIG_TTL) continue; auto it=s1tab.find(e.k); if(it==s1tab.end()||it->second.at<e.d.at) s1tab[e.k]=e.d; }
+          Dig u=e.d; rxDig(u); if(u.at<0 || LT()-u.rx>DIG_TTL) continue; auto it=s1tab.find(e.k); if(it==s1tab.end()||it->second.rx<u.rx) s1tab[e.k]=u; }
       // GOSSIP updates the ROSTER HINT (occ/s1seen) only — it NEVER evicts a seat
       // and NEVER overwrites a cell I hold FIRST-HAND. (E2: gossip may inform
       // routing, but liveness is first-hand only. The old gossip-requeue and
@@ -1609,7 +1611,7 @@ void Seat::recv(Msg& m){
       if(m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v;
       // ---- § G DOWN-LEG + the AUTHOR'S REFUTATION ----------------------------
       if(DIGEST && state==3 && hasCoord && coord.pc!=0){
-        if(m.dgRoot.at>=0 && m.dgRoot.at>rootDig.at) rootDig=m.dgRoot;   // the room fold, one level per period (staleness O(depth x period))
+        if(m.dgRoot.at>=0){ Dig rt=m.dgRoot; rxDig(rt); if(rootDig.at<0 || rt.rx>rootDig.rx) rootDig=rt; }   // the room fold, one level per period (staleness O(depth x period)); fresher ON MY CLOCK wins (G0b)
         if(m.dgPub.at>=0){
           Coord oc; bool isOwner = coord.i==0 && ownerCoord(oc) && ckey(m.coord)==ckey(oc);
           bool isHead  = coord.i>0 && m.coord.pc==coord.pc && m.coord.r==coord.r && m.coord.i==0;

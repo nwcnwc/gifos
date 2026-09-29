@@ -189,17 +189,18 @@
   // sim's fabric is trusted; this is the browser's boundary, not a law.)
   const INT = (x) => Number.isInteger(x);
   const STR = (x, n) => typeof x === 'string' && x.length <= n;
-  const AD_STR = ['s', 'k', 'relay', 'name', 'mesh', 'pk', 'byName'];
+  const AD_STR = ['s', 'k', 'relay', 'name', 'pk', 'byName'], AD_BOOL = ['mesh', 'audio'];   // run.html's myStatus.app shape
   const saneAd = (a) => !!a && typeof a === 'object' && !Array.isArray(a)
-    && Object.keys(a).every((k) => AD_STR.indexOf(k) >= 0 || k === 'ts' || k === 'audio')
+    && Object.keys(a).every((k) => AD_STR.indexOf(k) >= 0 || AD_BOOL.indexOf(k) >= 0 || k === 'ts')
     && AD_STR.every((k) => a[k] === undefined || a[k] === null || STR(a[k], 256))
-    && (a.ts === undefined || Number.isFinite(a.ts)) && (a.audio === undefined || typeof a.audio === 'boolean');
-  const copyAd = (a) => { const o = {}; for (const k of AD_STR) if (a[k] !== undefined && a[k] !== null) o[k] = a[k]; if (a.ts !== undefined) o.ts = a.ts; if (a.audio !== undefined) o.audio = a.audio; return o; };
+    && AD_BOOL.every((k) => a[k] === undefined || typeof a[k] === 'boolean')
+    && (a.ts === undefined || Number.isFinite(a.ts));
+  const copyAd = (a) => { const o = {}; for (const k of AD_STR) if (a[k] !== undefined && a[k] !== null) o[k] = a[k]; for (const k of AD_BOOL) if (a[k] !== undefined) o[k] = a[k]; if (a.ts !== undefined) o.ts = a.ts; return o; };
   const saneLE = (e, kind) => !!e && STR(e.id, 64) && Number.isFinite(e.k) && (e.f === undefined || INT(e.f)) && (e.nm === undefined || STR(e.nm, 24))
     && (e.dv === undefined || STR(e.dv, 16)) && (kind !== 'app' || e.a === undefined || saneAd(e.a));
   const digSane = (d) => {
     if (!d || typeof d !== 'object' || !INT(d.n) || !INT(d.refuse) || !Number.isFinite(d.at)) return null;
-    const o = { n: d.n, refuse: d.refuse, freeC: INT(d.freeC) ? d.freeC : 0, at: d.at, by: d.by == null ? null : String(d.by).slice(0, 64), dmin: INT(d.dmin) ? d.dmin : 99, part: d.part ? 1 : 0,
+    const o = { n: d.n, refuse: d.refuse, freeC: INT(d.freeC) ? d.freeC : 0, at: d.at, ag: INT(d.ag) && d.ag >= 0 ? Math.min(d.ag, 1 << 20) : 0, by: d.by == null ? null : String(d.by).slice(0, 64), dmin: INT(d.dmin) ? d.dmin : 99, part: d.part ? 1 : 0,
       handN: INT(d.handN) && d.handN >= 0 ? d.handN : 0, awayN: INT(d.awayN) && d.awayN >= 0 ? d.awayN : 0, hands: [], stage: [], apps: [], votes: [] };
     const lists = [['hands', K_HAND, 'hand'], ['stage', K_STAGE(), 'stage'], ['apps', K_APP, 'app']];
     for (const [f, K, kind] of lists) {
@@ -344,8 +345,15 @@
       let h = 2166136261 >>> 0; const b = 'p' + id;
       for (let k = 0; k < b.length; k++) { h ^= b.charCodeAt(k); h = Math.imul(h, 16777619); }
       this.rs = (h ^ 0x9e3779b9) >>> 0;
+      if (env && env.SKEW > 0) this.skew = (h >>> 3) % (env.SKEW + 1); // a seat-local digest clock (test harness; a browser's own tick already is one)
     }
     get TICK() { return this.env.TICK; }
+    // G0b: MY clock for every digest stamp and freshness read. In a browser it
+    // IS env.TICK (each page's own, from its own load); the harness's env.SKEW
+    // gives each seat an offset, twin of the sim's `net skew=`.
+    LT() { return this.env.TICK + (this.skew || 0); }
+    wireDig(d) { const o = digCopy(d); const st = d.rx != null ? d.rx : d.at; o.ag = st >= 0 ? Math.max(0, this.LT() - st) : 0; return o; } // send the AGE, never my receipt stamp
+    rxDig(d) { if (this.env.DIG_ABS) { d.rx = d.at; return d; } const a = Number.isInteger(d.ag) ? Math.min(Math.max(d.ag, 0), 1 << 20) : 0; d.rx = this.LT() - a; return d; } // re-stamp on MY clock at intake
     rng() { this.rs = (this.rs + 0x6d2b79f5) >>> 0; let t = this.rs; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
     shuf(a) { for (let k = a.length - 1; k > 0; k--) { const j = (this.rng() * (k + 1)) | 0; const t = a[k]; a[k] = a[j]; a[j] = t; } return a; }
     // A seat HOLDS a relay socket while joining (state!=3) or while seated in
@@ -1610,7 +1618,7 @@
     // ========================================================================
     digOn() { return this.env.DIGEST === true && this.state === 3; }
     pubDig(d) {
-      const o = digCopy(d);
+      const o = this.wireDig(d);
       // The adversary knob (tests only). Mode 1 SUPPRESSES — refusals and the
       // partial flag stripped: the ONE dangerous direction (G4.2) and the only
       // one the checker needs to catch; mode 2 inflates n, harmless by G2.
@@ -1659,7 +1667,7 @@
       if (this.upLogI === 0) return false;
       if (echo.at < 0) { this.emptyEcho++; this.digArm = 3; return this.emptyEcho > 2 * DIG_TTL / 8; }
       this.emptyEcho = 0;
-      if (this.TICK - echo.at > 2 * DIG_TTL) { this.digArm = 3; return true; }
+      if (this.LT() - echo.at > 2 * DIG_TTL) { this.digArm = 3; return true; } // echo.at is MY stamp on the report it names — read on my own clock
       if (echo.by !== this.id) return false; // the echo names a DIFFERENT author — my cell's previous occupant's report, not mine. Not evidence.
       let r = null; for (let q = 0; q < 16; q++) { if (this.upLog[q].at === echo.at) { r = this.upLog[q]; break; } }
       if (!r) return false;                  // older than my ring — no record, so no accusation
@@ -1699,7 +1707,8 @@
       // mid-flight FIND.
       const svFind = this.findNc; this.findNc = null;
       try {
-        const d = dig0(); d.n = 1; d.refuse = this.refuses ? 1 : 0; d.at = TICK; d.by = this.id;
+        const LT = this.LT();
+        const d = dig0(); d.n = 1; d.refuse = this.refuses ? 1 : 0; d.at = LT; d.rx = LT; d.by = this.id;
         // G9 my own leaf facts. An away device sits out voting — its votes and its place in the denominator both.
         const L = this.leaf;
         if (L.hand) { d.handN = 1; d.hands.push({ id: this.id, k: L.hand, nm: L.nm }); }
@@ -1720,28 +1729,28 @@
           if (d.freeC) d.dmin = topo.pcDepth(this.coord.pc) + 1;
         }
         const dk = ck(topo.down(this.coord)); this.digGap = 0; this.downUsed = dig0();
-        if (this.downDig.at >= 0 && TICK - this.downDig.at <= DIG_TTL) { digFold(d, this.downDig); this.downUsed = this.downDig; }
+        if (this.downDig.at >= 0 && LT - this.downDig.rx <= DIG_TTL) { digFold(d, this.downDig); this.downUsed = this.downDig; }
         else if (this.scopeGap(dk)) { d.part = 1; d.refuse += 1; this.digGap = 1; } // G3 FAIL-CLOSED: a subtree I believe populated but cannot hear counts as REFUSING, never as zero
         digTrim(d);
         this.myDig = d;
         if (this.coord.pc !== 0 && this.coord.i === 0) {
-          const r = digCopy(d); r.at = TICK; r.by = this.id;
+          const r = digCopy(d); r.at = LT; r.rx = LT; r.by = this.id;
           this.rowUsed.clear();
           for (let j = 1; j < C(); j++) {
             const rk = ck({ pc: this.coord.pc, r: this.coord.r, i: j }); const it = this.rowKids.get(rk);
-            if (it !== undefined && TICK - it.at <= DIG_TTL) { digFold(r, it); this.rowUsed.set(rk, it); }
+            if (it !== undefined && LT - it.rx <= DIG_TTL) { digFold(r, it); this.rowUsed.set(rk, it); }
             else if (this.scopeGap(rk)) { r.part = 1; r.refuse += 1; this.digGap |= 2; }
           }
           digTrim(r);
           this.rowDig = r;
         }
         if (this.coord.pc === 0) {
-          const R = dig0(); R.at = TICK; R.by = this.id;
+          const R = dig0(); R.at = LT; R.rx = LT; R.by = this.id;
           for (let r0 = 0; r0 < C(); r0++) for (let i0 = 0; i0 < C(); i0++) {
             const k = ck({ pc: 0, r: r0, i: i0 });
             if (this.hasCoord && k === ck(this.coord)) { digFold(R, this.myDig); continue; }
             const it = this.s1tab.get(k);
-            if (it !== undefined && TICK - it.at <= DIG_TTL) digFold(R, it);
+            if (it !== undefined && LT - it.rx <= DIG_TTL) digFold(R, it);
             else if (this.scopeGap(k)) { R.part = 1; R.refuse += 1; this.digGap |= 4; }
           }
           digTrim(R);
@@ -1763,11 +1772,12 @@
       // already sends (G0). Which scope it names is decided by the phoner's
       // RELATION to me, read from its coord — never from anything it asserts.
       const upD = this.digOn() && m.dgUp ? digSane(m.dgUp) : null; // off the wire: typed and capped, or refused whole
+      if (upD) this.rxDig(upD); // G0b: freshness on MY clock
       if (upD && upD.at >= 0) {
         const pk = ck(m.coord);
         if (pk === ck(topo.down(this.coord))) this.downDig = upD;                         // my down-child head published MY OWNED CHILD ROW
         else if (this.coord.pc === 0 && m.coord.pc === 0) {                                // a rook peer published ITS SECTION
-          const it = this.s1tab.get(pk); if (it === undefined || it.at <= upD.at) this.s1tab.set(pk, upD);
+          const it = this.s1tab.get(pk); if (it === undefined || it.rx <= upD.rx) this.s1tab.set(pk, upD);
         } else if (this.coord.pc !== 0 && this.coord.i === 0 && m.coord.pc === this.coord.pc && m.coord.r === this.coord.r) this.rowKids.set(pk, upD); // a row-mate published ITS SUBTREE
       }
       const kk = ck(m.coord); const prev = this.occGet(kk);
@@ -1813,7 +1823,7 @@
       // A liar that strips its fold strips the echo too (`lie 1` models it) —
       // exactly what check (1) catches, since the peer holds the original.
       if (this.digOn()) {
-        pong.dgRoot = this.rootDig;
+        pong.dgRoot = this.wireDig(this.rootDig);
         const isDownKid = kk === ck(topo.down(this.coord));
         pong.dgPub = this.pubDig(isDownKid ? this.myDig : ((this.coord.pc !== 0 && this.coord.i === 0) ? this.rowDig : this.myDig));
         if (isDownKid) pong.dgEcho = this.pubDig(this.downUsed);
@@ -1903,12 +1913,13 @@
       // table), so the digest table rides it — no new frame (G0), and the fold
       // completes in two beats. Relaying another section's digest is
       // second-hand BY CONSTRUCTION; safe for exactly one reason (G1): a
-      // digest can never actuate. Entries carry their AUTHOR's stamp, relayed
-      // unchanged, so a relayed fold can never look fresher than it is.
+      // digest can never actuate. Entries carry their AUTHOR's stamp relayed
+      // unchanged (the G4 identifier) and their RELATIVE age grown by every hop
+      // that held them (G0b), so a relayed fold never looks fresher than it is.
       let digs = null;
       if (this.digOn()) {
         digs = [{ k: ck(this.coord), d: this.pubDig(this.myDig) }];
-        for (const [k, d] of this.s1tab) if (k !== ck(this.coord) && TICK - d.at <= DIG_TTL) digs.push({ k, d });
+        for (const [k, d] of this.s1tab) if (k !== ck(this.coord) && this.LT() - d.rx <= DIG_TTL) digs.push({ k, d: this.wireDig(d) });
       }
       for (const t of tg) { const msg = { t: 'S1SYNC', ent }; if (digs) msg.digs = digs; this.emit(t, msg); }
     }
@@ -2322,15 +2333,15 @@
         }
         case 'GREETWALK': return; // H6 retired
         case 'S1SYNC': {
-          // § G root fold: merge the relayed section table, freshest AUTHOR
-          // stamp wins. Purely additive display state — it touches nothing
-          // below this block.
+          // § G root fold: merge the relayed section table, the FRESHEST ON MY
+          // CLOCK wins (G0b relative ages). Purely additive display state — it
+          // touches nothing below this block.
           if (this.digOn() && this.hasCoord && this.coord.pc === 0 && m.digs) {
             for (const e of m.digs) {
               if (!isS1key(e.k)) continue;
               if (this.hasCoord && e.k === ck(this.coord)) continue; // never take a relayed claim about MY OWN section — I fold that first-hand
-              const ed = digSane(e.d); if (!ed || TICK - ed.at > DIG_TTL) continue;
-              const it = this.s1tab.get(e.k); if (it === undefined || it.at < ed.at) this.s1tab.set(e.k, ed);
+              const ed = digSane(e.d); if (!ed || ed.at < 0) continue; this.rxDig(ed); if (this.LT() - ed.rx > DIG_TTL) continue;
+              const it = this.s1tab.get(e.k); if (it === undefined || it.rx < ed.rx) this.s1tab.set(e.k, ed);
             }
           }
           // GOSSIP updates the ROSTER HINT (occ/s1seen) only — it NEVER evicts
@@ -2430,7 +2441,7 @@
           // relationship, not my history, is what has to be 2*DIG_TTL old.
           if (this.digOn() && this.hasCoord && this.coord.pc !== 0) {
             const rootD = m.dgRoot ? digSane(m.dgRoot) : null, pubD = m.dgPub ? digSane(m.dgPub) : null;
-            if (rootD && rootD.at >= 0 && rootD.at > this.rootDig.at) this.rootDig = rootD; // the room fold, one level per period (staleness O(depth x period))
+            if (rootD && rootD.at >= 0) { this.rxDig(rootD); if (this.rootDig.at < 0 || rootD.rx > this.rootDig.rx) this.rootDig = rootD; } // the room fold, one level per period (staleness O(depth x period)); fresher ON MY CLOCK wins (G0b)
             if (pubD && pubD.at >= 0 && m.coord) {
               const oc = this.ownerCoord();
               const isOwner = this.coord.i === 0 && !!oc && ck(m.coord) === ck(oc);

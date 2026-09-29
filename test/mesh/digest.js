@@ -103,6 +103,8 @@ function settledRoom(N, opts) {
   H.seedRng((opts && opts.seed) || 20260714);
   const env = H.makeFabric();
   env.DIGEST = !(opts && opts.digestOff);
+  if (opts && opts.skew) env.SKEW = opts.skew;     // G0b: every seat on its own clock (sim: net skew=)
+  if (opts && opts.digAbs) env.DIG_ABS = true;     // the pre-G0b absolute-stamp reading — NEGATIVE CONTROL only
   H.spawn(env, N);
   const jt = H.runJoin(env, N, 20000);
   run(env, (opts && opts.settle) !== undefined ? opts.settle : 1200);
@@ -422,7 +424,7 @@ function setFacts(env) {
     const f = { nm: 'p' + i };
     if (i % 20 === 3) f.hand = 1000 + i;
     if (i % 33 === 5) { f.stage = 2000 + i; f.sf = 2; f.dv = 'dv' + i; }
-    if (i === 5 || i === 17) { f.app = 3000 + i; f.ad = { s: 'app-' + i, k: 'secret' + i, relay: 'wss://r', name: 'App ' + i, ts: 3000 + i, byName: 'p' + i, audio: false }; }
+    if (i === 5 || i === 17) { f.app = 3000 + i; f.ad = { s: 'app-' + i, k: 'secret' + i, relay: 'wss://r', name: 'App ' + i, mesh: true, pk: 'pk' + i, ts: 3000 + i, byName: 'p' + i, audio: false }; }
     if (i % 10 === 7) f.away = true;
     f.vdn = [pool[i % 3]];
     if (i % 5 === 1) f.vup = [pool[(i + 1) % 4]];
@@ -542,11 +544,38 @@ leg('11) THE WIRE BOUNDARY — a hostile digest is refused whole');
     ['a list that is not an array', Object.assign({}, ok0, { apps: { 0: { id: 'k', k: 1 } } })],
     ['an app ad with an unknown field', Object.assign({}, ok0, { apps: [{ id: 'k', k: 1, a: { s: 'x', evil: 'y' } }] })],
     ['an app ad with an oversized field', Object.assign({}, ok0, { apps: [{ id: 'k', k: 1, a: { s: 'x'.repeat(300) } }] })],
+    ['an app ad whose mesh flag is not a boolean', Object.assign({}, ok0, { apps: [{ id: 'k', k: 1, a: { s: 'x', mesh: 'yes' } }] })],
     ['an oversized device tag', Object.assign({}, ok0, { stage: [{ id: 'k', k: 1, dv: 'd'.repeat(40) }] })],
   ];
   for (const [what, d] of hostile) check(`refused: ${what}`, M.digSane(d) === null);
   const polluted = M.digSane(JSON.parse('{"n":1,"refuse":0,"at":1,"__proto__":{"evil":1},"hands":[{"id":"k","k":1,"__proto__":{"x":1}}]}'));
   check('prototype keys never ride through a copy', !!polluted && polluted.evil === undefined && polluted.hands[0].x === undefined && ({}).evil === undefined);
+}
+
+leg('12) PER-SEAT CLOCKS — G0b: a digest carries its AGE, never a clock');
+// Every browser's tick starts at its own page load: no two seats share a clock.
+// Found 2026-09-28 by e2e-status-plane.js — ten browsers read as four, because
+// every fold compared another page's stamp against its own tick and threw the
+// report away as stale. env.SKEW gives each seat an offset in [0, SKEW]; the
+// fold, the lists and G4 must not care, and the absolute-stamp control must
+// collapse or this leg is not measuring clocks.
+for (const N of [20, 150]) {
+  const { env } = settledRoom(N, { skew: 5000 });
+  const skews = new Set(liveSeats(env).map((s) => s.skew));
+  check(`N=${N} the seats really are on different clocks (${skews.size} distinct offsets)`, skews.size > Math.min(N, 10) / 2, { distinct: skews.size });
+  setFacts(env); run(env, 800);
+  const d = digStat(env), { o } = listStat(env);
+  check(`N=${N} skewed clocks: root n == true at ALL ${d.obs} observers`, d.exact === d.obs && d.obs === N, { exact: d.exact, obs: d.obs, rmin: d.rmin, rmax: d.rmax });
+  check(`N=${N} skewed clocks: complete, unrefuted`, d.part === 0 && d.mism === 0, { partial: d.part, mismatch: d.mism });
+  check(`N=${N} skewed clocks: every root list equals the truth`, o.hand === o.obs && o.handN === o.obs && o.stage === o.obs && o.app === o.obs && o.away === o.obs && o.vote === o.obs, o);
+  const ages = liveSeats(env).map((s) => s.LT() - s.rootDig.rx);
+  check(`N=${N} the room fold is FRESH on every reader's own clock (max age ${Math.max(...ages)} <= 2 x DIG_TTL)`, Math.max(...ages) <= 120 && Math.min(...ages) >= 0, { min: Math.min(...ages), max: Math.max(...ages) });
+}
+{
+  const { env } = settledRoom(150, { skew: 5000, digAbs: true });
+  const d = digStat(env);
+  console.log(`  negative control (absolute stamps): exact ${d.exact}/${d.obs}, rootMax ${d.rmax}, mismatch ${d.mism}`);
+  check('the absolute-stamp control COLLAPSES under skew — the leg measures clocks', d.exact < d.obs, { exact: d.exact, obs: d.obs });
 }
 
 console.log(`  [leg took ${((Date.now() - legAt) / 1000).toFixed(1)}s]`);
