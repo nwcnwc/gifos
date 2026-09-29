@@ -34,7 +34,11 @@ direction (a 402 on `gifos.fetch`) has no broker hook, and Spend
 Permissions/subscriptions are not wired. `gifos-pay.js` stays parked Solana
 groundwork. **2026-08-28:** a FIFTH rail for AI-agent buyers — the Machine
 Payments Protocol with Stripe Link's Shared Payment Tokens, settled as
-Connect destination charges to opt-in authors — see "FIVE RAILS" below.
+Connect destination charges to opt-in authors — see "FIVE RAILS" below. **2026-09-28:** the author lists the rails they accept in the signed
+manifest (`capabilities.pay`; `true` = PayPal only), and the pay Worker
+verifies each app's signature itself instead of consulting the store — see
+"THE AUTHOR CHOOSES THE RAILS" below. The Worker is DEPLOYED at pay.gifos.app
+in test mode; PayPal waits on the partner approval.
 
 The live App Store has a **separate** optional fiat CTA (`site/js/gifos-cash.js`)
 — a tip or "feature this listing" button, plus an optional Stripe CTA meant
@@ -359,12 +363,12 @@ approves it *inside their own banking app* (nothing of ours renders there),
 poll to settlement. Only identities REGISTERED with the provider can be
 paid; an unregistered identity gets a plain refusal, not a pretend rail.
 
-**The self-dealing rule, and why the catalog now carries `pay`:** an invoice
-whose payTo came from the client would let a buyer "pay" their own address
-and collect a genuine gifos-signed receipt — a working restore token — while
-the author saw nothing. So the Worker binds the chain payee to the PUBLISHED
-catalog (`index.json` `pay.to`, from the signed manifest), exactly as it
-binds the PayPal payee to the signing identity, and `/x402/settle` checks
+**The self-dealing rule:** an invoice whose payTo came from the client would
+let a buyer "pay" their own address and collect a genuine gifos-signed
+receipt — a working restore token — while the author saw nothing. So the
+Worker binds the chain payee to the SIGNED manifest's `pay.to`, read from the
+app's signature proof (see "THE AUTHOR CHOOSES THE RAILS" below), exactly as
+it binds the PayPal payee to the signing identity, and `/x402/settle` checks
 the author leg against the same authority.
 
 **Fee honesty, and REGISTRATION (ratified 2026-08-26):** a direct wallet
@@ -372,7 +376,7 @@ send cannot split, and routing it through a GifOS account would be custody;
 the provider rail's split waits on provider capability. So on these two
 rails the 3% is NOT collected per transaction — instead, **the fee-free
 rails are open only to signing identities on the published rails registry**
-(`site/pay/registry.json`, fetched by the Worker like the catalog; absent or
+(`site/pay/registry.json`, fetched by the Worker; absent or
 expired → a plain refusal naming the policy and the way back). Registration
 is an annual flat fee — **the amount is deliberately NOT set yet** — which
 is the industry-honest inversion of Apple's model: they charge $99/yr AND
@@ -401,7 +405,8 @@ browser-driving agent (PayPal's guest card form takes any card, no code
 needed). The token path is the one that matters, because a CLI agent cannot
 click a PayPal window — and it is a near-exact fit for a Worker that
 already speaks a 402-shaped rail (`/x402/settle`) and mints stateless
-signed tokens (`/transfer/invoice`). So: `GET /mpp/charge/<appId>?sku=&amount=`
+signed tokens (`/transfer/invoice`). So: `GET /mpp/charge/<offer>` (the offer
+link the OS mints with `POST /mpp/offer` — see "No store" below)
 answers `402` with a `WWW-Authenticate: Payment … method="stripe"` challenge
 whose id is an HMAC over the challenge itself (the spec's stateless
 binding; `pay/src/mpp.js`, unit-tested in `test/unit/mpp-wire.js`), the
@@ -471,6 +476,74 @@ fees apply from the author's side. Not built: the `session` and
 `subscription` intents, Tempo/stablecoin MPP methods (the chain rail is
 Coinbase's, or nothing — that decision stands), a discovery document, and
 the buying direction.
+
+### THE AUTHOR CHOOSES THE RAILS, AND THE WORKER NEEDS NO STORE (ratified 2026-09-28)
+
+Nathan's decisions, 2026-09-28:
+
+- **The signer says which rails may pay them, in the signed manifest.**
+  `capabilities.pay: true` means **PayPal only**. Any other rail must be
+  listed: `"pay": ["x402", "transfer"]` allows exactly those. The names are
+  `paypal`, `x402`, `transfer`, `fednow`, `mpp`. An empty list, an unknown
+  name, a duplicate, or a chain rail with no `manifest.pay.to` is a
+  malformed manifest and the app cannot charge — a typo never widens or
+  empties what the author meant (`gifos-charge.js` `railsAllowed`). An
+  author who does not want PayPal leaves it out, and no buyer can pay them
+  over it.
+- **The pay Worker never consults the store.** Every request that starts a
+  payment carries the app's **signature proof** (`gifos-sign.js`
+  `proofOf`): the picture, `manifest.json` in full, and every other file as
+  a sha256 — exactly what the signed statement commits to, and nothing
+  else (the app's code never leaves the computer; the user's `.state/`
+  hashes are not even sent). The Worker rebuilds the content hash, checks
+  the signature against the author's own key (`https://<domain>/gifos.key`,
+  or the keyserver for an email — cached minutes, redirects not followed),
+  and reads the payee, the chain address and the allowed rails from the
+  manifest AS SIGNED (`checkProof`). An edited `pay.to`, a widened rails
+  list, a forged or dropped file hash, a swapped picture, or a signature
+  re-attributed to another identity each fail the signature. So **any
+  signed app can be paid, listed in the store or not** — "sign your app and
+  you can be paid, no permission from anyone" now holds for apps the store
+  has never seen.
+- **The kill switch is a blocklist on the pay Worker, and nothing else.**
+  `BLOCKED` (wrangler var): signing identities (`example.com`, `a@b.co`) or
+  single apps (`example.com/<appId>`) the Worker refuses. Checked when a
+  payment starts and again when an agent offer is redeemed, so a block also
+  stops offers minted before it. Removing an app from the store no longer
+  stops it being paid; this list does.
+
+**Enforced twice, because the sheet can be skipped.** The OS sheet draws a
+button only for rails the author listed AND the Worker can process right now
+(`POST /rails`: providers configured, the rails registry, onboarding,
+PayPal's partner approval) — so nobody picks a rail that refuses them after
+the click. And every Worker route refuses a rail the author did not list
+(`requireRail`), because anything in a browser can be bypassed: a buyer who
+posts straight to `/checkout` for a USDC-only app gets `403 … does not
+accept PayPal`, not a PayPal charge and a genuine receipt.
+
+**The agent rail without a store.** An agent holds no app bytes, so it
+cannot present a proof. Whoever holds the app (the OS) presents it once to
+`POST /mpp/offer {proof, sku, amount}` and gets back a signed
+`/mpp/charge/<offer>` link naming exactly that purchase; the agent pays the
+link. Stateless like the invoices — the token is the offer, signed with the
+receipt key, valid seven days.
+
+**PayPal stays closed until the partner approval.** `PAYPAL_PARTNER` is
+`pending`: `/rails` reports the PayPal rail closed with the reason, and
+`/checkout` answers `503` with it instead of sending PayPal an order it
+refuses (`422 PLATFORM_FEES_NOT_SUPPORTED`, measured on the first deploy).
+Flip it to `approved` when PayPal approves GifOS as a platform partner.
+
+**What this costs.** A proof is roughly the size of the app's picture
+(233 KB for `tip-creators`, whose GIF is 180 KB), sent with each request that
+starts a payment. Releases archived before 2026-09-28 send no proof, so their
+payment sheets cannot pay this Worker; no payment was ever live on them.
+
+Tests: `test/unit/pay-proof.js` (the proof and every way to forge one),
+`test/unit/pay-seller.js` (the Worker's side, with a stubbed network: the
+store is never fetched, every refusal, the blocklist), `charge-gate.js`
+(the rails rule), and `e2e-pay.js` end to end (the suite counts store hits
+and requires zero).
 
 ### THE PAYEE RULE — money goes to the signing identity, derived, not declared
 
@@ -559,7 +632,8 @@ Cloudflare Worker beside relay, cors-proxy and mirror:
 
 | endpoint | job |
 |---|---|
-| `POST /checkout` | derive the payee from the app's signing identity as recorded in the published, gate-verified catalog, create the PayPal order with `platform_fees`; answers with the order id and a one-time **claim** only this page ever sees |
+| `POST /rails` | from the app's signature proof: which of the author's allowed rails this deployment can process right now, each `{ok}` or `{ok:false, why}` — the OS sheet draws only those |
+| `POST /checkout` | derive the payee from the app's signing identity, VERIFIED from the app's signature proof, create the PayPal order with `platform_fees`; answers with the order id and a one-time **claim** only this page ever sees |
 | `GET /receipt/:id?claim=` | ask PayPal for the order (capturing it if the return page never did) and, only when the claim matches the tag the order was minted with, return an **Ed25519-signed receipt**, verifiable against `gifos.app/gifos.key`. PayPal's own answer is the only proof money moved — there is no webhook and no store of ours |
 
 The signed receipt is the load-bearing piece. The Worker signs
@@ -577,16 +651,16 @@ It is also the answer to the roadmap's open question about restoring purchases
 on a new device without accounts: the receipt IS the portable proof.
 
 **THE WORKER DERIVES THE PAYEE ITSELF, NEVER FROM THE CLIENT.** It does not
-accept a payee email from the browser. It looks the signing identity up in the
-published `site/apps/index.json` and nowhere else: an app that is not in the
-catalog gets no checkout at all. The catalog's `signature` field is not the
-Worker's finding — the Worker trusts the file as committed — it is the gate's:
-`scripts/build-app-catalog.mjs --check --require-signed` verifies every listed
-GIF's `GIFOSSIG` against `site/gifos.key` and refuses to commit a catalog whose
-claim does not verify, and `e2e-app-store.js` runs that check. So the chain is
-signed bytes → verified at commit → read at checkout, and the browser is never
-asked what it thinks the payee is — the same refusal `gifos-charge.js` makes
-locally, enforced again where it cannot be bypassed.
+accept a payee email or address from the browser. The browser hands it the
+app's signature PROOF, and the Worker verifies that against the author's own
+published key — the finding is the Worker's, made per request, not a claim
+it trusts from anywhere else. So the chain is signed bytes → verified at
+payment → payee read from what verified, and the browser is never asked what
+it thinks the payee is — the same refusal `gifos-charge.js` makes locally,
+enforced again where it cannot be bypassed. (Until 2026-09-28 the Worker
+read the payee out of the published `site/apps/index.json`, trusting the
+store gate's verification; that tied payments to the store and is gone —
+see "THE AUTHOR CHOOSES THE RAILS" below.)
 
 ### Funding the Worker is not the argument for the fee
 

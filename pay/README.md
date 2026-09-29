@@ -5,6 +5,13 @@ The fiat and chain rails' server half (doctrine: `docs/payments.md`, testing:
 facts ride inside the PayPal order itself, and /receipt asks PayPal, never a
 store of ours.
 
+No store either: every request that starts a payment carries the app's
+signature PROOF (`GifOS.sign.proofOf` — the picture, the manifest, every other
+file's sha256), and the Worker verifies it against the author's own key and
+reads the payee and the allowed rails from the manifest as signed. Any signed
+app can be paid; `BLOCKED` is the kill switch (`docs/payments.md` §THE AUTHOR
+CHOOSES THE RAILS).
+
 One brain, two wrappers: `src/core.js` runs unchanged here (via `src/pay.js`)
 and in the gate's Node twin (`test/servers/pay-local.js`). What the gate
 proves about one it proves about the other.
@@ -13,16 +20,18 @@ proves about one it proves about the other.
 
 | | |
 |---|---|
-| `POST /checkout` | derive the payee from the app's signing identity in the PUBLISHED catalog (never the client), create the PayPal order with the 3% `platform_fees` |
+| `POST /rails` | `{proof}` → which of the author's allowed rails (`capabilities.pay` in the signed manifest) this deployment can process right now, each `{ok}` or `{ok:false, why}`; the OS sheet draws only those |
+| `POST /checkout` | `{proof, amount, sku, reason}` — derive the payee from the signing identity the proof VERIFIES (never the client, never the store), refuse if the author did not list `paypal`, create the PayPal order with the 3% `platform_fees` (503 while `PAYPAL_PARTNER` is not `approved`) |
 | `GET /return` | PayPal lands the buyer back here; capture |
 | `GET /receipt/:id?claim=` | PayPal's own answer, wrapped in an Ed25519-signed receipt the OS verifies against `gifos.app/gifos-pay.key` — only to the one-time claim `/checkout` returned, so an order id alone reads nothing |
 | `POST /x402/settle` | the standard x402 facilitator wire (verify + settle per transfer of the 97/3 split), same signed-receipt shape |
-| `POST /transfer/invoice` | the wallet-transfer rail (RockWallet + every self-custody wallet): signed stateless invoice, dust-unique amount, catalog payee |
+| `POST /transfer/invoice` | the wallet-transfer rail (RockWallet + every self-custody wallet): signed stateless invoice, dust-unique amount, the signed manifest's `pay.to` |
 | `POST /transfer/bind` | re-sign that invoice bound to the payer's wallet address (amount and dust unchanged), so only a transfer FROM that wallet completes it |
 | `POST /transfer/receipt` | watch the chain (read-only `BASE_RPC`) for the exact transfer, from the bound wallet when there is one; same signed receipt, `feeCollected:false` |
 | `POST /fednow/rfp` | FedNow via a provider (`FEDNOW_API`, Finzly-shaped — FedNow itself has no public API); payee = the registered account for the signing identity (`FEDNOW_PAYEES`) |
 | `GET /fednow/receipt/:id` | poll the RfP to settlement; same signed receipt, `feeCollected:false` |
-| `GET\|POST /mpp/charge/:appId?sku=&amount=` | the AGENT rail — Machine Payments Protocol (HTTP 402, mpp.dev), the wire Stripe's Link agent wallet speaks (link.com/agents): a `WWW-Authenticate: Payment … method="stripe"` challenge, then a Shared Payment Token back, settled as a Stripe Connect DESTINATION charge to the author's connected account with the 3% as `application_fee_amount`; same signed receipt, plus a `Payment-Receipt` header |
+| `POST /mpp/offer` | `{proof, sku, amount}` → a signed `/mpp/charge/<offer>` link for exactly that purchase (an agent holds no app bytes, so the OS presents the proof once); valid seven days |
+| `GET\|POST /mpp/charge/<offer>` | the AGENT rail — Machine Payments Protocol (HTTP 402, mpp.dev), the wire Stripe's Link agent wallet speaks (link.com/agents): a `WWW-Authenticate: Payment … method="stripe"` challenge, then a Shared Payment Token back, settled as a Stripe Connect DESTINATION charge to the author's connected account with the 3% as `application_fee_amount`; same signed receipt, plus a `Payment-Receipt` header |
 | `POST /receipt/file` | package a signed receipt as the receipt GIF the OS opens — verified first; how an agent's purchase reaches the human's Purchases folder |
 
 ## An agent buying something
@@ -30,7 +39,7 @@ proves about one it proves about the other.
 ```bash
 npx skills add stripe/link-cli          # once: the Link agent wallet skill
 npx @stripe/link-cli auth login         # once: the human links their Link account
-npx @stripe/link-cli mpp pay "https://pay.gifos.app/mpp/charge/<appId>?sku=<sku>&amount=<base units>" \
+npx @stripe/link-cli mpp pay "<the /mpp/charge/<offer> link from POST /mpp/offer>" \
   --context "Buying <sku> for <app> on GifOS for <who>, because …"     # ≥100 chars
 ```
 
@@ -71,7 +80,7 @@ ask the PayPal rail makes (a processor account behind the payee), the only
 difference being that Stripe wants it before the first cent rather than
 after (`docs/payments.md` §FIVE RAILS). Hermetic
 test: `test/servers/fake-stripe.js`, driven by `test/browser/e2e-pay.js`;
-against Stripe's sandbox, `npx mppx@latest validate https://pay.gifos.app/mpp/charge/<appId>?amount=…`
+against Stripe's sandbox, `npx mppx@latest validate <an /mpp/charge/<offer> link>`
 and `link-cli … --test`.
 
 `PAYPAL_BASE` stays `api-m.sandbox.paypal.com` and `FACILITATOR_URL` stays
