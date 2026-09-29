@@ -367,6 +367,185 @@ leg('5) THE LYING AGGREGATOR — G4/G5');
   }
 }
 
+// ===========================================================================
+// § G9 — ROOM-GLOBAL LISTS (healing-laws G9; the sim's repro-digest.sh legs 6-10)
+// ===========================================================================
+const M = H.mesh;
+const liveSeats = (env) => [...env.seats.values()].filter((s) => s.alive && s.state === 3);
+// THE ORACLE, written independently of mesh.js's fold: plain sort and sum over
+// every seated seat's own leaf facts.
+function truth(env) {
+  const T = { n: 0, handN: 0, awayN: 0, hands: [], stage: [], apps: [], votes: new Map() };
+  const byK = (a, b) => (a.k - b.k) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  for (const s of liveSeats(env)) {
+    const L = s.leaf; T.n++;
+    if (L.hand) { T.handN++; T.hands.push({ id: s.id, k: L.hand, nm: L.nm }); }
+    if (L.stage) T.stage.push({ id: s.id, k: L.stage, f: L.sf, nm: L.nm });
+    if (L.app) T.apps.push({ id: s.id, k: L.app, s: L.as });
+    if (L.away) { T.awayN++; continue; }
+    for (const t of L.vup) { const v = T.votes.get(t) || { tgt: t, up: 0, dn: 0 }; v.up++; T.votes.set(t, v); }
+    for (const t of L.vdn) { const v = T.votes.get(t) || { tgt: t, up: 0, dn: 0 }; v.dn++; T.votes.set(t, v); }
+  }
+  T.hands = T.hands.sort(byK).slice(0, M.K_HAND);
+  T.stage = T.stage.sort(byK).slice(0, M.K_STAGE());
+  T.apps = T.apps.sort((a, b) => (b.k - a.k) || (a.id < b.id ? -1 : 1)).slice(0, M.K_APP);
+  const allV = [...T.votes.values()];
+  T.voteTop = allV.slice().sort((a, b) => ((b.up + b.dn) - (a.up + a.dn)) || (a.tgt < b.tgt ? -1 : 1)).slice(0, M.K_VOTE);
+  T.voteAll = T.votes;
+  return T;
+}
+const J = (x) => JSON.stringify(x);
+function listStat(env) {
+  const T = truth(env);
+  const o = { obs: 0, hand: 0, handN: 0, stage: 0, app: 0, away: 0, vote: 0, over: 0, excess: 0 };
+  for (const s of liveSeats(env)) {
+    const R = s.rootDig; if (!R || R.at < 0) continue; o.obs++;
+    if (J(R.hands) === J(T.hands)) o.hand++;
+    if (R.handN === T.handN) o.handN++;
+    if (J(R.stage) === J(T.stage)) o.stage++;
+    if (J(R.apps) === J(T.apps)) o.app++;
+    if (R.awayN === T.awayN) o.away++;
+    if (J(R.votes) === J(T.voteTop)) o.vote++;
+    for (const v of R.votes) {
+      const t = T.voteAll.get(v.tgt) || { up: 0, dn: 0 };
+      if (v.up > t.up || v.dn > t.dn) o.over++;
+      o.excess = Math.max(o.excess, v.up - t.up, v.dn - t.dn);
+    }
+  }
+  return { T, o };
+}
+// Deterministic leaf facts by index — the same across both arms of leg 10.
+function setFacts(env) {
+  const all = liveSeats(env).sort((a, b) => (a.id < b.id ? -1 : 1));
+  const pool = all.slice(0, 4).map((s, i) => 'dev' + i);
+  all.forEach((s, i) => {
+    const f = { nm: 'p' + i };
+    if (i % 20 === 3) f.hand = 1000 + i;
+    if (i % 33 === 5) { f.stage = 2000 + i; f.sf = 2; }
+    if (i === 5 || i === 17) { f.app = 3000 + i; f.as = 'app-' + i; }
+    if (i % 10 === 7) f.away = true;
+    f.vdn = [pool[i % 3]];
+    if (i % 5 === 1) f.vup = [pool[(i + 1) % 4]];
+    s.setLeaf(f);
+  });
+}
+
+leg('6) G9 LISTS TELL THE TRUTH — hands, Stage, app ads, away, votes');
+for (const N of [20, 150]) {
+  const { env } = settledRoom(N);
+  setFacts(env); run(env, 800);
+  for (const phase of ['settled', 'after a 20% churn']) {
+    if (phase !== 'settled') { const nk = H.kill(env, N, 0.2, ''); H.converge(env, N - nk, 40000); run(env, 1200); }
+    const { T, o } = listStat(env);
+    const all = o.hand === o.obs && o.handN === o.obs && o.stage === o.obs && o.app === o.obs && o.away === o.obs && o.vote === o.obs;
+    check(`N=${N} ${phase}: every root list equals the independent truth at all ${o.obs} observers (hands ${T.hands.length}, stage ${T.stage.length}, apps ${T.apps.length}, targets ${T.voteAll.size})`,
+      all && o.obs === liveSeats(env).length, o);
+    check(`N=${N} ${phase}: no vote over-counted`, o.over === 0, { over: o.over });
+  }
+}
+
+leg('7) VOTE STORM — more targets than K_VOTE: truncation only UNDER-counts');
+{
+  const { env } = settledRoom(150, { seed: 5 });
+  const all = liveSeats(env); let r = 99;
+  const rnd = () => { r = (Math.imul(r, 1103515245) + 12345) & 0x7fffffff; return r / 2147483648; };
+  for (const s of all) s.setLeaf({ vdn: ['t' + ((rnd() * 40) | 0)], vup: ['t' + ((rnd() * 40) | 0)] });
+  run(env, 1200);
+  const { T, o } = listStat(env);
+  console.log(`  targets=${T.voteAll.size} (K_VOTE ${M.K_VOTE}); exact observers ${o.vote}/${o.obs}`);
+  check('no observer\'s tally exceeds the truth for any target', o.over === 0, { over: o.over });
+  check('…not by a single vote', o.excess === 0, { excess: o.excess });
+}
+
+leg('8) THE SUPPRESSING LIST AGGREGATOR — G9 under G4/G5');
+{
+  const { env } = settledRoom(200);
+  const live = () => liveSeats(env);
+  live().forEach((s, i) => s.setLeaf({ hand: 5000 + i, nm: 'h' + i }));
+  run(env, 600);
+  const before = listStat(env).o;
+  check('the honest hand count was exact everywhere before the lie', before.handN === before.obs, before);
+  const liar = live().find((s) => s.coord.pc !== 0 && s.coord.i === 0 && s.occGet(ck(topo.down(s.coord))) != null && s.rowKids.size > 0);
+  check('found a deep aggregator with a row AND a subtree', !!liar);
+  if (liar) {
+    const accusations = [];
+    for (const s of live()) { s.digMismatch = 0; s.onDigMismatch = (e) => accusations.push(e); }
+    const c0 = H.counts(env);
+    liar.lie = 3; run(env, 400);
+    const after = listStat(env).o;
+    check(`the list suppression LANDS (exact hand count at ${before.handN} -> ${after.handN} observers)`, after.handN < before.handN, { before: before.handN, after: after.handN });
+    check(`the list lie is REFUTED (${accusations.length} refutations)`, accusations.length > 0);
+    const bad = accusations.filter((e) => { const m = e.me, a = e.agg;
+      return !((m.pc === a.pc && m.r === a.r && m.i > 0 && a.i === 0) || (m.pc === topo.childPath(a.pc, a.i) && m.r === a.r && m.i === 0)); });
+    check('every list refuter is a DESIGNATED checker', bad.length === 0, bad.slice(0, 3));
+    const accused = new Set(accusations.map((e) => e.aggId));
+    check('exactly ONE aggregator is accused (the liar)', accused.size === 1 && accused.has(liar.id), { accused: accused.size });
+    run(env, 1000); const c = H.counts(env);
+    check('G5: the list lie evicted NOTHING', c.seated === c0.seated && c.dups === 0 && c.teleport === 0, { before: c0, after: c });
+    liar.lie = 0;
+  }
+}
+
+leg('9) THE INFLATING VOTE AGGREGATOR — the population clamp');
+{
+  const { env } = settledRoom(200);
+  const all = liveSeats(env); all.forEach((s, i) => s.setLeaf({ vdn: ['v' + (i % 3)] }));
+  run(env, 600);
+  const liar = all.find((s) => s.coord.pc !== 0 && s.coord.i === 0 && s.rowKids.size > 0);
+  check('found a deep aggregator to lie', !!liar);
+  if (liar) {
+    liar.lie = 4; run(env, 800);
+    const pubN = (liar.coord.pc !== 0 && liar.coord.i === 0) ? liar.rowDig.n : liar.myDig.n;
+    const { o } = listStat(env);
+    console.log(`  +1000 per vote and a fabricated target; largest excess anywhere: ${o.excess}; the liar's published head count: ${pubN}`);
+    check(`vote inflation is held to the liar's own published head count (${o.excess} <= ${pubN})`, pubN > 0 && o.excess <= pubN, { excess: o.excess, pubN });
+    liar.lie = 0;
+  }
+}
+
+leg('10) G0/G1 WITH THE LISTS POPULATED — byte-identical, and not vacuous');
+{
+  function trajL(digestOn, seed) {
+    H.seedRng(seed); const env = H.makeFabric(); env.DIGEST = digestOn;
+    const h = []; let listFrames = 0;
+    const baseSend = env.send;
+    env.send = (from, to, m) => {
+      for (const f of ['dgUp', 'dgPub', 'dgRoot']) { const d = m[f]; if (d && (d.hands && d.hands.length || d.stage && d.stage.length || d.votes && d.votes.length)) { listFrames++; break; } }
+      h.push(fnv(env.TICK + '|' + from + '|' + to + '|' + canon(m), 2166136261)); baseSend(from, to, m);
+    };
+    H.spawn(env, 160); const jt = H.runJoin(env, 160, 20000);
+    setFacts(env); run(env, 200);
+    const nk = H.kill(env, 160, 0.15, ''); const kt = H.converge(env, 160 - nk, 40000); run(env, 300);
+    return { h, jt, kt, nk, c: H.counts(env), moves: env.moves, evict: env.evict, listFrames };
+  }
+  for (const seed of [20260714, 7]) {
+    const A = trajL(true, seed), B = trajL(false, seed);
+    let diff = -1; for (let i = 0; i < Math.min(A.h.length, B.h.length); i++) if (A.h[i] !== B.h[i]) { diff = i; break; }
+    check(`seed ${seed}: lists ON is BYTE-IDENTICAL to OFF, frame for frame (${A.h.length} frames)`, A.h.length === B.h.length && diff < 0, { on: A.h.length, off: B.h.length, firstDiff: diff });
+    check(`seed ${seed}: same ticks, moves, evictions, outcome`, A.jt === B.jt && A.kt === B.kt && A.moves === B.moves && A.evict === B.evict && J(A.c) === J(B.c));
+    check(`seed ${seed}: not vacuous — the ON arm carried list payload on ${A.listFrames} frames`, A.listFrames > 100, { listFrames: A.listFrames });
+  }
+}
+
+leg('11) THE WIRE BOUNDARY — a hostile digest is refused whole');
+{
+  const ok0 = { n: 3, refuse: 0, at: 5, hands: [{ id: 'k_a', k: 1, nm: 'Ann' }], votes: [{ tgt: 'dev1', up: 1, dn: 0 }] };
+  const clean = M.digSane(ok0);
+  check('a well-formed digest passes as a COPY', !!clean && clean !== ok0 && clean.hands[0] !== ok0.hands[0] && clean.hands[0].nm === 'Ann');
+  const hostile = [
+    ['a list longer than its K', Object.assign({}, ok0, { hands: Array.from({ length: M.K_HAND + 1 }, (_, i) => ({ id: 'k' + i, k: i })) })],
+    ['a vote list longer than K_VOTE', Object.assign({}, ok0, { votes: Array.from({ length: M.K_VOTE + 1 }, (_, i) => ({ tgt: 't' + i, up: 1, dn: 0 })) })],
+    ['a non-string id', Object.assign({}, ok0, { hands: [{ id: 7, k: 1 }] })],
+    ['an oversized name', Object.assign({}, ok0, { stage: [{ id: 'k_a', k: 1, nm: 'x'.repeat(500) }] })],
+    ['a negative vote', Object.assign({}, ok0, { votes: [{ tgt: 'd', up: -5, dn: 0 }] })],
+    ['a non-integer count', Object.assign({}, ok0, { n: 'lots' })],
+    ['a list that is not an array', Object.assign({}, ok0, { apps: { 0: { id: 'k', k: 1 } } })],
+  ];
+  for (const [what, d] of hostile) check(`refused: ${what}`, M.digSane(d) === null);
+  const polluted = M.digSane(JSON.parse('{"n":1,"refuse":0,"at":1,"__proto__":{"evil":1},"hands":[{"id":"k","k":1,"__proto__":{"x":1}}]}'));
+  check('prototype keys never ride through a copy', !!polluted && polluted.evil === undefined && polluted.hands[0].x === undefined && ({}).evil === undefined);
+}
+
 console.log(`  [leg took ${((Date.now() - legAt) / 1000).toFixed(1)}s]`);
 console.log(`\ntotal wall clock ${((Date.now() - T0) / 1000).toFixed(1)}s (mesh tier budget: 900s)`);
 console.log(fails === 0 ? 'ALL PASS' : fails + ' FAILED');

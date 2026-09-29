@@ -1105,7 +1105,54 @@ field is added to any relay-carried frame. Below C² participants everyone is in
 Section 1, the tree is one level, the near field is the whole room, and rollup ≡
 flood: the 2-person room and the plane guest behave exactly as they do today.
 
-**Where it is checked — in BOTH twins.** `test/sim/repro-digest.sh` (47
+**G9. Room-global LISTS ride the same fold, bounded, and truncation may only
+UNDER-count (ARGUED 2026-09-28).** The flood carried more than a count and a
+consent bit; four room-global facts had no other carrier
+(docs/status-plane-migration.md): the hand queue, the Stage roster, the
+room-app ad, and stage-vote tallies. Each becomes a capped field of the same
+digest, riding the same frames (G0):
+
+- **HAND** — the K_HAND earliest raised hands `{id, t}` plus `handN`, the
+  subtree's total. Order: earliest `t`, ties by id.
+- **STAGE** — the K_STAGE = 2C earliest stage claims `{id, t, f}` (flags: sing,
+  screen, app). 2C, not C: the consumer's own filters (admin grants,
+  vote exclusion) must still find C after dropping some.
+- **APP** — the K_APP newest room-app ads `{id, t}`. Order: newest `t`.
+- **VOTE** — per-target `{up, dn}` for the K_VOTE targets with the most votes,
+  plus `awayN` (away devices sit out voting, vote and denominator both).
+
+A list fold is the top-K of the union of its inputs — associative, so the top-K
+of the parts' top-Ks IS the room's top-K. Vote SUMS are not: a target cut from
+several subtrees' top-K loses those votes. So votes are summed over all of a
+level's inputs and truncated ONCE per level, and the residual loss runs in one
+direction only — **under-count votes, never the room** (docs/vote-scale.md §4).
+
+**Inflation is tied to the count, not caught by G4.** G4's author refutation
+catches SUPPRESSION, generalised to lists: *my entry is in your published fold,
+or your fold is full of K entries that outrank it*; *my vote count is in your
+published total, or your fold is full of K targets with at least my count*.
+It cannot catch an aggregator inflating a vote it never received, and an
+inflated DOWN-vote is not fail-safe — it can push a stager off the Stage. So
+every folded INPUT's `up`/`dn`, `handN` and `awayN` are clamped to that input's
+own `n`, and each level clamps again to its scope's `n`. A report therefore
+cannot claim more votes than the head count it publishes: inflating a vote
+means inflating the room's count, the lie the count already exposes
+(docs/vote-scale.md §3). That is the whole guarantee — `n` is itself a label a
+liar can inflate (G2) — and it is why the vote-scale protocol's signed leaves
+and spot audits remain the goal for enforcement at stadium scale. Until then
+the harm is no worse than the flood it replaces: flooded statuses were never
+author-signed, so any member could forge any other member's votes, hands and
+stage flag outright.
+
+**G1 still holds.** HAND, APP and VOTE inform display and self-owned acts (a
+target steps itself down on a tally about itself). STAGE feeds the Section-1
+strip packing, which today reads the same second-hand flooded flags; the
+digest changes the carrier, not the trust. No list field may evict, seat,
+move, admit, heal, or release privacy state, and no list field is
+security-AUTHORITATIVE (G6): admin grants and bans stay on the signed,
+on-change path, and the consumer applies them to the candidates.
+
+**Where it is checked — in BOTH twins.** `test/sim/repro-digest.sh` (72
 assertions) is the C++ reference gate: root convergence to the true count at
 N=2000 det within the staleness bound, refusal propagation, fail-closed
 partiality, the ON≡OFF trajectory identity (G1/G0), the designated checker
@@ -1113,7 +1160,7 @@ firing on a lying aggregator *and only there* (G4) with the seating trajectory
 unchanged (G5), and the O(C) gauges under churn. The sim's gauge verb is
 `digest`; `digeston 0|1`, `refuse`, and `lie` are its knobs.
 
-`test/mesh/digest.js` (45 assertions) is the same gate against the BROWSER twin
+`test/mesh/digest.js` (83 assertions) is the same gate against the BROWSER twin
 (`site/js/mesh.js`), over `mesh-harness.js`'s fabric. The port landed 2026-08-06
 — a faithful one: same function names, same constants (DIG_TTL 60, DIG_LOSS_H
 300), nothing redesigned. **It is flag-gated and DEFAULT OFF** (`env.DIGEST`;

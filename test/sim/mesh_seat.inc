@@ -1197,12 +1197,17 @@ Dig Seat::pubDig(const Dig& d){
   // inflates n, which G2 makes harmless by construction.
   if(lie==1){ o.refuse=0; o.part=0; }
   else if(lie==2){ o.n+=1000; }
+  // G9. Mode 3 SUPPRESSES the lists (the dangerous direction for hands, stage
+  // claims and ads — the checker's subject); mode 4 INFLATES every vote and adds
+  // a fabricated target (the population clamp's subject: G4 cannot see it).
+  else if(lie==3){ o.hands.clear(); o.stage.clear(); o.apps.clear(); o.votes.clear(); o.handN=0; o.awayN=0; }
+  else if(lie==4){ for(VE&v:o.votes){ v.up+=1000; v.dn+=1000; } o.votes.push_back({1<<29,1000,1000}); }
   return o;
 }
 // G4: remember every report I published upward, keyed by its own stamp. The
 // aggregator must ECHO the report it folded, and this ring is the ground truth
 // that echo is checked against.
-void Seat::noteUp(const Dig& d){ upLog[upLogI&15]={d.at,d.n,d.refuse}; upLogI++; if(upSince<0) upSince=TICK; }
+void Seat::noteUp(const Dig& d){ upLog[upLogI&15]={d.at,d.n,d.refuse,digListHash(d)}; upLogI++; if(upSince<0) upSince=TICK; }
 // (the ring is keyed by stamp; echo.by==id is checked by the caller before lookup)
 // G4, THE AUTHOR'S REFUTATION — the only check any node performs, and it is over
 // a value that node itself authored. No votes (G4.4), no adjudication (G5).
@@ -1246,8 +1251,14 @@ bool Seat::upRefuted(const Dig& pub,const Dig& echo,int base){
   if(echo.by!=id) return false;   // the echo names a DIFFERENT author — my cell's previous occupant's report, not mine. Not evidence.
   const UpRec* r=nullptr; for(int q=0;q<16;q++) if(upLog[q].at==echo.at){ r=&upLog[q]; break; }
   if(!r) return false;                                     // older than my ring — no record, so no accusation
-  if(echo.n!=r->n || echo.refuse!=r->refuse){ digArm=1; return true; }  // (1)
+  if(echo.n!=r->n || echo.refuse!=r->refuse || digListHash(echo)!=r->lh){ digArm=1; return true; }  // (1) — the lists too (G9)
   if(pub.n < base+echo.n || pub.refuse < echo.refuse){ digArm=2; return true; }  // (2)
+  // (2, G9) every list entry I authored is in the published fold, or the fold is
+  // FULL of entries that outrank it; every vote I contributed is in the published
+  // total, or the fold is full of targets with at least my count.
+  if(pub.handN < echo.handN || pub.awayN < echo.awayN
+     || !listHolds(pub.hands,echo.hands,K_HAND,true) || !listHolds(pub.stage,echo.stage,K_STAGE,true)
+     || !listHolds(pub.apps,echo.apps,K_APP,false) || !votesHold(pub.votes,echo.votes)){ digArm=4; return true; }
   return false;
 }
 // G3's fail-closed predicate, FALSIFIABLE (the E1/V4 amendment restated for the
@@ -1292,6 +1303,17 @@ void Seat::rollup(){
   struct R{ int* p; int v; ~R(){ *p=v; } } _r{&findNc,svFind};
   // --- (1) my SUBTREE = me + the child row I own -----------------------------
   Dig d; d.n=1; d.refuse=refuses?1:0; d.at=(int)TICK; d.by=id; d.part=0; d.freeC=0;
+  // G9 my own leaf facts. An away device sits out voting — its votes and its
+  // place in the denominator both (awayN).
+  if(handT){ d.handN=1; d.hands.push_back({id,handT,0}); }
+  if(stageT) d.stage.push_back({id,stageT,stageF});
+  if(appT) d.apps.push_back({id,appT,0});
+  if(away) d.awayN=1;
+  else {
+    unordered_set<int> u, w;
+    for(int t:vup) if(t!=id && u.insert(t).second) voteAdd(d.votes,{{t,1,0}});
+    for(int t:vdn) if(t!=id && w.insert(t).second) voteAdd(d.votes,{{t,0,1}});
+  }
   // G7 free-space, MEASURED ONLY: how many of my owned child row's cells look
   // admissible. Deliberately a PURE read (occ/sitting membership, no
   // cellReserved) — the reservation helpers lazily expire soft marks, and a
@@ -1300,15 +1322,17 @@ void Seat::rollup(){
     for(int c2=0;c2<C;c2++){ uint64_t k=ckey(rc[c2]); if(occ.count(k)||sitting.count(k)) continue; uint64_t dk2=ckey(down(rc[c2])); if(occ.count(dk2)||sitting.count(dk2)) continue; d.freeC++; }
     if(d.freeC) d.dmin=pcDepth(coord.pc)+1; }
   uint64_t dk=ckey(down(coord)); digGap=0; downUsed=Dig();
-  if(downDig.at>=0 && TICK-downDig.at<=DIG_TTL){ d.n+=downDig.n; d.refuse+=downDig.refuse; d.freeC+=downDig.freeC; if(downDig.dmin<d.dmin)d.dmin=downDig.dmin; if(downDig.part)d.part=1; downUsed=downDig; }
+  if(downDig.at>=0 && TICK-downDig.at<=DIG_TTL){ digFold(d,downDig); downUsed=downDig; }
   else if(scopeGap(dk)){ d.part=1; d.refuse+=1; digGap=1; }   // G3 FAIL-CLOSED: a subtree I believe populated but cannot currently hear counts as REFUSING, never as zero
+  digTrim(d);
   myDig=d;
   // --- (2) deep ROW HEAD: fold my row (my owner is linked only to me) --------
   if(coord.pc!=0 && coord.i==0){
     Dig r=myDig; r.at=(int)TICK; r.by=id; rowUsed.clear();
     for(int j=1;j<C;j++){ uint64_t rk=ckey({coord.pc,coord.r,(uint8_t)j}); auto it=rowKids.find(rk);
-      if(it!=rowKids.end() && TICK-it->second.at<=DIG_TTL){ r.n+=it->second.n; r.refuse+=it->second.refuse; r.freeC+=it->second.freeC; if(it->second.dmin<r.dmin)r.dmin=it->second.dmin; if(it->second.part)r.part=1; rowUsed[rk]=it->second; }
+      if(it!=rowKids.end() && TICK-it->second.at<=DIG_TTL){ digFold(r,it->second); rowUsed[rk]=it->second; }
       else if(scopeGap(rk)){ r.part=1; r.refuse+=1; digGap|=2; } }
+    digTrim(r);
     rowDig=r;
   }
   // --- (3) SECTION 1: fold the ROOT from the C^2 section digests -------------
@@ -1317,10 +1341,11 @@ void Seat::rollup(){
   if(coord.pc==0){
     Dig R; R.at=(int)TICK; R.by=id;
     for(int r0=0;r0<C;r0++) for(int i0=0;i0<C;i0++){ uint64_t k=ckey({0,(uint8_t)r0,(uint8_t)i0});
-      if(hasCoord && k==ckey(coord)){ R.n+=myDig.n; R.refuse+=myDig.refuse; R.freeC+=myDig.freeC; if(myDig.dmin<R.dmin)R.dmin=myDig.dmin; if(myDig.part)R.part=1; continue; }
+      if(hasCoord && k==ckey(coord)){ digFold(R,myDig); continue; }
       auto it=s1tab.find(k);
-      if(it!=s1tab.end() && TICK-it->second.at<=DIG_TTL){ R.n+=it->second.n; R.refuse+=it->second.refuse; R.freeC+=it->second.freeC; if(it->second.dmin<R.dmin)R.dmin=it->second.dmin; if(it->second.part)R.part=1; }
+      if(it!=s1tab.end() && TICK-it->second.at<=DIG_TTL) digFold(R,it->second);
       else if(scopeGap(k)){ R.part=1; R.refuse+=1; digGap|=4; } }
+    digTrim(R);
     rootDig=R;
   }
 }

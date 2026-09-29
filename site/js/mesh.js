@@ -125,8 +125,86 @@
   const DIG_TTL = 60;        // test/sim/mesh.cpp DIG_TTL — a report older than this is stale (G3: stale ⇒ fail-closed)
   const DIG_LOSS_H = 300;    // test/sim/mesh.cpp DIG_LOSS_H — the fail-closed blur horizon (spans RING_HOLD, the longest confirm window)
   // The digest record (sim struct Dig). by=null is the sim's by=-1; at=-1 means "never computed".
-  const dig0 = () => ({ n: 0, refuse: 0, freeC: 0, at: -1, by: null, dmin: 99, part: 0 });
-  const digFold = (dst, s) => { dst.n += s.n; dst.refuse += s.refuse; dst.freeC += s.freeC; if (s.dmin < dst.dmin) dst.dmin = s.dmin; if (s.part) dst.part = 1; };
+  // § G9 ROOM-GLOBAL LISTS (healing-laws G9; sim: mesh.cpp LE/VE, listMerge,
+  // digFold, digTrim, listHolds, votesHold — same rules). hands {id,k,nm},
+  // stage {id,k,f,nm}, apps {id,k,s}, votes {tgt,up,dn}; handN/awayN counts. The
+  // browser entries carry display payload the sim does not (nm: a short name,
+  // s: the app's session id) — it rides along, never orders, and is in the
+  // fidelity key so an echo must reproduce it too.
+  const K_HAND = 8, K_APP = 3, K_VOTE = 16;
+  const K_STAGE = () => 2 * C();
+  const dig0 = () => ({ n: 0, refuse: 0, freeC: 0, at: -1, by: null, dmin: 99, part: 0, handN: 0, awayN: 0, hands: [], stage: [], apps: [], votes: [] });
+  const leAsc = (a, b) => (a.k !== b.k ? a.k - b.k : (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));   // earliest first (hands, stage claims)
+  const leDesc = (a, b) => (a.k !== b.k ? b.k - a.k : (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));  // newest first (app ads)
+  const veOrd = (a, b) => { const ta = a.up + a.dn, tb = b.up + b.dn; return ta !== tb ? tb - ta : (a.tgt < b.tgt ? -1 : a.tgt > b.tgt ? 1 : 0); };
+  // top-K of the union, one entry per author (an author appears twice only across a cell handover: keep its best-ranked entry)
+  const listMerge = (dst, src, K, asc) => {
+    if (!src || !src.length) return dst;
+    const all = dst.concat(src).sort(asc ? leAsc : leDesc), out = [], seen = new Set();
+    for (const e of all) { if (out.length >= K) break; if (!seen.has(e.id)) { seen.add(e.id); out.push(e); } }
+    return out;
+  };
+  const voteAdd = (acc, v) => { for (const a of acc) if (a.tgt === v.tgt) { a.up += v.up; a.dn += v.dn; return; } acc.push({ tgt: v.tgt, up: v.up, dn: v.dn }); };
+  const digFold = (dst, s) => {
+    dst.n += s.n; dst.refuse += s.refuse; dst.freeC += s.freeC; if (s.dmin < dst.dmin) dst.dmin = s.dmin; if (s.part) dst.part = 1;
+    // POPULATION-BOUNDED CLAIMS, per INPUT: no more hands, away devices or votes
+    // for any target than the head count the report is published with.
+    const cap = s.n < 0 ? 0 : s.n;
+    dst.handN += Math.min(s.handN || 0, cap); dst.awayN += Math.min(s.awayN || 0, cap);
+    dst.hands = listMerge(dst.hands, s.hands, K_HAND, true); dst.stage = listMerge(dst.stage, s.stage, K_STAGE(), true); dst.apps = listMerge(dst.apps, s.apps, K_APP, false);
+    for (const v of (s.votes || [])) voteAdd(dst.votes, { tgt: v.tgt, up: Math.min(v.up, cap), dn: Math.min(v.dn, cap) });
+  };
+  // Close a level: population clamps, then the ONE vote truncation (sums may only UNDER-count).
+  const digTrim = (d) => {
+    const cap = d.n < 0 ? 0 : d.n;
+    if (d.handN > cap) d.handN = cap; if (d.awayN > cap) d.awayN = cap;
+    for (const v of d.votes) { if (v.up > cap) v.up = cap; if (v.dn > cap) v.dn = cap; }
+    d.votes.sort(veOrd); if (d.votes.length > K_VOTE) d.votes.length = K_VOTE;
+  };
+  // G4 fidelity key over the list fields (sim: digListHash): an echo must reproduce what I sent.
+  const digListKey = (d) => JSON.stringify([d.handN || 0, d.awayN || 0, d.hands || [], d.stage || [], d.apps || [], d.votes || []]);
+  // G4 monotonicity for a list: each entry I authored is in the published fold, or the fold is FULL of K entries that all outrank it.
+  const listHolds = (pub, mine, K, asc) => {
+    for (const e of (mine || [])) {
+      if ((pub || []).some((p) => p.id === e.id && p.k === e.k)) continue;
+      if (!pub || pub.length < K) return false;
+      for (const p of pub) if (!((asc ? leAsc : leDesc)(p, e) < 0)) return false;
+    }
+    return true;
+  };
+  const votesHold = (pub, mine) => {
+    for (const v of (mine || [])) {
+      const hit = (pub || []).find((p) => p.tgt === v.tgt);
+      if (hit) { if (hit.up < v.up || hit.dn < v.dn) return false; continue; }
+      if (!pub || pub.length < K_VOTE) return false;
+      for (const p of pub) if (p.up + p.dn < v.up + v.dn) return false;
+    }
+    return true;
+  };
+  // A digest off the WIRE is untrusted input: every field typed, every list
+  // capped at its K, every string bounded, or the report is refused whole. (The
+  // sim's fabric is trusted; this is the browser's boundary, not a law.)
+  const INT = (x) => Number.isInteger(x);
+  const STR = (x, n) => typeof x === 'string' && x.length <= n;
+  const saneLE = (e, kind) => !!e && STR(e.id, 64) && Number.isFinite(e.k) && (e.f === undefined || INT(e.f)) && (e.nm === undefined || STR(e.nm, 24)) && (kind !== 'app' || e.s === undefined || STR(e.s, 64));
+  const digSane = (d) => {
+    if (!d || typeof d !== 'object' || !INT(d.n) || !INT(d.refuse) || !Number.isFinite(d.at)) return null;
+    const o = { n: d.n, refuse: d.refuse, freeC: INT(d.freeC) ? d.freeC : 0, at: d.at, by: d.by == null ? null : String(d.by).slice(0, 64), dmin: INT(d.dmin) ? d.dmin : 99, part: d.part ? 1 : 0,
+      handN: INT(d.handN) && d.handN >= 0 ? d.handN : 0, awayN: INT(d.awayN) && d.awayN >= 0 ? d.awayN : 0, hands: [], stage: [], apps: [], votes: [] };
+    const lists = [['hands', K_HAND, 'hand'], ['stage', K_STAGE(), 'stage'], ['apps', K_APP, 'app']];
+    for (const [f, K, kind] of lists) {
+      const a = d[f]; if (a === undefined) continue;
+      if (!Array.isArray(a) || a.length > K || !a.every((e) => saneLE(e, kind))) return null;
+      o[f] = a.map((e) => { const c = { id: e.id, k: e.k }; if (e.f !== undefined) c.f = e.f; if (e.nm !== undefined) c.nm = e.nm; if (e.s !== undefined) c.s = e.s; return c; });
+    }
+    if (d.votes !== undefined) {
+      if (!Array.isArray(d.votes) || d.votes.length > K_VOTE || !d.votes.every((v) => v && STR(v.tgt, 16) && INT(v.up) && v.up >= 0 && INT(v.dn) && v.dn >= 0)) return null;
+      o.votes = d.votes.map((v) => ({ tgt: v.tgt, up: v.up, dn: v.dn }));
+    }
+    return o;
+  };
+  const digCopy = (d) => ({ n: d.n, refuse: d.refuse, freeC: d.freeC, at: d.at, by: d.by, dmin: d.dmin, part: d.part, handN: d.handN || 0, awayN: d.awayN || 0,
+    hands: (d.hands || []).map((e) => Object.assign({}, e)), stage: (d.stage || []).map((e) => Object.assign({}, e)), apps: (d.apps || []).map((e) => Object.assign({}, e)), votes: (d.votes || []).map((v) => ({ tgt: v.tgt, up: v.up, dn: v.dn })) });
 
   // A Section-1 key has pc==0 — its string ckey starts "0_".
   const isS1key = (k) => k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95;
@@ -240,7 +318,11 @@
       this.s1tab = new Map();    // Section 1 only: per-S1-cell subtree digests (<= C^2)
       // G4: the ring of reports I published upward (ground truth for the echo
       // check), and what I actually FOLDED this period (echoed to its authors).
-      this.upLog = []; for (let q = 0; q < 16; q++) this.upLog.push({ at: -1, n: 0, refuse: 0 });
+      this.upLog = []; for (let q = 0; q < 16; q++) this.upLog.push({ at: -1, n: 0, refuse: 0, lh: '' });
+      // § G9 MY OWN leaf facts (setLeaf — the application's, never a digest's):
+      // hand/stage/app times, stage flags, my short name and app session id,
+      // away, and my votes (device tags).
+      this.leaf = { hand: 0, stage: 0, sf: 0, app: 0, as: '', nm: '', away: false, vup: [], vdn: [] };
       this.upLogI = 0; this.upSince = -1; this.lastAgg = null; this.emptyEcho = 0;
       this.downUsed = dig0(); this.rowUsed = new Map();
       this.digMismatch = 0;      // refutations I have raised (mine only — no votes, G4)
@@ -1517,17 +1599,37 @@
     // ========================================================================
     digOn() { return this.env.DIGEST === true && this.state === 3; }
     pubDig(d) {
-      const o = { n: d.n, refuse: d.refuse, freeC: d.freeC, at: d.at, by: d.by, dmin: d.dmin, part: d.part };
+      const o = digCopy(d);
       // The adversary knob (tests only). Mode 1 SUPPRESSES — refusals and the
       // partial flag stripped: the ONE dangerous direction (G4.2) and the only
       // one the checker needs to catch; mode 2 inflates n, harmless by G2.
+      // G9: mode 3 SUPPRESSES the lists; mode 4 INFLATES every vote and adds a
+      // fabricated target (the population clamp's subject — G4 cannot see it).
       if (this.lie === 1) { o.refuse = 0; o.part = 0; }
       else if (this.lie === 2) { o.n += 1000; }
+      else if (this.lie === 3) { o.hands = []; o.stage = []; o.apps = []; o.votes = []; o.handN = 0; o.awayN = 0; }
+      else if (this.lie === 4) { for (const v of o.votes) { v.up += 1000; v.dn += 1000; } o.votes.push({ tgt: 'zz-fabricated', up: 1000, dn: 1000 }); }
       return o;
+    }
+    // § G9: the application sets THIS seat's own room-global facts; the next
+    // fold reads them. Nothing here is sent anywhere by itself (G0).
+    setLeaf(f) {
+      const L = this.leaf, str = (x, n) => (typeof x === 'string' ? x.slice(0, n) : '');
+      const tags = (a) => (Array.isArray(a) ? Array.from(new Set(a.filter((t) => typeof t === 'string' && t && t.length <= 16))).slice(0, 8) : []);
+      if (!f || typeof f !== 'object') return;
+      if ('hand' in f) L.hand = Number.isFinite(f.hand) && f.hand > 0 ? f.hand : 0;
+      if ('stage' in f) L.stage = Number.isFinite(f.stage) && f.stage > 0 ? f.stage : 0;
+      if ('sf' in f) L.sf = Number.isInteger(f.sf) ? f.sf & 7 : 0;
+      if ('app' in f) L.app = Number.isFinite(f.app) && f.app > 0 ? f.app : 0;
+      if ('as' in f) L.as = str(f.as, 64);
+      if ('nm' in f) L.nm = str(f.nm, 24);
+      if ('away' in f) L.away = !!f.away;
+      if ('vup' in f) L.vup = tags(f.vup);
+      if ('vdn' in f) L.vdn = tags(f.vdn);
     }
     // G4: remember every report I published upward, keyed by its own stamp —
     // the ground truth the aggregator's echo is checked against.
-    noteUp(d) { this.upLog[this.upLogI & 15] = { at: d.at, n: d.n, refuse: d.refuse }; this.upLogI++; if (this.upSince < 0) this.upSince = this.TICK; }
+    noteUp(d) { this.upLog[this.upLogI & 15] = { at: d.at, n: d.n, refuse: d.refuse, lh: digListKey(d) }; this.upLogI++; if (this.upSince < 0) this.upSince = this.TICK; }
     // G4, THE AUTHOR'S REFUTATION — the only check any node performs, over a
     // value that node itself authored. No votes (G4.4), no adjudication (G5).
     // (1) ECHO FIDELITY: what it says it took from me IS what I sent.
@@ -1549,8 +1651,13 @@
       if (echo.by !== this.id) return false; // the echo names a DIFFERENT author — my cell's previous occupant's report, not mine. Not evidence.
       let r = null; for (let q = 0; q < 16; q++) { if (this.upLog[q].at === echo.at) { r = this.upLog[q]; break; } }
       if (!r) return false;                  // older than my ring — no record, so no accusation
-      if (echo.n !== r.n || echo.refuse !== r.refuse) { this.digArm = 1; return true; }             // (1)
+      if (echo.n !== r.n || echo.refuse !== r.refuse || digListKey(echo) !== r.lh) { this.digArm = 1; return true; }  // (1) — the lists too (G9)
       if (pub.n < base + echo.n || pub.refuse < echo.refuse) { this.digArm = 2; return true; }      // (2)
+      // (2, G9) every list entry I authored is in the published fold, or the fold is FULL of entries that outrank it;
+      // every vote I contributed is in the published total, or the fold is full of targets with at least my count.
+      if ((pub.handN || 0) < (echo.handN || 0) || (pub.awayN || 0) < (echo.awayN || 0)
+          || !listHolds(pub.hands, echo.hands, K_HAND, true) || !listHolds(pub.stage, echo.stage, K_STAGE(), true)
+          || !listHolds(pub.apps, echo.apps, K_APP, false) || !votesHold(pub.votes, echo.votes)) { this.digArm = 4; return true; }
       return false;
     }
     // G3's fail-closed predicate, FALSIFIABLE and BOUNDED BY THE HEALING
@@ -1580,7 +1687,14 @@
       // mid-flight FIND.
       const svFind = this.findNc; this.findNc = null;
       try {
-        const d = { n: 1, refuse: this.refuses ? 1 : 0, freeC: 0, at: TICK, by: this.id, dmin: 99, part: 0 };
+        const d = dig0(); d.n = 1; d.refuse = this.refuses ? 1 : 0; d.at = TICK; d.by = this.id;
+        // G9 my own leaf facts. An away device sits out voting — its votes and its place in the denominator both.
+        const L = this.leaf;
+        if (L.hand) { d.handN = 1; d.hands.push({ id: this.id, k: L.hand, nm: L.nm }); }
+        if (L.stage) d.stage.push({ id: this.id, k: L.stage, f: L.sf, nm: L.nm });
+        if (L.app) d.apps.push({ id: this.id, k: L.app, s: L.as });
+        if (L.away) d.awayN = 1;
+        else { for (const t of L.vup) voteAdd(d.votes, { tgt: t, up: 1, dn: 0 }); for (const t of L.vdn) voteAdd(d.votes, { tgt: t, up: 0, dn: 1 }); }
         // G7 free-space, MEASURED ONLY: how many of my owned child row's cells
         // look admissible. Deliberately a PURE read (occ/sitting membership,
         // never cellReserved — the reservation helpers lazily expire soft
@@ -1596,19 +1710,21 @@
         const dk = ck(topo.down(this.coord)); this.digGap = 0; this.downUsed = dig0();
         if (this.downDig.at >= 0 && TICK - this.downDig.at <= DIG_TTL) { digFold(d, this.downDig); this.downUsed = this.downDig; }
         else if (this.scopeGap(dk)) { d.part = 1; d.refuse += 1; this.digGap = 1; } // G3 FAIL-CLOSED: a subtree I believe populated but cannot hear counts as REFUSING, never as zero
+        digTrim(d);
         this.myDig = d;
         if (this.coord.pc !== 0 && this.coord.i === 0) {
-          const r = { n: d.n, refuse: d.refuse, freeC: d.freeC, at: TICK, by: this.id, dmin: d.dmin, part: d.part };
+          const r = digCopy(d); r.at = TICK; r.by = this.id;
           this.rowUsed.clear();
           for (let j = 1; j < C(); j++) {
             const rk = ck({ pc: this.coord.pc, r: this.coord.r, i: j }); const it = this.rowKids.get(rk);
             if (it !== undefined && TICK - it.at <= DIG_TTL) { digFold(r, it); this.rowUsed.set(rk, it); }
             else if (this.scopeGap(rk)) { r.part = 1; r.refuse += 1; this.digGap |= 2; }
           }
+          digTrim(r);
           this.rowDig = r;
         }
         if (this.coord.pc === 0) {
-          const R = { n: 0, refuse: 0, freeC: 0, at: TICK, by: this.id, dmin: 99, part: 0 };
+          const R = dig0(); R.at = TICK; R.by = this.id;
           for (let r0 = 0; r0 < C(); r0++) for (let i0 = 0; i0 < C(); i0++) {
             const k = ck({ pc: 0, r: r0, i: i0 });
             if (this.hasCoord && k === ck(this.coord)) { digFold(R, this.myDig); continue; }
@@ -1616,6 +1732,7 @@
             if (it !== undefined && TICK - it.at <= DIG_TTL) digFold(R, it);
             else if (this.scopeGap(k)) { R.part = 1; R.refuse += 1; this.digGap |= 4; }
           }
+          digTrim(R);
           this.rootDig = R;
         }
       } finally { this.findNc = svFind; }
@@ -1633,12 +1750,13 @@
       // § G UP-LEG: the phoner's digest arrives as PAYLOAD on the beat it
       // already sends (G0). Which scope it names is decided by the phoner's
       // RELATION to me, read from its coord — never from anything it asserts.
-      if (this.digOn() && m.dgUp && m.dgUp.at >= 0) {
+      const upD = this.digOn() && m.dgUp ? digSane(m.dgUp) : null; // off the wire: typed and capped, or refused whole
+      if (upD && upD.at >= 0) {
         const pk = ck(m.coord);
-        if (pk === ck(topo.down(this.coord))) this.downDig = m.dgUp;                       // my down-child head published MY OWNED CHILD ROW
+        if (pk === ck(topo.down(this.coord))) this.downDig = upD;                         // my down-child head published MY OWNED CHILD ROW
         else if (this.coord.pc === 0 && m.coord.pc === 0) {                                // a rook peer published ITS SECTION
-          const it = this.s1tab.get(pk); if (it === undefined || it.at <= m.dgUp.at) this.s1tab.set(pk, m.dgUp);
-        } else if (this.coord.pc !== 0 && this.coord.i === 0 && m.coord.pc === this.coord.pc && m.coord.r === this.coord.r) this.rowKids.set(pk, m.dgUp); // a row-mate published ITS SUBTREE
+          const it = this.s1tab.get(pk); if (it === undefined || it.at <= upD.at) this.s1tab.set(pk, upD);
+        } else if (this.coord.pc !== 0 && this.coord.i === 0 && m.coord.pc === this.coord.pc && m.coord.r === this.coord.r) this.rowKids.set(pk, upD); // a row-mate published ITS SUBTREE
       }
       const kk = ck(m.coord); const prev = this.occGet(kk);
       // D5: my first-hand hearing of prev ENDS at my own transport loss (an
@@ -2199,8 +2317,8 @@
             for (const e of m.digs) {
               if (!isS1key(e.k)) continue;
               if (this.hasCoord && e.k === ck(this.coord)) continue; // never take a relayed claim about MY OWN section — I fold that first-hand
-              if (TICK - e.d.at > DIG_TTL) continue;
-              const it = this.s1tab.get(e.k); if (it === undefined || it.at < e.d.at) this.s1tab.set(e.k, e.d);
+              const ed = digSane(e.d); if (!ed || TICK - ed.at > DIG_TTL) continue;
+              const it = this.s1tab.get(e.k); if (it === undefined || it.at < ed.at) this.s1tab.set(e.k, ed);
             }
           }
           // GOSSIP updates the ROSTER HINT (occ/s1seen) only — it NEVER evicts
@@ -2299,16 +2417,17 @@
           // nothing from me yet and legitimately echoes nothing — the
           // relationship, not my history, is what has to be 2*DIG_TTL old.
           if (this.digOn() && this.hasCoord && this.coord.pc !== 0) {
-            if (m.dgRoot && m.dgRoot.at >= 0 && m.dgRoot.at > this.rootDig.at) this.rootDig = m.dgRoot; // the room fold, one level per period (staleness O(depth x period))
-            if (m.dgPub && m.dgPub.at >= 0 && m.coord) {
+            const rootD = m.dgRoot ? digSane(m.dgRoot) : null, pubD = m.dgPub ? digSane(m.dgPub) : null;
+            if (rootD && rootD.at >= 0 && rootD.at > this.rootDig.at) this.rootDig = rootD; // the room fold, one level per period (staleness O(depth x period))
+            if (pubD && pubD.at >= 0 && m.coord) {
               const oc = this.ownerCoord();
               const isOwner = this.coord.i === 0 && !!oc && ck(m.coord) === ck(oc);
               const isHead = this.coord.i > 0 && m.coord.pc === this.coord.pc && m.coord.r === this.coord.r && m.coord.i === 0;
               if (isOwner || isHead) {
                 if (pid !== this.lastAgg) { this.lastAgg = pid; this.upSince = TICK; this.emptyEcho = 0; }
                 else {
-                  const echo = (m.dgEcho && m.dgEcho.at != null) ? m.dgEcho : dig0();
-                  if (this.upRefuted(m.dgPub, echo, isOwner ? 1 : 0)) {
+                  const echo = (m.dgEcho && m.dgEcho.at != null) ? (digSane(m.dgEcho) || dig0()) : dig0();
+                  if (this.upRefuted(pubD, echo, isOwner ? 1 : 0)) {
                     this.digMismatch++;
                     if (this.onDigMismatch) { try { this.onDigMismatch({ arm: this.digArm, tick: TICK, meId: this.id, me: { pc: this.coord.pc, r: this.coord.r, i: this.coord.i }, aggId: pid, agg: { pc: m.coord.pc, r: m.coord.r, i: m.coord.i }, pub: m.dgPub, echo }); } catch (e) {} }
                   }
@@ -2516,5 +2635,6 @@
     }
   }
 
-  GifOS.mesh = { Seat, keyHash, RELAY_TTL, RELAY_CAP, E3_PERIOD, STRAND_TTL, RING_HOLD, EARLY_HOLD, CONFIRM_TTL, LEASE_TTL, DIG_TTL, DIG_LOSS_H, isS1key, ownerCoordOf };
+  GifOS.mesh = { Seat, keyHash, RELAY_TTL, RELAY_CAP, E3_PERIOD, STRAND_TTL, RING_HOLD, EARLY_HOLD, CONFIRM_TTL, LEASE_TTL, DIG_TTL, DIG_LOSS_H, isS1key, ownerCoordOf,
+    K_HAND, K_APP, K_VOTE, K_STAGE, digSane }; // digSane: the wire boundary, exported for its guard (test/mesh/digest.js leg 11)
 })(typeof window !== 'undefined' ? window : globalThis);

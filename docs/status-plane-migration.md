@@ -72,6 +72,17 @@ the digest ON; it never ran run.html's status flood (nor the relay door, fixed
 
 ## Steps (each ends green and committed)
 
+Landed so far on `status-digest`:
+- **The heartbeat's carrier** (`4ff74349`): `gossip(payload, { scope: 'section',
+  ephemeral })` in site/js/mesh.js; `test/mesh/status-plane.js` measures it —
+  section heartbeat max 133/192/192 frames/node/beat at N=20/100/400 (bound 216)
+  against the room flood's p50 696 -> 1896.
+- **G9 lists, both twins** (this step): healing-laws § G9; sim `mesh.cpp` +
+  `mesh_seat.inc`, `repro-digest.sh` legs 6-10 (72/72); browser `mesh.js` with
+  `setLeaf`/`roomDigest` on mesh-wire and `digSane` at every wire intake,
+  `test/mesh/digest.js` legs 6-11 (83/83). Whole sim tier + C-sweep 2..5 and
+  test/mesh 19/19 green.
+
 1. **Measure first.** A browser-side gauge of status frames/node/period (txStats +
    the harness), recorded at N = 25, 100, 500 on today's code — the baseline the
    migration must flatten.

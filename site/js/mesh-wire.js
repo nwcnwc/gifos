@@ -757,6 +757,21 @@
       // Room-wide app traffic (chat/status/votes/files): flood over the mesh —
       // the relay session is only the greeter pool now, not the room.
       gossip(payload, opts) { if (!stopped && seat) seat.gossip(payload, opts); }, // opts: { scope: 'section', ephemeral } — see mesh.js gossip()
+      // § G / G9 — the rollup digest's application face (healing-laws § G).
+      // setLeaf: THIS seat's own room-global facts (hand, stage claim, app ad,
+      // away, votes) — the next fold reads them. setRefuses: my own first-hand
+      // consent state, the only place a refusal is born (G3). roomDigest: the
+      // room fold as this seat last computed or heard it, with its age in
+      // ticks — DISPLAY input only (G1): nothing may evict, seat or unblur on it.
+      setLeaf(f) { if (seat) seat.setLeaf(f); },
+      setRefuses(b) { if (seat) seat.refuses = !!b; },
+      roomDigest() {
+        if (!seat || !env.DIGEST || !seat.rootDig || seat.rootDig.at < 0) return null;
+        const d = seat.rootDig;
+        return { at: d.at, age: env.TICK - d.at, n: d.n, refuse: d.refuse, part: d.part, handN: d.handN || 0, awayN: d.awayN || 0,
+          hands: (d.hands || []).map((e) => Object.assign({}, e)), stage: (d.stage || []).map((e) => Object.assign({}, e)),
+          apps: (d.apps || []).map((e) => Object.assign({}, e)), votes: (d.votes || []).map((v) => Object.assign({}, v)) };
+      },
       // App access to the wire's relay socket (the ONE socket): signaling
       // fallback ({t:'peer'}), moderation verbs (setpw/ban/votekick), etc.
       // Recreates the socket on demand, same as the mesh's own sends.

@@ -49,8 +49,87 @@ struct KV { uint64_t k; int v; };
 //            N=5000 jam (every branch has room); dmin answers "does it have
 //            room NEAR THE TOP", which is the question the jam actually poses.
 //            Folds in O(1): min over children, so it costs nothing extra.
-struct Dig { int n=0, refuse=0, freeC=0, at=-1, by=-1, dmin=99; uint8_t part=0; };
+// § G9 ROOM-GLOBAL LISTS (healing-laws G9) — the four facts the status flood
+// carried that have no other carrier, as capped fields of the same fold:
+//   hands  — the K_HAND earliest raised hands {id, raise time}; handN the total
+//   stage  — the K_STAGE earliest stage claims {id, step-up time, flags}
+//   apps   — the K_APP newest room-app ads {id, ad time}
+//   votes  — per-target {up, dn} for the K_VOTE most-voted targets; awayN the
+//            away devices (they sit out voting, vote and denominator both)
+// A list fold is top-K of the union — associative, so exact at the root. Vote
+// SUMS are truncated once per level and may only UNDER-count. Every level clamps
+// vote counts, handN and awayN to its scope's n (population-bounded claims).
+struct LE { int id=-1, k=0; uint8_t f=0; bool operator==(const LE&o)const{ return id==o.id&&k==o.k&&f==o.f; } };
+struct VE { int tgt=-1, up=0, dn=0; bool operator==(const VE&o)const{ return tgt==o.tgt&&up==o.up&&dn==o.dn; } };
+struct Dig { int n=0, refuse=0, freeC=0, at=-1, by=-1, dmin=99; uint8_t part=0;
+  int handN=0, awayN=0; vector<LE> hands, stage, apps; vector<VE> votes; };
 struct DigE { uint64_t k; Dig d; };
+static const size_t K_HAND=8, K_STAGE=2*C, K_APP=3, K_VOTE=16;
+static bool leAsc(const LE&a,const LE&b){ return a.k!=b.k ? a.k<b.k : a.id<b.id; }    // earliest first (hands, stage claims)
+static bool leDesc(const LE&a,const LE&b){ return a.k!=b.k ? a.k>b.k : a.id<b.id; }   // newest first (app ads)
+static bool veOrd(const VE&a,const VE&b){ int ta=a.up+a.dn, tb=b.up+b.dn; return ta!=tb ? ta>tb : a.tgt<b.tgt; }
+// top-K of the union, one entry per author (an author appears twice only across
+// a cell handover, inside DIG_TTL: keep its best-ranked entry)
+static void listMerge(vector<LE>& dst,const vector<LE>& src,size_t K,bool asc){
+  if(src.empty()) return;
+  dst.insert(dst.end(),src.begin(),src.end());
+  sort(dst.begin(),dst.end(),asc?leAsc:leDesc);
+  vector<LE> out; unordered_set<int> seen;
+  for(const LE&e:dst){ if(out.size()>=K) break; if(seen.insert(e.id).second) out.push_back(e); }
+  dst.swap(out);
+}
+static void voteAdd(vector<VE>& acc,const vector<VE>& src){   // untruncated within a level — digTrim cuts once
+  for(const VE&v:src){ bool hit=false; for(VE&a:acc) if(a.tgt==v.tgt){ a.up+=v.up; a.dn+=v.dn; hit=true; break; } if(!hit) acc.push_back(v); }
+}
+static void digFold(Dig& dst,const Dig& s){
+  dst.n+=s.n; dst.refuse+=s.refuse; dst.freeC+=s.freeC; if(s.dmin<dst.dmin)dst.dmin=s.dmin; if(s.part)dst.part=1;
+  // POPULATION-BOUNDED CLAIMS, per INPUT: a report may claim no more hands,
+  // away devices or votes for any target than the head count it is published
+  // with — so inflating a vote means inflating that count (docs/vote-scale.md §3).
+  int cap=s.n<0?0:s.n;
+  dst.handN+=min(s.handN,cap); dst.awayN+=min(s.awayN,cap);
+  listMerge(dst.hands,s.hands,K_HAND,true); listMerge(dst.stage,s.stage,K_STAGE,true); listMerge(dst.apps,s.apps,K_APP,false);
+  for(const VE&v:s.votes){ VE c=v; if(c.up>cap)c.up=cap; if(c.dn>cap)c.dn=cap;
+    bool hit=false; for(VE&a:dst.votes) if(a.tgt==c.tgt){ a.up+=c.up; a.dn+=c.dn; hit=true; break; } if(!hit) dst.votes.push_back(c); }
+}
+// Close a level: population clamps, then the one vote truncation.
+static void digTrim(Dig& d){
+  int cap=d.n<0?0:d.n;
+  if(d.handN>cap) d.handN=cap; if(d.awayN>cap) d.awayN=cap;
+  for(VE&v:d.votes){ if(v.up>cap) v.up=cap; if(v.dn>cap) v.dn=cap; }
+  sort(d.votes.begin(),d.votes.end(),veOrd);
+  if(d.votes.size()>K_VOTE) d.votes.resize(K_VOTE);
+}
+// G4 fidelity key over the list fields: an echo must reproduce what I sent.
+static uint64_t digListHash(const Dig& d){
+  uint64_t h=1469598103934665603ULL; auto mix=[&](uint64_t x){ h^=x+0x9e3779b97f4a7c15ULL+(h<<6)+(h>>2); };
+  mix((uint64_t)d.handN); mix((uint64_t)d.awayN);
+  for(const LE&e:d.hands){ mix(1); mix((uint64_t)e.id); mix((uint64_t)e.k); mix(e.f); }
+  for(const LE&e:d.stage){ mix(2); mix((uint64_t)e.id); mix((uint64_t)e.k); mix(e.f); }
+  for(const LE&e:d.apps){ mix(3); mix((uint64_t)e.id); mix((uint64_t)e.k); }
+  for(const VE&v:d.votes){ mix(4); mix((uint64_t)v.tgt); mix((uint64_t)v.up); mix((uint64_t)v.dn); }
+  return h;
+}
+// G4 monotonicity for a list: each entry I authored is in the published fold,
+// or the fold is FULL of K entries that all outrank it.
+static bool listHolds(const vector<LE>& pub,const vector<LE>& mine,size_t K,bool asc){
+  for(const LE&e:mine){
+    bool in=false; for(const LE&p:pub) if(p.id==e.id&&p.k==e.k){ in=true; break; }
+    if(in) continue;
+    if(pub.size()<K) return false;
+    for(const LE&p:pub) if(!(asc?leAsc(p,e):leDesc(p,e))) return false;
+  }
+  return true;
+}
+static bool votesHold(const vector<VE>& pub,const vector<VE>& mine){
+  for(const VE&v:mine){
+    const VE* hit=nullptr; for(const VE&p:pub) if(p.tgt==v.tgt){ hit=&p; break; }
+    if(hit){ if(hit->up<v.up||hit->dn<v.dn) return false; continue; }
+    if(pub.size()<K_VOTE) return false;
+    for(const VE&p:pub) if(p.up+p.dn<v.up+v.dn) return false;
+  }
+  return true;
+}
 struct Ent { uint64_t k; int v; int age; int ch=-1; int b=-1; };   // ch = the child (heir) of the seat at k — rides S1SYNC so every Section-1 seat learns every cell's heir; b = CLAIM BIRTH, the tick this (cell→claimant) pairing was first established (end-to-end, relayed unchanged — see the S1SYNC tie-break)
 struct Msg {
   MT t; int to=-1;
@@ -343,7 +422,12 @@ struct Seat {
   // heal, routing, liveness or E2 predicate. That is enforced by the ON/OFF
   // trajectory-identity leg of repro-digest.sh, not by good intentions.
   bool refuses=false;      // MY OWN first-hand consent state (has NOT consented). Local, never derived from a digest.
-  int  lie=0;              // adversary knob: 1 = publish refuse=0/part=0 (SUPPRESS — the one dangerous direction), 2 = inflate n
+  // § G9 MY OWN leaf facts — what I contribute to the room-global lists. Set by
+  // the application (the sim's hand/stage/app/away/vote verbs); never derived
+  // from a digest.
+  int handT=0, stageT=0, appT=0; uint8_t stageF=0; bool away=false; vector<int> vup, vdn;
+  int  lie=0;              // adversary knob: 1 = publish refuse=0/part=0 (SUPPRESS — the one dangerous direction), 2 = inflate n,
+                           // 3 = SUPPRESS the G9 lists (drop every entry, zero handN/awayN/votes), 4 = INFLATE votes (the population clamp's subject)
   // T7: has this seeker been told NOROOM to its face since it last entered the
   // search? Only an EXPLICIT NOROOM sets it — a timeout never does. Cleared on
   // seating and on re-entry, so the evidence never outlives the attempt.
@@ -366,11 +450,11 @@ struct Seat {
   // keyed by its own stamp. My aggregator must ECHO the report it folded; this
   // ring is the ground truth that echo is checked against. (A sliding-minimum
   // window was tried first and cannot work — see upRefuted's comment.)
-  struct UpRec{ int at=-1,n=0,refuse=0; };
+  struct UpRec{ int at=-1,n=0,refuse=0; uint64_t lh=0; };   // lh: G9 fidelity key over the list fields
   UpRec upLog[16]; int upLogI=0; long long upSince=-1; int lastAgg=-1, emptyEcho=0;   // upSince: first publish since my last seat change (grace window for a fresh aggregator)
   Dig  downUsed; unordered_map<uint64_t,Dig> rowUsed;   // G4: the reports I actually FOLDED this period (echoed back to their authors) — NOT what I currently hold
   long long digMismatch=0;                  // refutations I have raised (mine only — no votes, G4)
-  int digArm=0;   // G4 diagnostic: which refutation arm last fired (1 echo fidelity, 2 fold monotonicity, 3 omission)
+  int digArm=0;   // G4 diagnostic: which refutation arm last fired (1 echo fidelity, 2 fold monotonicity, 3 omission, 4 list monotonicity — G9)
   int digGap=0;                             // WHICH scope member I had to fail-closed on this fold: 1=my child row, 2=a row-mate, 4=a Section-1 cell (diagnostic; the `digest` verb names them)
   long long framesIn=0, framesIn0=0;        // GAUGE: frames delivered to me (all types); framesIn0 = window base
   void rollup();                            // fold my scopes — once per pulse period, O(C) work, N never appears
@@ -1519,6 +1603,72 @@ int main(int argc,char**argv){
       else { int q=atoi(who.c_str()); if(q>=0&&q<nextId&&alive[q]){ seats[q]->refuses=val!=0; n=1; } }
       long long tot=0; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->refuses) tot++;
       printf("OK refuse set=%lld trueRefuse=%lld\n",n,tot); }
+    // ---- § G9 leaf-fact verbs: a participant's OWN room-global facts --------
+    //   hand  <all|frac F|id> <0|1>          raise / lower a hand (key = now)
+    //   stage <all|frac F|id> <0|1> [flags]  claim / leave the Stage (flags: 1 sing, 2 screen, 4 app)
+    //   app   <all|frac F|id> <0|1>          advertise / withdraw a room app
+    //   away  <all|frac F|id> <0|1>          mark away (sits out voting)
+    //   vote  <all|frac F|id> <up|dn> <id|pool K>   add a vote (pool K: a random
+    //                                        target among the first K seated seats)
+    //   vote  clear                          everyone withdraws every vote
+    // "frac F" picks each live seat with probability F (deterministic under --det).
+    else if(op=="hand"||op=="stage"||op=="app"||op=="away"||op=="vote"){
+      auto pick=[&](const string& who,double f,vector<int>& out){
+        if(who=="all"){ for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3) out.push_back(q); }
+        else if(who=="frac"){ for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3&&grnd()<f) out.push_back(q); }
+        else { int q=atoi(who.c_str()); if(q>=0&&q<nextId&&alive[q]) out.push_back(q); } };
+      if(op=="vote" && tk.size()>1 && tk[1]=="clear"){
+        for(int q=0;q<nextId;q++) if(alive[q]){ seats[q]->vup.clear(); seats[q]->vdn.clear(); }
+        printf("OK vote clear\n");
+      } else {
+        string who=tk.size()>1?tk[1]:"all"; size_t a=2; double f=0;
+        if(who=="frac"){ f=tk.size()>2?atof(tk[2].c_str()):0.1; a=3; }
+        vector<int> sel; pick(who,f,sel);
+        if(op=="vote"){
+          string kind=tk.size()>a?tk[a]:"dn"; string tg=tk.size()>a+1?tk[a+1]:"pool"; int K=tk.size()>a+2?atoi(tk[a+2].c_str()):3;
+          vector<int> pool; if(tg=="pool"){ for(int q=0;q<nextId&&(int)pool.size()<K;q++) if(alive[q]&&seats[q]->state==3) pool.push_back(q); }
+          int added=0;
+          for(int q:sel){ int t=tg=="pool" ? (pool.empty()?-1:pool[(int)(grnd()*pool.size())]) : atoi(tg.c_str());
+            if(t<0||t==q) continue; (kind=="up"?seats[q]->vup:seats[q]->vdn).push_back(t); added++; }
+          printf("OK vote %s added=%d\n",kind.c_str(),added);
+        } else {
+          int val=tk.size()>a?atoi(tk[a].c_str()):1; uint8_t fl=(uint8_t)(tk.size()>a+1?atoi(tk[a+1].c_str()):0);
+          for(int q:sel){ Seat* s=seats[q];
+            if(op=="hand") s->handT=val?(int)TICK+1:0;
+            else if(op=="stage"){ s->stageT=val?(int)TICK+1:0; s->stageF=val?fl:0; }
+            else if(op=="app") s->appT=val?(int)TICK+1:0;
+            else s->away=val!=0; }
+          printf("OK %s set=%zu\n",op.c_str(),sel.size());
+        }
+      } }
+    // lists — does the G9 fold TELL THE TRUTH at every observer? Ground truth is
+    // a global-observer read of every seated seat's own leaf facts, folded by the
+    // same rules (top-K by the list's order; votes summed then top-K).
+    //   *Exact  — observers whose root list equals the truth
+    //   voteOver — observer-target pairs whose count EXCEEDS truth (must be 0 for
+    //              an honest room: truncation may only under-count)
+    else if(op=="lists"){
+      Dig T; T.n=0;
+      for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; Seat* s=seats[q]; T.n++;
+        if(s->handT){ T.handN++; T.hands.push_back({q,s->handT,0}); }
+        if(s->stageT) T.stage.push_back({q,s->stageT,s->stageF});
+        if(s->appT) T.apps.push_back({q,s->appT,0});
+        if(s->away) T.awayN++;
+        else { unordered_set<int> u,w; for(int t:s->vup) if(t!=q&&u.insert(t).second) voteAdd(T.votes,{{t,1,0}}); for(int t:s->vdn) if(t!=q&&w.insert(t).second) voteAdd(T.votes,{{t,0,1}}); } }
+      auto topk=[](vector<LE> v,size_t K,bool asc){ sort(v.begin(),v.end(),asc?leAsc:leDesc); if(v.size()>K) v.resize(K); return v; };
+      vector<LE> tH=topk(T.hands,K_HAND,true), tS=topk(T.stage,K_STAGE,true), tA=topk(T.apps,K_APP,false);
+      size_t trueTargets=T.votes.size(); vector<VE> allV=T.votes; digTrim(T);
+      int obs=0,hE=0,hnE=0,sE=0,aE=0,vE=0,awE=0; long long vOver=0; int vExcess=0, liarPubN=0;
+      for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3&&seats[q]->lie==4){ Seat* s=seats[q];
+        int pn=(s->hasCoord&&s->coord.pc!=0&&s->coord.i==0)?s->rowDig.n:s->myDig.n; if(pn>liarPubN) liarPubN=pn; }
+      for(int q=0;q<nextId;q++){ if(!alive[q]||seats[q]->state!=3) continue; const Dig& R=seats[q]->rootDig; if(R.at<0) continue; obs++;
+        if(R.hands==tH) hE++; if(R.handN==T.handN) hnE++; if(R.stage==tS) sE++; if(R.apps==tA) aE++; if(R.awayN==T.awayN) awE++;
+        if(R.votes==T.votes) vE++;
+        for(const VE& v:R.votes){ const VE* t=nullptr; for(const VE& x:allV) if(x.tgt==v.tgt){ t=&x; break; }
+          int eu=v.up-(t?t->up:0), ed=v.dn-(t?t->dn:0); if(eu>vExcess) vExcess=eu; if(ed>vExcess) vExcess=ed;
+          if(!t){ vOver++; continue; } if(v.up>t->up||v.dn>t->dn) vOver++; } }
+      printf("LISTS obs=%d hands=%zu handN=%d handExact=%d handNExact=%d stage=%zu stageExact=%d apps=%zu appExact=%d awayN=%d awayExact=%d voteTargets=%zu voteExact=%d voteOver=%lld voteExcessMax=%d liarPubN=%d\n",
+        obs,T.hands.size(),T.handN,hE,hnE,T.stage.size(),sE,T.apps.size(),aE,T.awayN,awE,trueTargets,vE,vOver,vExcess,liarPubN); }
     // lie <id|coord> <mode> — the adversary knob. mode 1 = SUPPRESS (publish
     // refuse=0, part=0: the ONE dangerous direction, G4.2); mode 2 = inflate n
     // (harmless by G2); 0 = honest.

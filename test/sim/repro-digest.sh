@@ -8,9 +8,9 @@
 # Nothing new is routed — the payload rides PHONE (up), its PONG (down) and
 # S1SYNC (the Section-1 table).
 #
-# SIM-ONLY BY DESIGN. site/js/mesh.js does NOT have this yet; the twins diverge
-# here on purpose until these gates are green at scale AND small-room e2e is
-# byte-identical (scale-audit sequencing step 4). Do not "fix" the divergence.
+# BOTH TWINS. site/js/mesh.js carries the same fold (flag-gated in the browser,
+# env.DIGEST); test/mesh/digest.js is this gate against the browser twin. The
+# G9 room-global lists (legs 6-10) landed in both on 2026-09-28.
 #
 # THE LEGS, each pinned to the law it guards:
 #   1) TRUTH        — root n converges to the TRUE seated count at EVERY
@@ -226,6 +226,97 @@ grep -q 'CHECK PASS' <<<"$(grep '^CHECK' <<<"$out")" \
   && ok "G5: the lie evicted NOTHING — mesh still fully seated, s1=25, dups=0" \
   || bad "the lying aggregator changed the seating: $(grep '^CHECK' <<<"$out")"
 chk "…and no duplicate cells" "$(grep '^DUPS' <<<"$out" | awk '{print $2}')" "0"
+
+# ---------------------------------------------------------------------------
+echo
+echo "=== 6) G9 LISTS TELL THE TRUTH — hands, Stage, app ads, away, votes ==="
+# The room-global facts the status flood carried, as capped fields of the same
+# fold. Ground truth is a global-observer read of every seat's own leaf facts
+# folded by the same rules; every observer's ROOT list must equal it, in a
+# one-level room (G8) and a deep one, and again after a 20% churn (the dead
+# seats' entries must leave within the staleness bound, the survivors' stay).
+facts=("hand frac 0.05 1" "stage frac 0.03 1 2" "app 5 1" "app 17 1" "away frac 0.1 1" "vote all dn pool 3" "vote frac 0.2 up pool 4")
+for N in 20 600 2000; do
+  out=$(run "det on" "seed 3" "init $N 0" "converge 60000" "tick 800" "${facts[@]}" "tick 800" "lists" "kill 0.2" "converge 60000" "tick 1200" "lists")
+  mapfile -t L < <(grep '^LISTS' <<<"$out")
+  for j in 0 1; do
+    tag=$([ $j = 0 ] && echo "settled" || echo "after a 20% churn")
+    o=$(fld "${L[$j]}" obs)
+    okall=1; for f in handExact handNExact stageExact appExact awayExact voteExact; do [ "$(fld "${L[$j]}" $f)" = "$o" ] || okall=0; done
+    [ "$okall" = 1 ] && ok "N=$N $tag: every root list equals the truth at all $o observers" \
+                     || bad "N=$N $tag: a root list disagrees with the truth — ${L[$j]}"
+    chk "N=$N $tag: no vote over-counted" "$(fld "${L[$j]}" voteOver)" "0"
+  done
+done
+
+# ---------------------------------------------------------------------------
+echo
+echo "=== 7) VOTE STORM — more targets than K_VOTE: truncation only UNDER-counts ==="
+# Every seat votes for a random target among 40 (K_VOTE is 16), twice over, in a
+# deep room. Truncation happens at every level; the root may lose votes for a
+# target cut from some subtree's top-K, but it may NEVER claim more than truth.
+out=$(run "det on" "seed 5" "init 2000 0" "converge 60000" "tick 800" "vote all dn pool 40" "vote all up pool 40" "tick 1200" "lists")
+Lv=$(grep '^LISTS' <<<"$out")
+echo "  targets=$(fld "$Lv" voteTargets) exactObservers=$(fld "$Lv" voteExact)/$(fld "$Lv" obs)"
+chk "no observer's tally exceeds the truth for any target" "$(fld "$Lv" voteOver)" "0"
+chk "…not by a single vote" "$(fld "$Lv" voteExcessMax)" "0"
+
+# ---------------------------------------------------------------------------
+echo
+echo "=== 8) THE SUPPRESSING LIST AGGREGATOR — G9 under G4/G5 ==="
+# lie mode 3 publishes folds (and echoes) with every list entry dropped: the
+# dangerous direction for hands, Stage claims and ads. It must land, be refuted
+# by the designated checkers and nobody else, accuse exactly one aggregator, and
+# evict nothing.
+out=$(MESH_DIGLOG=1 run "det on" "seed 1" "init 600 0" "converge 60000" "hand all 1" "stage frac 0.05 1" \
+          "tick 400" "lists" "digest reset" "lie $LIAR 3" "tick 400" "lists" "digest" "check" "dups")
+mapfile -t L < <(grep '^LISTS' <<<"$out")
+before=$(fld "${L[0]}" handNExact); after=$(fld "${L[1]}" handNExact); o=$(fld "${L[1]}" obs)
+echo "  observers with the exact hand count: $before (honest) -> $after (lied), of $o"
+[ "$after" -lt "$before" ] && ok "the list suppression LANDS" || bad "the list adversary knob did nothing"
+mism=$(fld "$(grep '^DIGEST' <<<"$out")" mismatch)
+[ "$mism" -gt 0 ] && ok "the list lie is REFUTED ($mism refutations raised)" || bad "a list-suppressing aggregator went unrefuted"
+badref=$(grep '^DIGMISMATCH' <<<"$out" | sed -nE 's/.*me=[0-9]+\(([0-9]+)\/([0-9]+)\.([0-9]+)\).*aggregator=[0-9]+\(([0-9]+)\/([0-9]+)\.([0-9]+)\).*/\1 \2 \3 \4 \5 \6/p' \
+  | awk '{ rowmate=($1==$4&&$2==$5&&$3>0&&$6==0); downkid=($1==$4*6+$6+1&&$2==$5&&$3==0); if(!rowmate&&!downkid) print }' | sort -u)
+[ -z "$badref" ] && ok "every list refuter is a DESIGNATED checker" || { bad "a non-designated seat refuted the list lie:"; echo "$badref" | head -3; }
+chk "exactly ONE aggregator is accused" "$(grep '^DIGMISMATCH' <<<"$out" | sed -nE 's/.*aggregator=([0-9]+).*/\1/p' | sort -u | wc -l)" "1"
+grep -q 'CHECK PASS' <<<"$(grep '^CHECK' <<<"$out")" && ok "G5: the list lie evicted NOTHING" || bad "the list lie changed the seating: $(grep '^CHECK' <<<"$out")"
+chk "…and no duplicate cells" "$(grep '^DUPS' <<<"$out" | awk '{print $2}')" "0"
+
+# ---------------------------------------------------------------------------
+echo
+echo "=== 9) THE INFLATING VOTE AGGREGATOR — the population clamp ==="
+# lie mode 4 adds 1000 to every vote it publishes and fabricates a target. G4
+# cannot see inflation; the per-input clamp must hold the excess anywhere in the
+# room to the head count the liar publishes (inflating a vote means inflating
+# the count — docs/vote-scale.md §3).
+out=$(run "det on" "seed 1" "init 600 0" "converge 60000" "tick 800" "vote all dn pool 3" "tick 400" "lie $LIAR 4" "tick 800" "lists" "check")
+Lv=$(grep '^LISTS' <<<"$out"); ex=$(fld "$Lv" voteExcessMax); pn=$(fld "$Lv" liarPubN)
+echo "  +1000 per vote published; largest excess anywhere in the room: $ex; the liar's published head count: $pn"
+[ "$pn" -gt 0 ] && [ "$ex" -le "$pn" ] && ok "vote inflation is held to the liar's own published head count ($ex <= $pn)" \
+                                      || bad "vote inflation escaped the population clamp ($ex > $pn)"
+grep -q 'CHECK PASS' <<<"$(grep '^CHECK' <<<"$out")" && ok "G5: the inflation evicted NOTHING" || bad "the vote lie changed the seating"
+
+# ---------------------------------------------------------------------------
+echo
+echo "=== 10) G0/G1 WITH THE LISTS POPULATED — trajectory identity, bounded state ==="
+# The lists add payload to frames that already exist and decide nothing: with
+# every list in use, digests ON and OFF must still be tick-for-tick identical
+# through join, targeted kills and heal — and per-node state must stay flat in N.
+trajL(){ run "digeston $1" "det on" "seed $2" "init 600 0" "converge 60000" "${facts[@]}" "tick 400" "state" \
+             "killat /0.0" "killat /1.0" "kill 0.15" "converge 60000" "state" "check" "dups" \
+         | grep -E '^STATE|^CHECK|^DUPS' | sed 's/inflight=[0-9]*//'; }
+for sd in 7 11; do
+  A=$(trajL 1 $sd); B=$(trajL 0 $sd)
+  [ "$A" = "$B" ] && ok "seed $sd: lists ON == OFF, tick-for-tick through join+kill+heal" \
+                  || { bad "seed $sd: the lists CHANGED the trajectory"; diff <(echo "$A") <(echo "$B") | head -6; }
+done
+for N in 300 2000; do
+  g=$(run "det on" "seed 2" "init $N 0" "converge 60000" "${facts[@]}" "tick 800" "digest" | grep '^DIGGAUGE')
+  eval "st$N=$(fld "$g" digState_max)"
+done
+echo "  peak per-node digest state with lists populated: N=300 $st300, N=2000 $st2000"
+[ "$st2000" -le "$st300" ] && ok "digest state does not grow with N with the lists in use" || bad "digest state grew with N ($st300 -> $st2000)"
 
 # ---------------------------------------------------------------------------
 echo

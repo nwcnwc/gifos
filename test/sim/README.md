@@ -43,7 +43,7 @@ byte-identical (scale-audit sequencing step 4).
                               #   DIGGAUGE frames/node/tick + peak digest state
       MESH_DIGLOG=1           # name every G4 refutation, both sides
 
-Gate: `test/sim/repro-digest.sh` (47 assertions).
+Gate: `test/sim/repro-digest.sh` (72 assertions, legs 6-10 the G9 lists).
 
 ## the descent instrument (FRONT 3) — MEASUREMENT ONLY
 
