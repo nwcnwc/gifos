@@ -37,9 +37,15 @@ function mintId(seed32) {
 const idSign = (priv, str) => ncrypto.sign(null, Buffer.from(str), priv).toString('base64');
 const idVerify = (pubB64, sigB64, str) => { try { return ncrypto.verify(null, Buffer.from(str), ncrypto.createPublicKey({ key: Buffer.from(pubB64, 'base64'), format: 'der', type: 'spki' }), Buffer.from(sigB64, 'base64')); } catch (e) { return false; } };
 const fillKeyOf = (m) => m.hole ? 'h:' + ck(m.hole) : (m.coord ? 'c:' + ck(m.coord) : (m.ck ? 'k:' + m.ck : '-'));
-const statement = (from, m) => JSON.stringify({ v: 1, t: m.t, k: fillKeyOf(m), id: (m.id != null ? m.id : null), from });
+const H_GOSSIP = new Set(['GSP', 'GSPS']);
+const statement = (from, m) => (H_GOSSIP.has(m.t)
+  ? JSON.stringify({ v: 1, t: m.t, gid: String(m.gid), from, sc: (m.sc === undefined ? null : m.sc), m: (m.m === undefined ? null : m.m) })   // gossip: the AUTHOR signs frame id, scope and payload (browser twin hashes the payload)
+  : JSON.stringify({ v: 1, t: m.t, k: fillKeyOf(m), id: (m.id != null ? m.id : null), from }));
 function newPins() { const map = new Map(); return { pin(id, pub) { const c = map.get(id); if (c === undefined) { map.set(id, pub); return true; } return c === pub; } }; }
 function signFill(identity, m) { const sp = statement(identity.peerId, m); m.s4 = { sp, sig: idSign(identity.priv, sp), pub: identity.pub }; }
+// Gossip: sign ONCE per message (the block is reused by every emit of the same gid).
+const gsigCache = new Map();
+function signGossip(identity, m) { const k = identity.peerId + '|' + m.gid, sp = statement(identity.peerId, m); let b = gsigCache.get(k); if (!b || b.sp !== sp) { b = { sp, sig: idSign(identity.priv, sp), pub: identity.pub }; gsigCache.set(k, b); if (gsigCache.size > 4096) gsigCache.clear(); } m.s4 = b; }   // (deterministic seeds re-mint the same ids and gids room after room: the cache is keyed by the statement too)
 // Verify a delivered SIGNED fill against the RECEIVER's pins; return ok (caller
 // stamps m.s4ok / drops). Same rejects as mesh-identity.verifyFill.
 function verifyDelivered(pins, m) {
@@ -89,6 +95,7 @@ function makeFabric() {
     peek(id) { const s = env.seats.get(id); if (!s) return null; return { hasCoord: s.hasCoord, coord: s.coord, socketed: s.socketed(), gateway: s.gateway }; },
     send(from, to, m) {
       if (H_SIGNED.has(m.t) && !m.s4) { const sf = env.seats.get(from); if (sf && sf.identity) signFill(sf.identity, m); }
+      if (H_GOSSIP.has(m.t) && m.s4 === undefined && env.S4_GOSSIP !== false) { const sf = env.seats.get(from); if (sf && sf.identity && m.src === sf.id) signGossip(sf.identity, m); } // an author signs; a forwarder never signs another's
       classifyEmit(env, from, to, m);
       const pk = pairKey(from, to); let d;
       if (env.openPairs.has(pk)) d = 1 + (env.seq & 1);
@@ -126,7 +133,9 @@ function counts(env) {
 
 function doTick(env) {
   const q = env.bus.get(env.TICK);
-  if (q) { for (const m of q) { const s = env.seats.get(m.to); if (!s || !s.alive) continue; if (H_SIGNED.has(m.t)) { if (!verifyDelivered(s.pins, m)) continue; m.s4ok = true; } s.recv(m); } env.bus.delete(env.TICK); }
+  if (q) { for (const m of q) { const s = env.seats.get(m.to); if (!s || !s.alive) continue; if (H_SIGNED.has(m.t)) { if (!verifyDelivered(s.pins, m)) continue; m.s4ok = true; }
+      if (H_GOSSIP.has(m.t) && env.S4_GOSSIP !== false) { if (s.gseen && s.gseen.has(m.gid)) continue; if (!verifyDelivered(s.pins, m) || JSON.parse(m.s4.sp).from !== m.src) { s.gspForged = (s.gspForged || 0) + 1; continue; } m.s4ok = true; }
+      s.recv(m); } env.bus.delete(env.TICK); }
   for (const s of env.seats.values()) if (s.alive) s.tick();
   env.TICK++;
 }
@@ -361,7 +370,7 @@ function d5Scenario() {
 module.exports = {
   mesh, net, topo, ck,
   makeFabric, doTick, converge, counts, spawn, spawnOne, spawnDue, runJoin, kill,
-  mintId, newPins, signFill, verifyDelivered, seatSeed, seedRng, H_SIGNED,
+  mintId, newPins, signFill, signGossip, verifyDelivered, seatSeed, seedRng, H_SIGNED, H_GOSSIP,
 };
 
 if (require.main === module) {

@@ -18,6 +18,7 @@
 //      'GSP' and re-flood whatever they take to every link) cannot leak a
 //      scoped heartbeat out of its section: they never take one. The control
 //      feeds them the scope-as-a-field encoding and must leak.
+//   9. SIGNED GOSSIP — a forged author or an unsigned frame reaches nobody.
 //   8. FLOOD GUARD — a hostile member's flood is bounded by its links.
 //   7. AGE — a relayed message carries how long relays held it.
 //   5. BACKLOG — ephemeral heartbeats never enter the re-fan backlog, and a chat
@@ -153,6 +154,7 @@ console.log('\n=== 6) MIXED VERSIONS — an old client cannot re-flood a scoped 
 // N=400 carried section heartbeats to 385 seats.
 function mixedRoom(N, nOld, leaky) {
   const env = settledRoom(N);
+  if (leaky) env.S4_GOSSIP = false; // the control models the pre-signing wire too: a re-flooded frame from an old client carries no signature a new client would take
   const seated = [...env.seats.values()].filter((s) => s.alive && s.state === 3 && s.hasCoord);
   const byId = new Map(seated.map((s) => [s.id, s]));
   const olds = seated.filter((s) => s.coord.pc !== 0).filter((s, i) => i % 7 === 0).slice(0, nOld);
@@ -234,6 +236,38 @@ function floodRoom(N, guard) {
   check(`…and the same at N=300 (${on2.max.toFixed(1)}): the bound does not see the room`, on2.max <= cap, on2);
   check(`…and an honest chat line sent mid-flood reached every seat (${on.chat}/${on.honest})`, on.chat === on.honest, on);
   check(`control, guard OFF: every seat takes the whole flood (${off.p50.toFixed(0)} a tick)`, off.p50 >= 100, off);
+}
+
+console.log('\n=== 9) SIGNED GOSSIP — nobody speaks in another\'s name, and nothing unsigned travels');
+// The flood guard budgets by author, so the author must be unforgeable: every
+// gossip frame carries its author's signature, verified at every hop before it
+// is taken or forwarded. The control (env.S4_GOSSIP = false) is the pre-signing
+// wire, where a forged author lands everywhere.
+function forgeRoom(N, signed) {
+  H.seedRng(20260929);
+  const env = H.makeFabric(); env.DIGEST = true; env.S4_GOSSIP = signed;
+  H.spawn(env, N); H.runJoin(env, N, 20000); run(env, 400);
+  const seated = [...env.seats.values()].filter((s) => s.alive && s.state === 3 && s.hasCoord);
+  const bad = seated.find((s) => s.coord.pc !== 0), victim = seated.find((s) => s !== bad && s.coord.pc === 0);
+  const heardForged = new Set(), heardUnsigned = new Set();
+  for (const s of seated) s.onGossip = (src, m) => { if (m && m.forged && src === victim.id) heardForged.add(s.id); if (m && m.unsigned) heardUnsigned.add(s.id); };
+  // 1. a frame in the victim's name, signed with the attacker's OWN key: a valid signature by the wrong author
+  const forged = { t: 'GSP', gid: victim.id + ':forged', src: victim.id, m: { forged: 1 } };
+  if (signed) H.signGossip(bad.identity, forged);
+  for (const p of bad.linkPeers()) bad.emit(p, Object.assign({}, forged));
+  // 2. an unsigned frame in the attacker's own name (s4: null tells the harness fabric to send it as is)
+  for (const p of bad.linkPeers()) bad.emit(p, { t: 'GSP', gid: bad.id + ':unsigned', src: bad.id, m: { unsigned: 1 }, s4: null });
+  run(env, 64);
+  let forgedDrops = 0; for (const s of seated) forgedDrops += s.gspForged || 0;
+  return { forged: heardForged.size, unsigned: heardUnsigned.size, seats: seated.length, drops: forgedDrops, links: bad.linkPeers().size };
+}
+{
+  const on = forgeRoom(120, true);
+  check(`signed: a message in the victim's name reaches NOBODY (${on.forged}/${on.seats})`, on.forged === 0, on);
+  check(`signed: an unsigned message reaches NOBODY (${on.unsigned}/${on.seats})`, on.unsigned === 0, on);
+  check(`…both dropped at the attacker's ${on.links} direct neighbours (${on.drops} drops)`, on.drops > 0 && on.drops <= 2 * on.links, on);
+  const off = forgeRoom(120, false);
+  check(`control, unsigned wire: the forged line reaches the room (${off.forged}/${off.seats})`, off.forged > off.seats / 2, off);
 }
 
 console.log(fails ? `\n${fails} FAIL` : '\nALL PASS');

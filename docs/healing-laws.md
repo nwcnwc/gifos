@@ -1204,6 +1204,21 @@ a far seat within the fold's staleness, O(depth × period), and any one member
 can hold the whole room blurred. Changing that is a product decision, not an
 engineering one.
 
+**Gossip is SIGNED by its author and budgeted per link and per author
+(2026-09-29, Nathan: design for the malicious client, block by design).**
+Every GSP/GSPS frame carries its author's S4 signature over the frame type,
+its id, its scope and a hash of the payload; every hop verifies it before the
+seat sees the frame, pins the author's key TOFU, and forwards only what it
+verified. Nobody can speak in another's name, nothing unsigned travels, and
+the flood guard's per-author budget (2 new messages a tick on any one link)
+cannot be dodged by impersonation. A hostile member can still mint fresh
+identities; those meet the per-link budget (10 a tick), so what any one
+client can push into the room is bounded by its links, in a room of any size.
+A status is never taken off the room-wide flood at all (Rule 1). What the app
+refuses, the mesh does not forward. `test/mesh/status-plane.js` legs 8-9 and
+`test/browser/e2e-status-plane.js` legs 5b-5e pin it; `test/unit/room-flood-
+laws.js` pins that each mechanism still exists in the source.
+
 **G1 still holds.** HAND, APP and VOTE inform display and self-owned acts (a
 target steps itself down on a tally about itself). STAGE feeds the Section-1
 strip packing, which today reads the same second-hand flooded flags; the

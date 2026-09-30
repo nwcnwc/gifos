@@ -116,7 +116,8 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
     const up = await pages[g.i].evaluate(() => window.__gifosVideo.stageForTest(true));
     check('the granted guest may take the Stage', up === true, up);
     const onStage = await until(() => Promise.all(pages.map((pg) => pg.evaluate(() => window.__gifosVideo.stageIds()).catch(() => []))), (v) => v.every((x) => x.includes(g.s.id)), 45000);
-    check('every seat\'s Stage shows the granted guest', onStage.ok, { secs: onStage.secs, missing: onStage.v.map((x, i) => (x.includes(g.s.id) ? null : 'P' + i)).filter(Boolean) });
+    const diag = onStage.ok ? undefined : await Promise.all(pages.map((pg) => pg.evaluate((id) => { const V = window.__gifosVideo, sp = V.statusPlane(); return { c: sp.coord && (sp.coord.pc + '/' + sp.coord.r + '.' + sp.coord.i), grant: V.modOn(id, 'app'), dstage: sp.stage.map((x) => x.slice(0, 6)), n: sp.n, age: sp.age, g: V.gossipStats() }; }, g.s.id).catch((e) => String(e).slice(0, 60))));
+    check('every seat\'s Stage shows the granted guest', onStage.ok, { secs: onStage.secs, missing: onStage.v.map((x, i) => (x.includes(g.s.id) ? null : 'P' + i)).filter(Boolean), diag });
     await pages[g.i].evaluate(() => window.__gifosVideo.stageForTest(false));
   }
 

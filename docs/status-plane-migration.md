@@ -184,8 +184,9 @@ Landed so far on `status-digest`:
     intake is bounded by its links in a room of any size. status-plane.js
     leg 8: an attacker sending 120 a tick lands 8.5 a tick at most, the same
     at N=300, and an honest chat line sent mid-flood reaches every seat.
-    Known limit: gossip authors are claimed, not signed. An attacker forging a
-    new author per message meets only the per-link bucket.
+    Gossip is now SIGNED by its author (below), so the per-author budget
+    cannot be dodged by impersonation; fresh identities meet the per-link
+    bucket.
   - **One message is one flood.** Every receiver re-broadcast chat lines,
     captions, file notices and deletions to the whole room on first sight: N
     floods per message. The author's flood is now the only one. A file notice
@@ -193,6 +194,23 @@ Landed so far on `status-digest`:
     link by link. e2e-status-plane leg 5b counts the floods: one.
   - **The claim-birth fix landed** (healing-laws C5), with
     repro-compaction's depth allowance widened by one.
+  - **Signed gossip.** Every room-wide or section message carries its
+    author's S4 signature; every hop verifies before taking or forwarding.
+    status-plane.js leg 9: a line forged in a victim's name and an unsigned
+    line both reach nobody and are dropped at the attacker's neighbours; the
+    unsigned-wire control lets the forgery reach the whole room.
+    e2e-status-plane leg 5d does the same with five forged chat lines in ten
+    real browsers. Old clients' gossip is unsigned and therefore dropped by
+    new clients during a rollout: their chat and captions do not reach new
+    clients until they upgrade (their statuses still ride the DataChannel
+    pulse to direct links).
+  - **Tripwires against the flood coming back.** e2e-status-plane leg 5e:
+    twenty quiet seconds in a ten-browser room originate no room-wide flood
+    and deliver no seat more gossip than its section can send it.
+    test/unit/room-flood-laws.js pins in the source that each mechanism
+    still exists: the section-scoped heartbeat on its own frame type, Rule
+    1, no receiver re-broadcast, the two budgets, signing and verification,
+    the digest default, the stubs, and the suites themselves.
   - **Waiting:** Rule 2 (chat scoped to the section by default).
 
 Flakes seen on this branch that also fail on unmodified main (A/B on the

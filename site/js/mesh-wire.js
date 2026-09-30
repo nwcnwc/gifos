@@ -160,6 +160,7 @@
     let peer = identity ? identity.peerId : null;   // set post-mint
     const s4on = true;                      // unconditional — no off switch
     const verifyChain = net.makeChain();
+    const gsig = new Map(); // gid -> Promise<s4> for gossip I authored (signed once, sent many times)
 
     let seat = null, timer = null;
     let readyResolve; const ready = new Promise((r) => { readyResolve = r; });
@@ -288,6 +289,18 @@
           ident.signFill(identity, m).then((s) => { if (!stopped) { m.s4 = s; deliver(to, m); } }).catch(() => {});
           return;
         }
+        // GOSSIP I AUTHOR is signed once per message and the block reused for
+        // every link, re-fan and replay (the signature commits to the frame,
+        // not the destination). A frame I merely forward already carries its
+        // author's block; one that does not was never verified and does not
+        // leave here.
+        if (s4on && identity && ident.GOSSIP_T && ident.GOSSIP_T.has(m.t) && !m.s4) {
+          if (m.src !== seat.id) return;
+          let pr = gsig.get(m.gid);
+          if (!pr) { pr = ident.signGossip(identity, m); gsig.set(m.gid, pr); if (gsig.size > 512) { const it = gsig.keys(); for (let i = 0; i < 128; i++) gsig.delete(it.next().value); } }
+          pr.then((s) => { if (!stopped) { m.s4 = s; deliver(to, m); } }).catch(() => {});
+          return;
+        }
         deliver(to, m);
       },
       // A knock is one of exactly two things depending on which side of the
@@ -329,6 +342,18 @@
           if (stopped) return;
           if (v && v.ok) { m.s4ok = true; m.s4from = v.from; seat.recv(m); }
           // else: unsigned / forged / impostor / key-swapped fill — DROP it.
+        }).catch(() => {}));
+        return;
+      }
+      if (ident.GOSSIP_T && ident.GOSSIP_T.has(m.t)) seat.gspInAll = (seat.gspInAll || 0) + 1; // every gossip frame that reached this seat, duplicates included (the traffic gauge)
+      if (s4on && ident.GOSSIP_T && ident.GOSSIP_T.has(m.t)) {
+        // Duplicates are the common case (every neighbour forwards every
+        // message): dedup BEFORE paying for a verification.
+        if (seat.gseen && seat.gseen.has(m.gid)) return;
+        verifyChain(() => ident.verifyGossip(seat.pins, m).then((v) => {
+          if (stopped) return;
+          if (v && v.ok) { m.s4ok = true; seat.recv(m); }
+          else { seat.gspForged = (seat.gspForged || 0) + 1; }   // unsigned / forged / impostor gossip — DROP it, unforwarded
         }).catch(() => {}));
         return;
       }
@@ -764,6 +789,14 @@
       // room fold as this seat last computed or heard it, with its age in
       // ticks — DISPLAY input only (G1): nothing may evict, seat or unblur on it.
       setLeaf(f) { if (seat) seat.setLeaf(f); },
+      // TEST ONLY — a hostile client speaking in someone else's name: frames
+      // with src = `who`, signed with MY key (a valid signature by the wrong
+      // author), pushed past send()'s author check straight to my links.
+      _forgeGossipForTest(who, payloads) {
+        if (!seat || !identity || !ident.signGossip) return 0; let n = 0;
+        for (const m of payloads) { const f = { t: 'GSP', gid: who + ':forge' + (++n) + ':' + Date.now(), src: who, m }; ident.signGossip(identity, f).then((s4) => { f.s4 = s4; for (const p of seat.linkPeers()) deliver(p, Object.assign({}, f)); }); }
+        return n;
+      },
       setRefuses(b) { if (seat) seat.refuses = !!b; },
       roomDigest() {
         if (!seat || !env.DIGEST || !seat.rootDig || seat.rootDig.at < 0) return null;

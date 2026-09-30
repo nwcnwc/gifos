@@ -154,5 +154,38 @@
     return { ok: true, from };
   }
 
-  GifOS.meshIdentity = { mint, peerIdOf, signFill, verifyFill, newPins, statement };
+  // ---- GOSSIP (GSP / GSPS): the AUTHOR signs, every hop verifies ----------
+  // A gossip frame names its author (`src`) and the flood guard budgets by
+  // author, so the name must be unforgeable: the author signs a statement
+  // committing to the frame type, its id, its scope and a hash of the
+  // payload. Relays carry the block unchanged (age and the ephemeral mark are
+  // per-hop and unsigned); a receiver recomputes the statement from the
+  // frame it holds, so nothing in it can be altered in flight, and pins the
+  // author's key TOFU exactly as for fills. Unsigned or forged gossip is
+  // dropped at the first honest seat and never forwarded.
+  const GOSSIP_T = new Set(['GSP', 'GSPS']);
+  async function gossipStatement(from, m, ts) {
+    const ph = await net.sha256hex(JSON.stringify(m.m === undefined ? null : m.m));
+    return JSON.stringify({ v: 2, t: m.t, gid: String(m.gid), from, sc: (m.sc === undefined ? null : m.sc), ph, ts: (+ts || 0) });
+  }
+  async function signGossip(identity, m) {
+    const sp = await gossipStatement(identity.peerId, m, Date.now());
+    const sig = await net.edSign(identity.priv, sp);
+    return { sp, sig, pub: identity.pubB64 };
+  }
+  async function verifyGossip(pins, m) {
+    const s = m && m.s4;
+    if (!GOSSIP_T.has(m && m.t) || !s || typeof s.sp !== 'string' || !s.sig || !s.pub) return { ok: false, from: null };
+    let sp; try { sp = JSON.parse(s.sp); } catch (e) { return { ok: false, from: null }; }
+    const from = sp.from;
+    if (!from || typeof from !== 'string' || from !== m.src) return { ok: false, from: null };   // the frame's author IS the signer
+    if ((await peerIdOf(s.pub)) !== from) return { ok: false, from: null };                    // id bound to key
+    if ((await gossipStatement(from, m, sp.ts)) !== s.sp) return { ok: false, from: null };     // the statement describes THIS frame
+    if (!(await net.edVerify(s.pub, s.sig, s.sp))) return { ok: false, from: null };
+    const p = pins.pin(from, s.pub);
+    if (!p.ok) return { ok: false, from: null };
+    return { ok: true, from };
+  }
+
+  GifOS.meshIdentity = { mint, peerIdOf, signFill, verifyFill, newPins, statement, signGossip, verifyGossip, GOSSIP_T };
 })(typeof window !== 'undefined' ? window : globalThis);

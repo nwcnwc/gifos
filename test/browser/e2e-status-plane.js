@@ -16,6 +16,9 @@
 //   5b. one chat line is ONE room flood (nobody re-broadcasts it).
 //   5c. a hostile room-wide heartbeat flood is refused by the attacker's
 //       direct neighbours and reaches nobody else (Rule 1).
+//   5d. gossip is signed: lines forged in another's name reach nobody.
+//   5e. THE TRIPWIRE: twenty quiet seconds originate no room-wide flood and
+//       deliver no seat more gossip than its section can send it.
 //   6. clear video needs EVERYONE, at every size: the whole consenting room
 //      clears; one refuser anywhere blurs every section (first-hand in its
 //      own, by the fold's refusal count everywhere else); it clears again
@@ -192,6 +195,35 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   check('…and NO seat beyond them ever saw one (refused means not forwarded)', hit.filter((x, i) => i !== deepIdx && x === 0).length === N - 1 - hitSeats.length && hitSeats.length < N - 1, { hitSeats });
   const calm = await Promise.all(pages.map(sp));
   check('the room is unharmed: every seat still counts ' + N, calm.every((x) => x && x.display === N), calm.map((x) => x && x.display));
+
+  // ---- 5d. gossip is SIGNED: nobody speaks in another's name ----------------------
+  const gs = () => Promise.all(pages.map((pg) => pg.evaluate(() => window.__gifosVideo.gossipStats()).catch(() => null)));
+  const g0 = await gs();
+  await pages[deepIdx].evaluate((v) => window.__gifosVideo.forgeGossipForTest(v, 5), pids[0]);
+  await sleep(8000);
+  const g1 = await gs();
+  const forgedSeen = await Promise.all(pages.map((pg) => pg.evaluate(() => window.__gifosVideo.chatHas('forged_0')).catch(() => null)));
+  const dropsAt = g1.map((x, i) => (x && g0[i] && x.forged - g0[i].forged > 0 ? 'P' + i : null)).filter(Boolean);
+  check('five chat lines forged in P0\'s name reach NOBODY', forgedSeen.every((x) => x === false), forgedSeen);
+  const badLinks = await pages[deepIdx].evaluate(() => window.__gifosVideo.meshLinks());
+  const linkIdx = badLinks.map((id) => 'P' + pids.indexOf(id));
+  check('…dropped as forgeries at the attacker\'s mesh neighbours only (the seats it gossips to)', dropsAt.length > 0 && dropsAt.every((x) => linkIdx.includes(x)), { dropsAt, links: linkIdx });
+
+  // ---- 5e. THE TRIPWIRE: a quiet room costs nothing that grows with it -------------
+  // Twenty quiet seconds. No seat originates a room-wide flood (heartbeats are
+  // section-scoped; there is nothing else to say), and no seat receives more
+  // gossip frames than its section and links can send it. A future shortcut
+  // that puts anything periodic back on the room-wide path trips the first
+  // line; one that widens the heartbeat's scope trips the second.
+  const q0 = await gs();
+  await sleep(20000);
+  const q1 = await gs();
+  const originated = q1.map((x, i) => (x && q0[i]) ? x.roomFlood - q0[i].roomFlood : -1);
+  const received = q1.map((x, i) => (x && q0[i]) ? x.inAll - q0[i].inAll : -1);
+  const C = 2, beats = 20000 / 4000;
+  const rxBound = Math.ceil(beats * (C * C - 1) * (2 * C - 1) * 1.5) + 20; // the harness bound per beat (C²-1)(2C-1), re-fans included, plus slack for the two DC-pulse copies and the admin-less room's own churn
+  check('QUIET ROOM, 20 s: no seat originated a room-wide flood', originated.every((x) => x === 0), { originated });
+  check('QUIET ROOM, 20 s: gossip frames received per seat stay under the section bound (' + rxBound + ')', received.every((x) => x >= 0 && x <= rxBound), { received, rxBound });
 
   // ---- 6. consent needs everyone -------------------------------------------------
   for (const pg of pages) { await pg.locator('#cam').click().catch(() => {}); await pg.evaluate(() => window.__gifosVideo.setBlur(0)).catch(() => {}); await sleep(300); }

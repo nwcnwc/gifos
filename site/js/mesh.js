@@ -2109,6 +2109,7 @@
       for (const p of (sc !== undefined ? this.sectionPeers() : this.linkPeers())) this.emit(p, this._gspFrame({ gid, src: this.id, m: payload, sc, eph }));
     }
     _gspRecv(m) {
+      if (this.s4 && !m.s4ok) return; // under S4 every gossip frame is verified before it gets here; an unverified one is nobody's
       const scoped = m.t === 'GSPS'; // the TYPE decides: a field on a 'GSP' frame scopes nothing
       if (scoped && (!Number.isInteger(m.sc) || !this.hasCoord || this.coord.pc !== m.sc)) return; // outside the section it was scoped to (a replay or a stale link), or no scope at all
       const g = this.gseen = this.gseen || new Map();
@@ -2127,9 +2128,13 @@
       if (g.size > 4096) { for (const [k, at] of g) if (this.TICK - at > 600) g.delete(k); } // horizon GC
       if (g.size > 65536) { let n = g.size - 32768; for (const k of g.keys()) { if (n-- <= 0) break; g.delete(k); } } // hard cap: oldest first (a Map keeps insertion order)
       const ag = Number.isInteger(m.ag) && m.ag > 0 ? Math.min(m.ag, 1 << 20) : 0;
-      if (this.onGossip) { let ok; try { ok = this.onGossip(m.src, m.m, ag, scoped); } catch (e) {} if (ok === false) { this.gspRefused = (this.gspRefused || 0) + 1; return; } } // the app REFUSED it: not remembered, not forwarded
-      if (!m.eph) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined, ag);
-      const e = { gid: m.gid, src: m.src, m: m.m, sc: scoped ? m.sc : undefined, eph: m.eph ? 1 : 0, ag0: ag };
+      // The app gets a COPY: what I forward (and remember for re-fan) must be
+      // the author's bytes exactly — the signature commits to them — and the
+      // app stamps its own fields onto what it takes (takeStatus: rx).
+      let own = m.m; try { if (this.s4 && m.m && typeof m.m === 'object') own = JSON.parse(JSON.stringify(m.m)); } catch (e) {}
+      if (this.onGossip) { let ok; try { ok = this.onGossip(m.src, own, ag, scoped); } catch (e) {} if (ok === false) { this.gspRefused = (this.gspRefused || 0) + 1; return; } } // the app REFUSED it: not remembered, not forwarded
+      if (!m.eph) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined, ag, m.s4);
+      const e = { gid: m.gid, src: m.src, m: m.m, sc: scoped ? m.sc : undefined, eph: m.eph ? 1 : 0, ag0: ag, s4: m.s4 };
       for (const p of (scoped ? this.sectionPeers() : this.linkPeers())) if (p !== m.src) this.emit(p, this._gspFrame(e));
     }
     // ANTI-ENTROPY, two repairs (dedup makes both idempotent):
@@ -2162,14 +2167,14 @@
       take(sk, GSP_SRC_RATE, GSP_SRC_BURST); take(lk, GSP_RATE, GSP_BURST);
       return true;
     }
-    _gspRemember(gid, src, m, sc, ag0) { const g = this.grecent = this.grecent || []; const e = { gid, src, m, at: this.TICK }; if (sc !== undefined) e.sc = sc; if (ag0) e.ag0 = ag0; g.push(e); if (g.length > 64) g.shift(); }
+    _gspRemember(gid, src, m, sc, ag0, s4) { const g = this.grecent = this.grecent || []; const e = { gid, src, m, at: this.TICK }; if (sc !== undefined) e.sc = sc; if (ag0) e.ag0 = ag0; if (s4) e.s4 = s4; g.push(e); if (g.length > 64) g.shift(); }
     // A SCOPED message rides its OWN frame type, 'GSPS'. A client from before
     // the status plane knows only 'GSP' and drops an unknown type at recv()'s
     // default — so it can never strip the scope and re-flood a heartbeat to
     // the whole room (measured with sc as a field on 'GSP': ONE old seat at
     // N=400 leaked section heartbeats to 385 seats). It still hears its
     // row-mates' statuses over run.html's own DataChannel pulse.
-    _gspFrame(e) { const f = { t: e.sc !== undefined ? 'GSPS' : 'GSP', gid: e.gid, src: e.src, m: e.m }; if (e.sc !== undefined) f.sc = e.sc; if (e.eph) f.eph = 1; const ag = (e.ag0 || 0) + (e.at != null ? Math.max(0, this.TICK - e.at) : 0); if (ag > 0) f.ag = ag; return f; }
+    _gspFrame(e) { const f = { t: e.sc !== undefined ? 'GSPS' : 'GSP', gid: e.gid, src: e.src, m: e.m }; if (e.sc !== undefined) f.sc = e.sc; if (e.eph) f.eph = 1; if (e.s4) f.s4 = e.s4; /* the AUTHOR's signature travels with the message */ const ag = (e.ag0 || 0) + (e.at != null ? Math.max(0, this.TICK - e.at) : 0); if (ag > 0) f.ag = ag; return f; }
     _gspRefan() {
       const g = this.grecent; if (!g || !g.length) return;
       this.grecent = g.filter((e) => this.TICK - e.at <= 256); // replay horizon (memory-bounded with the 64 cap)
