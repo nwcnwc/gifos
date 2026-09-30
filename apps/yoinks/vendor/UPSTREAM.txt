@@ -1,0 +1,7 @@
+yoinks — https://github.com/pablostanley/yoinks
+commit 6f03720813c22f907d3fb9ba98567f2169446b82 (2026-07-16, v0.3.1)
+license MIT (COPYING-yoinks.txt)
+
+What this port keeps: the screens, the copy, the logo, the flow (paste, pick, done),
+the history, the three themes. What it swaps: yt-dlp + ffmpeg on the machine for a
+cobalt instance the person names in the app; the terminal for a browser tab.

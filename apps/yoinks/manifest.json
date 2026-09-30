@@ -1,0 +1,31 @@
+{
+  "gifos": "1.0",
+  "appId": "yoinks",
+  "name": "yoinks",
+  "shortName": "yoinks",
+  "version": "0.3.1",
+  "minBuild": 2154,
+  "description": "yoink any video. paste. yoink. done. Paste a link from YouTube, X, Instagram, TikTok and twenty more sites, pick a resolution or audio-only mp3, and your browser saves the file. Talks to a cobalt instance you name in the app.",
+  "entry": "index.html",
+  "accent": [
+    24,
+    24,
+    27
+  ],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "network": [
+      "*"
+    ],
+    "links": true
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    },
+    "history": {
+      "visibility": "private"
+    }
+  }
+}
