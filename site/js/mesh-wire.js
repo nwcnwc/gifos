@@ -738,7 +738,7 @@
       seat = new mesh.Seat(peer, env);
       seat.myKey = myKey;
       if (s4on) { seat.s4 = true; seat.identity = identity; seat.pins = ident.newPins(); }
-      if (opts.onGossip) seat.onGossip = (src, m, ag) => { if (!stopped) opts.onGossip(src, m, (ag || 0) * tickMs); }; // third argument: how old the message is, in ms (relayed age, G0b)
+      if (opts.onGossip) seat.onGossip = (src, m, ag, scoped) => (stopped ? undefined : opts.onGossip(src, m, (ag || 0) * tickMs, !!scoped)); // returning false REFUSES the message: it is not forwarded either // third argument: how old the message is, in ms (relayed age, G0b)
       node.seat = seat;
       makeSock();
       seat.join();

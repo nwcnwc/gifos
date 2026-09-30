@@ -121,10 +121,14 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   }
 
   // ---- 5. Ban needs a tag the relay vouched for ------------------------------------
+  // Whether the deep admin's neighbours happen to be door-attested depends on
+  // who was a greeter when; so take a neighbour with a Ban button and make its
+  // tag one the admin knows only by the peer's own word.
   const di = await A.evaluate(() => window.__gifosVideo.devInfo());
-  const unatt = Object.keys(di.devOf).filter((id) => di.attested.indexOf(id) < 0);
-  const tiled = await A.evaluate((ids) => ids.filter((id) => !!document.querySelector('.tile[data-peer="' + id + '"] .modbar button[data-adm="ban"]')), unatt);
-  check('the deep admin knows a neighbour\'s tag only by its own word (unattested)', tiled.length > 0, { unattested: unatt.length, tiled: tiled.length, attested: di.attested.length });
+  const tiled = await A.evaluate((ids) => ids.filter((id) => !!document.querySelector('.tile[data-peer="' + id + '"] .modbar button[data-adm="ban"]')), Object.keys(di.devOf));
+  if (tiled.length) await A.evaluate((id) => window.__gifosVideo._unattestForTest(id), tiled[0]);
+  const di2 = await A.evaluate(() => window.__gifosVideo.devInfo());
+  check('the admin holds a neighbour\'s tag the door has not vouched for', tiled.length > 0 && !!di2.devOf[tiled[0]] && di2.attested.indexOf(tiled[0]) < 0, { tiled: tiled.length, attested: di2.attested.length });
   if (tiled.length) {
     const before = (await A.evaluate(() => window.__gifosVideo.banList())).length;
     await A.evaluate((id) => document.querySelector('.tile[data-peer="' + id + '"] .modbar button[data-adm="ban"]').click(), tiled[0]);

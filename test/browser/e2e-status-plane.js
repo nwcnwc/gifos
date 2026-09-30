@@ -13,9 +13,13 @@
 //   3. a hand raised deep in the tree reaches every seat's hand queue
 //   4. a stage claim from a deep section reaches every seat's Stage
 //   5. a moderation change reaches the whole room (G6: one flood per change)
-//   6. clear-video consent is my SECTION's unanimity (G1): the whole
-//      consenting room clears; one refuser blurs its own section only and
-//      every other seat shows the room badge instead — never a stuck room.
+//   5b. one chat line is ONE room flood (nobody re-broadcasts it).
+//   5c. a hostile room-wide heartbeat flood is refused by the attacker's
+//       direct neighbours and reaches nobody else (Rule 1).
+//   6. clear video needs EVERYONE, at every size: the whole consenting room
+//      clears; one refuser anywhere blurs every section (first-hand in its
+//      own, by the fold's refusal count everywhere else); it clears again
+//      when the refuser agrees.
 //   Two of the ten pages run with clocks a minute wrong (one slow, one fast).
 //   7. statusOf is bounded by the plane (section + DataChannel pairs), not by
 //      the room (scale-audit V2).
@@ -160,7 +164,36 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   }
   check('a room-wide mod change from the deep end reaches every seat', modOk, { secs: Math.round((Date.now() - modT0) / 1000), co });
 
-  // ---- 6. consent is my section's -------------------------------------------------
+  // ---- 5b. ONE chat line is ONE flood ------------------------------------------------
+  // Every receiver used to re-broadcast a chat line on first sight: N floods a
+  // line, O(N) frames per node per message. The author's flood is the carrier.
+  const floods = () => Promise.all(pages.map((pg) => pg.evaluate(() => window.__gifosVideo.txStats().roomFlood || 0).catch(() => 0)));
+  const f0 = await floods();
+  const lineId = await pages[deepIdx].evaluate(() => window.__gifosVideo.sayForTest('hello from the deep end'));
+  const said = await eventually(() => Promise.all(pages.map((pg) => pg.evaluate((id) => window.__gifosVideo.chatHas(id), lineId).catch(() => false))), (v) => v.every(Boolean), 30000);
+  check('a chat line from the deep end reaches every seat', said.ok, said.v);
+  await sleep(6000); // long enough for any re-broadcast to have happened
+  const f1 = await floods();
+  const made = f1.map((x, i) => x - f0[i]);
+  check('…as ONE room flood — nobody re-broadcast it (' + made.reduce((a, b) => a + b, 0) + ' floods originated)', made.reduce((a, b) => a + b, 0) === 1 && made[deepIdx] === 1, { made });
+
+  // ---- 5c. a hostile heartbeat flood dies at its first honest neighbours ---------------
+  // RULE 1: a status is heard from my section or my own link, never off the
+  // room-wide flood — and what a seat refuses it does not forward.
+  const refused = () => Promise.all(pages.map((pg) => pg.evaluate(() => window.__gifosVideo.rxStats().statusRefused || 0).catch(() => -1)));
+  const r0 = await refused();
+  const pushed = await pages[deepIdx].evaluate(() => window.__gifosVideo.floodForTest(300, 'status'));
+  await sleep(8000);
+  const r1 = await refused();
+  const hit = r1.map((x, i) => x - r0[i]);
+  const hitSeats = hit.map((x, i) => (i !== deepIdx && x > 0 ? 'P' + i : null)).filter(Boolean);
+  const dcOfBad = await pages[deepIdx].evaluate(() => window.__gifosVideo.liveDataLinks());
+  check('the attacker pushed ' + pushed + ' room-wide statuses; its direct neighbours refused them', hitSeats.length > 0 && hitSeats.length <= dcOfBad, { hit, dcOfBad });
+  check('…and NO seat beyond them ever saw one (refused means not forwarded)', hit.filter((x, i) => i !== deepIdx && x === 0).length === N - 1 - hitSeats.length && hitSeats.length < N - 1, { hitSeats });
+  const calm = await Promise.all(pages.map(sp));
+  check('the room is unharmed: every seat still counts ' + N, calm.every((x) => x && x.display === N), calm.map((x) => x && x.display));
+
+  // ---- 6. consent needs everyone -------------------------------------------------
   for (const pg of pages) { await pg.locator('#cam').click().catch(() => {}); await pg.evaluate(() => window.__gifosVideo.setBlur(0)).catch(() => {}); await sleep(300); }
   const consT0 = Date.now(); let cons = [], consOk = false;
   while (Date.now() - consT0 < 60000) {
@@ -170,28 +203,28 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   }
   check('a fully consenting room past one section clears everywhere', consOk, { secs: Math.round((Date.now() - consT0) / 1000), cons });
   const readyLbl = await Promise.all(pages.map(sp));
-  check('the room badge reads ready once the fold agrees', await (async () => { const t0 = Date.now(); while (Date.now() - t0 < 30000) { const s = await Promise.all(pages.map(sp)); if (s.every((x) => x && x.refuse === 0)) return true; await sleep(1500); } return false; })(), readyLbl.map((s) => s && s.refuse));
+  check('the fold counts zero refusals at every seat', await (async () => { const t0 = Date.now(); while (Date.now() - t0 < 30000) { const s = await Promise.all(pages.map(sp)); if (s.every((x) => x && x.refuse === 0)) return true; await sleep(1500); } return false; })(), readyLbl.map((s) => s && s.refuse));
 
+  // ONE refuser, deep in the tree: the whole room goes back to blurred — the
+  // seats that hear it first-hand at once, every other seat when the fold
+  // carries the refusal to them. The rule is the same at every size.
   await pages[deepIdx].evaluate(() => window.__gifosVideo.setBlur(2));
-  const refT0 = Date.now(); let ref = [];
-  let sectionBlurred = false, othersClear = false, badged = false;
-  while (Date.now() - refT0 < 45000) {
+  const refT0 = Date.now(); let ref = [], allBlur = false;
+  while (Date.now() - refT0 < 60000) {
     ref = await Promise.all(pages.map(async (pg, i) => ({ i, pc: pcs[i], c: await pg.evaluate(() => window.__gifosVideo.consensus()).catch(() => null), s: await sp(pg) })));
-    // "My section" is the part of it I actually hear: a sparse deep section's
-    // rows meet only through their owners, so a seat that hears the refuser
-    // first-hand AND shares its section blurs with it, and a seat in another
-    // section stays clear even when it hears the refuser over an up/down link.
-    const mates = ref.filter((r) => r.i === deepIdx || (r.pc === pcs[deepIdx] && r.s && r.s.fresh.includes(pids[deepIdx])));
-    const others = ref.filter((r) => r.pc !== pcs[deepIdx]);
-    sectionBlurred = mates.every((r) => r.c === false);
-    othersClear = others.every((r) => r.c === true);
-    badged = others.every((r) => r.s && r.s.refuse >= 1 && /not ready yet/.test(r.s.label));
-    if (sectionBlurred && othersClear && badged) break;
+    allBlur = ref.every((r) => r.c === false);
+    if (allBlur) break;
     await sleep(1500);
   }
-  check('the refuser and the section-mates who hear it drop back to blurred', sectionBlurred, ref.map((r) => 'P' + r.i + '@' + r.pc + ':' + r.c));
-  check('seats in other sections stay clear (section unanimity, not a stuck room)', othersClear, ref.map((r) => 'P' + r.i + '@' + r.pc + ':' + r.c));
-  check('...and show the room badge "not ready yet" from the fold (display only, G1)', badged, ref.map((r) => r.s && ('P' + r.i + ' refuse=' + r.s.refuse)));
+  check('one refuser blurs the WHOLE room, every section', allBlur, { secs: Math.round((Date.now() - refT0) / 1000), v: ref.map((r) => 'P' + r.i + '@' + r.pc + ':' + r.c) });
+  const farSeats = ref.filter((r) => r.pc !== pcs[deepIdx] && !(r.s && r.s.fresh.includes(pids[deepIdx])));
+  check('…including seats that never hear the refuser first-hand (the fold carried it)', farSeats.length > 0 && farSeats.every((r) => r.c === false && r.s && r.s.refuse >= 1), farSeats.map((r) => 'P' + r.i + ' refuse=' + (r.s && r.s.refuse)));
+  const lbl = await eventually(() => pages[farSeats.length ? farSeats[0].i : 0].evaluate(() => document.getElementById('status').textContent), (t) => t.indexOf('(' + (N - 1) + '/' + N + ')') >= 0, 15000); // a one-line notice ("Back to blurred…") holds the line for a few seconds first
+  check('a far seat\'s status line counts the room: ' + (N - 1) + '/' + N + ' ready', lbl.ok, String(lbl.v).slice(0, 140));
+  // …and the room clears again when the refuser agrees.
+  await pages[deepIdx].evaluate(() => window.__gifosVideo.setBlur(0));
+  const back = await (async () => { const t0 = Date.now(); let c = []; while (Date.now() - t0 < 60000) { c = await Promise.all(pages.map((pg) => pg.evaluate(() => window.__gifosVideo.consensus()).catch(() => null))); if (c.every((x) => x === true)) return { ok: true, secs: Math.round((Date.now() - t0) / 1000) }; await sleep(1500); } return { ok: false, c }; })();
+  check('the room clears again once the refuser agrees', back.ok, back);
 
   // ---- 7. the map is bounded by the plane, not the room ------------------------
   // scale-audit V2: statusOf grew O(N). On the status plane an entry exists only

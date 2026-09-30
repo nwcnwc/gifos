@@ -140,7 +140,7 @@ static bool votesHold(const vector<VE>& pub,const vector<VE>& mine){
   }
   return true;
 }
-struct Ent { uint64_t k; int v; int age; int ch=-1; int b=-1; };   // ch = the child (heir) of the seat at k — rides S1SYNC so every Section-1 seat learns every cell's heir; b = CLAIM BIRTH, the tick this (cell→claimant) pairing was first established (end-to-end, relayed unchanged — see the S1SYNC tie-break)
+struct Ent { uint64_t k; int v; int age; int ch=-1; int ba=-1; };   // ch = the child (heir) of the seat at k — rides S1SYNC so every Section-1 seat learns every cell's heir; ba = CLAIM BIRTH as an AGE: how long ago, on the sender's clock, this (cell→claimant) pairing was first established (-1 unknown). Each holder re-stamps it on its own clock, so the birth INSTANT is relayed end-to-end while no tick crosses a link (C5 + G0b)
 struct Msg {
   MT t; int to=-1;
   int from=-1,id=-1,owner=-1,nc=-1,asker=-1,via=-1,child=-1,ttl=0,tag=0,hold=0;
@@ -508,7 +508,7 @@ struct Seat {
   }
   inline void tlForget(uint64_t k){ translost.erase(k); tlProbeAt.erase(k); probeAck.erase(k); }
   inline void tlClear(){ translost.clear(); tlProbeAt.clear(); probeAck.clear(); }
-  inline void setOcc(uint64_t k,int v){ if(v==id && (!hasCoord||k!=ckey(coord))) return; auto it=occ.find(k); if(it==occ.end()||it->second!=v){ tlForget(k); born[k]=(int)TICK; } occ[k]=v; }   // a seat can be in exactly ONE place: never store MYSELF at a coord I do not hold (stale self-claims circulating back made invisible zombies); a CHANGED occupant clears any pending D5 observation of the old one
+  inline void setOcc(uint64_t k,int v){ if(v==id && (!hasCoord||k!=ckey(coord))) return; auto it=occ.find(k); if(it==occ.end()||it->second!=v){ tlForget(k); born[k]=LT(); } occ[k]=v; }   // a seat can be in exactly ONE place: never store MYSELF at a coord I do not hold (stale self-claims circulating back made invisible zombies); a CHANGED occupant clears any pending D5 observation of the old one
   inline void noteS1(uint64_t ck){ if((ck>>16)==0) s1seen[ck]=(int)TICK; } // pc==0 => Section 1
   inline bool s1Fresh(uint64_t ck){ auto it=s1seen.find(ck); return it!=s1seen.end() && TICK-it->second<120 && occ.count(ck); }
   // E2 FIRST-HAND liveness: `live[]` is set ONLY by direct contact — a PHONE I

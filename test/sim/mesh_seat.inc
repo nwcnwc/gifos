@@ -1041,8 +1041,8 @@ void Seat::s1Heartbeat(){
     emit(tid,m); }
 }
 void Seat::s1Sync(){
-  vector<Ent> ent; ent.push_back({ckey(coord),id,0, occGet(ckey(down(coord))), born.count(ckey(coord))?born[ckey(coord)]:(int)TICK});   // carry MY heir (my down-child)
-  for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id){ auto it=s1seen.find(e.first); if(it!=s1seen.end()&&TICK-it->second<120) ent.push_back({e.first,e.second,(int)(TICK-it->second), childOf.count(e.first)?childOf[e.first]:-1, born.count(e.first)?born[e.first]:-1}); } }
+  vector<Ent> ent; ent.push_back({ckey(coord),id,0, occGet(ckey(down(coord))), born.count(ckey(coord))?max(0,LT()-born[ckey(coord)]):0});   // carry MY heir (my down-child) and my claim's AGE
+  for(auto&e:occ){ if((e.first>>16)==0 && e.second!=id){ auto it=s1seen.find(e.first); if(it!=s1seen.end()&&TICK-it->second<120) ent.push_back({e.first,e.second,(int)(TICK-it->second), childOf.count(e.first)?childOf[e.first]:-1, born.count(e.first)?max(0,LT()-born[e.first]):-1}); } }
   // W7: sync S1SYNC over the whole rook neighbourhood — every live row-mate AND
   // column-mate (heads included). This is the S1SYNC that keeps the full C^2 home
   // roster consistent across the richly-meshed section.
@@ -1563,13 +1563,17 @@ void Seat::recv(Msg& m){
         // first-hand gap at one arbiter, evicted a live seat — mesh-harness
         // D5-sever). Honest hop-ages broke legit races instead (a tie-win
         // stored stale went phantom and double-admitted: c-sweep dups). The
-        // launder-proof signal is END-TO-END: every entry carries b — the
-        // tick its (cell → claimant) pairing was first established, relayed
-        // UNCHANGED — and a claim BORN more than S1B_HORIZON ago may never
-        // win a tie. A ghost's birth is ancient by definition; every legit
-        // contender's is recent.
-        if(seen>curSeen+8 || (seen>=curSeen-8&&cur>=0&&eid<cur && (e.b<0 || TICK-e.b<=600))){ s1seen[ck]=max(curSeen,seen); if(cur!=eid){ setOcc(ck,eid); born[ck]=(e.b>=0?e.b:(int)TICK); } }
-        else if(cur<0&&seen>-999){ s1seen[ck]=seen; setOcc(ck,eid); born[ck]=(e.b>=0?e.b:(int)TICK); }
+        // launder-proof signal is END-TO-END: every entry carries its CLAIM
+        // BIRTH — when its (cell → claimant) pairing was first established —
+        // and a claim BORN more than S1B_HORIZON ago may never win a tie. A
+        // ghost's birth is ancient by definition; every legit contender's is
+        // recent. The birth crosses a link as an AGE (ba) and is re-stamped on
+        // each holder's own clock (G0b): an absolute tick read on another
+        // seat's clock made every ghost look newborn to a young page and every
+        // contender ancient to an old one (MESH_SKEW / `net skew=`).
+        int eb = e.ba>=0 ? LT()-e.ba : -1;
+        if(seen>curSeen+8 || (seen>=curSeen-8&&cur>=0&&eid<cur && (e.ba<0 || e.ba<=600))){ s1seen[ck]=max(curSeen,seen); if(cur!=eid){ setOcc(ck,eid); born[ck]=(e.ba>=0?eb:LT()); } }
+        else if(cur<0&&seen>-999){ s1seen[ck]=seen; setOcc(ck,eid); born[ck]=(e.ba>=0?eb:LT()); }
       } return; }
     case DRAIN: {
       if(!hasCoord||state!=3||coord.pc==0||drainAt) return;

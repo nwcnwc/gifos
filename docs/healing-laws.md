@@ -322,7 +322,12 @@ children, so Section 1 cannot stay short forever after a mass kill.
   newcomer behind a row of unanswered vouches gambles that every one confirms,
   and when they were killed tabs the newcomer landed alone in an empty row,
   unable to pull snap or app from anyone. Guard: `test/sim/repro-ghost-join.sh`.
-- **C5. A claim's BIRTH decides gossip ties, never its hop-freshness.** The
+- **C5. A claim's BIRTH decides gossip ties, never its hop-freshness.** (The
+  birth crosses a link as an AGE, `ba`, re-stamped on each holder's own clock —
+  G0b, 2026-09-29. As an absolute tick it made a ghost from a page whose tick
+  ran ahead read as newborn, and a genuine contender from a freshly loaded page
+  read as ancient to any page older than five minutes.
+  `test/mesh/claim-birth-tie.js` pins both.) The
   S1SYNC ±8 lower-id tie-break resolves SIMULTANEOUS claims, but the freshness
   stamps it compares are hop-laundered — a displacing entry inherited the
   displaced occupant's freshness, so a join-era ghost re-won ties forever: an
@@ -1187,6 +1192,17 @@ exists, and the votes it is measured against ride the same fold, clamped by the
 same `n`: to inflate a vote a liar must inflate the count, which raises the bar
 with it. An inflated `n` can make a vote unpassable and a deflated one cheap;
 neither evicts, seats or unblurs anyone (G1).
+
+**Consent past one section (Nathan, 2026-09-29): the rule is the rule at every
+size.** Clear video needs EVERYONE. A seat's own camera clears only when its
+section-mates, heard first-hand, are unanimous AND the fold shows zero refusals
+and no unheard subtree. The fold can therefore only ADD blur. It never
+releases one (G1), and it fails closed (G3): a refusal anywhere, a partial
+fold, or no fresh fold at all in a room that was past one section, keeps the
+camera blurred. The cost is stated, not hidden: a withdrawal of consent reaches
+a far seat within the fold's staleness, O(depth × period), and any one member
+can hold the whole room blurred. Changing that is a product decision, not an
+engineering one.
 
 **G1 still holds.** HAND, APP and VOTE inform display and self-owned acts (a
 target steps itself down on a tally about itself). STAGE feeds the Section-1

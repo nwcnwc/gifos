@@ -170,10 +170,30 @@ Landed so far on `status-digest`:
   - All joins pass through one relay object, which caps the join rate.
   - The tick counter stops while a tab is frozen, so a held fold's age is
     under-reported by the freeze. Display only.
-  **Open, Nathan's call:** consent past one section. As built, clear video
-  needs the section seats I hear to be unanimous, and the fold's `refuse` is a
-  badge. The reviewer's stricter option: clear only when the section is
-  unanimous AND the fold shows zero refusals, so the digest can only add blur.
+- **Nathan's decisions, 2026-09-29, and what landed from them:**
+  - **Consent needs everyone, at every size.** Clear video needs the section
+    unanimous first-hand AND the fold showing zero refusals and nothing
+    unheard. One refuser anywhere blurs every section. e2e-status-plane leg 6.
+  - **Rule 1: a status is never taken off the room-wide flood.** A seat hears
+    statuses from its section or its own links. What the app refuses, the
+    mesh does not forward, so a hostile heartbeat flood stops at the
+    attacker's direct neighbours (e2e-status-plane leg 5c: 300 pushed, one
+    neighbour refused them, nobody else saw one).
+  - **The flood guard.** Every seat takes at most 10 new room-wide messages
+    a tick from any one link, and 2 a tick from any one author on it. A seat's
+    intake is bounded by its links in a room of any size. status-plane.js
+    leg 8: an attacker sending 120 a tick lands 8.5 a tick at most, the same
+    at N=300, and an honest chat line sent mid-flood reaches every seat.
+    Known limit: gossip authors are claimed, not signed. An attacker forging a
+    new author per message meets only the per-link bucket.
+  - **One message is one flood.** Every receiver re-broadcast chat lines,
+    captions, file notices and deletions to the whole room on first sight: N
+    floods per message. The author's flood is now the only one. A file notice
+    is still handed on over a seat's own links, because a file's bytes travel
+    link by link. e2e-status-plane leg 5b counts the floods: one.
+  - **The claim-birth fix landed** (healing-laws C5), with
+    repro-compaction's depth allowance widened by one.
+  - **Waiting:** Rule 2 (chat scoped to the section by default).
 
 Flakes seen on this branch that also fail on unmodified main (A/B on the
 same box):
@@ -188,8 +208,8 @@ Known, measured and NOT fixed here: S1SYNC's claim-birth `b` is also an
 absolute tick carried across seats. In the sim with per-seat clocks (N=600,
 20% churn plus two targeted kills, seeds 1-3) it changes trajectories but
 never correctness (CHECK PASS, dups 0). It gates a tie-break, not a count.
-The fix has the same shape (send the age). It is parked, unmerged, on branch
-`claim-birth-age`: it perturbs repro-compaction's chaotic seed-9 depth leg,
+The fix has the same shape (send the age). LANDED 2026-09-29 (see above); it
+was first parked on branch `claim-birth-age`: it perturbs repro-compaction's chaotic seed-9 depth leg,
 and no suite yet shows the bug. The review wrote that suite: a crafted
 S1SYNC entry, deterministic, red on this branch and green on the fix (a page
 older than 5 minutes rejects a genuine contender as ancient). It should land

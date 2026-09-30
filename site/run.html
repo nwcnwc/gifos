@@ -2774,11 +2774,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const roomConsentIds = () => {
       const all = (typeof rosterIds !== 'undefined' && Array.isArray(rosterIds)) ? rosterIds : Array.from(peers.keys());
       if (!roomPastSection()) return all;
-      // PAST ONE SECTION unanimity is my SECTION's (the status plane, G1): the
-      // statuses that prove consent reach only section-mates now, so a seat my
-      // tree names in ANOTHER section (my up or down link) would read as
-      // "not ready" forever and hold the room blurred. A peer whose seat I do
-      // not know stays in — unknown never counts as consent (fail closed).
+      // PAST ONE SECTION the first-hand half of unanimity is my SECTION (the
+      // rest of the room is roomConsentOk, from the fold): the statuses that
+      // prove consent reach only section-mates, so a seat my tree names in
+      // ANOTHER section (my up or down link) would read as "not ready"
+      // forever. A peer whose seat I do not know stays in — unknown never
+      // counts as consent (fail closed).
       const c = meshCoord(), s = meshSeat();
       if (!c || !s) return all;
       const pcOf = new Map();
@@ -2791,8 +2792,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // still counts as NOT consenting (stHold is false once its status entry
     // is deleted or the holdover expires); leaving/votekick still revokes.
     const freshConsent = (pid) => { const st = statusOf.get(pid); return !!st && stHold(pid) && consents(st); };
+    // CLEAR VIDEO NEEDS EVERYONE IN THE ROOM (Nathan, 2026-09-29: the rule is
+    // the rule at every size). Past one section "everyone" has two halves: my
+    // section-mates, heard first-hand — and the rest of the room, whose
+    // refusals arrive counted in the fold. The fold may only ADD blur (G1/G3):
+    // one refusal anywhere, a subtree nobody can hear (part), or no fresh fold
+    // at all in a room that was past one section, and I stay blurred. It can
+    // never release a blur my own section has not agreed to.
+    let roomPastAt = 0;
+    function roomConsentOk() {
+      if (!digestMode()) return true;
+      const d = roomDig();
+      if (!d) return !(roomPastAt && Date.now() - roomPastAt < 300000); // the room was big a moment ago and I cannot hear it now: blurred
+      if (d.n <= SCALE.C * SCALE.C) return true;                        // the room is my section: first-hand unanimity is the whole rule
+      roomPastAt = Date.now();
+      return d.refuse === 0 && !d.part;
+    }
     function allConsent() {
       if (!consents(myStatus)) return false;
+      if (!roomConsentOk()) return false;
       for (const pid of roomConsentIds()) { if (!freshConsent(pid)) return false; }
       return true;
     }
@@ -2831,9 +2849,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const c = allConsent();
         if (c !== lastCons) {
           if (lastCons !== null && participantCount() > 1 && roomPw) {
-            setStatus(roomPastSection()
-              ? (c ? 'Your section is ready — clear video here now.' : 'Back to blurred — clear video needs everyone in your section ready (camera on, No blur).')
-              : (c ? 'Everyone is ready — this room is clear video now.' : 'Back to blurred — clear video needs everyone here ready (camera on, No blur).'));
+            setStatus(c ? 'Everyone is ready — this room is clear video now.' : 'Back to blurred — clear video needs everyone here ready (camera on, No blur).');
           }
           lastCons = c;
         }
@@ -4094,10 +4110,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (n > 1) {
         if (!roomPw) extra = ' · a password unlocks clear video';
         else if (hasAdminRoom() && admins.length === 0) extra = ' · no admin here — everyone stays blurred';
-        else if (!adminPresent() && !allConsent()) extra = roomPastSection()
-          ? ' · clear video when your section is ready (' + consentCount() + '/' + (roomConsentIds().length + 1) + ')'   // past one section, unanimity is your section's (G1)
-          : ' · clear video when everyone is ready (' + consentCount() + '/' + n + ')';
-        if (roomPastSection() && !hasAdminRoom()) { const dg = roomDig(); extra += dg.refuse === 0 && !dg.part ? ' · the whole room is ready' : ' · ' + dg.refuse + ' in the room not ready yet'; } // the room-wide BADGE — display only (G1)
+        else if (!adminPresent() && !allConsent()) {
+          // Past one section the ready count is the fold's: everyone minus the
+          // refusals it carries (a label — the RULE is allConsent).
+          const dg = roomPastSection() ? roomDig() : null;
+          extra = dg ? ' · clear video when everyone is ready (' + Math.max(0, dg.n - dg.refuse) + '/' + dg.n + ')'
+            : ' · clear video when everyone is ready (' + consentCount() + '/' + n + ')';
+        }
       }
       // A REMEMBERED LOCK MUST BE VISIBLE (§LOCK, 2026-08-06). The host side of
       // the stale-password trap is silent by construction: her page works, her
@@ -4498,6 +4517,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const p = peers.get(pid);
         if (p && p.dc && p.dc.readyState === 'open') viaDc(p);
       }
+      if (meshNode && !(opts && opts.scope)) txStats.roomFlood = (txStats.roomFlood || 0) + 1; // room-wide floods I ORIGINATED (the N×N tripwire: e2e-status-plane)
       if (meshNode) meshNode.gossip({ a: 1, msg }, opts); // opts: { scope: 'section', ephemeral } for the heartbeat — see THE STATUS PLANE
     }
     const myName = () => GifOS.store.identity().name || 'Guest';
@@ -6057,8 +6077,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Room-wide app traffic arrives on the mesh gossip lane (fanOut's
         // counterpart): the same sealed payload shapes as ever, routed to the
         // same handlers.
-        onGossip: (src, g, ageMs) => {
+        onGossip: (src, g, ageMs, scoped) => {
           if (!g || g.a !== 1 || !g.msg) return;
+          // RULE 1: a status is heard from my SECTION or over my own link —
+          // never off the room-wide flood. Refusing it here also stops it at
+          // this seat (the mesh forwards nothing the app refused), so a client
+          // that re-floods heartbeats room-wide — stale or hostile — is cut
+          // off by its first honest neighbours.
+          if (g.msg.kind === 'status' && !scoped && digestMode()) { rxStats.statusRefused = (rxStats.statusRefused || 0) + 1; return false; }
           // DEBUG-TREE (inert unless DEBUG=on rides the URL).
           if (g.msg.__probe) { if (DEBUG_ON && meshNode) meshNode.gossip({ a: 1, msg: { __ack: g.msg.__probe, r: meshSelfReport() } }); return; }
           if (g.msg.__ack) { if (DEBUG_ON) { const M = (window.__meshCensus = window.__meshCensus || {}); if (g.msg.r && g.msg.r.from) M[g.msg.r.from] = g.msg.r; } return; }
@@ -7985,7 +8011,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (takeChat(m.m)) {
           renderChat();
           if (!chatPanel.classList.contains('open')) { unread++; chatBtn.textContent = 'Chat (' + unread + ')'; }
-          sendAll({ k: 'chat', m: m.m }); // gossip onward — reaches pairs with no direct route
+          // NOT gossiped onward. The author's one mesh flood is the room's
+          // carrier (dedup'd, re-fanned, replayed to newcomers); every receiver
+          // re-broadcasting on first sight made ONE chat line N floods — O(N)
+          // frames per node per line, the N×N the mesh exists to prevent.
         }
       } else if (m.k === 'cdel') {
         // A signed admin chat-delete: verify, tomb, repaint, gossip onward on
@@ -7993,7 +8022,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // moderation — an unverified delete simply never lands anywhere honest.
         if (m.w && m.id && !chatTombs.has(m.id)) {
           admVerify(m.w, 'cdel', Infinity).then((o) => {
-            if (o && o.id === m.id && applyCdel(m.id, m.w)) { renderChat(); sendAll({ k: 'cdel', id: m.id, w: m.w }); }
+            if (o && o.id === m.id && applyCdel(m.id, m.w)) renderChat(); // one flood from its author — never re-broadcast (see chat)
           });
         }
       } else if (m.k === 'tlhint') {
@@ -8012,7 +8041,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (typeof clog === 'function') clog('frag-ping from ' + String(p.id || '?').slice(0, 6) + ' solo=' + (participantCount() <= 1));
         if (participantCount() <= 1 && iInitiate(p.id)) { makePeer(p.id, null); sendOffer(p.id, false); }
       } else if (m.k === 'fmeta') {
-        if (takeMeta(m.f, p)) { renderFiles(); sendAll({ k: 'fmeta', f: m.f }); }
+        // Never re-broadcast to the ROOM (see chat) — but handed on, once, over
+        // my OWN links: a file's bytes travel link by link (P0/P1 only), so
+        // each neighbour must hear the file from someone it can ask for them.
+        // O(links) per seat per file, whatever the room's size.
+        if (takeMeta(m.f, p)) { renderFiles(); for (const pid of gossipIds()) { const q = peers.get(pid); if (q && q !== p && q.dc && q.dc.readyState === 'open') dcSend(q, { k: 'fmeta', f: m.f }); } }
       } else if (m.k === 'want') {
         const f = files.get(m.id);
         if (f && f.bytes) sendFileOver(p, m.id);
@@ -8031,12 +8064,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           for (const w of (f.wanters || []).splice(0)) sendFileOver(w, f.id);
         }
       } else if (m.k === 'fdel') {
-        if (takeTomb(m.id, { by: m.by, at: m.at })) { renderFiles(); sendAll({ k: 'fdel', id: m.id, by: m.by, at: m.at }); }
+        if (takeTomb(m.id, { by: m.by, at: m.at })) renderFiles(); // one flood from its author — never re-broadcast (see chat)
       } else if (m.k === 'tr') {
         if (takeTr(m.m)) {
           renderTranscript();
           showCaption(m.m.byId, m.m.text);
-          sendAll({ k: 'tr', m: m.m }); // gossip onward, like chat
+          // not gossiped onward (see chat): a caption line is one flood
         }
       } else if (m.k === 'sig') {
         // Pair-local signaling on the pair's own DataChannel (see sendSig,
@@ -14158,6 +14191,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       freezeGapForTest: (ms) => { hbLastAt = Date.now() - (ms | 0); },
       stageVoteNeed: () => stageVoteTallies().need,
       devInfo: () => ({ devOf: Object.assign({}, devOf), attested: Array.from(devRelay) }), // which device tags the RELAY vouched for (Ban needs one)
+      _unattestForTest: (id) => devRelay.delete(id), // leave devOf[id] as a tag known only by the peer's own word
       // THE STATUS PLANE, as this seat sees it (e2e-status-plane.js).
       statusPlane: () => { const d = roomDig(); return { id: myId, mode: digestMode(), past: roomPastSection(), n: d ? d.n : null, age: d ? d.age : null,
         refuse: d ? d.refuse : null, part: d ? !!d.part : null, handN: d ? d.handN : null, hands: d ? d.hands.map((e) => e.id) : [], stage: d ? d.stage.map((e) => e.id) : [],
@@ -14250,6 +14284,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       broadcast: () => BROADCAST,
       chatOff: () => !!chatOffInfo(),
       chatOffForTest: (on) => setMod('*', 'chat', !!on),
+      sayForTest: (text) => { const m = { id: uid('m'), by: myName(), byId: myId, at: Date.now(), text: String(text) }; chat.set(m.id, m); sendAll({ k: 'chat', m }); renderChat(); return m.id; },
+      chatHas: (id) => chat.has(id),
+      floodForTest: (n, kind) => { let k = 0; for (let i = 0; i < (n | 0); i++) { if (meshNode) { meshNode.gossip({ a: 1, msg: kind === 'status' ? { kind: 'status', s: Object.assign({}, myStatus, { at: Date.now() + i }), name: 'flood' } : { k: 'noop', i } }); k++; } } return k; }, // a hostile client's room-wide flood
+      gossipStats: () => (meshNode && meshNode.seat ? { dropped: meshNode.seat.gspDropped || 0, refused: meshNode.seat.gspRefused || 0 } : null),
       localStreamActive: () => !!localStream,
       banList: () => roomBan,
       bannedOut: () => bannedOut,

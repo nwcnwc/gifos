@@ -18,6 +18,7 @@
 //      'GSP' and re-flood whatever they take to every link) cannot leak a
 //      scoped heartbeat out of its section: they never take one. The control
 //      feeds them the scope-as-a-field encoding and must leak.
+//   8. FLOOD GUARD — a hostile member's flood is bounded by its links.
 //   7. AGE — a relayed message carries how long relays held it.
 //   5. BACKLOG — ephemeral heartbeats never enter the re-fan backlog, and a chat
 //      line gossiped room-wide still reaches every seat while they flow.
@@ -35,10 +36,11 @@ const run = (env, n) => { for (let t = 0; t < n; t++) H.doTick(env); };
 const BEAT = 8;   // phone-beat ticks (4 s at the production 500 ms tick)
 const BEATS = 8;
 
-function settledRoom(N) {
+function settledRoom(N, guard) {
   H.seedRng(20260928);
   const env = H.makeFabric();
   env.DIGEST = true;
+  env.GSP_GUARD = !!guard;   // the legs below model whole-room floods on purpose; leg 8 turns the guard on
   H.spawn(env, N);
   H.runJoin(env, N, 20000);
   run(env, 600);
@@ -200,6 +202,38 @@ console.log('\n=== 7) A RELAYED MESSAGE CARRIES ITS AGE — a replay never reads
   late.onGossip = (src, m, ag) => { if (m && m.note) lateAge = ag || 0; };
   run(env, 200);
   check(`a latecomer seated ${late.state === 3} receives the replay WITH its age (${lateAge} ticks >= 96)`, late.state === 3 && lateAge >= 96, { lateAge });
+}
+
+console.log('\n=== 8) THE FLOOD GUARD — a hostile member slows the room, it cannot drown it');
+// One seat pours NEW room-wide messages into the mesh as fast as it can. Every
+// honest seat takes at most GSP_RATE a tick from any one link, so what reaches
+// the room is bounded by the attacker's handful of links — not by how hard it
+// pushes, and not by the size of the room. An honest chat line sent in the
+// middle of it still reaches everyone.
+function floodRoom(N, guard) {
+  const env = settledRoom(N, guard);
+  const seated = [...env.seats.values()].filter((s) => s.alive && s.state === 3 && s.hasCoord);
+  const bad = seated.find((s) => s.coord.pc !== 0 && s.coord.i === 0) || seated[5];
+  const honest = seated.filter((s) => s !== bad);
+  const took = new Map(); const gotChat = new Set();
+  for (const s of honest) { took.set(s.id, 0); s.onGossip = (src, m) => { if (m && m.junk) took.set(s.id, took.get(s.id) + 1); if (m && m.chat) gotChat.add(s.id); }; }
+  const TICKS = 40, PER_TICK = 120;
+  for (let t = 0; t < TICKS; t++) {
+    for (let i = 0; i < PER_TICK; i++) bad.gossip({ junk: 1, t, i });
+    if (t === 20) { honest[honest.length - 1].gossip({ chat: 'still here' }); gotChat.add(honest[honest.length - 1].id); }
+    run(env, 1);
+  }
+  run(env, 64);
+  const per = honest.map((s) => took.get(s.id) / TICKS).sort((a, b) => a - b);
+  return { sent: TICKS * PER_TICK, links: bad.linkPeers().size || bad.linkPeers().length, max: per[per.length - 1], p50: per[per.length >> 1], chat: gotChat.size, honest: honest.length };
+}
+{
+  const on = floodRoom(100, true), on2 = floodRoom(300, true), off = floodRoom(100, false);
+  const cap = (on.links || 10) * 2 + 8;    // links x GSP_SRC_RATE (one author), plus its burst spread over the window
+  check(`guard ON, N=100: a seat takes ${on.max.toFixed(1)} junk messages a tick at most (attacker sent 120 a tick; bound ${cap})`, on.max <= cap, on);
+  check(`…and the same at N=300 (${on2.max.toFixed(1)}): the bound does not see the room`, on2.max <= cap, on2);
+  check(`…and an honest chat line sent mid-flood reached every seat (${on.chat}/${on.honest})`, on.chat === on.honest, on);
+  check(`control, guard OFF: every seat takes the whole flood (${off.p50.toFixed(0)} a tick)`, off.p50 >= 100, off);
 }
 
 console.log(fails ? `\n${fails} FAIL` : '\nALL PASS');

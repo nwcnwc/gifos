@@ -239,6 +239,13 @@
   // sends that peer (`dw`, the slots it wants whole — G0: no new frame), so the
   // periodic whole copy is only a backstop for a lost request.
   const STUB_FULL = 240;
+  // The flood guard's per-link budget for NEW gossip messages (see _gspRecv):
+  // 10 a tick is 20 a second at the production 500 ms tick; the burst covers a
+  // newcomer being handed the 64-message backlog by several neighbours at once.
+  // A seat therefore takes at most links x GSP_RATE new messages a tick, in a
+  // room of any size. (env.GSP_GUARD === false turns it off: harness controls only.)
+  const GSP_RATE = 10, GSP_BURST = 200;
+  const GSP_SRC_RATE = 2, GSP_SRC_BURST = 80;   // one author, on one link: 4 a second, and the 64-message backlog in one go
   const digHash = (d) => {
     if (d._h) return d._h;
     const t = JSON.stringify([d.n, d.refuse, d.part ? 1 : 0, d.freeC || 0, d.dmin === undefined ? 99 : d.dmin, digListKey(d)]);
@@ -269,9 +276,10 @@
       this.state = 0;            // 0 join, 1 ask, 2 search, 3 seated
       this.hasCoord = false; this.coord = { pc: 0, r: 0, i: 0 };
       this.occ = new Map(); this.live = new Map(); this.s1seen = new Map();
-      // born: CLAIM BIRTH — the tick each (cell → claimant) pairing was first
-      // established, locally or carried end-to-end in S1SYNC (entry field b).
-      // Gates the gossip tie-break: an ancient claim never wins a tie.
+      // born: CLAIM BIRTH — the tick (on MY clock, LT) each (cell → claimant)
+      // pairing was first established, locally or carried end-to-end in S1SYNC
+      // as an AGE (entry field ba, G0b). Gates the gossip tie-break: an
+      // ancient claim never wins a tie.
       this.born = new Map();
       this.healTry = new Map(); this.cousins = new Map();
       this.kidful = new Map(); this.childOf = new Map();
@@ -444,7 +452,7 @@
     occGet(k) { const v = this.occ.get(k); return v === undefined ? null : v; }
     // a seat can be in exactly ONE place: never store MYSELF at a coord I do not
     // hold (stale self-claims circulating back made invisible zombies)
-    setOcc(k, v) { if (v === this.id && (!this.hasCoord || k !== ck(this.coord))) return; if (this.occ.get(k) !== v) { this.tlForget(k, 'occ-change→' + (v == null ? 'null' : String(v).slice(0, 6))); this.born.set(k, this.TICK); } this.occ.set(k, v); }
+    setOcc(k, v) { if (v === this.id && (!this.hasCoord || k !== ck(this.coord))) return; if (this.occ.get(k) !== v) { this.tlForget(k, 'occ-change→' + (v == null ? 'null' : String(v).slice(0, 6))); this.born.set(k, this.LT()); } this.occ.set(k, v); }
     noteS1(k) { if (isS1key(k)) this.s1seen.set(k, this.TICK); }
     s1Fresh(k) { const it = this.s1seen.get(k); return it !== undefined && this.TICK - it < 120 && this.occ.has(k); }
     // A three-state helpers (empty / sitting-down / seated)
@@ -1958,8 +1966,8 @@
     }
     s1Sync() {
       const TICK = this.TICK;
-      const ent = [{ k: ck(this.coord), v: this.id, age: 0, ch: this.occGet(ck(topo.down(this.coord))), b: this.born.has(ck(this.coord)) ? this.born.get(ck(this.coord)) : this.TICK }]; // carry MY heir
-      for (const [k, v] of this.occ) { if (isS1key(k) && v !== this.id) { const it = this.s1seen.get(k); if (it !== undefined && TICK - it < 120) ent.push({ k, v, age: TICK - it, ch: this.childOf.has(k) ? this.childOf.get(k) : null, b: this.born.has(k) ? this.born.get(k) : -1 }); } }
+      const ent = [{ k: ck(this.coord), v: this.id, age: 0, ch: this.occGet(ck(topo.down(this.coord))), ba: this.born.has(ck(this.coord)) ? Math.max(0, this.LT() - this.born.get(ck(this.coord))) : 0 }]; // carry MY heir, and my claim's AGE (C5 + G0b: no tick crosses a link)
+      for (const [k, v] of this.occ) { if (isS1key(k) && v !== this.id) { const it = this.s1seen.get(k); if (it !== undefined && TICK - it < 120) ent.push({ k, v, age: TICK - it, ch: this.childOf.has(k) ? this.childOf.get(k) : null, ba: this.born.has(k) ? Math.max(0, this.LT() - this.born.get(k)) : -1 }); } }
       // W7: sync over the whole rook neighbourhood — every live row-mate AND
       // column-mate (heads included) — keeping the full C^2 home roster
       // consistent across the richly-meshed section.
@@ -2105,10 +2113,21 @@
       if (scoped && (!Number.isInteger(m.sc) || !this.hasCoord || this.coord.pc !== m.sc)) return; // outside the section it was scoped to (a replay or a stale link), or no scope at all
       const g = this.gseen = this.gseen || new Map();
       if (g.has(m.gid)) return;
+      // THE FLOOD GUARD. Each LINK may hand me GSP_RATE new messages a tick
+      // (burst GSP_BURST), and any one author GSP_SRC_RATE of them; past that
+      // they are dropped here, unseen and unforwarded. The budget is per link, so what any one client can push
+      // into the room is bounded by its handful of links whatever the room's
+      // size, and a flood dies at its first honest neighbours. It is set far
+      // above anything the app sends; it exists so a hostile member slows a
+      // meeting instead of ending it. (Duplicates are free: they never reach
+      // this line.) Dropped messages stay unseen, so a copy arriving later
+      // over a calmer link still lands.
+      if (!this._gspBudget(m.from, m.src)) { this.gspDropped = (this.gspDropped || 0) + 1; return; }
       g.set(m.gid, this.TICK);
       if (g.size > 4096) { for (const [k, at] of g) if (this.TICK - at > 600) g.delete(k); } // horizon GC
+      if (g.size > 65536) { let n = g.size - 32768; for (const k of g.keys()) { if (n-- <= 0) break; g.delete(k); } } // hard cap: oldest first (a Map keeps insertion order)
       const ag = Number.isInteger(m.ag) && m.ag > 0 ? Math.min(m.ag, 1 << 20) : 0;
-      if (this.onGossip) { try { this.onGossip(m.src, m.m, ag); } catch (e) {} }
+      if (this.onGossip) { let ok; try { ok = this.onGossip(m.src, m.m, ag, scoped); } catch (e) {} if (ok === false) { this.gspRefused = (this.gspRefused || 0) + 1; return; } } // the app REFUSED it: not remembered, not forwarded
       if (!m.eph) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined, ag);
       const e = { gid: m.gid, src: m.src, m: m.m, sc: scoped ? m.sc : undefined, eph: m.eph ? 1 : 0, ag0: ag };
       for (const p of (scoped ? this.sectionPeers() : this.linkPeers())) if (p !== m.src) this.emit(p, this._gspFrame(e));
@@ -2124,6 +2143,25 @@
     // every holder before me). What I send on is ag0 + my own hold — an AGE,
     // never a stamp (G0b): a re-fanned or replayed message must not read as
     // newly said, and no two seats share a clock to date it by.
+    // Two buckets, both must have a token: the LINK's (everything one
+    // neighbour hands me) and, inside it, the claimed AUTHOR's on that link —
+    // so one loud author cannot spend the whole link and starve everyone
+    // else's messages that arrive over it. (An attacker that forges a new
+    // author per message still meets the link's bucket.)
+    _gspBudget(link, src) {
+      if (this.env.GSP_GUARD === false) return true;
+      const B = this.gspBkt = this.gspBkt || new Map(), T = this.TICK;
+      const take = (k, rate, burst, peek) => {
+        let b = B.get(k); if (!b) { if (B.size > 4096) B.clear(); B.set(k, b = { n: burst, at: T }); }
+        if (T > b.at) { b.n = Math.min(burst, b.n + (T - b.at) * rate); b.at = T; }
+        if (b.n < 1) return false;
+        if (!peek) b.n -= 1; return true;
+      };
+      const lk = 'L|' + (link == null ? '?' : link), sk = lk + '|' + src;
+      if (!take(sk, GSP_SRC_RATE, GSP_SRC_BURST, true) || !take(lk, GSP_RATE, GSP_BURST, true)) return false;
+      take(sk, GSP_SRC_RATE, GSP_SRC_BURST); take(lk, GSP_RATE, GSP_BURST);
+      return true;
+    }
     _gspRemember(gid, src, m, sc, ag0) { const g = this.grecent = this.grecent || []; const e = { gid, src, m, at: this.TICK }; if (sc !== undefined) e.sc = sc; if (ag0) e.ag0 = ag0; g.push(e); if (g.length > 64) g.shift(); }
     // A SCOPED message rides its OWN frame type, 'GSPS'. A client from before
     // the status plane knows only 'GSP' and drops an unknown type at recv()'s
@@ -2441,13 +2479,19 @@
             // arbiter, evicted a live seat — mesh-harness D5-sever). Honest
             // hop-ages broke legit races instead (a tie-win stored stale
             // went phantom and double-admitted: c-sweep dups). The
-            // launder-proof signal is END-TO-END: every entry carries b —
-            // the tick its (cell → claimant) pairing was first established,
-            // relayed UNCHANGED — and a claim BORN more than 600 ticks ago
-            // may never win a tie. A ghost's birth is ancient by definition;
-            // every legit contender's is recent.
-            if (seen > curSeen + 8 || (seen >= curSeen - 8 && cur != null && eid < cur && (e.b == null || e.b < 0 || TICK - e.b <= 600))) { this.s1seen.set(kk, Math.max(curSeen, seen)); if (cur !== eid) { this.setOcc(kk, eid); this.born.set(kk, (e.b != null && e.b >= 0) ? e.b : TICK); } }
-            else if (cur == null && seen > -999) { this.s1seen.set(kk, seen); this.setOcc(kk, eid); this.born.set(kk, (e.b != null && e.b >= 0) ? e.b : TICK); }
+            // launder-proof signal is END-TO-END: every entry carries its
+            // CLAIM BIRTH — when its (cell → claimant) pairing was first
+            // established — and a claim BORN more than 600 ticks ago may never
+            // win a tie. A ghost's birth is ancient by definition; every legit
+            // contender's is recent. The birth crosses a link as an AGE (`ba`)
+            // re-stamped on each holder's own clock (G0b): every page counts
+            // ticks from its own load, and the absolute `b` this replaced made
+            // every ghost look newborn to a young page and every contender
+            // ancient to an old one. An old client's `b` is ignored (unknown).
+            const ba = Number.isInteger(e.ba) && e.ba >= 0 ? Math.min(e.ba, 1 << 20) : -1;
+            const eb = ba >= 0 ? this.LT() - ba : -1;
+            if (seen > curSeen + 8 || (seen >= curSeen - 8 && cur != null && eid < cur && (ba < 0 || ba <= 600))) { this.s1seen.set(kk, Math.max(curSeen, seen)); if (cur !== eid) { this.setOcc(kk, eid); this.born.set(kk, ba >= 0 ? eb : this.LT()); } }
+            else if (cur == null && seen > -999) { this.s1seen.set(kk, seen); this.setOcc(kk, eid); this.born.set(kk, ba >= 0 ? eb : this.LT()); }
           }
           return;
         }
