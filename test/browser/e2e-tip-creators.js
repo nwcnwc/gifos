@@ -178,10 +178,10 @@ async function until(url, ms) {
     /went through in USDC/.test(await fr.locator('#thanks-line').textContent()),
     await fr.locator('#thanks-line').textContent());
   const fac = await (await fetch('http://127.0.0.1:8797/_state')).json();
-  check('the $10 settled as the 97/3 split, both legs to the committed treasury (the tip jar\'s signed payee)',
+  check('the $10 settled as the 97/3 split (fee leg first), both legs to the committed treasury (the tip jar\'s signed payee)',
     fac.settled.length === 2
-    && fac.settled[0].to === TREASURY && fac.settled[0].value === '9700000'
-    && fac.settled[1].to === TREASURY && fac.settled[1].value === '300000',
+    && fac.settled[0].to === TREASURY && fac.settled[0].value === '300000'
+    && fac.settled[1].to === TREASURY && fac.settled[1].value === '9700000',
     JSON.stringify(fac.settled.map((t) => t.to.slice(0, 6) + ':' + t.value)));
 
   await browser.close();

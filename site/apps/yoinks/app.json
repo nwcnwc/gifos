@@ -1,0 +1,68 @@
+{
+  "catalog": "1.0",
+  "slug": "yoinks",
+  "appId": "yoinks",
+  "name": "yoinks",
+  "shortName": "yoinks",
+  "version": "0.3.1",
+  "minBuild": 2154,
+  "tagline": "yoink any video. paste. yoink. done. YouTube, X, Instagram, TikTok and twenty more sites.",
+  "description": "Paste a link, pick a resolution (or audio-only mp3), and your browser saves the file. No popups, no fake download buttons, no sketchy redirects. The screen is the terminal one: the pixel logo, the framed paste box, the Download panel, the hints along the bottom. Arrow keys, j/k or number keys choose, Enter yoinks, Esc goes back, and everything is clickable too. Your last fifty links come back with the up arrow. Three themes: auto follows your computer, light and dark are a keypress away.\n\nThe downloading is done by a cobalt instance, the same open-source media downloader behind cobalt.tools. There is no public instance baked in: the public ones ask browsers to pass a bot check this app cannot, so you name your own in Settings, either one you run (a single Docker container) or one whose owner gave you an API key. The instance address and key stay on this device.\n\nAn unofficial port of yoinks by Pablo Stanley. The original is a terminal app driven by yt-dlp; this one keeps its screens and swaps the engine for a cobalt instance. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Pablo Stanley",
+    "url": "https://github.com/pablostanley/yoinks"
+  },
+  "releaseDate": "2026-09-29",
+  "updated": "2026-09-29",
+  "categories": [
+    "Media",
+    "Utilities"
+  ],
+  "tags": [
+    "video",
+    "downloader",
+    "youtube",
+    "tiktok",
+    "instagram",
+    "twitter",
+    "mp3",
+    "cobalt",
+    "terminal"
+  ],
+  "license": "MIT",
+  "copyright": "Copyright (c) 2026 Pablo Stanley",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/yoinks",
+  "accent": [
+    24,
+    24,
+    27
+  ],
+  "capabilities": {
+    "db": true,
+    "network": [
+      "*"
+    ],
+    "links": true
+  },
+  "cover": "/apps/yoinks/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/yoinks/yoinks.gif",
+  "bytes": 144192,
+  "download": 0,
+  "provides": null,
+  "sha256": "501f6faec682f32b3de632d4fd88137c7473c0c43b944d0eabe3b7086eabe9da",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-09-30"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "yoinks",
+    "url": "https://github.com/pablostanley/yoinks",
+    "blessed": false
+  }
+}

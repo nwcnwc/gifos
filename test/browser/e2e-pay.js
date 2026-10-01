@@ -153,7 +153,9 @@ async function until(url, ms) {
     const { keyPair, publicKeyB64 } = await GifOS.sign.generateDomainKey();
     // It lists EVERY rail (capabilities.pay) — "pay": true would be PayPal only.
     const ALL = ['paypal', 'x402', 'transfer', 'fednow', 'mpp'];
-    const raw = await mk('paytest', { capabilities: { pay: ALL }, pay: { to: chainPayee } });
+    // Every sku it sells is priced in the SIGNED manifest (pay.prices).
+    const PRICES = { pro: '5000000', agentpack: '5000000', other: '5000000' };
+    const raw = await mk('paytest', { capabilities: { pay: ALL }, pay: { to: chainPayee, prices: PRICES } });
     const signed = await GifOS.sign.signDomain(raw, domain, keyPair, Date.now());
     // Two more sellers, signed by identities the rails registry does not
     // carry (never registered / lapsed) — the fee-free rails refuse them.
@@ -279,10 +281,10 @@ async function until(url, ms) {
   check('the x402 tip settles', tipped === 'ok:x402:3000000', tipped);
 
   const facState = await (await fetch('http://127.0.0.1:8797/_state')).json();
-  check('ONE approval settled TWO transfers on the STANDARD wire: 97% to the signed payee, 3% to the treasury',
+  check('ONE approval settled TWO transfers on the STANDARD wire — the 3% to the treasury FIRST, then 97% to the signed payee',
     facState.settled.length === 2
-    && facState.settled[0].to === CHAIN_PAYEE && facState.settled[0].value === '2910000'
-    && facState.settled[1].to === TREASURY && facState.settled[1].value === '90000',
+    && facState.settled[0].to === TREASURY && facState.settled[0].value === '90000'
+    && facState.settled[1].to === CHAIN_PAYEE && facState.settled[1].value === '2910000',
     JSON.stringify(facState.settled.map((t) => t.value)));
   const signedTds = await app.evaluate(() => window.__signedTypedData);
   check('what the wallet signed IS EIP-3009 for the displayed split — built by the OS, not the app',
@@ -408,8 +410,31 @@ async function until(url, ms) {
     (await fr.locator('#out').textContent()) === 'ok:mpp:3000000', await fr.locator('#out').textContent());
   const again = await fetch(agentUrl, { headers: { Authorization: credential(parseChallenge((await fetch(agentUrl)).headers.get('www-authenticate') || ''), { spt: await mintSpt(300) }) } });
   const againBody = await again.json();
-  check('ONE LINK PAYS ONCE: a second payment with a new token is refused (Stripe: same key, different parameters)',
-    again.status === 402 && againBody.type === 'invalid-challenge' && /already used/.test(againBody.detail || ''), JSON.stringify(againBody).slice(0, 140));
+  check('ONE LINK, ONE PAYMENT: a second payment with a new token is refused (Stripe: same key, different parameters)',
+    again.status === 402 && againBody.type === 'invalid-challenge' && /one link, one payment/.test(againBody.detail || '') && !againBody.receiptJson, JSON.stringify(againBody).slice(0, 160));
+
+  // THE LINK OUTLIVES THE SHEET. The person cancels; the agent pays anyway.
+  // The money moved, so the purchase must still be recorded on this computer.
+  await fr.locator('#tip').click();
+  await app.waitForSelector('#gifos-pay-sheet', { timeout: 5000 });
+  await app.locator('#gp-mpp').click();
+  await app.waitForSelector('#gifos-pay-agent', { timeout: 10000 });
+  const lateUrl = (await app.locator('#gpa-url').textContent()).trim();
+  await app.locator('#gpa-cancel').click();
+  await fr.locator('#out').filter({ hasText: /err:/ }).waitFor({ timeout: 10000 });
+  check('Cancel is a decline to the app, and the link is remembered on this computer',
+    /DECLINED_BY_USER/.test(await fr.locator('#out').textContent())
+    && (await app.evaluate(() => Object.keys(localStorage).filter((k) => k.indexOf('pay.agent:') === 0).length)) === 1);
+  const ledgerBefore = await app.evaluate(() => Object.keys(localStorage).filter((k) => k.indexOf('pay.led:') === 0).length);
+  const latePaid = await fetch(lateUrl, { headers: { Authorization: credential(parseChallenge((await fetch(lateUrl)).headers.get('www-authenticate') || ''), { spt: await mintSpt(300) }) } });
+  await app.evaluate(() => GifOS.payBroker.resumeAgentOffers());
+  const late = await app.evaluate(() => ({
+    led: Object.keys(localStorage).filter((k) => k.indexOf('pay.led:') === 0).map((k) => JSON.parse(localStorage.getItem(k))),
+    pending: Object.keys(localStorage).filter((k) => k.indexOf('pay.agent:') === 0).length,
+  }));
+  check('the agent paying AFTER the sheet closed is still recorded: a ledger line on the agent rail, nothing left pending',
+    latePaid.status === 200 && late.led.length === ledgerBefore + 1 && late.pending === 0
+    && late.led.some((e) => e.rail === 'mpp' && e.amount === '3000000' && /^pi_test_/.test(e.tx) && e.payeeId === SIGN_DOMAIN), JSON.stringify({ n: late.led.length, pending: late.pending }));
 
   // ---- the rails REGISTRY: the fee-free rails are registered-only -----------
   // These rails collect no cut, so they are open only to identities on the
@@ -463,8 +488,14 @@ async function until(url, ms) {
     stState.intents.length === intentsBefore + 1 && pi.transfer_data && pi.transfer_data.destination === 'acct_test_paytest' && pi.application_fee_amount === 15 && pi.amount === 500
     && pi.stripe_version === '2026-07-29.preview' && /^gifos_offer_[0-9a-f]{24}$/.test(pi.idempotency_key) && pi.metadata.gifos_offer === pi.idempotency_key.slice('gifos_offer_'.length) && pi.metadata.gifos_app === 'paytest', JSON.stringify(pi));
   const replay = await fetch(MPP_URL, { headers: { Authorization: credential(ch, { spt }) } });
-  check('REPLAYING the credential is refused (Stripe said idempotent-replayed) — invalid-challenge, with a fresh challenge, no second receipt',
-    replay.status === 402 && (await replay.json()).type === 'invalid-challenge' && /^Payment /.test(replay.headers.get('www-authenticate') || ''));
+  const replayBody = await replay.json();
+  check('the agent RETRYING the same credential gets the SAME receipt for the SAME payment — never a second charge, never money without a receipt',
+    replay.status === 200 && replayBody.receiptJson === paidBody.receiptJson
+    && (await (await fetch(STRIPE + '/_state')).json()).intents.length === intentsBefore + 1, replay.status + ' ' + JSON.stringify(replayBody).slice(0, 120));
+  check('the receipt names WHO WAS PAID: the verified signer, not just an appId',
+    paidReceipt.payeeId === SIGN_DOMAIN && paidReceipt.payeeType === 'domain' && paidReceipt.payee === 'acct_test_paytest', JSON.stringify(paidReceipt));
+  const underpriced = await offerFor(PROOF, 'agentpack', '500000');
+  check('a sku offered at a price the author did not sign is refused', underpriced.status === 403 && /costs 5000000/.test(underpriced.body.error || ''), JSON.stringify(underpriced.body));
   const tamperedReq = Buffer.from(JSON.stringify(Object.assign({}, reqJson, { amount: '50' }))).toString('base64url');
   const tam = await fetch(MPP_URL, { headers: { Authorization: credential(Object.assign({}, ch, { request: tamperedReq }), { spt: await mintSpt(50) }) } });
   check('a credential with an EDITED amount fails the binding before any token reaches Stripe',
@@ -502,8 +533,8 @@ async function until(url, ms) {
     const inFolder = items.filter((i) => i.parent === 'sys_purchases');
     return { count: inFolder.length, names: inFolder.map((i) => i.name), queue: localStorage.getItem('gifos_pay_pending') };
   });
-  check('all five receipts were filed INTO the folder and the queue was drained',
-    placed.count === 5 && placed.queue === null, JSON.stringify(placed));
+  check('all six receipts were filed INTO the folder and the queue was drained',
+    placed.count === 6 && placed.queue === null, JSON.stringify(placed));
 
   // A FRESH computer: hand it nothing but the receipt file, open it, and the
   // entitlement re-grants there — restore with no account anywhere.
@@ -526,7 +557,7 @@ async function until(url, ms) {
   await fresh.goto(BASE + '/index.html');
   await fresh.waitForSelector('.icon', { timeout: 10000 });
   check('the fresh computer starts with NO entitlement',
-    await fresh.evaluate(() => localStorage.getItem('pay.ent:paytest:pro') === null));
+    await fresh.evaluate(() => localStorage.getItem('pay.ent:paytest.example.com/paytest:pro') === null));
   await fresh.evaluate(async (bytesArr) => {
     const bytes = new Uint8Array(bytesArr);
     const fid = GifOS.store.uid('file');
@@ -543,8 +574,8 @@ async function until(url, ms) {
   await vfr.locator('main').waitFor({ timeout: 8000 });
   check('the receipt viewer shows the purchase to whoever holds the file',
     /\$5\.00/.test(await vfr.locator('main').textContent()));
-  await viewer.waitForFunction(() => localStorage.getItem('pay.ent:paytest:pro') !== null, null, { timeout: 8000 });
-  const restored = await viewer.evaluate(() => JSON.parse(localStorage.getItem('pay.ent:paytest:pro')));
+  await viewer.waitForFunction(() => localStorage.getItem('pay.ent:paytest.example.com/paytest:pro') !== null, null, { timeout: 8000 });
+  const restored = await viewer.evaluate(() => JSON.parse(localStorage.getItem('pay.ent:paytest.example.com/paytest:pro')));
   check('OPENING the receipt re-granted the entitlement — same license id, no account, no server of ours',
     restored && /^CAP-ORD-/.test(restored.tx), JSON.stringify(restored));
   await viewer.close(); await ctx2.close();
@@ -578,8 +609,8 @@ async function until(url, ms) {
   const v3text = await v3.locator('main').textContent();
   check('the Worker-packed receipt reads like every other: the app, $5.00, paid through an AI agent, to the signed identity',
     /\$5\.00/.test(v3text) && /AI agent/.test(v3text) && v3text.includes(SIGN_DOMAIN), v3text.replace(/\s+/g, ' ').slice(0, 160));
-  await viewer3.waitForFunction(() => localStorage.getItem('pay.ent:paytest:agentpack') !== null, null, { timeout: 8000 });
-  const restored3 = await viewer3.evaluate(() => JSON.parse(localStorage.getItem('pay.ent:paytest:agentpack')));
+  await viewer3.waitForFunction(() => localStorage.getItem('pay.ent:paytest.example.com/paytest:agentpack') !== null, null, { timeout: 8000 });
+  const restored3 = await viewer3.evaluate(() => JSON.parse(localStorage.getItem('pay.ent:paytest.example.com/paytest:agentpack')));
   check('OPENING it granted the agent-bought entitlement on this computer — license id = the Stripe intent',
     restored3 && /^pi_test_/.test(restored3.tx) && restored3.rail === 'mpp', JSON.stringify(restored3));
   await viewer3.close(); await ctx3.close();
@@ -594,8 +625,8 @@ async function until(url, ms) {
     }
     return out;
   });
-  check('the ledger holds one line per payment — five rails, five lines',
-    purse.led.length === 5 && purse.ent.length === 1, JSON.stringify(purse));
+  check('the ledger holds one line per payment — five rails, and the agent payment that landed late: six lines',
+    purse.led.length === 6 && purse.ent.length === 1, JSON.stringify(purse));
 
   // ---- over-ceiling and unsigned --------------------------------------------
   // The broker cached the VALID verdict for these exact BYTES when the real

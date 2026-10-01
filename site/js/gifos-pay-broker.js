@@ -172,14 +172,66 @@
   // A verified receipt still has to be THIS payment's: same amount, same app,
   // same sku, and the rail that was actually driven. (A receipt for a cheaper
   // sku at the same price must not unlock a dearer one.)
+  // And the IDENTITY: the receipt must name, as the party paid, exactly the
+  // verified signer the sheet showed the human (docs/payments.md "WHO WAS
+  // PAID"). An appId is a string any manifest can wear; the signer is not.
   function bindReceipt(receipt, manifest, sheetData, amount, rail) {
     const skuOf = (v) => (v == null ? '' : String(v));
     if (String(receipt.amount) !== String(amount) || receipt.appId !== manifest.appId
         || skuOf(receipt.sku) !== skuOf(sheetData && sheetData.sku)
-        || (receipt.rail != null && rail != null && receipt.rail !== rail)) {
+        || receipt.rail !== rail
+        || typeof receipt.payeeId !== 'string' || !receipt.payeeId
+        || receipt.payeeId !== (sheetData && sheetData.payingTo)
+        || receipt.payeeType !== (sheetData && sheetData.payingToType)
+        || !payeeFits(receipt)
+        || (sheetData && sheetData.address && (rail === 'x402' || rail === 'transfer') && String(receipt.payee || '').toLowerCase() !== String(sheetData.address).toLowerCase())) {
       throw new Error('the signed receipt does not match this payment — refusing to record it');
     }
   }
+  // WHERE the money went must agree with WHO the receipt says was paid. On
+  // PayPal the payout is derived from the identity (THE PAYEE RULE), so a
+  // receipt naming one signer and paying another's mailbox is refused —
+  // whatever else about it verifies.
+  function payeeFits(receipt) {
+    if (receipt.rail !== 'paypal') return true;
+    try { return receipt.payee === GifOS.charge.paypalPayeeOf({ verified: true, type: receipt.payeeType, id: receipt.payeeId }); }
+    catch (e) { return false; }
+  }
+  // ONE PAYMENT, ONE PURCHASE. A transaction that already bought something
+  // on this computer cannot buy a second thing.
+  function txSpentOn(tx, scope, sku) {
+    if (!tx) return false;
+    for (const k of store.keys()) {
+      if (k.indexOf('pay.ent:') !== 0) continue;
+      const e = store.get(k);
+      if (e && e.tx === tx && k !== 'pay.ent:' + scope + ':' + sku) return true;
+    }
+    return false;
+  }
+  // A ledger line per PAYMENT: a transaction already on the ledger (another
+  // tab recorded it, a resume ran twice) is not written again.
+  function recordOnce(scope, entry) {
+    const p = purse();
+    if (entry.tx && p.history(scope).some((e) => e && e.tx === entry.tx && e.rail === entry.rail)) return false;
+    p.record(scope, entry);
+    return true;
+  }
+
+  // ---- whose purchase it is ------------------------------------------------------
+  // An entitlement belongs to (signing identity, appId, sku) — never to an
+  // appId alone. Two apps wearing the same appId under different signers are
+  // two different sellers, and neither can read, unlock or block the other's
+  // purchases. The purse takes this scope where it takes an app id.
+  // The identity is percent-encoded, so the scope reads back unambiguously
+  // whatever a mailbox name contains: pay.ent:<identity>/<appId>:<sku>. The
+  // LEDGER and the per-charge CEILING are kept under the same scope — an app
+  // that wears another author's appId shares none of them.
+  const entScope = (identityId, appId) => encodeURIComponent(String(identityId)) + '/' + String(appId);
+  // Names an object already owns cannot name an app.
+  const usableAppId = (appId) => typeof appId === 'string' && /^[\w.\-]{1,64}$/.test(appId) && !(appId in Object.prototype);
+  // Who asks the Worker for a receipt names the identity that was paid; the
+  // Worker signs only if it matches the tag the payment was started with.
+  const whoQuery = (sheetData) => '&id=' + encodeURIComponent(sheetData.payingTo) + '&type=' + encodeURIComponent(sheetData.payingToType);
 
   // ---- receipt verification --------------------------------------------------
   // The Worker signs the exact JSON STRING it returns; we verify those UTF-8
@@ -358,7 +410,7 @@
         if (closedAt && Date.now() - closedAt > 15000) throw new Error(GifOS.charge.DECLINED);
         // The claim came back with the checkout and only to this page: the
         // Worker signs a receipt for an order only to the claim it was minted with.
-        const rr = await fetch(base + '/receipt/' + encodeURIComponent(co.id) + '?claim=' + encodeURIComponent(co.claim || '')).catch(() => null);
+        const rr = await fetch(base + '/receipt/' + encodeURIComponent(co.id) + '?claim=' + encodeURIComponent(co.claim || '') + whoQuery(sheetData)).catch(() => null);
         if (rr && rr.ok) {
           const body = await rr.json(); // { status, receiptJson, sig }
           if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
@@ -514,8 +566,15 @@
   // hands its link to their agent (anything running Stripe's Link wallet —
   // `link-cli mpp pay <link>`), approves the spend in the Link app, and this
   // screen finishes on its own: it polls /mpp/status with the one-time claim
-  // only this page holds. One link pays once. Stripe's search can trail a
+  // only this page holds. One link, one payment. Stripe's search can trail a
   // settled payment by up to a minute, so the wait says so.
+  //
+  // THE LINK OUTLIVES THE SHEET. Cancel (or a closed tab) stops the waiting,
+  // not the link: until it expires the agent can still pay it. So every
+  // offer is remembered (pay.agent:<id>, never exported) until it is paid,
+  // failed or expired, and resumeAgentOffers() — at boot, before every
+  // charge, and on a timer while any is outstanding — records a payment
+  // that landed after the sheet was gone: entitlement, ledger, receipt file.
   function showAgentSheet(url) {
     const doc = root.document;
     const old = doc.getElementById('gifos-pay-agent'); if (old) old.remove();
@@ -525,7 +584,7 @@
     box.setAttribute('style', 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.8rem;max-width:26rem;width:100%;padding:1.2rem;font:15px/1.55 system-ui,-apple-system,sans-serif;');
     box.innerHTML =
       '<h3 style="margin:0 0 .35rem;font-size:1.05rem">Pay with your AI agent</h3>' +
-      '<p style="margin:0 0 .8rem;color:#b6b6cf;font-size:.86rem">Give this link to your AI agent (any agent with a Stripe Link wallet). It asks you to approve the payment in the <b>Link app</b> — that approval is the only way it can pay. This screen finishes on its own once it has. The link pays once, and works for 24 hours.</p>' +
+      '<p style="margin:0 0 .8rem;color:#b6b6cf;font-size:.86rem">Give this link to your AI agent (any agent with a Stripe Link wallet). It asks you to approve the payment in the <b>Link app</b> — that approval is the only way it can pay. This screen finishes on its own once it has. The link pays once, and works for 30 minutes — if your agent pays after you close this, the purchase is still recorded here.</p>' +
       '<div style="background:#0e0e17;border:1px solid #23233a;border-radius:.6rem;padding:.7rem .8rem;margin-bottom:.8rem">' +
         '<div id="gpa-url" style="font-size:.72rem;word-break:break-all;color:#cfcfe6;max-height:4.6rem;overflow:auto">' + esc(url) + '</div>' +
         '<button id="gpa-copy" style="margin-top:.5rem;padding:.25rem .7rem;border-radius:.4rem;border:1px solid #2a2a3f;background:transparent;color:#b6b6cf;cursor:pointer;font:inherit;font-size:.8rem">Copy link</button>' +
@@ -540,7 +599,63 @@
     return { cancelled: () => cancelled, close: () => bg.remove() };
   }
 
-  async function payWithAgent(manifest, sheetData, amount, proof) {
+  const AGENT_KEY = 'pay.agent:';
+  const AGENT_GRACE_MS = 2 * 60 * 1000;      // Stripe's search can trail a payment
+  const AGENT_KEEP_MS = 24 * 60 * 60 * 1000; // how long the Worker still answers for a link after it expires
+  const agentKeepUntil = (rec) => Number(rec.askUntil) || (Number(rec.exp) + AGENT_KEEP_MS);
+  const agentLive = new Set();               // offers a sheet on THIS page is waiting on
+  const agentId = (token) => { try { return JSON.parse(atob(String(token).split('.')[0].replace(/-/g, '+').replace(/_/g, '/'))).oid || null; } catch (e) { return null; } };
+  async function agentStatus(rec) {
+    const rr = await fetch(workerBase() + '/mpp/status', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ offer: rec.token, claim: rec.claim }),
+    }).catch(() => null);
+    if (!rr) return { status: 'PENDING' };
+    if (rr.status === 410) return { status: 'EXPIRED' };
+    if (!rr.ok) return { status: 'PENDING' };
+    const body = await rr.json();
+    if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
+      const receipt = await verifyReceipt(body.receiptJson, body.sig);
+      bindReceipt(receipt, { appId: rec.appId }, { sku: rec.sku, payingTo: rec.payingTo, payingToType: rec.payingToType }, rec.amount, 'mpp');
+      return { status: 'COMPLETED', paid: { receipt, receiptJson: body.receiptJson, sig: body.sig } };
+    }
+    return { status: body.status === 'FAILED' ? 'FAILED' : 'PENDING' };
+  }
+  // Record a payment that landed with no sheet waiting for it.
+  async function settleAgentOffer(rec, paid) {
+    const r = paid.receipt, p = purse();
+    const tx = r.tx || null, at = r.at || Date.now();
+    const scope = entScope(r.payeeId, rec.appId);
+    if (!recordOnce(scope, { amount: String(rec.amount), rail: 'mpp', sku: rec.sku || null, reason: rec.reason, payeeId: r.payeeId, tx, at })) return;
+    if (rec.sku) p.grant(scope, rec.sku, { tx, amount: String(rec.amount), rail: 'mpp', at, payeeId: r.payeeId });
+    try { await mintReceiptFile(paid, { sku: rec.sku }, { payingTo: rec.payingTo }, rec.appName); } catch (e) { try { console.warn('receipt file not minted:', e); } catch (e2) {} }
+  }
+  let agentTimer = null;
+  async function resumeAgentOffers() {
+    let waiting = 0;
+    for (const k of store.keys().filter((x) => x.indexOf(AGENT_KEY) === 0)) {
+      const rec = store.get(k);
+      if (!rec || !rec.token || !rec.claim) { store.del(k); continue; }
+      if (agentLive.has(k)) { waiting++; continue; }
+      if (Date.now() > agentKeepUntil(rec)) { store.del(k); continue; }
+      let st;
+      try { st = await agentStatus(rec); } catch (e) { store.del(k); continue; }   // a receipt that does not verify or bind is dropped, never recorded
+      // Re-read: a sheet on another tab may have settled it while we asked.
+      if (store.get(k) === undefined) continue;
+      if (st.status === 'COMPLETED') { store.del(k); await settleAgentOffer(rec, st.paid); }
+      else if (st.status === 'FAILED') store.del(k);
+      else if (st.status === 'EXPIRED') store.del(k);
+      // Past its paying window and still unpaid after the search lag: it
+      // stays on record (a late lookup still answers) but needs no timer.
+      else if (Date.now() <= Number(rec.exp) + AGENT_GRACE_MS) waiting++;
+    }
+    if (waiting && !agentTimer && typeof setTimeout === 'function') {
+      agentTimer = setTimeout(() => { agentTimer = null; resumeAgentOffers().catch(() => {}); }, 20000);
+    }
+    return waiting;
+  }
+
+  async function payWithAgent(manifest, sheetData, amount, proof, appName) {
     const base = workerBase();
     const r = await fetch(base + '/mpp/offer', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -548,29 +663,41 @@
     });
     let offer = null; try { offer = await r.json(); } catch (e) {}
     if (!r.ok || !offer || !offer.url || !offer.token || !offer.claim) throw new Error('could not start the agent checkout: ' + ((offer && offer.error) || ('HTTP ' + r.status)));
+    const oid = agentId(offer.token);
+    if (!oid) throw new Error('could not start the agent checkout: the link is malformed');
+    const key = AGENT_KEY + oid;
+    const rec = {
+      token: offer.token, claim: offer.claim, exp: Number(offer.exp) || (Date.now() + 30 * 60 * 1000), askUntil: Number(offer.askUntil) || 0,
+      appId: manifest.appId, appName: appName || manifest.name || manifest.appId,
+      sku: sheetData.sku || null, amount: String(amount), reason: sheetData.reason,
+      payingTo: sheetData.payingTo, payingToType: sheetData.payingToType,
+    };
+    store.set(key, rec);
+    agentLive.add(key);
     const ui = showAgentSheet(offer.url);
     try {
-      const deadline = Math.min(Number(offer.exp) || 0, Date.now() + 30 * 60 * 1000);
-      while (Date.now() < deadline) {
+      while (Date.now() < rec.exp + AGENT_GRACE_MS) {
         if (ui.cancelled()) throw new Error(GifOS.charge.DECLINED);
-        const rr = await fetch(base + '/mpp/status', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ offer: offer.token, claim: offer.claim }),
-        }).catch(() => null);
-        if (rr && rr.ok) {
-          const body = await rr.json();
-          if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
-            const receipt = await verifyReceipt(body.receiptJson, body.sig);
-            bindReceipt(receipt, manifest, sheetData, amount, 'mpp');
-            return { receipt, receiptJson: body.receiptJson, sig: body.sig };
-          }
-        } else if (rr && rr.status === 410) {
-          throw new Error('the agent checkout link expired — start the payment again');
+        const st = await agentStatus(rec);
+        if (st.status === 'COMPLETED') {
+          // Gone from the record = another tab already wrote this payment down.
+          const mine = store.get(key) !== undefined;
+          store.del(key);
+          return Object.assign({ recorded: !mine }, st.paid);
         }
+        if (st.status === 'FAILED') { store.del(key); throw new Error('your agent\u2019s payment did not go through — start the payment again for a new link'); }
+        if (st.status === 'EXPIRED') { store.del(key); break; }
         await sleep(3000);
       }
+      // The record STAYS: a payment made in the link's last seconds is
+      // still found, and written down, by the next resume.
       throw new Error('the agent did not pay in time — start the payment again');
-    } finally { ui.close(); }
+    } finally {
+      agentLive.delete(key);
+      ui.close();
+      // Cancelled with the link still payable: keep watching for it.
+      if (store.get(key) !== undefined) resumeAgentOffers().catch(() => {});
+    }
   }
 
   // ---- the FedNow rail ------------------------------------------------------
@@ -591,7 +718,7 @@
       const deadline = Date.now() + 5 * 60 * 1000;
       while (Date.now() < deadline) {
         if (busyUi.cancelled()) throw new Error(GifOS.charge.DECLINED);
-        const rr = await fetch(base + '/fednow/receipt/' + encodeURIComponent(rfp.id)).catch(() => null);
+        const rr = await fetch(base + '/fednow/receipt/' + encodeURIComponent(rfp.id) + '?claim=' + encodeURIComponent(rfp.claim || '') + whoQuery(sheetData)).catch(() => null);
         if (rr && rr.ok) {
           const body = await rr.json();
           if (body.status === 'COMPLETED' && body.receiptJson && body.sig) {
@@ -611,13 +738,19 @@
     if (!manifest || !manifest.capabilities || !manifest.capabilities.pay) {
       throw new Error('This app did not declare the "pay" capability.');
     }
+    if (!usableAppId(manifest.appId)) throw new Error('this app has no usable appId, so it cannot take payments');
     const verdict = await verdictFor(manifest, appBytes);
     const elig = GifOS.charge.eligibility(verdict, manifest);
     if (!elig.allowed) throw new Error(elig.reason);
+    const scope = entScope(elig.identity.id, manifest.appId);
+    // An agent link paid after its sheet closed is recorded BEFORE this ask,
+    // so "already purchased" is answered from what was really paid.
+    try { await resumeAgentOffers(); } catch (e) {}
     const p = purse();
     const request = GifOS.charge.validateRequest(req, {
-      maxAmount: maxAmountFor(manifest.appId),
-      entitled: (sku) => p.entitled(manifest.appId, sku),
+      maxAmount: maxAmountFor(scope),
+      entitled: (sku) => p.entitled(scope, sku),
+      prices: elig.prices,
     });
     // The proof is what the Worker verifies instead of consulting the store;
     // /rails narrows the author's allowed rails to what can be processed now.
@@ -635,7 +768,7 @@
 
     // An edited (tip) amount still honors the app's ceiling — the human can
     // lower or raise a SUGGESTION, never outspend the app's own cap.
-    const cap = BigInt(maxAmountFor(manifest.appId));
+    const cap = BigInt(maxAmountFor(scope));
     if (choice.amount <= 0n) throw new Error(GifOS.charge.DECLINED);
     if (choice.amount > cap) throw new Error('that amount is over this app’s ceiling (' + fmtUsd(cap) + ')');
     sheetData.amount = String(choice.amount);
@@ -643,7 +776,7 @@
     const paid = choice.rail === 'paypal' ? await payWithPaypal(manifest, sheetData, choice.amount, choice.win, proof)
       : choice.rail === 'x402' ? await payWithX402(manifest, sheetData, choice.amount, proof)
       : choice.rail === 'transfer' ? await payWithTransfer(manifest, sheetData, choice.amount, proof)
-      : choice.rail === 'mpp' ? await payWithAgent(manifest, sheetData, choice.amount, proof)
+      : choice.rail === 'mpp' ? await payWithAgent(manifest, sheetData, choice.amount, proof, appName || manifest.name)
       : await payWithFednow(manifest, sheetData, choice.amount, proof);
     const receipt = paid.receipt;
 
@@ -651,8 +784,11 @@
     // APP gets back is the pure-module shape — it never sees the Worker's raw
     // signed object, which names the payee account.
     const out = GifOS.charge.receipt(sheetData, receipt.tx || receipt.orderId || null, receipt.at || Date.now(), choice.rail);
-    if (request.sku) p.grant(manifest.appId, request.sku, { tx: out.tx, amount: out.amount, rail: out.rail, at: out.at, payeeId: sheetData.payingTo });
-    p.record(manifest.appId, { amount: String(choice.amount), rail: choice.rail, sku: request.sku || null, reason: request.reason, payeeId: sheetData.payingTo, tx: out.tx, at: out.at });
+    // (An agent payment another tab already wrote down is not written twice.)
+    if (paid.recorded) return out;
+    if (request.sku && txSpentOn(out.tx, scope, request.sku)) throw new Error('that payment already bought something else on this computer — one payment, one purchase');
+    if (!recordOnce(scope, { amount: String(choice.amount), rail: choice.rail, sku: request.sku || null, reason: request.reason, payeeId: receipt.payeeId, tx: out.tx, at: out.at })) return out;
+    if (request.sku) p.grant(scope, request.sku, { tx: out.tx, amount: out.amount, rail: out.rail, at: out.at, payeeId: receipt.payeeId });
     // The receipt becomes a FILE (docs/payments.md "The receipt is a file"):
     // proof you can hold, back up, and carry to a new computer. Best-effort
     // and AFTER the money facts are recorded — a mint failure must never
@@ -666,8 +802,8 @@
   // RUNNING bytes must verify for the identity that was paid. Otherwise any
   // GIF that copied a victim's appId could read its purchases and, through
   // license(), the transaction id sellers treat as the buyer's account. A
-  // grant remembers the identity it was made for (payeeId); an older grant
-  // without one falls back to "signed and valid".
+  // purchase is stored under the identity that was PAID and answers only to
+  // an app signed by exactly that identity.
   async function paidIdentityFor(manifest, appBytes, sku, what) {
     if (!manifest || !manifest.capabilities || !manifest.capabilities.pay) {
       throw new Error('This app did not declare the "pay" capability.');
@@ -679,12 +815,12 @@
     return elig.identity && elig.identity.id;
   }
   function entitledTo(ent, identityId) {
-    if (!ent) return false;
-    return !ent.payeeId || !identityId || ent.payeeId === identityId;
+    return !!ent && !!identityId && typeof ent.payeeId === 'string' && ent.payeeId === identityId;
   }
   async function entitled(manifest, sku, appBytes) {
     const who = await paidIdentityFor(manifest, appBytes, sku, 'entitled');
-    return entitledTo(purse().entitlement(manifest.appId, sku), who);
+    if (!who) return false;
+    return entitledTo(purse().entitlement(entScope(who, manifest.appId), sku), who);
   }
 
   // ---- the receipt as a FILE ------------------------------------------------
@@ -726,8 +862,14 @@
     if (!raw) return null;
     const wrapped = JSON.parse(typeof raw === 'string' ? raw : new TextDecoder().decode(raw));
     const receipt = await verifyReceipt(wrapped.receiptJson, wrapped.sig);
+    // A receipt grants a purchase only to the signer it names as paid. One
+    // that names nobody grants nothing: it cannot say whose app it bought.
+    if (typeof receipt.payeeId !== 'string' || !receipt.payeeId) throw new Error('this receipt names no signing identity — it cannot be registered');
+    if (!payeeFits(receipt)) throw new Error('this receipt names one signer and pays another — it cannot be registered');
     if (receipt.sku && receipt.appId) {
-      purse().grant(receipt.appId, receipt.sku, { tx: receipt.tx, amount: receipt.amount, rail: receipt.rail, at: receipt.at });
+      if (!usableAppId(receipt.appId)) throw new Error('this receipt names no usable app — it cannot be registered');
+      if (txSpentOn(receipt.tx, entScope(receipt.payeeId, receipt.appId), receipt.sku)) throw new Error('that payment already bought something else on this computer — one payment, one purchase');
+      purse().grant(entScope(receipt.payeeId, receipt.appId), receipt.sku, { tx: receipt.tx, amount: receipt.amount, rail: receipt.rail, at: receipt.at, payeeId: receipt.payeeId });
     }
     return receipt;
   }
@@ -739,16 +881,25 @@
   // shared IDENTITY rather than a free copy (docs/payments.md).
   async function license(manifest, sku, appBytes) {
     const who = await paidIdentityFor(manifest, appBytes, sku, 'license');
-    const ent = purse().entitlement(manifest.appId, sku);
+    if (!who) return null;
+    const ent = purse().entitlement(entScope(who, manifest.appId), sku);
     return entitledTo(ent, who) && ent.tx ? String(ent.tx) : null;
   }
 
+  // Purchases recorded before 2026-09-29 sit under a bare appId
+  // (pay.ent:<appId>:<sku>) that nothing reads any more; they are removed
+  // rather than left as keys no screen can show or delete.
+  try { for (const k of store.keys()) if (/^pay\.ent:[^/:]+:/.test(k)) store.del(k); } catch (e) {}
+
+  // At boot: record anything an agent paid while this page was closed.
+  if (root.document && typeof setTimeout === 'function') setTimeout(() => { resumeAgentOffers().catch(() => {}); }, 1500);
+
   GifOS.payBroker = {
-    charge, entitled, license, ingestReceiptFiles,
+    charge, entitled, license, ingestReceiptFiles, resumeAgentOffers,
     PENDING_KEY,
     // The Settings surface reads and writes through these — the panel owns no
     // storage of its own.
-    purse, maxAmountFor, setMaxAmount, fmtUsd,
+    purse, maxAmountFor, setMaxAmount, fmtUsd, entScope,
     DEFAULT_MAX, WORKER_KEY, POLICY_KEY,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

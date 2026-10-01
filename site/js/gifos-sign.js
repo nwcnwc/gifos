@@ -579,7 +579,11 @@
       unpinned = rules < 2 ? unpinnedAssets(archive.files).length : 0;
     }
     const msg = statement(type, id, chHex);
-    const valid = (extra) => Object.assign({ status: 'valid', id, type, ts: sig.ts, rules }, unpinned ? { unpinned } : null, extra);
+    // An email is REPORTED in lower case (one mailbox, one identity — a
+    // purchase keyed to it must not split on casing). The statement is still
+    // checked with the id exactly as it was signed.
+    const shown = type === 'email' ? String(id).toLowerCase() : id;
+    const valid = (extra) => Object.assign({ status: 'valid', id: shown, type, ts: sig.ts, rules }, unpinned ? { unpinned } : null, extra);
     try {
       if (type === 'domain') {
         let pub;
@@ -604,7 +608,7 @@
         const keyBytes = await fetchEmailKey(id);
         const ok = await pgpVerify(msg, sigBytes, keyBytes);
         if (!ok) return { status: 'tampered', id, type, ts: sig.ts, detail: 'signature does not match these contents' };
-        const pin = pinKey('email:' + id, hex(await sha256(keyBytes)).slice(0, 40));
+        const pin = pinKey('email:' + shown, hex(await sha256(keyBytes)).slice(0, 40));
         return valid({ keyChanged: pin.changed });
       }
       return { status: 'tampered', detail: 'unknown signature type' };
@@ -695,7 +699,8 @@
     let manifest = null;
     try { manifest = JSON.parse(gif.bytesToText(manifestBytes)); } catch (e) {}
     if (!manifest || typeof manifest !== 'object') return tampered('the signed manifest is not JSON', { id, type });
-    return { status: 'valid', id, type, ts: sig.ts, rules, manifest };
+    // Reported as verify() reports it: an email in lower case.
+    return { status: 'valid', id: type === 'email' ? String(id).toLowerCase() : id, type, ts: sig.ts, rules, manifest };
   }
 
   // ---- signing helpers (used by sign.html) ----------------------------------

@@ -31,8 +31,10 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
 (async () => {
   const { makeCore } = await import(path.join(ROOT, 'pay', 'src', 'core.js'));
   const { keyPair, publicKeyB64 } = await sign.generateDomainKey();
+  // Every test app prices the skus the cases below buy (manifest.pay.prices).
+  const PRICES = { pro: '5000000', agentpack: '5000000', retry: '5000000' };
   const build = async (appId, caps, extra) => sign.signDomain(await gif.encode({
-    'manifest.json': JSON.stringify(Object.assign({ gifos: '1.0', appId, name: appId, entry: 'index.html', capabilities: caps }, extra || {})),
+    'manifest.json': JSON.stringify(Object.assign({ gifos: '1.0', appId, name: appId, entry: 'index.html', capabilities: caps }, extra ? Object.assign({}, extra, { pay: Object.assign({ prices: PRICES }, extra.pay) }) : {})),
     'index.html': '<p>' + appId + '</p>',
   }), DOMAIN, keyPair, 1786000000000);
   const proofs = {
@@ -47,6 +49,8 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
   const seen = [];
   let keyUp = true;
   let searchData = [];
+  let stripeAnswer = null;   // what POST /v1/payment_intents answers next
+  let fac = { verifyFails: -1, settleFails: -1, verified: 0, settled: 0 };   // the x402 facilitator: which leg (by call order) fails
   const answer = (status, body) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   const fakeFetch = async (url, opts) => {
     const u = String(url);
@@ -55,8 +59,14 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
     if (u.endsWith('/v1/oauth2/token')) return answer(200, { access_token: 'tok' });
     if (u.endsWith('/v2/checkout/orders')) return answer(201, { id: 'ORDER-1', links: [{ rel: 'approve', href: 'https://paypal.example/approve?token=ORDER-1' }] });
     if (u === 'https://registry.example/registry.json') return answer(200, { registered: { [DOMAIN]: { until: null } } });
+    if (u === 'https://facilitator.example/verify') { const n = fac.verified++; return answer(200, { isValid: n !== fac.verifyFails }); }
+    if (u === 'https://facilitator.example/settle') { const n = fac.settled++; return n === fac.settleFails ? answer(200, { success: false, errorReason: 'insufficient_funds' }) : answer(200, { success: true, transaction: '0xleg' + n }); }
     if (u === 'https://rpc.example/') return answer(200, { jsonrpc: '2.0', id: 1, result: '0x10' });
     if (u.startsWith('https://stripe.example/v1/payment_intents/search')) return answer(200, { data: searchData });
+    if (u === 'https://stripe.example/v1/payment_intents') {
+      const a = stripeAnswer(new URLSearchParams(opts.body), opts.headers);
+      return new Response(JSON.stringify(a.body), { status: a.status, headers: Object.assign({ 'Content-Type': 'application/json' }, a.replayed ? { 'idempotent-replayed': 'true' } : {}) });
+    }
     if (u.startsWith('https://gifos.app/')) return answer(500, 'THE STORE WAS CONSULTED');
     return answer(404, 'unexpected ' + u);
   };
@@ -125,6 +135,13 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
   check('a PayPal-allowed app gets its order, paid to the identity it was signed by',
     pp.status === 200 && pp.body.id === 'ORDER-1' && unit.payee && unit.payee.email_address === 'payments@' + DOMAIN
     && JSON.parse(unit.custom_id).a === 'paypal-shop', JSON.stringify(unit.payee));
+  const cheap = await post(H, '/checkout', { proof: proofs.paypal, amount: '10000', reason: 'Unlock', sku: 'pro' });
+  check('a sku posted at a price the author did not sign is refused — the buyer does not name the price',
+    cheap.status === 403 && /costs 5000000/.test(cheap.body.error), cheap.body && cheap.body.error);
+  const unpriced = await post(H, '/checkout', { proof: proofs.paypal, amount: '5000000', reason: 'Unlock', sku: 'platinum' });
+  check('…and a sku the manifest does not price is not sold at all', unpriced.status === 403 && /sets no price for "platinum"/.test(unpriced.body.error));
+  const tip = await post(H, '/checkout', { proof: proofs.paypal, amount: '10000', reason: 'Tip' });
+  check('a tip (no sku) is any amount', tip.status === 200);
   const pend = await post(core({ paypalPartner: 'pending' }), '/checkout', { proof: proofs.paypal, amount: '5000000', reason: 'x' });
   check('…and while partner approval is pending, checkout says so plainly instead of a PayPal 422', pend.status === 503 && /platform partner/.test(pend.body.error));
   const inv = await post(H, '/transfer/invoice', { proof: proofs.usdc, amount: '3000000', sku: null });
@@ -149,12 +166,122 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
   check('nothing paid yet -> PENDING', waiting.status === 200 && waiting.body.status === 'PENDING');
   searchData = [{ id: 'pi_wrong', status: 'succeeded', amount: 1, metadata: { gifos_offer: oid } }];
   check('a payment for the WRONG amount does not complete the offer', (await st(offer.body.claim)).body.status === 'PENDING');
-  searchData = [{ id: 'pi_live_1', status: 'succeeded', amount: 500, metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_test_author' } }];
+  searchData = [{ id: 'pi_live_1', status: 'succeeded', amount: 500, currency: 'usd', metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_test_author' } }];
   const paidNow = await st(offer.body.claim);
   const rec = paidNow.body && paidNow.body.receiptJson ? JSON.parse(paidNow.body.receiptJson) : {};
   check('once the agent has paid, the wait returns the signed receipt for exactly that offer',
     paidNow.body.status === 'COMPLETED' && rec.rail === 'mpp' && rec.tx === 'pi_live_1' && rec.sku === 'agentpack' && rec.amount === '5000000' && rec.payeeId === DOMAIN && rec.appId === 'every-rail', JSON.stringify(rec));
   searchData = [];
+
+  // A payment is still ANSWERED FOR after its link can no longer be paid.
+  const realNow = Date.now;
+  Date.now = () => realNow() + 31 * 60 * 1000;
+  const lateCharge = await H(new Request(offer.body.url));
+  searchData = [{ id: 'pi_live_1', status: 'succeeded', amount: 500, currency: 'usd', metadata: { gifos_offer: oid }, transfer_data: { destination: 'acct_test_author' } }];
+  const lateAsk = await st(offer.body.claim);
+  Date.now = () => realNow() + 26 * 60 * 60 * 1000;
+  const tooLate = await st(offer.body.claim);
+  Date.now = realNow;
+  searchData = [];
+  check('after 30 minutes the link can no longer be PAID…', lateCharge.status === 410);
+  check('…but a payment made on it is still reported, with its receipt', lateAsk.status === 200 && lateAsk.body.status === 'COMPLETED' && !!lateAsk.body.receiptJson, lateAsk.status + ' ' + JSON.stringify(lateAsk.body).slice(0, 80));
+  check('…until a day later, when the link is forgotten', tooLate.status === 410);
+
+  const protoApp = await sign.proofOf(await build('__proto__', { pay: true }, { pay: {} }));
+  const proto = await post(H, '/rails', { proof: protoApp });
+  check('an appId that names something every object already owns is refused', proto.status === 403 && /no usable appId/.test(proto.body.error));
+
+  // ---- the agent pays the link: retry, second token, decline -------------------
+  // What `link-cli mpp pay` does: take the 402 challenge, answer it with a
+  // credential carrying a Stripe Link token.
+  const payLink = async (h, url, spt) => {
+    const c = await h(new Request(url));
+    const p = Object.fromEntries([...String(c.headers.get('www-authenticate')).slice('Payment '.length).matchAll(/(\w+)="((?:[^"\\]|\\.)*)"/g)].map((m) => [m[1], m[2].replace(/\\(.)/g, '$1')]));
+    const ch = { id: p.id, realm: p.realm, method: p.method, intent: p.intent, request: p.request, expires: p.expires, description: p.description };
+    const r = await h(new Request(url, { headers: { Authorization: 'Payment ' + Buffer.from(JSON.stringify({ challenge: ch, payload: { spt } })).toString('base64url') } }));
+    let j = null; try { j = await r.clone().json(); } catch (e) {}
+    return { status: r.status, body: j, receipt: j && j.receiptJson ? JSON.parse(j.receiptJson) : null };
+  };
+  const link = (await post(H, '/mpp/offer', { proof: proofs.all, amount: '5000000', sku: 'retry' })).body;
+  const linkOid = JSON.parse(Buffer.from(link.token.split('.')[0], 'base64url').toString()).oid;
+  const settledPi = { id: 'pi_once', status: 'succeeded', amount: 500, currency: 'usd', created: 1790000000, metadata: { gifos_offer: linkOid }, transfer_data: { destination: 'acct_test_author' } };
+  let sentKey = null;
+  stripeAnswer = (form, headers) => { sentKey = headers['Idempotency-Key']; return { status: 200, body: settledPi }; };
+  const first = await payLink(H, link.url, 'spt_a');
+  check('the agent pays the link once: settled, a receipt naming the signer, keyed to the offer',
+    first.status === 200 && first.receipt.tx === 'pi_once' && first.receipt.payeeId === DOMAIN && first.receipt.payeeType === 'domain' && sentKey === 'gifos_offer_' + linkOid, JSON.stringify(first.receipt));
+  stripeAnswer = () => ({ status: 200, body: settledPi, replayed: true });
+  const retry = await payLink(H, link.url, 'spt_a');
+  check('the agent RETRYING after a lost answer gets the SAME receipt — money taken is never left without one',
+    retry.status === 200 && retry.body.receiptJson === first.body.receiptJson, retry.status + ' ' + JSON.stringify(retry.body).slice(0, 120));
+  stripeAnswer = () => ({ status: 400, body: { error: { type: 'idempotency_error', message: 'Keys for idempotent requests can only be used with the same parameters they were first used with.' } } });
+  const second = await payLink(H, link.url, 'spt_b');
+  check('a SECOND token on the same link is refused — one link, one payment — and no receipt is issued',
+    second.status === 402 && second.body.type === 'invalid-challenge' && /one link, one payment/.test(second.body.detail) && !second.body.receiptJson, JSON.stringify(second.body));
+  stripeAnswer = () => ({ status: 402, body: { error: { type: 'card_error', code: 'card_declined', message: 'Your card was declined.' } }, replayed: true });
+  const declined = await payLink(H, link.url, 'spt_a');
+  check('a link whose one attempt was DECLINED says so, and says to ask for a new link — never "already paid"',
+    declined.status === 402 && declined.body.type === 'verification-failed' && /refused by Stripe/.test(declined.body.detail) && /new link/.test(declined.body.detail) && !/already used|already paid/.test(declined.body.detail), JSON.stringify(declined.body));
+  stripeAnswer = () => ({ status: 200, body: Object.assign({}, settledPi, { metadata: { gifos_offer: 'someone-elses' } }), replayed: true });
+  const foreign = await payLink(H, link.url, 'spt_a');
+  check('a replayed payment that is NOT this offer\'s earns no receipt', foreign.status === 402 && !foreign.body.receiptJson);
+  const expired = await H(new Request(link.url.replace(/\/mpp\/charge\/.*/, '/mpp/charge/%E0%A4%A')));
+  check('a malformed link is a 404, not a crash', expired.status === 404);
+
+  // ---- x402: nothing moves unless everything can, and a paid buyer is never left bare
+  const USDC = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
+  const BUYER = '0x' + '77'.repeat(20);
+  const x402 = (amount) => {
+    const fee = (BigInt(amount) * 300n) / 10000n;
+    const t = [{ to: AUTHOR, amount: String(BigInt(amount) - fee), asset: USDC, network: 'eip155:84532' }, { to: TREASURY, amount: String(fee), asset: USDC, network: 'eip155:84532' }];
+    return { proof: proofs.usdc, amount, sku: 'pro', transfers: t, payloads: t.map((x, i) => ({ signature: '0x00', authorization: { from: BUYER, to: x.to, value: x.amount, nonce: '0x' + String(i + 1).padStart(64, '0') } })) };
+  };
+  const rcpt = (r) => (r.body && r.body.receiptJson ? JSON.parse(r.body.receiptJson) : null);
+  fac = { verifyFails: -1, settleFails: -1, verified: 0, settled: 0 };
+  const paid = await post(H, '/x402/settle', x402('5000000'));
+  check('an x402 purchase settles both legs — the FEE leg first — and the receipt names the signer, the payer and both transactions (author, fee)',
+    paid.status === 200 && rcpt(paid).payeeId === DOMAIN && rcpt(paid).payer === BUYER && rcpt(paid).tx === '0xleg1,0xleg0' && rcpt(paid).feeCollected === undefined && rcpt(paid).payee === AUTHOR, JSON.stringify(rcpt(paid)));
+  fac = { verifyFails: 1, settleFails: -1, verified: 0, settled: 0 };
+  const unverifiable = await post(H, '/x402/settle', x402('5000000'));
+  check('if the FEE leg cannot be verified, NOTHING is settled — not even the author leg', unverifiable.status === 502 && fac.settled === 0 && !unverifiable.body.receiptJson);
+  fac = { verifyFails: -1, settleFails: 0, verified: 0, settled: 0 };
+  const feeFails = await post(H, '/x402/settle', x402('5000000'));
+  check('if the FEE leg (settled first) fails, nothing moved, the author leg is never tried, and there is no receipt',
+    feeFails.status === 502 && fac.settled === 1 && !feeFails.body.receiptJson);
+  fac = { verifyFails: -1, settleFails: 1, verified: 0, settled: 0 };
+  const authorFails = await post(H, '/x402/settle', x402('5000000'));
+  check('a payer who cannot cover BOTH legs gets NO receipt — the 3% cannot be skipped by funding the author leg alone',
+    authorFails.status === 502 && fac.settled === 2 && !authorFails.body.receiptJson);
+  fac = { verifyFails: -1, settleFails: -1, verified: 0, settled: 0 };
+  const twoPayers = x402('5000000'); twoPayers.payloads[1].authorization.from = '0x' + '88'.repeat(20);
+  const split = await post(H, '/x402/settle', twoPayers);
+  check('a fee leg signed by ANOTHER wallet is refused before anything settles', split.status === 400 && /same payer/.test(split.body.error) && fac.settled === 0);
+  const sameNonce = x402('5000000'); sameNonce.payloads[1].authorization.nonce = sameNonce.payloads[0].authorization.nonce;
+  const reused = await post(H, '/x402/settle', sameNonce);
+  check('two legs under ONE nonce are refused before anything settles', reused.status === 400 && /own nonce/.test(reused.body.error) && fac.settled === 0);
+  const objSku = await post(H, '/x402/settle', Object.assign(x402('5000000'), { sku: { toString: 1 } }));
+  check('a sku that is not a string is a 400, not a crash', objSku.status === 400 && /bad sku/.test(objSku.body.error));
+  fac = { verifyFails: -1, settleFails: -1, verified: 0, settled: 0 };
+
+  // ---- the author's key is fetched only from a public name ---------------------------
+  const priv = await sign.proofOf(await sign.signDomain(await gif.encode({ 'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'x', name: 'x', entry: 'index.html', capabilities: { pay: true } }), 'index.html': 'x' }), 'db.corp.internal', keyPair, 1));
+  seen.length = 0;
+  const internal = await post(H, '/rails', { proof: priv });
+  check('a signer under a private-only name (…​.internal) is never fetched',
+    internal.status === 503 && /not a public domain/.test(internal.body.error) && !seen.some((x) => x.url.indexOf('internal') !== -1), internal.body && internal.body.error);
+  const gone404 = await sign.proofOf(await sign.signDomain(await gif.encode({ 'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'x', name: 'x', entry: 'index.html', capabilities: { pay: true } }), 'index.html': 'x' }), 'nokey.example.org', keyPair, 1));
+  const noKey = await post(H, '/rails', { proof: gone404 });
+  check('what the chosen host answered is NOT echoed to the caller (no status-code oracle)', noKey.status === 503 && !/404|HTTP/.test(noKey.body.error), noKey.body && noKey.body.error);
+
+  // ---- a payee map is not dodged by re-casing the identity ----------------------------
+  const cased = await post(core({ stripePayees: { 'AUTHOR.Example.COM': 'acct_test_author' } }), '/rails', { proof: proofs.all });
+  check('identity lookups ignore case', cased.status === 200 && cased.body.rails.mpp.ok === true);
+
+  // ---- oversized bodies -----------------------------------------------------------
+  const huge = await H(new Request('https://pay.example/rails', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proof: { visual: 'A'.repeat(5 * 1024 * 1024) } }) }));
+  check('a request body over the cap is refused (413) before any proof is checked', huge.status === 413);
+  const lied = await H(new Request('https://pay.example/rails', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': '99999999' }, body: '{}' }));
+  check('…and a declared Content-Length over the cap is refused unread', lied.status === 413);
 
   // ---- the kill switch ----------------------------------------------------------
   const blockedAll = core({ blocked: [DOMAIN] });
@@ -167,6 +294,16 @@ const TREASURY = '0x1111111111111111111111111111111111111111';
   check('blocking ONE app ("identity/appId") leaves the author\'s other apps payable', b3.status === 403 && b4.status === 200);
   const b5 = await blockedAll(new Request(offer.body.url));
   check('a block also kills offers minted BEFORE it', b5.status === 403);
+
+  // A DOMAIN entry covers its subdomains; config that would fail silently does not start.
+  const parent = await post(core({ blocked: ['example.com'] }), '/rails', { proof: proofs.usdc });
+  check('blocking a domain blocks every name under it (author.example.com under example.com)', parent.status === 403 && /blocked on GifOS/.test(parent.body.error));
+  const lookalike = await post(core({ blocked: ['ample.com', 'thor.example.com'] }), '/rails', { proof: proofs.usdc });
+  check('…but not a name that merely ENDS the same way', lookalike.status === 200);
+  const throws = (cfg2) => { try { core(cfg2); return false; } catch (e) { return /must be a JSON/.test(e.message); } };
+  check('BLOCKED written as a STRING refuses to start — it would have blocked nobody, silently', throws({ blocked: 'author.example.com' }));
+  check('BLOCKED written as an OBJECT refuses to start', throws({ blocked: {} }));
+  check('a payee map that is not identity -> account refuses to start', throws({ stripePayees: ['acct_x'] }) && throws({ fednowPayees: 'x' }));
 
   // ---- the author's key -----------------------------------------------------------
   keyUp = false;

@@ -14,7 +14,11 @@ into a networked one. Payments will not repeat it.
 
 `test/unit/x402-wire.js`, `test/unit/pay-encoding.js` — and, added since:
 `charge-gate.js`, `charge-signed-payee.js`, `purse.js`, `cash-link.js`,
-`pay-proof.js` (an app's signature proven WITHOUT the app — every way to
+`pay-receipt-identity.js` (the self-deal attack itself — an app signed under
+another author's appId paying itself — run against the real Worker core and
+the real broker: the victim's app must NOT be entitled; then every rail's
+receipt must name the verified signer, and a sku must sell at its signed
+price), `pay-proof.js` (an app's signature proven WITHOUT the app — every way to
 forge a proof: edited pay.to, widened rails, forged/dropped/added hashes, a
 swapped picture, a re-attributed signature, the wrong key), `pay-seller.js`
 (the Worker's makeCore on a stubbed network: the store is never fetched, the
@@ -49,7 +53,7 @@ the Shared Payment Token test helper, one-use tokens, and Stripe's
 walks the whole surface: acknowledgement, sheet, PayPal approval window,
 capture, signed receipt verified against the (route-intercepted) site key,
 entitlement, ledger, the x402 97/3 two-transfer settle via a stub wallet,
-the refusals (unsigned, double-buy, over-ceiling, decline), the receipt-file lifecycle — mint, lazy Purchases folder, the fresh-computer restore-by-opening — and all FOUR rails: PayPal, x402, the dust-unique wallet transfer (wrong amount never claimed), the FedNow RfP against the registered account, and the rails REGISTRY (unregistered and expired identities refused the fee-free rails plainly; current ones served). Then the AGENT rail with no browser at all — an MPP client does what `link-cli mpp pay` does: 402, decode, token, credential, settle as a destination charge with the 3% fee — and its refusals (replay, edited amount, wrong purchase, malformed, not onboarded, under the minimum), the Worker-packed receipt file, and that file restoring the entitlement on a fresh computer. Every payment rides the app's signature proof, and the store is never asked. 66 checks.
+the refusals (unsigned, double-buy, over-ceiling, decline), the receipt-file lifecycle — mint, lazy Purchases folder, the fresh-computer restore-by-opening — and all FOUR rails: PayPal, x402, the dust-unique wallet transfer (wrong amount never claimed), the FedNow RfP against the registered account, and the rails REGISTRY (unregistered and expired identities refused the fee-free rails plainly; current ones served). Then the AGENT rail with no browser at all — an MPP client does what `link-cli mpp pay` does: 402, decode, token, credential, settle as a destination charge with the 3% fee — and its refusals (replay, edited amount, wrong purchase, malformed, not onboarded, under the minimum), the Worker-packed receipt file, and that file restoring the entitlement on a fresh computer. Every payment rides the app's signature proof, and the store is never asked. Since 2026-09-29 it also proves: every receipt names the verified signer; purchases are stored under `<identity>/<appId>`; a retried agent credential returns the same receipt; an underpriced sku is refused; the agent rail from the OS sheet ("Pay with your AI agent"), including a link cancelled on the sheet and paid afterwards. 75 checks. `e2e-tip-creators.js` runs the SHIPPED tip jar the same way — exactly its three listed rails on the sheet, wallet transfer and x402 to a signed receipt — 10 checks.
 
 The paragraph below was the spec it was built to; kept for the parts
 (hostile quotes on the buying direction) not yet exercised. `test/servers/fake-x402.js` plays a paid

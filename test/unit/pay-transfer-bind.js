@@ -58,15 +58,17 @@ const pad = (a) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
   });
 
   // Mint an invoice token the way the Worker does (same wire shape, same
-  // signer), skipping /transfer/invoice's catalog + registry lookups.
+  // signer, same label), skipping /transfer/invoice's proof and registry.
   const b64u = (bytes) => Buffer.from(bytes).toString('base64url');
-  async function token(inv) {
+  async function token(inv, label) {
     const body = b64u(new TextEncoder().encode(JSON.stringify(inv)));
-    const sig = b64u(new Uint8Array(await webcrypto.subtle.sign('Ed25519', kp.privateKey, new TextEncoder().encode(body))));
+    const sig = b64u(new Uint8Array(await webcrypto.subtle.sign('Ed25519', kp.privateKey, new TextEncoder().encode((label == null ? 'gifos-pay-token\x00' : label) + body))));
     return body + '.' + sig;
   }
   const now = Date.now();
-  const base = { v: 1, kind: 'gifos-pay-invoice', appId: 'paid-shop', sku: 'pro', amount: '5000000', expected: '5001234',
+  // As /transfer/invoice mints it: the token names the signing identity the
+  // Worker verified, which the receipt then carries as payeeId.
+  const base = { v: 1, kind: 'gifos-pay-invoice', appId: 'paid-shop', sku: 'pro', id: 'author.example.com', type: 'domain', amount: '5000000', expected: '5001234',
     payTo: PAYEE, asset: USDC, network: 'eip155:84532', block: '0x10', iat: now, exp: now + 15 * 60 * 1000 };
   const unbound = await token(base);
   const post = (p, body) => handle(new Request('http://pay.test' + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
@@ -105,6 +107,11 @@ const pad = (a) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
 
   // Sanity: the public key exported above is the one the site would publish.
   check('the signing key exports as a 32-byte Ed25519 public key', pubRaw.length === 32);
+
+  // Tokens and receipts share a key; a token is signed under its own label.
+  const unlabelled = await post('/transfer/receipt', { token: await token(Object.assign({}, base, { from: '0x' + '11'.repeat(20) }), '') });
+  check('a token signed WITHOUT the token label — the way a receipt is signed — is not a token',
+    unlabelled.status === 403 && /does not verify/.test((await unlabelled.json()).error));
 
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);

@@ -53,7 +53,14 @@ const manifest = {
     && ok.manifest.pay.to === AUTHOR && JSON.stringify(ok.manifest.capabilities.pay) === '["x402","transfer"]', JSON.stringify(ok).slice(0, 160));
   check('the proof carries hashes, never the app\'s code', !JSON.stringify(proof).includes('buy things') && !JSON.stringify(proof).includes('console.log'));
   check('the user\'s own .state never leaves in a proof — not even as a hash', !Object.keys(proof.hashes).some((p) => p.indexOf('.state/') === 0));
-  check('the full verify() and the proof agree on this app', (await sign.verify(signed)).status !== 'tampered');
+  // verify() fetches the author's key itself; hand it the same key the proof
+  // was checked against, so the two verdicts are really compared.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (u) => (String(u) === 'https://author.example.com/gifos.key' ? new Response(publicKeyB64) : new Response('no', { status: 404 }));
+  const full = await sign.verify(signed);
+  globalThis.fetch = realFetch;
+  check('the full verify() and the proof agree on this app: both VALID, same identity',
+    full.status === 'valid' && ok.status === 'valid' && full.id === ok.id, full.status + ' / ' + ok.status);
   const saved = await gif.encode(Object.assign({}, files, { '.state/db.json': '{"secret":"changed after signing"}' }));
   const resigned = sign.writeSig(saved, sign.readSig(signed));
   check('saving app state after signing leaves the proof valid (state is not signed)',

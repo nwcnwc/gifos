@@ -147,7 +147,8 @@ mandatory; everything else defaults sensibly.
      "minBuild": 947,             // store-listed apps only; see "App Store"
      "requires": ["ai"],          // optional; block launch until set up (see below)
      "capabilities": { ... },     // see the table
-     "pay": { "to": "0x…" },      // USDC payout address (see "PAYMENTS")
+     "pay": { "to": "0x…",        // USDC payout address, and the PRICE of
+              "prices": { "pro": "4990000" } },  // every sku (see "PAYMENTS")
      "data": { ... },             // per-collection visibility (see "Multiplayer")
      "lead": [ ... ],             // optional leader/communal toggle (see "Multiplayer")
      "launch": { ... },           // optional link arguments (see "Sharing")
@@ -357,22 +358,32 @@ PAYMENTS — gifos.charge / entitled / license  [capabilities.pay]
    The app asks; GifOS shows ITS OWN payment sheet (verified author,
    amount, reason — the app cannot draw or see it); the person picks a
    method and approves; the money goes straight to the app's AUTHOR. The
-   app never sees a card, a wallet, an address or a balance.
+   app never sees the BUYER's card, wallet, address or balance.
    await gifos.charge({ amount, reason, sku, editable })
        amount   decimal integer STRING of USDC base units, never a float:
                 $1 = "1000000", $4.99 = "4990000".
        reason   what it is for, shown to the person (required, <= 140).
        sku      optional id for what it unlocks ([A-Za-z0-9_.:-], <= 64).
+                EVERY sku must be priced in the signed manifest —
+                "pay": { "prices": { "<sku>": "<base units>" } } — and
+                amount must equal that price exactly, or the charge is
+                refused. Prices are fixed when the app is signed.
        editable true for a TIP: the person may change the amount; a tip
                 has no sku (it unlocks nothing).
      -> { ok, rail, amount, chain, payee, payeeId, sku, reason, tx, at }
         rail: the method the person chose; payeeId: the verified author;
-        chain/payee: the network and address for USDC (PayPal: payee is
-        the payout email; FedNow: null).
+        chain/payee: the network and the AUTHOR's payout address for USDC
+        (PayPal: payee is the author's payout email; fednow, mpp: null).
      REJECTS "DECLINED_BY_USER" when they say no — a normal outcome to
      handle quietly, not an error to show. Also rejects: unsigned or
-     tampered app, sku already bought, amount over the person's per-app
-     ceiling (default $20), no method available right now.
+     tampered app, sku not priced in the manifest or amount not its
+     price, sku already bought, amount over the person's per-app ceiling
+     (default $20), no method available right now.
+   appId must be plain ([A-Za-z0-9_.-], <= 64) — a paying app needs one.
+   A purchase belongs to (the SIGNER that was paid, appId, sku). Re-sign
+   the app under another identity and its earlier purchases do not
+   follow; another author's app that wears your appId cannot read,
+   unlock or block yours.
    await gifos.entitled(sku) -> true | false   (bought on THIS computer)
    await gifos.license(sku)  -> the purchase's transaction id, or null.
        Stable per purchase and the same wherever the receipt is restored —
@@ -401,8 +412,8 @@ PAYMENTS — gifos.charge / entitled / license  [capabilities.pay]
    author's published key on every payment — never from the store, never
    from the buyer. Editing "pay" or the method list breaks the signature,
    so sign the app (see "Signing") after it is final. Any signed app can
-   be paid, listed in the store or not. GifOS keeps 3% on paypal and
-   x402.
+   be paid, listed in the store or not. GifOS keeps 3% on paypal, x402
+   and mpp.
    Right now payments run on TEST networks only (PayPal sandbox, Base
    Sepolia) — no real money moves yet.
 

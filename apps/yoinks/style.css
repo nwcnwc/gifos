@@ -1,0 +1,219 @@
+/* yoinks: the terminal screen, in a tab. Three palettes, upstream's values.
+   auto = the terminal's own colours, which here is prefers-color-scheme. */
+:root {
+  --fg: #18181b;
+  --gray: #52525b;
+  --bg: #ffffff;
+}
+body.theme-dark { --fg: #ffffff; --gray: #a1a1aa; --bg: #18181b; }
+body.theme-light { --fg: #18181b; --gray: #52525b; --bg: #ffffff; }
+@media (prefers-color-scheme: dark) {
+  body.theme-auto { --fg: #ffffff; --gray: #a1a1aa; --bg: #18181b; }
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+#screen {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px 40px;
+  text-align: center;
+}
+.dim { color: var(--gray); }
+b, .bold { font-weight: 700; }
+
+/* ---- logo: 3 rows of block glyphs, one span per cell ---------------------- */
+.logo {
+  display: block;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0 0 20px;
+  color: var(--fg);
+  font: inherit;
+  font-size: 30px;
+  line-height: 1;
+  white-space: pre;
+  cursor: pointer;
+  letter-spacing: 0;
+}
+.logo .r { display: block; height: 1em; }
+.logo .g { color: var(--gray); }
+.logo .h { color: var(--gray); opacity: 0.55; }
+.tagline { margin-bottom: 4px; }
+.sites { margin-bottom: 40px; }
+
+/* ---- stage ----------------------------------------------------------------- */
+#stage {
+  width: 100%;
+  max-width: 78ch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 7em;
+}
+.note { margin-top: 8px; min-height: 1.5em; }
+.warn::before { content: "✗ "; }
+
+/* framed input: title on the border, the yoink button forged on the right */
+.frame-input {
+  display: flex;
+  width: 100%;
+  max-width: 64ch;
+  margin-top: 10px;
+}
+.frame-input .frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--gray);
+  border-radius: 6px 0 0 6px;
+  border-right: 0;
+  padding: 9px 12px;
+  text-align: left;
+}
+.frame-input .frame.closed { border-right: 1px solid var(--gray); border-radius: 6px; }
+.frame-title {
+  position: absolute;
+  top: -0.8em;
+  left: 12px;
+  padding: 0 6px;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.4;
+}
+.frame .prompt { color: var(--fg); }
+.frame input, .frame .value {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--fg);
+  font: inherit;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.frame input::placeholder { color: var(--gray); opacity: 0.7; }
+.frame .value { color: var(--gray); }
+.frame-btn {
+  flex: 0 0 auto;
+  background: var(--fg);
+  color: var(--bg);
+  border: 0;
+  border-radius: 0 6px 6px 0;
+  padding: 0 22px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.frame-btn.dim { background: var(--gray); cursor: default; }
+
+/* the settings screen stacks two closed frames */
+.settings { width: 100%; max-width: 64ch; display: flex; flex-direction: column; gap: 22px; margin-top: 12px; }
+
+/* picking: title on the left, Download panel on the right */
+.pick {
+  width: 100%;
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  text-align: left;
+  margin-top: 6px;
+}
+.pick .meta { flex: 1 1 auto; min-width: 0; padding-top: 12px; }
+.pick .meta .title { font-weight: 700; overflow-wrap: anywhere; }
+.pick .meta .by { margin-top: 1.5em; }
+.panel {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38ch;
+  max-width: 100%;
+  border: 1px solid var(--gray);
+  border-radius: 6px;
+  padding: 12px 14px 10px;
+  text-align: left;
+}
+.choices { list-style: none; margin: 0; padding: 0; }
+.choices li, .choices a {
+  display: block;
+  color: var(--fg);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.choices .ind { display: inline-block; width: 2ch; }
+.choices .sel { font-weight: 700; }
+@media (max-width: 640px) {
+  .pick { flex-direction: column; align-items: stretch; }
+  .panel { width: 100%; }
+  .logo { font-size: 22px; }
+}
+
+/* progress row: bar, gap, meta. always three rows so nothing jumps. */
+.bar { white-space: pre; margin-top: 1.5em; }
+.bar .fill { color: var(--fg); }
+.bar .rest { color: var(--gray); }
+.meta-line { margin-top: 1.5em; white-space: pre; }
+.spin { color: var(--fg); display: inline-block; width: 1ch; }
+
+/* done */
+.done .file { margin-top: 2px; overflow-wrap: anywhere; }
+.done .again {
+  display: inline-block;
+  margin-top: 1.5em;
+  border: 1px solid var(--gray);
+  border-radius: 6px;
+  padding: 6px 28px;
+  font-weight: 700;
+  color: var(--fg);
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+.done .again.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.done .small { margin-top: 12px; }
+.done .small a { color: var(--gray); }
+.error { max-width: 72ch; font-weight: 700; overflow-wrap: anywhere; }
+
+/* hints along the bottom: key in fg, label in gray, dots between */
+.hints { margin-top: 2.5em; white-space: normal; }
+.hints .hint {
+  display: inline-block;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--fg);
+  cursor: pointer;
+}
+.hints .hint.plain { cursor: default; }
+.hints .hint .l { color: var(--gray); }
+.hints .sep { color: var(--gray); }
+.hints .lead { display: inline-block; }
+
+/* reduced motion: the logo simply stands still */
+@media (prefers-reduced-motion: reduce) { .logo { transition: none; } }

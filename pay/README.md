@@ -12,6 +12,14 @@ reads the payee and the allowed rails from the manifest as signed. Any signed
 app can be paid; `BLOCKED` is the kill switch (`docs/payments.md` §THE AUTHOR
 CHOOSES THE RAILS).
 
+Every receipt names the signer that was paid (`payeeId`, `payeeType`), and
+a sku is sold only at the price the author signed (`manifest.pay.prices`).
+`/receipt/:id` and `/fednow/receipt/:id` are read with `?claim=&id=&type=`
+— the claim the payment returned and the identity it was made to. The
+Worker logs one JSON audit line per money event; read them in the
+dashboard (Workers & Pages → gifos-pay → Logs) or live with
+`npx wrangler tail gifos-pay` (`docs/payments.md` §WHO WAS PAID).
+
 One brain, two wrappers: `src/core.js` runs unchanged here (via `src/pay.js`)
 and in the gate's Node twin (`test/servers/pay-local.js`). What the gate
 proves about one it proves about the other.
@@ -27,10 +35,10 @@ proves about one it proves about the other.
 | `POST /x402/settle` | the standard x402 facilitator wire (verify + settle per transfer of the 97/3 split), same signed-receipt shape |
 | `POST /transfer/invoice` | the wallet-transfer rail (RockWallet + every self-custody wallet): signed stateless invoice, dust-unique amount, the signed manifest's `pay.to` |
 | `POST /transfer/bind` | re-sign that invoice bound to the payer's wallet address (amount and dust unchanged), so only a transfer FROM that wallet completes it |
-| `POST /transfer/receipt` | watch the chain (read-only `BASE_RPC`) for the exact transfer, from the bound wallet when there is one; same signed receipt, `feeCollected:false` |
+| `POST /transfer/receipt` | watch the chain (read-only `BASE_RPC`) for the exact transfer, from the wallet the invoice was bound to (an unbound invoice is never receipted); same signed receipt, `feeCollected:false` |
 | `POST /fednow/rfp` | FedNow via a provider (`FEDNOW_API`, Finzly-shaped — FedNow itself has no public API); payee = the registered account for the signing identity (`FEDNOW_PAYEES`) |
 | `GET /fednow/receipt/:id` | poll the RfP to settlement; same signed receipt, `feeCollected:false` |
-| `POST /mpp/offer` | `{proof, sku, amount}` → a signed `/mpp/charge/<offer>` link for exactly that purchase (an agent holds no app bytes, so the OS presents the proof once), plus a one-time `claim`; valid 24 hours, and pays once |
+| `POST /mpp/offer` | `{proof, sku, amount}` → a signed `/mpp/charge/<offer>` link for exactly that purchase (an agent holds no app bytes, so the OS presents the proof once), plus a one-time `claim`; valid 30 minutes, one payment |
 | `POST /mpp/status` | `{offer, claim}` → `PENDING`, or the signed receipt once the agent has paid that offer (found by the offer id stamped on the PaymentIntent, via Stripe's search API) — how the OS sheet's "Pay with your AI agent" finishes on its own |
 | `GET\|POST /mpp/charge/<offer>` | the AGENT rail — Machine Payments Protocol (HTTP 402, mpp.dev), the wire Stripe's Link agent wallet speaks (link.com/agents): a `WWW-Authenticate: Payment … method="stripe"` challenge, then a Shared Payment Token back, settled as a Stripe Connect DESTINATION charge to the author's connected account with the 3% as `application_fee_amount`; same signed receipt, plus a `Payment-Receipt` header |
 | `POST /receipt/file` | package a signed receipt as the receipt GIF the OS opens — verified first; how an agent's purchase reaches the human's Purchases folder |
