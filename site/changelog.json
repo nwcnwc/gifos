@@ -2,6 +2,28 @@
  "note": "Release notes shown in Settings → Advanced → Version. Newest first. SHORT, PLAIN bullets under \"features\" and \"fixes\" — a line or two each, no jargon, no filler; anyone who wants the long story can read the repo. Every release needs at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so the desktop calls it out.",
  "entries": [
   {
+   "version": "0.9.16",
+   "date": "2026-09-30",
+   "headline": "Meetings that scale: nothing a phone pays grows with the room",
+   "critical": true,
+   "features": [
+    "Big meetings: your phone now hears only its own section of up to 25 people. What the whole room needs — the count, raised hands, who is on Stage, votes, the shared app — arrives as a small summary folded up and down the tree. A room of a thousand costs each phone the same as a room of twenty.",
+    "Clear video needs everyone, at any size: one person staying blurred keeps the whole room blurred, and the room clears again when they agree.",
+    "Every room-wide message is signed by the person who sent it. Nobody can speak in someone else's name, and a phone passes on only what it has verified.",
+    "A flood guard: each phone takes only so many new messages a second from any one neighbour, and from any one sender. A misbehaving client can slow a meeting, never drown it.",
+    "Ban only works on a device the room's door vouched for, so a ban can never land on the wrong person.",
+    "Apps can pay you: tip jars and paid features through PayPal, a connected wallet, a wallet transfer or an AI agent, with the price signed by the app's author.",
+    "Yoinks joins the store."
+   ],
+   "fixes": [
+    "A phone whose clock ran a minute slow was never counted as present, never allowed on Stage, and kept everyone who could hear it blurred. Presence is now judged by when a message arrived, not by the sender's clock.",
+    "One chat line, caption or file notice used to be re-broadcast by every phone that received it — a thousand floods for one line in a big room. Now the sender's is the only one.",
+    "Joining a busy room could put a newcomer's seat claim behind a ghost's, or reject a real one as stale, depending on how long each phone's page had been open. Seat claims now carry their age instead of a clock reading.",
+    "The relay sends newcomers only the room's greeters instead of the whole member list, so a large room can be joined at all; a burst of people joining at once no longer hits a cap.",
+    "A relay socket now has to stay open before its reconnect backoff resets, so a flapping connection no longer hammers the relay."
+   ]
+  },
+  {
    "version": "0.9.15",
    "date": "2026-09-04",
    "headline": "The Stage no longer freezes on a struggling computer, and the App Store opens at once",

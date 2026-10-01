@@ -67,8 +67,12 @@ async function invite(page, lifetime, resilient) {
     await app.locator('main').waitFor({ timeout: 10000 });
     phones.push({ page: run, app, name });
   }
-  // lobby fills up live on the host's phone
-  await host.locator('.chip').nth(3).waitFor({ timeout: 10000 });
+  // lobby fills up live on the host's phone. The fourth chip is the third
+  // guest's row arriving over the app lane — the same mesh seat + snap +
+  // bytes-on-demand path each join above is allowed 40 s for (201885f4 gave
+  // the Same Brain third chip the same budget for the same reason). 10 s went
+  // red twice on the 0.9.16 gate box, mid-tier, with nothing else failing.
+  await host.locator('.chip').nth(3).waitFor({ timeout: 40000 });
   check('all four phones appear in the lobby', (await host.locator('.chip').count()) === 4);
   check('start unlocks at four players', !(await host.locator('#start').isDisabled()));
 
