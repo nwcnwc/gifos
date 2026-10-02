@@ -143,6 +143,43 @@ function makeClient(sid) {
   const realFirst = await boundSigner.sign(boundSid, 'snap', AO.emptyState());
   ok(await boundClient.onFrame(realFirst), 'sid-bound link accepts the committed owner key on the first frame');
 
-  console.log(failed ? ('\nFAILED: ' + failed + ' assertion(s)') : '\nALL PASS');
+  
+// ---- THE RETAINED FRAME IS A SNAPSHOT (2026-10-01) ----------------------------
+// The owner signs a body built from its LIVE records and the lane retains the
+// frame to re-serve to late joiners; the client adopts a snap's state as its
+// working mirror and writes into it optimistically. If either side keeps a
+// reference instead of a copy, the next write moves the body out from under
+// its own signature, and the next peer handed the retained frame rejects it
+// as bad-sig: app bytes, no state (a two-player Backdooms room showed three
+// such rejections per join; e2e-irl's lobby chips arrived late or never).
+{
+  const signer = await AO.createSigner();
+  const live = { state: { collections: { players: { items: { a: { id: 'a', x: 1 } }, seq: 1 } } }, lead: null };
+  const frame = await signer.sign('s.retained', 'snap', live);
+  live.state.collections.players.items.a.x = 2;              // the app keeps writing to its live records
+  live.state.collections.players.items.b = { id: 'b', x: 9 };
+  const ver = AO.makeVerifier('s.retained', null);
+  const r = await ver.verify(frame);
+  ok(r.ok === true, 'a signed frame still verifies after the app mutated the body it was built from');
+  ok(r.ok && r.body.state.collections.players.items.a.x === 1 && !r.body.state.collections.players.items.b, '…because the frame holds its own copy (the mutation is not in it)');
+  // the client's optimistic write must not reach the frame either
+  const mirror = AO.deepCopy(r.body.state);
+  mirror.collections.players.items.a.x = 3;
+  const again = await AO.makeVerifier('s.retained', null).verify(frame);
+  ok(again.ok === true && again.body.state.collections.players.items.a.x === 1, '…and a client editing its mirror leaves the retained frame verifiable for the next joiner');
+  const bin = await signer.sign('s.retained', 'delta', { collection: 'blobs', items: { k: { id: 'k', bytes: new Uint8Array([1, 2, 3]) } } });
+  ok((await AO.makeVerifier('s.retained', null).verify(bin)).ok === true && bin.p.body.items.k.bytes instanceof Uint8Array, 'typed arrays survive the copy and still sign');
+  // THE SIGNATURE MUST SURVIVE THE WIRE: a frame travels as JSON. A record with
+  // an unset field (`a: undefined`) used to sign as `"a":undefined`, which no
+  // receiver can reproduce from what JSON delivered — every snap/delta from an
+  // owner whose state held one such field was rejected as bad-sig.
+  const unset = await signer.sign('s.retained', 'delta', { collection: 'players', items: { p: { id: 'p', a: undefined, hp: undefined, hits: [], x: undefined, list: [1, undefined, 3] } } });
+  const overWire = JSON.parse(JSON.stringify(unset));
+  const w = await AO.makeVerifier('s.retained', null).verify(overWire);
+  ok(w.ok === true, 'a frame whose record has unset (undefined) fields still verifies after a JSON round trip');
+  ok(w.ok && !('a' in w.body.items.p) && w.body.items.p.list[1] === null, '…and what the receiver reads is exactly what JSON delivered');
+}
+
+console.log(failed ? ('\nFAILED: ' + failed + ' assertion(s)') : '\nALL PASS');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

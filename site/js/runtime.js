@@ -4391,7 +4391,10 @@
       };
       const onSnap = (body) => {
         trace('snap');
-        if (body && body.state && body.state.collections) { mirror = body.state; captureConnect(); reconcilePending(); }
+        // The mirror is this client's WORKING copy, never the retained frame's
+        // body: optimistic writes land in the mirror in place, and the retained
+        // frame is re-served to the next joiner under the owner's signature.
+        if (body && body.state && body.state.collections) { mirror = AO.deepCopy(body.state); captureConnect(); reconcilePending(); }
         if (!mounted && body && body.app) return mountFromB64(body.app, body.name); // legacy in-snap bytes
         notify('*');
       };
@@ -4411,7 +4414,7 @@
           if (r.kind === 'app') return mountFromB64(r.body && r.body.app, r.body && r.body.name);
           if (r.kind === 'snap') return onSnap(r.body);
           if (r.kind === 'delta') {
-            if (r.body && r.body.state && r.body.state.collections) { mirror = r.body.state; captureConnect(); notify('*'); }
+            if (r.body && r.body.state && r.body.state.collections) { mirror = AO.deepCopy(r.body.state); captureConnect(); notify('*'); }
             else if (r.body && r.body.collection && r.body.items) { AO.applyDelta(mirror, r.body); notify(r.body.collection); }
             reconcilePending();
           }

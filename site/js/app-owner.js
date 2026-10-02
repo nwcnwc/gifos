@@ -71,16 +71,37 @@
   // (transport-revived). Enumerating a Uint8Array as a plain object instead
   // would make the two ends disagree the instant either holds the revived form
   // vs the {$bin} form — the bad-sig that blanked shared blobs.
+  // THE BYTES MUST SURVIVE THE WIRE. A frame travels as JSON, and JSON drops a
+  // key whose value is undefined and turns undefined inside an array into
+  // null. canonical() used to spell such a key out as `"a":undefined`, so an
+  // owner whose record carried one unset field (Backdooms' player before its
+  // first move: a, hp, x, y) signed bytes no receiver could reproduce — every
+  // snap and delta it sent was rejected as bad-sig, and the guest had the app
+  // with no state. Found 2026-10-01 in a two-player Backdooms room; the same
+  // thing left e2e-irl's lobby chips late or missing. Canonical form is what
+  // JSON would deliver: undefined keys skipped, undefined in arrays as null.
   function canonical(v) {
+    if (v === undefined) return 'null';
     if (v === null || typeof v !== 'object') return JSON.stringify(v);
     if (v instanceof Uint8Array) return JSON.stringify('$u8:' + hex(v));
     if (v instanceof ArrayBuffer) return JSON.stringify('$u8:' + hex(new Uint8Array(v)));
     if (ArrayBuffer.isView(v)) return JSON.stringify('$u8:' + hex(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)));
     if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
-    const keys = Object.keys(v).sort();
+    const keys = Object.keys(v).filter((k) => v[k] !== undefined).sort();
     return '{' + keys.map((k) => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}';
   }
   const canonicalBytes = (v) => enc.encode(canonical(v));
+  // A copy that survives everything canonical() can sign: typed arrays stay
+  // typed arrays (structuredClone), and the fallback walks the shape by hand.
+  function deepCopy(v) {
+    try { if (typeof structuredClone === 'function') return structuredClone(v); } catch (e) {}
+    if (v === null || typeof v !== 'object') return v;
+    if (v instanceof Uint8Array) return new Uint8Array(v);
+    if (v instanceof ArrayBuffer) return v.slice(0);
+    if (ArrayBuffer.isView(v)) return new Uint8Array(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+    if (Array.isArray(v)) return v.map(deepCopy);
+    const o = {}; for (const k of Object.keys(v)) o[k] = deepCopy(v[k]); return o;
+  }
 
   // ---- owner signer --------------------------------------------------------
   // A fresh per-share Ed25519 keypair. The key never leaves this tab; the
@@ -106,7 +127,16 @@
     return {
       pkHex,
       async sign(sid, kind, body) {
-        const p = { sid: sid, kind: kind, n: (++n), body: body };
+        // THE SIGNED FRAME IS A SNAPSHOT, NOT A VIEW. The body the caller hands
+        // in is built from live store records (the owner) that the app keeps
+        // writing to, and the frame is RETAINED and re-served to late joiners
+        // for as long as the share lasts. Signing the caller's object meant the
+        // retained frame drifted away from its own signature with the next
+        // write, and every peer that was handed it afterwards rejected it as
+        // bad-sig — a joiner then had the app's bytes and no state. Measured
+        // 2026-10-01 in a two-player Backdooms room and in e2e-irl's lobbies
+        // (the host's third and fourth chips arriving late or never). Copy it.
+        const p = { sid: sid, kind: kind, n: (++n), body: deepCopy(body) };
         const sig = await ed().sign(k.priv, canonicalBytes(p));
         return { p: p, pk: pkHex, sig: hex(sig) };
       },
@@ -243,7 +273,7 @@
   }
 
   return {
-    createSigner, makeVerifier, canonical, canonicalBytes, sha256hex,
+    createSigner, makeVerifier, canonical, canonicalBytes, sha256hex, deepCopy,
     emptyState, applySnap, applyDelta, applyOp, newRecordId,
   };
 });
