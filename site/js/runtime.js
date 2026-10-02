@@ -3767,6 +3767,17 @@
         if (revealed) return;
         revealed = true;
         try { window.removeEventListener('message', painted); } catch (e) {}
+        // THIS BOOT MAY ALREADY BE OVER. A remount inside the splash window
+        // (Invite right after the app opened turns the page into an app room
+        // and boots it again) drops this frame and appends its own; this
+        // boot's reveal and its 250 ms sweep then fired on the NEW frame's
+        // mount and removed everything that was not the OLD frame — the new
+        // frame included. The host sat on an empty mount, still the app's
+        // owner, with the guests' chips arriving and nowhere to draw them.
+        // Measured 2026-10-01 (e2e-irl on a fast box, every run; a slow box
+        // reaches Invite after the sweep and never saw it). A boot whose frame
+        // is no longer mounted has nothing to reveal and nothing to sweep.
+        if (!mountEl.contains(iframe)) return;
         iframe.style.opacity = '1';
         // The splash is an absolute z-5 overlay and the iframe is not
         // positioned at all, so the frame's fade-in happens UNDER it. Until
@@ -3788,8 +3799,9 @@
           n = n.nextSibling;
         }
         setTimeout(() => {
+          if (!mountEl.contains(iframe)) return;                // superseded since (see above)
           let n = mountEl.firstChild;
-          while (n) { const nx = n.nextSibling; if (n !== iframe) mountEl.removeChild(n); n = nx; }
+          while (n) { const nx = n.nextSibling; if (n !== iframe && n.tagName !== 'IFRAME') mountEl.removeChild(n); n = nx; } // the splash only — never another boot's frame
         }, 250);
       };
       iframe.addEventListener('load', () => { setTimeout(reveal, 400); });
