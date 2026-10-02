@@ -512,6 +512,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .bar .title { font-weight: 800; text-decoration: none; cursor: pointer; background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
          -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .bar .status { color: var(--muted, #8888aa); font-size: .8rem; margin-left: auto; }
+  /* A refusal is not a status. "Only this room's admin can share" was read as
+     grey small print and missed; a message that stops someone wears the warn
+     colour and holds for 12s (setStatus). */
+  .bar .status.alert { color: #ffd23c; font-weight: 600; }
   .bar button { padding: .35rem .9rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
                 background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: .8rem; }
   @media (hover: hover) and (pointer: fine) { .bar button:hover { border-color: var(--accent, #7b5cff); } }
@@ -1022,7 +1026,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   body.app-room #sharebtn { display: none !important; }
   /* A screen wants height. Same lever the broadcast skin already pulls, armed
      while anyone in the room is sharing (paintShare). */
-  body.screen-on #stagefeed .rowtile { max-height: 76vh; }
+  /* A SHARED SCREEN FILLS THE WINDOW (2026-10-02, the first customer
+     meeting): at 76vh with full-size faces underneath, the page went "super
+     long", faces were "cut off in half" and nobody could make the share big.
+     While anyone shares, the feed stops scrolling — the Stage takes every
+     pixel the bar and the strip leave, and the row's faces fold into one
+     fixed-height strip along the bottom that scrolls sideways past 6-7 people. */
+  body.screen-on #feed { display: flex; flex-direction: column; overflow: hidden; }
+  body.screen-on #stagefeed { flex: 1 1 auto; min-height: 0; grid-auto-rows: minmax(0, 1fr); padding-bottom: 0; }
+  body.screen-on #stagefeed .rowtile { max-height: none; height: 100%; min-height: 0; aspect-ratio: auto; }
+  body.screen-on #grid { flex: 0 0 auto; display: flex; overflow-x: auto; overflow-y: hidden; gap: 8px; padding: 8px; }
+  body.screen-on #grid .tile { flex: 0 0 11rem; width: 11rem; aspect-ratio: 16 / 9; }
+  body.screen-on #stadium { flex: 0 0 auto; }
   #sharebtn.on { background: #b3402f; border-color: #d4593f; color: #fff; }
   .stopshare { cursor: pointer; text-decoration: underline dotted; }
   .share-note { border: 1px solid var(--border, #2a2a3f); border-left: 3px solid #6f7bd4;
@@ -1186,6 +1201,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         <button class="seg" id="blur-none" data-blur="0">No blur</button>
       </span>
     </span>
+    <button id="leavebtn" class="off" title="Leave this meeting — your seat closes at once and your camera and mic stop">Leave</button>
     <div class="barmore" id="barmore">
     <button id="invite" title="Friends join you live with one link">Invite</button>
     <button id="appbtn" title="Run an app inside this meeting — everyone here shares and interacts with it live">Run app</button>
@@ -1254,6 +1270,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           <button class="seg" data-vq="144p">144p</button>
         </span>
       </div>
+      <div class="set-sec">
+        <b>Your name</b>
+        <p class="set-help">What everyone sees on your tile: <b id="set-name-cur">…</b> <button id="set-rename" class="seg" style="border:1px solid var(--border,#2a2a3f);border-radius:.4rem;margin-left:.4rem">Change</button></p>
+      </div>
+      <div class="set-sec">
+        <b>Captions language</b>
+        <p class="set-help">What <b>your own device</b> listens for when CC is on. It cannot guess: a phone set to Russian writes English down as nonsense, so pick the language you will speak.</p>
+        <select id="cclang" style="padding:.35rem .5rem;border-radius:.4rem;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);max-width:100%"></select>
+        <p class="set-help" id="ccall-row" style="display:none;margin-top:.5rem"><button id="ccall" class="seg" style="border:1px solid var(--border,#2a2a3f);border-radius:.4rem">Captions for everyone: off</button> <span>Admins only — every unmuted device starts writing down its own person. Anyone can tap CC to opt out.</span></p>
+      </div>
       <div id="mixpanel">
         <b>Sound mix</b>
         <label>Stage <input type="range" id="mix-stage" min="0" max="100" value="100"></label>
@@ -1279,6 +1305,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <div class="name-box" style="max-width:430px;text-align:left">
       <h3>Share your screen</h3>
       <div id="share-appnote" class="share-note"></div>
+      <div id="share-denied" class="share-note" style="display:none;border-left-color:#ffd23c;background:rgba(255,210,60,.08)"><b>🛡 Only this room’s admins — or people they allow — can share a screen.</b> Ask an admin to allow you: they hover (or tap) your tile and choose <b>Allow apps &amp; sharing</b>. Then open this sheet again.</div>
       <p style="font-size:.86rem">A screen share is for what an app can’t be: <b>a deck on your disk, a tool that isn’t GifOS, a window from somewhere else</b>. It takes a seat on the stage, so the whole room sees it — and everyone can see that it’s you sharing.</p>
       <p style="font-size:.8rem;color:var(--muted,#8888aa)">Your camera pauses while you share, and comes back when you stop. Sound from the shared tab doesn’t travel — talk over it.</p>
       <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap;margin-top:.9rem">
@@ -1550,6 +1577,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <button id="closed-reload">Rejoin</button>
     </div>
   </div>
+  <div class="name-modal" id="left-modal" style="display:none">
+    <div class="closed-box">
+      <h3>You left the meeting</h3>
+      <p>Your camera and microphone are off and your seat is closed. The same link brings you back.</p>
+      <button id="left-rejoin">Rejoin</button>
+      <button id="left-close" style="margin-left:.5rem;background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Close</button>
+    </div>
+  </div>
 
   <script>
     // Bind to the right computer BEFORE the store loads: apps opened from a
@@ -1752,7 +1787,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // pill briefly so the ambient counter (updateStatus) can't eat them the
     // moment any gossip arrives.
     let statusHoldUntil = 0;
-    const setStatus = (m) => { statusEl.textContent = m; statusHoldUntil = Date.now() + 4000; };
+    // A message that STOPS someone (🛡 a refusal, 📷 an admin's video-off) is
+    // the one message that must be read: it holds 12s and wears the warn
+    // colour. Ordinary notices keep the 4s beat. An explicit hold wins.
+    const setStatus = (m, hold) => {
+      const blocking = /^(🛡|📷)/.test(String(m));
+      statusEl.textContent = m;
+      statusEl.classList.toggle('alert', blocking || !!hold);
+      statusHoldUntil = Date.now() + (hold || (blocking ? 12000 : 4000));
+    };
     const uid = (p) => p + '_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
     // The one standard row-delete glyph (see button.row-del in the styles).
     const DEL_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
@@ -1768,8 +1811,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (me.name) { resolve(me); return; }
         const bg = document.createElement('div'); bg.className = 'name-modal';
         bg.innerHTML = '<div class="name-box"><h3>Pick a screen name</h3>' +
-          '<p>Other people in the meeting will see this name.</p>' +
-          '<input id="nm" maxlength="40" placeholder="Your name" autocomplete="off">' +
+          '<p>The name people see on your tile. It is not a password — if the room has one, it is asked for separately. You can change it later under Settings.</p>' +
+          '<input id="nm" name="nickname" maxlength="40" placeholder="Your name" autocomplete="nickname">' +
           '<button id="nmok">Continue</button></div>';
         document.body.appendChild(bg);
         const input = bg.querySelector('#nm'); input.focus();
@@ -2683,7 +2726,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // field (the admin's chat on/off switch). It rides the same signed
         // table as every per-target order, so it reaches late joiners on the
         // heartbeat and a forged copy dies in takeMod's admVerify.
-        for (const field of ['mute', 'blur', 'cam', 'app', 'chat']) {
+        for (const field of ['mute', 'blur', 'cam', 'app', 'chat', 'cc']) {
           const inc = incoming[target][field];
           if (!inc || typeof inc !== 'object') continue;
           // The TARGET cannot lift a restriction the group put on them —
@@ -2692,7 +2735,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (!mine[field] || inc.at > mine[field].at) { mine[field] = inc; changed = true; }
         }
       }
-      if (changed) { enforceForcedCam(); refreshAllTiles(); refreshOutbound(); paintControls(); reactHandCall(); paintChatGate(); paintStage(); } // re-derive every tile + my broadcast; an admin cam-off stops my camera; a fresh grant may be a call-up (don't wait for the beat); a chat/app order repaints its gates
+      if (changed) { enforceForcedCam(); refreshAllTiles(); refreshOutbound(); paintControls(); reactHandCall(); paintChatGate(); paintStage(); if (typeof applyCcAll === 'function') applyCcAll(); } // re-derive every tile + my broadcast; an admin cam-off stops my camera; a fresh grant may be a call-up (don't wait for the beat); a chat/app order repaints its gates
     }
     function setMod(target, field, on) {
       if (target === myId) return; // you moderate others, never yourself
@@ -2701,7 +2744,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (field === 'app' && (!hasAdminRoom() || !amAdmin)) return;
       // The room-wide chat switch is the admin's alone, and only means
       // anything where there IS an admin to sign it.
-      if (field === 'chat' && (!hasAdminRoom() || !amAdmin)) return;
+      if ((field === 'chat' || field === 'cc') && (!hasAdminRoom() || !amAdmin)) return;
       if (hasAdminRoom() && !amAdmin) { setStatus('🛡 Only this room' + String.fromCharCode(39) + 's admins can ' + (field === 'mute' ? 'mute' : 'blur') + ' someone for everyone.'); return; }
       const mine = modTable[target] = modTable[target] || {};
       mine[field] = { on, by: myName(), byId: myId, at: Date.now() };
@@ -3118,7 +3161,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       else if (bl) chips.push('<span>🌫 ' + (bl === 2 ? 'max blur' : 'blurred') + '</span>');
       if (gCam) chips.push('<span class="warn">📷 video off for everyone by ' + esc(mod.cam.by) + '</span>');
       else if (st.camOff) chips.push('<span>📷 camera off</span>');
-      if (hasAdminRoom() && mod.app && mod.app.on && !admins.includes(id)) chips.push('<span>🧩 may run apps — allowed by ' + esc(mod.app.by) + '</span>');
+      if (hasAdminRoom() && mod.app && mod.app.on && !admins.includes(id)) chips.push('<span>🧩 may run apps and share a screen — allowed by ' + esc(mod.app.by) + '</span>');
       // vote-off progress (non-admin rooms): show how close a tile is to removal
       const dv = devOf[id];
       if (!isMe && voteNeed && dv && voteTally[dv]) chips.push('<span class="warn">🗳 ' + voteTally[dv] + '/' + voteNeed + ' to remove</span>');
@@ -3151,7 +3194,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (t.modbar) {
           t.modbar.children[0].textContent = gMute ? 'Unmute for everyone' : 'Mute for everyone';
           t.modbar.children[1].textContent = gBlur ? 'Unblur for everyone' : 'Blur for everyone';
-          t.modbar.children[2].textContent = (mod.app && mod.app.on) ? 'Revoke app rights' : 'Allow apps';
+          t.modbar.children[2].textContent = (mod.app && mod.app.on) ? 'Revoke apps & sharing' : 'Allow apps & sharing';
         }
       } else if (gMute && localStream) {
         // the group muted ME: cut the source too, not just everyone's speakers
@@ -3216,6 +3259,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return ac;
     }
     document.addEventListener('pointerdown', () => ensureAc());
+    var myVoiceAt = 0; // last tick my OWN echo-cancelled mic carried voice (the caption gate reads it)
     function meterFor(id, stream) {
       if (!stream || !ensureAc()) return;
       const track = stream.getAudioTracks()[0];
@@ -3276,7 +3320,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           speaking = Math.sqrt(dev / m.data.length) > 5;
         }
         t.tile.classList.toggle('speaking', speaking);
-        if (id === 'me' && speaking) lastActive = Date.now(); // talking IS activity — a speaker's phone is never "parked"
+        if (id === 'me' && speaking) { lastActive = Date.now(); myVoiceAt = lastActive; } // talking IS activity — a speaker's phone is never "parked"
         speakingOf.set(id, speaking); // fed to the packer overlay (green talking frame on composite faces)
       }
     }, 180);
@@ -4096,6 +4140,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       refreshTrBtn();
       if (bannedOut) return;                      // the ban notice is permanent
       if (Date.now() < statusHoldUntil) return;   // an explicit message is showing
+      statusEl.classList.remove('alert');
       const n = participantCount();
       const live = Array.from(peers.values()).filter((p) => p.connected).length;
       // THE LABEL MUST NAME WHAT WE ACTUALLY SEND (2026-07-29, Nathan: "it says
@@ -7425,14 +7470,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       location.href = url;
       if (samePage) location.reload();
     }
-    function renameFlow() {
+    function renameFlow(after) {
       const cur = (GifOS.store.identity().name) || '';
       const bg = document.createElement('div'); bg.className = 'name-modal';
       bg.innerHTML = '<div class="name-box"><h3>Your screen name</h3><p>Other people in the meeting see this.</p>' +
         '<input id="nm2" maxlength="40" autocomplete="off"><button id="nm2ok">Save</button></div>';
       document.body.appendChild(bg);
       const input = bg.querySelector('#nm2'); input.value = cur; input.focus();
-      const done = () => { const v = input.value.trim(); if (v) GifOS.store.setName(v); bg.remove(); document.getElementById('lob-name').textContent = myName(); };
+      const done = () => { const v = input.value.trim(); if (v) GifOS.store.setName(v); bg.remove(); const ln = document.getElementById('lob-name'); if (ln) ln.textContent = myName(); if (after) after(); };
       bg.querySelector('#nm2ok').onclick = done;
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); });
     }
@@ -11333,6 +11378,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const go = document.getElementById('share-runapp');
       go.style.display = (runnable && !ROOM.appPinned) ? '' : 'none';
       go.textContent = running ? 'Show me the app' : 'Run app instead';
+      // THE REFUSAL LIVES IN THE SHEET. A guest who may not share used to get
+      // the picker button, then a 4s grey line in the bar — which she missed,
+      // twice, while the sheet had already closed. The sheet itself now says
+      // no, says who can fix it, and does not offer a picker that will refuse.
+      const blocked = !myStatus.scr && !myStatus.stg && !canStage(myId);
+      document.getElementById('share-go').style.display = blocked ? 'none' : '';
+      document.getElementById('share-denied').style.display = blocked ? '' : 'none';
       modal.style.display = 'flex';
     }
     (function wireShareSheet() {
@@ -11417,8 +11469,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     document.getElementById('setbtn').onclick = () => {
       paintVq();
       applyBuses(); // refresh which faders show
+      const nc = document.getElementById('set-name-cur'); if (nc) nc.textContent = myName();
+      const car = document.getElementById('ccall-row'); if (car) car.style.display = (hasAdminRoom() && amAdmin) ? '' : 'none';
+      if (typeof applyCcAll === 'function') applyCcAll();
       setModal.style.display = 'flex';
     };
+    // Your name, changeable mid-meeting: a guest who typed the room password
+    // into the name box was "Password1" for the whole call with no way out.
+    document.getElementById('set-rename').onclick = () => renameFlow(() => {
+      const nc = document.getElementById('set-name-cur'); if (nc) nc.textContent = myName();
+      try { refreshAllTiles(); broadcastStatus(); if (typeof pushLeaf === 'function') pushLeaf(); } catch (e) {}
+    });
     document.getElementById('set-close').onclick = () => { setModal.style.display = 'none'; };
     setModal.addEventListener('click', (e) => { if (e.target === setModal) setModal.style.display = 'none'; });
     document.getElementById('vqrow').addEventListener('click', (e) => {
@@ -11745,12 +11806,54 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // merge into one attributed transcript on every phone. No server anywhere —
     // though note the browser itself may use its vendor's speech service.
     const trs = new Map(); // id -> { id, byId, by, at, text }
+    // ONE VOICE, WRITTEN DOWN ONCE (2026-10-02, the first customer meeting).
+    // The speech engine listens to the device's raw microphone, not to the
+    // echo-cancelled track the call sends — so a laptop on speakers wrote
+    // down everyone it could hear, and the transcript held every sentence
+    // twice under two names. Two guards, belt and braces:
+    //  1. the GATE (speech.onresult): a final result counts only if MY own
+    //     echo-cancelled mic carried voice in the last 3s (the meter's verdict;
+    //     see myVoiceAt). Speaker playback is cancelled on that track, so a
+    //     sentence I merely heard arrives with my mic silent and is dropped.
+    //  2. the DEDUPE (takeTr / addTranscriptLine): the same words from a
+    //     different device within 8s are one utterance. The earlier line wins
+    //     — the real speaker's engine fires first, the echo lags by the
+    //     speaker path — and a late-arriving earlier line replaces the echo.
+    const trNorm = (t) => String(t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const trSeen = new Map(); // normalized text -> { at, byId, id } of the line that holds it
+    let trDrops = 0;
+    function trEcho(m) { // -> false (new), true (drop: an echo), or the entry this earlier line should replace
+      const n = trNorm(m.text);
+      if (n.length < 12) return false; // "yes", "okay", "can you hear me" legitimately repeat
+      const s = trSeen.get(n);
+      if (s && s.byId !== m.byId && Math.abs((m.at || 0) - s.at) < 8000) {
+        if ((m.at || 0) + 300 < s.at) { trs.delete(s.id); trSeen.set(n, { at: m.at || 0, byId: m.byId, id: m.id }); return s; }
+        trDrops++; return true;
+      }
+      if (!s || s.byId === m.byId) { trSeen.set(n, { at: m.at || 0, byId: m.byId, id: m.id }); trimMap(trSeen, CHAT_MAX); }
+      return false;
+    }
     function takeTr(m) {
       if (!m || !m.id || trs.has(m.id)) return false;
       if (m.byId !== myId && !chatRateOk('tr:' + m.byId)) return false;
-      trs.set(m.id, { id: m.id, byId: m.byId, by: String(m.by || '?').slice(0, 40), at: m.at || 0, text: String(m.text || '').slice(0, 400) });
+      const line = { id: m.id, byId: m.byId, by: String(m.by || '?').slice(0, 40), at: m.at || 0, text: String(m.text || '').slice(0, 400) };
+      if (trEcho(line) === true) return false;
+      trs.set(m.id, line);
       trimMap(trs, CHAT_MAX);
       return true;
+    }
+    // Consecutive lines from one person, close together, read as one
+    // paragraph. The engine hands over two-word finals with no punctuation;
+    // the lines stay as they came (ids, times), only the reading view joins them.
+    function trBlocks() {
+      const lines = Array.from(trs.values()).sort((a, b) => a.at - b.at);
+      const out = [];
+      for (const l of lines) {
+        const last = out[out.length - 1];
+        if (last && last.byId === l.byId && l.at - last.end < 5000 && last.text.length + l.text.length < 700) { last.text += ' ' + l.text; last.end = l.at; }
+        else out.push({ byId: l.byId, by: l.by, at: l.at, end: l.at, text: l.text });
+      }
+      return out;
     }
     function showCaption(byId, text) {
       const t = byId === myId ? meTile : peers.get(byId);
@@ -11762,7 +11865,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function renderTranscript() {
       const log = document.getElementById('trlog');
-      const lines = Array.from(trs.values()).sort((a, b) => a.at - b.at);
+      const lines = trBlocks();
       log.innerHTML = lines.length
         ? lines.map((l) => '<div class="trline"><b>' + esc(l.by) + '</b>' + esc(l.text) + '</div>').join('')
         : '<small style="color:#667">Tap CC in the bar and each phone writes down what its own person says — the lines gather here with names. Muted phones do not caption: unmute to be written down.</small>';
@@ -11772,11 +11875,36 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       text = String(text || '').trim();
       if (!text) return;
       const m = { id: uid('t'), byId: myId, by: myName(), at: Date.now(), text: text.slice(0, 400) };
+      if (trEcho(m) === true) return; // I only HEARD this — another device already wrote it down
       trs.set(m.id, m);
       sendAll({ k: 'tr', m });
       renderTranscript();
       showCaption(myId, m.text);
     }
+    // THE LANGUAGE IS A CHOICE, NOT A GUESS. The engine listens for ONE
+    // language and cannot detect it; navigator.language was the silent
+    // default, so a phone set to Russian wrote English down as Cyrillic
+    // nonsense and nobody could see why. Settings → Captions language, kept
+    // on this device; the device language stays the default.
+    const CC_LANGS = [['', 'Same as this device'], ['en-US', 'English (US)'], ['en-GB', 'English (UK)'], ['ru-RU', 'Русский'], ['uk-UA', 'Українська'],
+      ['es-ES', 'Español'], ['pt-BR', 'Português (BR)'], ['fr-FR', 'Français'], ['de-DE', 'Deutsch'], ['it-IT', 'Italiano'], ['pl-PL', 'Polski'],
+      ['tr-TR', 'Türkçe'], ['zh-CN', '中文 (普通话)'], ['ja-JP', '日本語'], ['ko-KR', '한국어'], ['hi-IN', 'हिन्दी'], ['ar-SA', 'العربية']];
+    const CC_LANG_KEY = 'gifos_cc_lang';
+    const ccLang = () => { let v = ''; try { v = localStorage.getItem(CC_LANG_KEY) || ''; } catch (e) {} return v || navigator.language || 'en-US'; };
+    const ccLangLabel = () => { const v = ccLang(); const hit = CC_LANGS.find((x) => x[0] === v); return hit ? hit[1] : v; };
+    (function wireCcLang() {
+      const sel = document.getElementById('cclang'); if (!sel) return;
+      let saved = ''; try { saved = localStorage.getItem(CC_LANG_KEY) || ''; } catch (e) {}
+      const dev = navigator.language || 'en-US';
+      sel.innerHTML = CC_LANGS.map(([v, l]) => '<option value="' + v + '">' + l + (v ? '' : ' (' + esc(dev) + ')') + '</option>').join('');
+      if (saved && !CC_LANGS.some(([v]) => v === saved)) sel.insertAdjacentHTML('beforeend', '<option value="' + esc(saved) + '">' + esc(saved) + '</option>');
+      sel.value = saved;
+      sel.onchange = () => {
+        try { if (sel.value) localStorage.setItem(CC_LANG_KEY, sel.value); else localStorage.removeItem(CC_LANG_KEY); } catch (e) {}
+        if (speechRunning()) { stopSpeech(); startSpeech(); }
+        setStatus('Captions now listen for ' + ccLangLabel() + '.');
+      };
+    })();
     let speech = null;
     function speechRunning() { return !!speech; }
     function startSpeech() {
@@ -11786,10 +11914,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         speech = new SR();
         speech.continuous = true;
         speech.interimResults = false;
-        speech.lang = navigator.language || 'en-US';
+        speech.lang = ccLang();
         speech.onresult = (e) => {
+          // THE GATE (see trEcho): no voice on my own echo-cancelled mic in
+          // the last 3s means I only heard this through the speakers. No
+          // meter yet (AudioContext not born) ⇒ no verdict ⇒ let it through.
+          const heard = !meters.has('me') || (Date.now() - myVoiceAt < 3000);
           for (let i = e.resultIndex; i < e.results.length; i++) {
-            if (e.results[i].isFinal) addTranscriptLine(e.results[i][0].transcript);
+            if (!e.results[i].isFinal) continue;
+            if (!heard) { trDrops++; continue; }
+            addTranscriptLine(e.results[i][0].transcript);
           }
         };
         speech.onend = () => { if (myStatus.cc && !myStatus.muted && speech) { try { speech.start(); } catch (e) {} } };
@@ -11818,11 +11952,41 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     document.getElementById('ccbtn').onclick = () => {
       myStatus.cc = !myStatus.cc;
+      ccByOrder = false;
+      if (!myStatus.cc && ccAllInfo()) ccOptOutAt = Date.now(); // opting out of a room-wide order holds until the next order
       document.getElementById('ccbtn').classList.toggle('on', myStatus.cc);
       syncSpeech();
       if (myStatus.cc && myStatus.muted) setStatus('Captions are on — but you are muted, so nothing gets written down. Unmute to caption yourself.');
       broadcastStatus();
     };
+    // CAPTIONS FOR EVERYONE. Each person had to find CC alone, and one never
+    // did. An admin's room-wide 'cc' order (pseudo-target '*', the same signed
+    // table as the chat switch) turns captions on for every unmuted device at
+    // once. It is a request, not a hammer: tapping CC off afterwards opts that
+    // device out until the admin issues a NEW order; turning the order off
+    // stops only the devices the order started.
+    var ccOptOutAt = 0, ccByOrder = false;
+    function ccAllInfo() { const m = modTable['*'] && modTable['*'].cc; return (m && m.on) ? m : null; }
+    function applyCcAll() {
+      const m = ccAllInfo();
+      const btn = document.getElementById('ccall');
+      if (btn) btn.textContent = 'Captions for everyone: ' + (m ? 'on' : 'off');
+      const cc = document.getElementById('ccbtn');
+      if (!m) {
+        if (ccByOrder && myStatus.cc) { ccByOrder = false; myStatus.cc = false; cc.classList.remove('on'); syncSpeech(); setStatus('Captions for everyone were turned off.'); broadcastStatus(); }
+        return;
+      }
+      if (myStatus.cc || ccOptOutAt >= (m.at || 0)) return;
+      myStatus.cc = true; ccByOrder = true;
+      cc.classList.add('on');
+      syncSpeech();
+      setStatus((m.by || 'An admin') + ' turned captions on for everyone — this device writes down what you say' + (myStatus.muted ? ' once you unmute' : '') + '. Tap CC to opt out.', 8000);
+      broadcastStatus();
+    }
+    (function wireCcAll() {
+      const btn = document.getElementById('ccall'); if (!btn) return;
+      btn.onclick = () => { setMod('*', 'cc', !ccAllInfo()); applyCcAll(); };
+    })();
     function setPanelView(showTr) {
       const w = document.getElementById('trwrap'), c = document.getElementById('chatlog');
       w.classList.toggle('show', showTr);
@@ -11845,8 +12009,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       document.getElementById('trbtn').style.display = anyCc ? '' : 'none';
     }
     document.getElementById('trdl').onclick = () => {
-      const lines = Array.from(trs.values()).sort((a, b) => a.at - b.at)
-        .map((l) => '[' + new Date(l.at).toLocaleTimeString() + '] ' + l.by + ': ' + l.text);
+      const lines = trBlocks().map((l) => '[' + new Date(l.at).toLocaleTimeString() + '] ' + l.by + ': ' + l.text);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([lines.join('\n') + '\n'], { type: 'text/plain' }));
       a.download = 'gifos-meeting-transcript.txt';
@@ -12729,6 +12892,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     window.addEventListener('pagehide', sendMeshLeave);
     // bfcache resume after a pagehide: we already gave up our seat — rejoin fresh.
     window.addEventListener('pageshow', (e) => { if (e.persisted && leftMesh) location.reload(); });
+    // THE LEAVE BUTTON (2026-10-02). A meeting had no way out but the tab's
+    // close box; "how do I sign off?" went round the room. Leaving is the same
+    // instant goodbye an unload sends, done on purpose: share and captions
+    // stop, the farewell floods, every local track stops, the seat closes,
+    // and a plain card says so — with the way back.
+    function leaveMeeting() {
+      try { if (myStatus.scr && typeof stopScreenShare === 'function') stopScreenShare(); } catch (e) {}
+      try { if (typeof stopSpeech === 'function') stopSpeech(); } catch (e) {}
+      sendMeshLeave();
+      try { if (localStream) localStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+      for (const pid of Array.from(peers.keys())) { try { dropPeer(pid); } catch (e) {} }
+      const lm = document.getElementById('left-modal'); if (lm) lm.style.display = 'flex';
+    }
+    const leaveBtn = document.getElementById('leavebtn');
+    if (leaveBtn) leaveBtn.onclick = leaveMeeting;
+    const leftRejoin = document.getElementById('left-rejoin'); if (leftRejoin) leftRejoin.onclick = () => location.reload();
+    const leftClose = document.getElementById('left-close'); if (leftClose) leftClose.onclick = () => { location.href = 'index.html'; };
 
     // ================= App-in-meeting =================
     // Any app can run INSIDE the meeting: one participant hosts it through the
@@ -14259,6 +14439,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       chatLinks: () => Array.from(chat.values()).map((m) => m.link).filter(Boolean),
       addTranscript: (t) => addTranscriptLine(t),
       transcriptTexts: () => Array.from(trs.values()).sort((a, b) => a.at - b.at).map((l) => l.by + ': ' + l.text),
+      transcriptBlocks: () => trBlocks().map((l) => l.by + ': ' + l.text),
+      transcriptDrops: () => trDrops,
+      takeTrForTest: (m) => takeTr(m),
+      leaveForTest: () => leaveMeeting(),
       recording: () => !!(recRec && recRec.state !== 'inactive'),
       recMode: () => recMode,
       recMatchMix: () => recMatchMix,
