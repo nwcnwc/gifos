@@ -234,7 +234,7 @@ async function openApp(page, ctx, folder, label) {
   check('folder downloads as a single GIF bundle', /Games\.gif/.test(folderDl.suggestedFilename()));
   const bundlePath = await folderDl.path();
   const bundleBytes = Array.from(new Uint8Array(fs.readFileSync(bundlePath)));
-  // the bundle is a valid folder GIF carrying folder.json + 5 children
+  // the bundle is a valid folder GIF carrying folder.json + the 4 seeded games
   const bundleOk = await page.evaluate(async (arr) => {
     const a = await GifOS.gif.decode(new Uint8Array(arr));
     if (!a) return null;
@@ -242,7 +242,7 @@ async function openApp(page, ctx, folder, label) {
     const fj = JSON.parse(new TextDecoder().decode(a.files['folder.json']));
     return { type: m.type, name: m.name, kids: fj.items.length, hasFiles: !!a.files['files/0'] };
   }, bundleBytes);
-  check('bundle is a folder GIF with 5 children inside', bundleOk && bundleOk.type === 'folder' && bundleOk.kids === 5 && bundleOk.hasFiles);
+  check('bundle is a folder GIF with 4 children inside', bundleOk && bundleOk.type === 'folder' && bundleOk.kids === 4 && bundleOk.hasFiles);
   // import the bundle → a new "Games" folder appears with its games
   await page.setInputFiles('#file-input', { name: 'Games.gif', mimeType: 'image/gif', buffer: Buffer.from(bundleBytes) });
   await sleep(600);
