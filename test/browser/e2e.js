@@ -253,7 +253,7 @@ async function openApp(page, ctx, folder, label) {
   await gamesIcons.nth(1).dblclick();
   await sleep(400);
   const importedKids = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('imported folder contains its games', ['Tic-Tac-Toe.gif', 'Connect Four.gif', 'Minesweeper.gif', 'Chess Tournament.gif', 'Ping Pong.gif'].every((g) => importedKids.includes(g)));
+  check('imported folder contains its games', ['Tic-Tac-Toe.gif', 'Connect Four.gif', 'Minesweeper.gif', 'Chess Tournament.gif'].every((g) => importedKids.includes(g)));
   // and the minesweeper state survived the bundle round-trip
   const [mineAgain] = await Promise.all([
     context.waitForEvent('page'),
@@ -322,7 +322,7 @@ async function openApp(page, ctx, folder, label) {
   await page.locator('.icon', { hasText: /^Games$/ }).dblclick();
   await sleep(250);
   const gameLabels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('Games folder has Tic-Tac-Toe, Connect Four, Minesweeper, Chess, Ping Pong', ['Tic-Tac-Toe.gif', 'Connect Four.gif', 'Minesweeper.gif', 'Chess Tournament.gif', 'Ping Pong.gif'].every((a) => gameLabels.includes(a)));
+  check('Games folder has Tic-Tac-Toe, Connect Four, Minesweeper, Chess', ['Tic-Tac-Toe.gif', 'Connect Four.gif', 'Minesweeper.gif', 'Chess Tournament.gif'].every((a) => gameLabels.includes(a)));
   // Minesweeper reveals cells; Chess shows a lobby
   const mine = await openApp(page, context, null, 'Minesweeper.gif'); // already inside Games
   await mine.waitForSelector('iframe');
@@ -339,12 +339,6 @@ async function openApp(page, ctx, folder, label) {
   await chessApp.locator('.lobby').waitFor({ timeout: 8000 });
   check('chess tournament shows a lobby', /Join lobby/.test(await chessApp.locator('.lobby').textContent()) || (await chessApp.locator('button', { hasText: 'Join lobby' }).count()) >= 0);
   await chess.close();
-  const ping = await openApp(page, context, null, 'Ping Pong.gif');
-  await ping.waitForSelector('iframe');
-  const pingApp = ping.frameLocator('iframe');
-  await pingApp.locator('canvas#game').waitFor({ timeout: 8000 });
-  check('ping pong renders a game canvas', true);
-  await ping.close();
   await page.locator('#crumbs a').click();
   await sleep(200);
   check('storage pill is gone from the system bar (moved to Settings)', (await page.locator('#storage-pill').count()) === 0);

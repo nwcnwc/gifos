@@ -261,7 +261,7 @@
   // never touch anything under Stolen Apps (only seeded copies carry isDefault).
   //
   // This function also ADDS any default apps that exist in the running build but
-  // are missing from the desktop — e.g. Ping Pong added on edge after the user was
+  // are missing from the desktop — e.g. a game added on edge after the user was
   // last on the live release. Missing loose apps are placed in free root cells;
   // missing folder apps go into their folder (creating the folder if necessary).
   async function rebuildDefaultApps(seed) {

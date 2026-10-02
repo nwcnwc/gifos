@@ -20,7 +20,8 @@
     "One chat line, caption or file notice used to be re-broadcast by every phone that received it — a thousand floods for one line in a big room. Now the sender's is the only one.",
     "Joining a busy room could put a newcomer's seat claim behind a ghost's, or reject a real one as stale, depending on how long each phone's page had been open. Seat claims now carry their age instead of a clock reading.",
     "The relay sends newcomers only the room's greeters instead of the whole member list, so a large room can be joined at all; a burst of people joining at once no longer hits a cap.",
-    "A relay socket now has to stay open before its reconnect backoff resets, so a flapping connection no longer hammers the relay."
+    "A relay socket now has to stay open before its reconnect backoff resets, so a flapping connection no longer hammers the relay.",
+    "Ping Pong is no longer one of the default games: it never played well enough. Your other games and your own copies are untouched."
    ]
   },
   {

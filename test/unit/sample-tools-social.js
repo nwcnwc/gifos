@@ -107,7 +107,7 @@ check('SAMPLE_HELP.chat claims a streaming ✨ draft that never sends',
   helpChat && /never sends/.test(helpChat[0]) && /as the words arrive/.test(helpChat[0]));
 
 // Hard wall: do not touch the other seeded apps in this run.
-['PINGPONG_HTML', 'TICTACTOE_HTML', 'CONNECT_FOUR_HTML', 'MINESWEEPER_HTML', 'CHESS_HTML', 'PAINT_HTML', 'NOTES_HTML', 'CALCULATOR_HTML']
+['TICTACTOE_HTML', 'CONNECT_FOUR_HTML', 'MINESWEEPER_HTML', 'CHESS_HTML', 'PAINT_HTML', 'NOTES_HTML', 'CALCULATOR_HTML']
   .forEach((name) => check(name + ' is still packed', new RegExp('const ' + name + ' = `').test(SRC)));
 
 console.log(failures ? ('\n' + failures + ' FAILED') : '\nALL PASS');

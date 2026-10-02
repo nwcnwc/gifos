@@ -1,3 +1,7 @@
+> **REMOVED 2026-10-01** (Nathan: "it just doesn't work well"). The app, its
+> seed entry and its three browser suites were taken out of the build in the
+> 0.9.16 cut. This document is kept as the record of the design.
+
 # Ping Pong — Design Document
 
 **Status: design doc, kept for the arguments. The app SHIPPED

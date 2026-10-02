@@ -162,11 +162,14 @@ const check = (name, cond, d) => { console.log((cond ? 'PASS' : 'FAIL') + ' — 
   check('erase lands back on the edge build', afterErase.edge || afterErase.path === '/', 'search=' + afterErase.search + ' path=' + afterErase.path);
   // The reseed flag is consumed during boot (reseedDefaultsIfFlagged reads it
   // and clears it). The real proof that it ran is that the fresh desktop got
-  // the CURRENT edge build's default apps — Ping Pong only exists on edge here.
+  // the CURRENT edge build's default apps: every game the running build
+  // seeds is in the Games folder (Ping Pong, the old edge-only marker, was
+  // removed from the defaults on 2026-10-01).
   await page.locator('.icon', { hasText: /^Games$/ }).dblclick();
   await sleep(300);
   const gameLabels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('edge-channel erase re-seeded current edge defaults (Ping Pong present)', gameLabels.includes('Ping Pong.gif'), JSON.stringify(gameLabels));
+  const seededGames = await page.evaluate(async () => { const seed = await GifOS.samples.build(); const f = (seed.folders || []).find((x) => x.name === 'Games'); return f ? f.apps.map((a) => a.name) : []; });
+  check('edge-channel erase re-seeded current edge defaults (every seeded game present)', seededGames.length >= 4 && seededGames.every((g) => gameLabels.includes(g)), JSON.stringify({ seededGames, gameLabels }));
   await page.locator('#crumbs a').click();
   await sleep(200);
   const dataGone = !(await page.evaluate(async () => await GifOS.store.getState('sys::erase_marker2')));
