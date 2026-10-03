@@ -14181,6 +14181,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function stopRoomApp(ad) {
       const at = Date.now();
       appStops.set(ad.s, { at, by: myName() });
+      // My own ad can still be advertised when this runs. The outbid host
+      // withdraws on the coalesced room pass (REACT_COALESCE_MS), and this
+      // stop names only the current winner. Tombstone my other sid in the
+      // same act, or the winner's removal elects that older ad and the
+      // room's app comes back. A later re-share still wins: runApp stamps
+      // its ts above the tombstone.
+      if (myStatus.app && myStatus.app.s && myStatus.app.s !== ad.s) {
+        const mineAt = Math.max(at, myStatus.app.ts || 0);
+        const prev = appStops.get(myStatus.app.s);
+        if (!prev || mineAt > prev.at) appStops.set(myStatus.app.s, { at: mineAt, by: myName() });
+      }
       // RETRY-UNTIL-OBSERVED (2026-08-03, e2e-app-governance stop stall): the
       // appstop fan-out was ONE SHOT over per-pair signaling, and the HOST
       // missing it is the one loss the room cannot heal around — everyone
