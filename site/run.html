@@ -936,7 +936,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .tile .chips span.warn { border-color: #b0742a; color: #ffd23c; }
   .tile .modbar { position: absolute; right: .4rem; top: .4rem; display: none; flex-direction: column;
                   gap: .3rem; z-index: 4; }
-  .tile:hover .modbar, .tile.menu .modbar { display: flex; }
+  .tile:hover .modbar, .tile.menu .modbar, .tile:focus-within .modbar { display: flex; }
   .tile .modbar button { padding: .3rem .55rem; border-radius: .4rem; border: 1px solid rgba(255,255,255,.16);
                          background: rgba(10,10,15,.85); color: #eceef8; cursor: pointer; font-size: .68rem; }
   .tile .modbar button:hover { border-color: var(--accent2, #ff5caa); }
@@ -1911,7 +1911,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // their own tile and letterboxes their own cell and buys them no seat, no
     // reach and no fanout (healing-laws S — harm ≈ fanout). Nobody can ever
     // set anyone else's.
-    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0, pwEp: 0, scr: 0, scribe: false };
+    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, pwEp: 0, scr: 0, scribe: false };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur, scr }
     // IS THIS SEAT DARK? Not the same question as "is its camera off".
     // Sharing a screen with the camera off is the COMMON case — nobody puts
@@ -1948,30 +1948,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     //
     // WIRE GLOSSARY (gossip stays terse; the words above are the meaning):
     //   st.stg  = the sender's STAGE step-up timestamp (0 = not on stage)
-    //   st.cap  = its capability bucket            st.hand = raised-hand timestamp
+    //   st.hand = raised-hand timestamp
     const SCALE = net.SCALE;
-    // Capability bucket: uplink + cores + memory + power, folded into ONE coarse
-    // score so jitter can't flap it. Measured once at boot (plus one async bump
-    // if we learn we're on wall power). Currently INFORMATIONAL only — it rides
-    // the gossip and the debug hook, but no law consumes it (the old cap-based
-    // elections died with the deacon model).
+    // Capability bucket: uplink + cores + memory + power, one coarse score so
+    // jitter can't flap it. No law reads it (the cap-based elections died with
+    // the deacon model). It used to ride every status pulse, and the battery
+    // promise mutated it after the first beats. It stays on this page only.
+    let myCap = 0;
     (function measureCap() {
-      let s = 0;
-      try { s += Math.min(8, navigator.hardwareConcurrency || 2); } catch (e) {}
-      try { s += Math.min(8, navigator.deviceMemory || 2); } catch (e) {}
-      try { const c = navigator.connection; if (c && c.downlink) s += Math.min(10, c.downlink); } catch (e) {}
-      myStatus.cap = Math.max(1, Math.round(s / 3));
+      let sc = 0;
+      try { sc += Math.min(8, navigator.hardwareConcurrency || 2); } catch (e) {}
+      try { sc += Math.min(8, navigator.deviceMemory || 2); } catch (e) {}
+      try { const c = navigator.connection; if (c && c.downlink) sc += Math.min(10, c.downlink); } catch (e) {}
+      myCap = Math.max(1, Math.round(sc / 3));
       try {
         if (navigator.getBattery) navigator.getBattery().then((b) => {
-          if (b && b.charging) myStatus.cap += 2; // plugged-in beats a 5% phone
+          if (b && b.charging) myCap += 2; // plugged-in beats a 5% phone
         }).catch(() => {});
       } catch (e) {}
     })();
-    const capOf = (id) => {
-      if (id === myId) return myStatus.cap || 0;
-      const st = statusOf.get(id);
-      return (st && st.cap) || 0;
-    };
+    const capOf = (id) => (id === myId || id === 'me' ? myCap : 0);
     // Deterministic display order: the Stage strip first (a CHOSEN set,
     // capped at C — a special tier, NOT a mesh row; empty until someone
     // steps up), everyone else first-fit in sorted-id order, C per display
@@ -2372,13 +2368,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // receiver-side holdover (stHold) and the mesh's own death detection are
     // for. Fallback to setInterval where Workers are unavailable.
     let hbVia = 'interval';
+    // The worker is the freeze detector and the sentinel is the starve-debt
+    // clock, so both arm at load (a block during boot is the case they exist
+    // for). They stop when the room closes: a tab left on the goodbye card
+    // was still sweeping every beat.
+    let hbWorker = null, hbWorkerUrl = null, hbFallback = null, loopSentinel = null;
+    function stopRoomClocks() {
+      if (hbWorker) { try { hbWorker.terminate(); } catch (e) {} hbWorker = null; }
+      if (hbWorkerUrl) { try { URL.revokeObjectURL(hbWorkerUrl); } catch (e) {} hbWorkerUrl = null; }
+      if (hbFallback) { clearInterval(hbFallback); hbFallback = null; }
+      if (loopSentinel) { clearInterval(loopSentinel); loopSentinel = null; }
+    }
     function bgClock(ms, fn) {
       try {
-        const w = new Worker(URL.createObjectURL(new Blob(
-          ['setInterval(function(){postMessage(0)},' + (ms | 0) + ')'], { type: 'text/javascript' })));
-        w.onmessage = fn;
-        return w;
-      } catch (e) { setInterval(fn, ms); return null; }
+        hbWorkerUrl = URL.createObjectURL(new Blob(
+          ['setInterval(function(){postMessage(0)},' + (ms | 0) + ')'], { type: 'text/javascript' }));
+        hbWorker = new Worker(hbWorkerUrl);
+        hbWorker.onmessage = fn;
+        return hbWorker;
+      } catch (e) { hbFallback = setInterval(fn, ms); return null; }
     }
     let hbTick = 0, hbLastAt = Date.now(), frozeGap = 0; // frozeGap: latched freeze evidence (see the beat handler)
     if (bgClock(SCALE.HB, () => {
@@ -2734,11 +2742,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (document.hidden && e.target && !e.target.isConnected) enterPip();
     }, true);
     // A peer whose gossip has gone silent is effectively away even if their
-    // browser never got to say so (hard freeze) — used for tile labeling only.
-    const peerAway = (pid) => {
+    // browser never got to say so (hard freeze). ms defaults to 13s, which is
+    // what keeps the firewall chip off a slow phone. The away CHIP passes
+    // 25s: a hidden tab beats every 12s, and 13s flapped the chip on one
+    // late pulse. st.away (the visibility pulse) shows the chip at once.
+    const peerAway = (pid, ms) => {
       const st = statusOf.get(pid) || {};
       const p = peers.get(pid);
-      return !!st.away || !!(p && p.lastHeard && Date.now() - p.lastHeard > 13000);
+      return !!st.away || !!(p && p.lastHeard && Date.now() - p.lastHeard > (ms || 13000));
     };
     // G1 HOLDOVER: freshness ≠ liveness. The 15s rule assumed the hidden-tab
     // heartbeat (12s) always lands inside it, but a locked phone's DOM timers
@@ -2773,7 +2784,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // receive-silence clocks, never the mesh's first-hand departure edges).
     const loopBlocks = [];             // { at, ms }, most-recent-last
     let loopLastBeat = Date.now();
-    setInterval(() => {
+    loopSentinel = setInterval(() => {
       const now = Date.now();
       const late = now - loopLastBeat - 250;
       loopLastBeat = now;
@@ -3064,6 +3075,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       try { meshNode && meshNode.stop(); } catch (e) {}
       for (const pid of Array.from(peers.keys())) dropPeer(pid);
       try { if (localStream) localStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+      try { stopRoomClocks(); } catch (e) {}
       const cm = document.getElementById('closed-modal'); if (cm) cm.style.display = 'flex';
     }
     // Drive purely off the relay's admin roster (the one authority a client
@@ -3169,17 +3181,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         fsstrip.textContent = '';
         const chip = document.createElement('div');
         chip.className = 'fsthumb fsauto'; chip.dataset.key = 'auto';
+        chip.setAttribute('role', 'button'); chip.tabIndex = 0;
+        chip.setAttribute('aria-label', 'Follow speaker');
         chip.innerHTML = '<span class="fsautoglyph">🗣</span><span class="fslbl">Follow speaker</span>';
         chip.onclick = () => { fsSel = 'auto'; fsAutoPid = null; fsRefresh(); };
+        chip.onkeydown = (e) => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); chip.onclick(); };
         fsstrip.appendChild(chip);
         for (const s of thumbs) {
           const th = document.createElement('div'); th.className = 'fsthumb'; th.dataset.key = s.key;
+          th.setAttribute('role', 'button'); th.tabIndex = 0;
+          th.setAttribute('aria-label', s.label || 'Show this feed');
           const tv = document.createElement('video'); tv.autoplay = true; tv.muted = true; tv.setAttribute('playsinline', ''); tv.setAttribute('muted', '');
           tv.srcObject = s.stream; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {});
           fsBlurClass(tv, s.bl);
           const lb = document.createElement('span'); lb.className = 'fslbl'; lb.textContent = s.label;
           th.appendChild(tv); th.appendChild(lb);
           th.onclick = () => { fsSel = s.key; fsRefresh(); };
+          th.onkeydown = (e) => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); th.onclick(); };
           fsstrip.appendChild(th);
         }
       } else {
@@ -3240,6 +3258,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Safari can only fullscreen a <video>, so it gets the native one.
       const maxbtn = document.createElement('button');
       maxbtn.className = 'maxbtn'; maxbtn.textContent = '⛶'; maxbtn.title = 'Full screen';
+      maxbtn.setAttribute('aria-label', 'Full screen');
       maxbtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (fsSkipDark(tile)) return;
@@ -3258,13 +3277,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // arms a mode — then it's the green dot / red ✕ centered on the tile.
         voteBtn = document.createElement('button');
         voteBtn.className = 'votedot';
+        voteBtn.setAttribute('aria-label', 'Vote');
         voteBtn.addEventListener('click', (e) => { e.stopPropagation(); castVote(id); });
         tile.appendChild(voteBtn);
         modbar = document.createElement('div');
         modbar.className = 'modbar';
-        modbar.innerHTML = '<button data-mod="mute"></button><button data-mod="blur"></button>'
-          + '<button class="grantbtn" data-mod="app" title="Let this person run and lead apps in your room"></button>'
-          + '<button class="banbtn" data-adm="ban" title="Ban this person&#39;s device from the room">Ban</button>';
+        modbar.innerHTML = '<button data-mod="mute" aria-label="Mute for everyone"></button><button data-mod="blur" aria-label="Blur for everyone"></button>'
+          + '<button class="grantbtn" data-mod="app" title="Let this person run and lead apps in your room" aria-label="Allow apps & sharing"></button>'
+          + '<button class="banbtn" data-adm="ban" title="Ban this person&#39;s device from the room" aria-label="Ban this device">Ban</button>';
         modbar.addEventListener('click', (e) => {
           if (e.target.dataset.adm === 'ban') {
             e.stopPropagation();
@@ -3308,7 +3328,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const mod = modOf(id);
       const gMute = mod.mute && mod.mute.on, gBlur = mod.blur && mod.blur.on, gCam = mod.cam && mod.cam.on;
       const chips = [];
-      if (!isMe && peerAway(id)) chips.push('<span>⏾ stepped away — screen off or in another app; waiting for them</span>');
+      if (!isMe && peerAway(id, 25000)) chips.push('<span>⏾ stepped away</span>');
       if (!isMe && t.relayed) chips.push('<span>📡 via ' + esc((peers.get(t.relayed) || {}).name || 'a friend') + '</span>');
       else if (!isMe && t.noRoute && !peerAway(id)) chips.push('<span class="warn">🚧 can’t connect straight to them — something on this network blocks video (common at work)</span>');
       if (stageIds().includes(isMe ? myId : id)) chips.push('<span>🎙 on stage</span>');
@@ -3373,6 +3393,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           : voteMode === 'up' ? (dv && myStageVotes.up.has(dv))
           : voteMode === 'down' ? (dv && myStageVotes.down.has(dv)) : false;
         t.voteBtn.classList.toggle('voted', !!mine);
+        const voteLabel = voteMode === 'up' ? (mine ? 'Withdraw your vote to put them on stage' : 'Vote to put them on stage')
+          : voteMode === 'down' ? (mine ? 'Withdraw your vote to take them off stage' : 'Vote to take them off stage')
+          : voteMode === 'kick' ? (mine ? 'Withdraw your vote to remove them' : 'Vote to remove them')
+          : 'Vote';
+        if (t.voteBtn.getAttribute('aria-label') !== voteLabel) t.voteBtn.setAttribute('aria-label', voteLabel);
       }
       if (!isMe) {
         // Group mute is enforced on MY device — via the tile's COMPANION audio
@@ -3381,9 +3406,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         t.video._gmute = !!gMute;
         if (t.video._aud) t.video._aud.muted = !!gMute;
         if (t.modbar) {
-          t.modbar.children[0].textContent = gMute ? 'Unmute for everyone' : 'Mute for everyone';
-          t.modbar.children[1].textContent = gBlur ? 'Unblur for everyone' : 'Blur for everyone';
-          t.modbar.children[2].textContent = (mod.app && mod.app.on) ? 'Revoke apps & sharing' : 'Allow apps & sharing';
+          const muteLabel = gMute ? 'Unmute for everyone' : 'Mute for everyone';
+          const blurLabel = gBlur ? 'Unblur for everyone' : 'Blur for everyone';
+          const appLabel = (mod.app && mod.app.on) ? 'Revoke apps & sharing' : 'Allow apps & sharing';
+          t.modbar.children[0].textContent = muteLabel; t.modbar.children[0].setAttribute('aria-label', muteLabel);
+          t.modbar.children[1].textContent = blurLabel; t.modbar.children[1].setAttribute('aria-label', blurLabel);
+          t.modbar.children[2].textContent = appLabel; t.modbar.children[2].setAttribute('aria-label', appLabel);
         }
       } else if (gMute && localStream) {
         // the group muted ME: cut the source too, not just everyone's speakers
@@ -6205,11 +6233,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (amAdmin && myId && !out.includes(myId)) out.push(myId);
       return out;
     };
+    // Broadcast host auto-step. bcStageWant stays up until we step up or the
+    // 30s timer gives up. adoptAdmKey and the S4 identity each call in; the
+    // 2s sweep retries while the stage is full. No 250ms poll.
+    let bcStageWant = false;
+    function tryBroadcastStage() {
+      if (!bcStageWant || !BROADCAST || !bcHostStored()) return;
+      if (!myId || !amAdmin) return;
+      admins = adminsNow();
+      // Already up: clear the want so a later step-down is not undone.
+      if (myStatus.stg) { bcStageWant = false; return; }
+      if (!canStage(myId) || stageIds().length >= SCALE.C) return;
+      bcStageWant = false;
+      setStage(true);
+    }
     async function adoptAdmKey(K) { // derive + verify K against this room's V
       const k = await net.edKeysFromSeedHex(K).catch(() => null);
       if (!k || k.verifier !== av) return false;
       admKey = K; admKeys = k; amAdmin = true;
+      admins = adminsNow(); // canStage reads this view; do not wait for the sweep
       refreshModSig();
+      try { tryBroadcastStage(); } catch (e) {}
       return true;
     }
     async function admSigned(act, extra) {
@@ -6595,6 +6639,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       ensureIdentity().then((identity) => {
       myId = identity.peerId; // S4: peer id = H(pubkey), unforgeable
       if (myIdReadyResolve) { const resolveId = myIdReadyResolve; myIdReadyResolve = null; resolveId(); }
+      try { tryBroadcastStage(); } catch (e) {}
       lastVoteSync = null;   // a fresh socket re-syncs my standing votes
       pwReasserted = false;  // a fresh socket re-asserts the admin's door lock once
       meshNode = GifOS.meshWire.createMeshNode({
@@ -7157,6 +7202,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       paintStage();    // remote grants/roster moves can change my stage rights
       paintShare();    // …and SOMEONE ELSE starting a share is a room fact only gossip carries
       reactHandCall(); // admin room: a fresh grant while my hand is up = called onto the Stage
+      try { tryBroadcastStage(); } catch (e) {} // broadcast host: a full stage retries until the deadline
       if (lowerHandForStage()) broadcastStatus(); // an answered hand lowers itself (self-owned, idempotent)
       renderHandq();   // the room-wide hand queue, freshest fold wins
       updateStatus();
@@ -7168,8 +7214,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function renderHandq() {
       const q = handQueue();
       handqEl.classList.toggle('on', q.length > 0);
+      const stageFull = amAdmin && stageIds().length >= SCALE.C;
       const seg = (e, i) => '<span class="hq" data-id="' + esc(e.i) + '">'
-        + (i === 0 ? '<b>' + esc(e.n) + '</b>' : esc(e.n)) + '</span>';
+        + (i === 0 ? '<b>' + esc(e.n) + '</b>' : esc(e.n))
+        + (stageFull ? ' (stage full)' : '') + '</span>';
       const tot = handTotal(q), shown = Math.min(q.length, 8);
       const html = !q.length ? ''
         : '✋ ' + tot + ' waiting: ' + q.slice(0, 8).map(seg).join(', ') + (tot > shown ? ', +' + (tot - shown) : '');
@@ -8212,20 +8260,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             else {
               // The HOST auto-steps onto the Stage: a broadcast page's whole
               // point, and the Stage is where their camera reaches the room.
-              // One-shot; waits out the async admin sign-in + S4 identity.
-              // Camera and mic still start OFF (quiet-join discipline) — going
+              // Camera and mic still start OFF (quiet-join discipline). Going
               // live on pixels stays a deliberate tap.
-              // canStage is part of the WAIT, not the one-shot's condition:
-              // amAdmin arms straight from the stored key, but `admins` (what
-              // canStage reads) only fills on the next heartbeat — testing it
-              // at the moment amAdmin lands skipped the step-up every time.
-              const t0 = Date.now();
-              const t = setInterval(() => {
-                if (Date.now() - t0 > 30000) { clearInterval(t); return; }
-                if (!myId || !amAdmin || !canStage(myId)) return;
-                clearInterval(t);
-                if (!myStatus.stg && stageIds().length < SCALE.C) setStage(true);
-              }, 250);
+              // tryBroadcastStage runs from the admin-key adopt and from the
+              // S4 identity, whichever lands second. The sweep retries while
+              // the stage is full. At 30s we stop and say so.
+              bcStageWant = true;
+              try { tryBroadcastStage(); } catch (e) {}
+              setTimeout(() => {
+                if (!bcStageWant) return;
+                bcStageWant = false;
+                if (!myStatus.stg) setStatus('Could not step onto the Stage — tap Stage.');
+              }, 30000);
             }
           }
           // ---- media, in PARALLEL with the entry dance ---------------------
@@ -12508,17 +12554,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // banner — this client steps onto the Stage by itself (the grant only
     // confers the RIGHT; no peer can put me on stage, my own client performs
     // the step-up, which auto-lowers the hand). Keyed to the grant's own
-    // timestamp and consumed once (idempotent on the beat); a grant seen
-    // while my hand is DOWN is standing app rights, never a call-up.
-    let handCallAt = 0;
+    // timestamp. A full stage does NOT consume it: the beat retries, and the
+    // person hears why. A grant seen while my hand is DOWN is standing app
+    // rights, never a call-up.
+    let handCallAt = 0, handCallNoted = 0;
     function reactHandCall() {
       if (!hasAdminRoom()) return;
       const g = modOf(myId).app;
       const at = (g && g.on && g.at) || 0;
       if (!myStatus.hand) { handCallAt = at; return; }
       if (!at || at === handCallAt) return;
-      handCallAt = at; // consume — one call-up per grant, even if the stage is full
-      if (myStatus.stg || !canStage(myId) || stageIds().length >= SCALE.C) return;
+      // Already up, or the grant is not a stage right: one call-up, done.
+      if (myStatus.stg || !canStage(myId)) { handCallAt = at; return; }
+      // A full stage must NOT consume the grant. The beat retries, and the
+      // person hears why. Consuming here used to drop the call-up forever.
+      if (stageIds().length >= SCALE.C) {
+        if (handCallNoted !== at) {
+          handCallNoted = at;
+          setStatus('Called to the stage — a seat will open when someone steps down.');
+        }
+        return;
+      }
+      handCallAt = at;
       setStage(true); // parks MAIN senders, lowers my hand, broadcasts
     }
 
@@ -15337,9 +15394,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } catch (e) {}
       try { if (typeof stopWhisper === 'function') stopWhisper(); } catch (e) {}
       try { if (whisperRescan) { clearInterval(whisperRescan); whisperRescan = null; } } catch (e) {}
-      try { if (myStatus.scr && typeof stopScreenShare === 'function') stopScreenShare(); } catch (e) {}
+      try {
+        // stopScreenShare steps down, broadcasts and renegotiates before the
+        // farewell. On a tab that is closing, that work eats the bye. Stop
+        // the capture here. The farewell is the message that has to leave.
+        if (myStatus.scr || (typeof screenStream !== 'undefined' && screenStream)) {
+          let s = null;
+          if (typeof screenStream !== 'undefined' && screenStream) { s = screenStream; screenStream = null; }
+          myStatus.scr = 0;
+          if (typeof screenSteppedUp !== 'undefined' && screenSteppedUp) { screenSteppedUp = false; myStatus.stg = 0; }
+          if (s) for (const t of s.getTracks()) { try { t.onended = null; t.stop(); } catch (e2) {} }
+        }
+      } catch (e) {}
+
       try { if (typeof stopSpeech === 'function') stopSpeech(); } catch (e) {}
       sendMeshLeave();
+      try { if (typeof stopRoomClocks === 'function') stopRoomClocks(); } catch (e) {}
       try { if (localStream) localStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
       for (const pid of Array.from(peers.keys())) { try { dropPeer(pid); } catch (e) {} }
       const lm = document.getElementById('left-modal'); if (lm) lm.style.display = 'flex';
