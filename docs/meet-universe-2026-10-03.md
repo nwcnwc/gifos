@@ -63,7 +63,9 @@ Verification of the combined tree, as of 13:45 UTC:
 | the <gate-host> | e2e-vote-stage, e2e-stage-cap-race (new), e2e-stage-holdover (new), e2e-mosaic, e2e-meeting-app, e2e-meet-mod | green (10, 7, 6, 20, 17, 57) |
 | the <gate-host> | drills/e2e-vanish-browser | green (11): a graceful leave is gone from every survivor in **0.0 s** (baseline 6.1 s, the one product red of the baseline gate); a crashed browser's seat is freed first-hand in 6.6 s (baseline 6.6 s). The 21.8 s seen on the <llm-box> was that box carrying five browsers on four cores. |
 
-Still running when this was written: the status-plane and video reruns on the stream-claim fix, and the whole mesh tier on the <orchestrator>.
+| the <behavior-box> | e2e-status-plane, e2e-video on the stream-claim fix | green (39, 133) — the quiet-room layout leg and both history legs now pass |
+
+Still running when this was written: the whole mesh tier on the <orchestrator>, and a full browser + drills tier split across the three fleet boxes.
 
 ## Still in flight when this was written
 
