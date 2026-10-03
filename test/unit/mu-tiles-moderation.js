@@ -276,38 +276,22 @@ function runFn(name, prelude, call) {
   check('reconcileGrid writes display only when it changed', /el\.style\.display !== disp/.test(grid));
 }
 
-// ---- copy, labels, remembered blur (findings 33, 119, 271) -----------------
+// ---- copy, labels, blur never remembered (findings 33, 119; 271 refused) --
 {
   check('Help no longer calls the default blur gentle', !/gently blurred/.test(src));
   check('Help and the lobby name Max blur', (src.match(/fully blurred \(Max\)/g) || []).length >= 2);
   check('the admin video hammer reads as an action', /Turn Video on/.test(src) && /Turn Video off/.test(src));
   check('the action label still contains the words the camera hammer test waits for', /Turn Video on/.test(extractFn(src, 'updateCamAllBtn') || ''));
-  const store = runFn('storedBlurLevel', `
-    var BLUR_KEY = 'gifos_blur';
-    var store = {};
-    var localStorage = {
-      getItem: function (k) { return store[k] == null ? null : store[k]; },
-      setItem: function (k, v) { store[k] = String(v); }
-    };
-  `, `
-    OUT.def = storedBlurLevel();
-    localStorage.setItem(BLUR_KEY, '1');
-    OUT.min = storedBlurLevel();
-    localStorage.setItem(BLUR_KEY, '0');
-    OUT.none = storedBlurLevel();
-    localStorage.setItem(BLUR_KEY, '9');
-    OUT.bad = storedBlurLevel();
-    localStorage.setItem(BLUR_KEY, 'true');
-    OUT.legacy = storedBlurLevel();
-  `);
-  if (store) {
-    check('a missing blur memory is Max (2)', store.def === 2);
-    check('Min and No blur round-trip', store.min === 1 && store.none === 0);
-    check('a bad stored value falls back to Max', store.bad === 2);
-    check('a legacy true value is Max', store.legacy === 2);
-  }
+  // Everyone joins Max-blurred in every meeting (docs/meeting.md). A blur
+  // level must never be remembered between meetings.
+  const boot = (src.match(/const myStatus = \{[^}]*\}/) || [''])[0];
+  check('every meeting starts Max-blurred: myStatus boots with blur 2', /blur:\s*2\b/.test(boot), boot);
+  check('no stored blur level is read at boot', !/getItem\([^)]*blur/i.test(src) && !/storedBlurLevel/.test(src));
   const setBlur = extractFn(src, 'setPersonalBlur') || '';
-  check('setPersonalBlur writes gifos_blur', /localStorage\.setItem\(BLUR_KEY/.test(setBlur));
+  check('setPersonalBlur is in run.html', !!setBlur);
+  check('setPersonalBlur does not remember the level', !/localStorage/.test(setBlur));
+  check('nothing writes a blur level to storage', !/setItem\([^)]*blur/i.test(src));
+  check('a blur level left by an older build is removed at boot', /localStorage\.removeItem\('gifos_blur'\)/.test(src));
 }
 
 // ---- parked phone vs a playing feed (finding 54; 267 is the same bug) ------

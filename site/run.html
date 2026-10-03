@@ -1924,17 +1924,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // their own tile and letterboxes their own cell and buys them no seat, no
     // reach and no fanout (healing-laws S — harm ≈ fanout). Nobody can ever
     // set anyone else's.
-    const BLUR_KEY = 'gifos_blur';
-    function storedBlurLevel() {
-      try {
-        const raw = localStorage.getItem(BLUR_KEY);
-        if (raw == null || raw === '') return 2;
-        if (raw === 'true') return 2;
-        const n = raw | 0;
-        return (n < 0 || n > 2) ? 2 : n;
-      } catch (e) { return 2; }
-    }
-    const myStatus = { muted: true, camOff: true, blur: storedBlurLevel(), hand: null, rec: false, cc: false, pwEp: 0, scr: 0, scribe: false };
+    // EVERYONE JOINS MAX-BLURRED, EVERY MEETING (docs/meeting.md, Blur). The
+    // level is never remembered between meetings: a choice made for one room
+    // must not walk into the next one, where the people and the consent are
+    // different. Nothing reads or writes a stored blur level; a key left by a
+    // build that did is removed here.
+    try { localStorage.removeItem('gifos_blur'); } catch (e) {}
+    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, pwEp: 0, scr: 0, scribe: false };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur, scr }
     // How many OTHER seats' held statuses advertise captions or a scribe.
     // refreshTrBtn and the scribe interval read the counts. They do not scan
@@ -15552,7 +15548,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // No blur can't show yet, the status line says exactly why.
     function setPersonalBlur(v) {
       myStatus.blur = v;
-      try { localStorage.setItem(BLUR_KEY, String(v | 0)); } catch (e) {}
       paintControls();
       refreshOutbound(); // sender-side: broadcast blurred (or raw) to match
       broadcastStatus();
