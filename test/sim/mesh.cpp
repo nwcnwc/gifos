@@ -407,7 +407,7 @@ struct Seat {
   // probeAck = last ROUTED answer for a probe of that coord (deliberately NOT
   // `live` — a probe answer travels the mesh, so it can only ever PREVENT an
   // early eviction, never evict or resurrect; E2 untouched).
-  Occ translost, tlProbeAt, probeAck;
+  Occ translost, tlProbeAt, probeAck, ringProbeAt;   // ringProbeAt: last H1 ring-heal probe tick; not tlProbeAt (that paces the D5 probe)
   int retryAt=-1,seatTries=0,lastPhone=-99,lastAck=0,healAt=-99,drainAt=0,rosterAskAt=-999,xlinkAt=0;
   // ENTRY PACING (law tightened 2026-08-02): at most ONE knock and ONE seat-ask
   // per tick. In the sim this is a near-no-op (the bus already tick-paces every

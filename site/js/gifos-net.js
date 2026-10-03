@@ -73,9 +73,10 @@
   // facade so callers wire handlers exactly once. makeUrl() is re-evaluated on
   // every (re)connect, so rotated credentials (a new password proof, an admin
   // key) ride the next attempt automatically.
-  function steadySocket(makeUrl) {
+  function steadySocket(makeUrl, sockOpts) {
+    const duty = sockOpts && typeof sockOpts.onDuty === 'function' ? sockOpts.onDuty : null;
     const s = { onmessage: null, onstate: null, onopen: null, state: 'connecting', downSince: Date.now(), rejected: 0 };
-    let ws = null, closed = false, attempt = 0, timer = null, slow = false, stableTimer = null;
+    let ws = null, closed = false, attempt = 0, timer = null, slow = false, stableTimer = null, bornTimer = null;
     const queue = [];
     const STABLE_MS = 5000; // how long a socket must stay open before the backoff resets
     // Close-code policy — the relay is BILLED for every wake, so reconnects are
@@ -105,7 +106,7 @@
       // close event — the attempt would wedge in CONNECTING forever and pin
       // the in-flight guard. If the socket isn't OPEN by the deadline, abandon
       // it and let backoff govern.
-      const born = setTimeout(() => {
+      bornTimer = setTimeout(() => {
         if (ws !== sock || sock.readyState === 1) return;
         ws = null;
         try { sock.onerror = null; sock.close(); } catch (e) { /* already dead */ }
@@ -113,7 +114,7 @@
         schedule();
       }, 8000);
       sock.onopen = () => {
-        clearTimeout(born);
+        clearTimeout(bornTimer);
         if (closed || ws !== sock) return;
         // OPEN is not yet GOOD. The relay turns a crowd away by ACCEPTING the
         // upgrade and closing with 1013 straight after (a Durable Object cannot
@@ -129,7 +130,7 @@
       };
       sock.onmessage = (ev) => { if (ws === sock && s.onmessage) s.onmessage(ev); };
       sock.onclose = (ev) => {
-        clearTimeout(born);
+        clearTimeout(bornTimer);
         if (ws !== sock) return;
         clearTimeout(stableTimer);
         ws = null;
@@ -152,7 +153,12 @@
       // the tab is hidden (an overnight background tab must not knock every
       // few seconds), extra patient when the relay itself said "not now".
       const hidden = typeof document !== 'undefined' && document.hidden;
-      const cap = hidden ? 60000 : slow ? 15000 : 5000;
+      // A hidden tab waits up to 60s between reconnects. An on-duty
+      // greeter is the door, so it keeps the visible cap while onDuty()
+      // is true. No onDuty keeps the hidden cap.
+      let onDuty = false;
+      try { onDuty = !!(duty && duty()); } catch (e) { onDuty = false; }
+      const cap = (hidden && !onDuty) ? 60000 : slow ? 15000 : 5000;
       const delay = Math.min(cap, 500 * Math.pow(2, attempt++)) * (0.7 + Math.random() * 0.6);
       timer = setTimeout(() => { timer = null; connect(); }, delay);
     }
@@ -165,9 +171,10 @@
       connect();
     };
     const wake = () => kick(false);
+    const onVis = () => { if (!document.hidden) wake(); };
     if (root.addEventListener) { root.addEventListener('online', wake); root.addEventListener('pageshow', wake); }
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      document.addEventListener('visibilitychange', onVis);
       document.addEventListener('resume', wake); // Page Lifecycle: tab just unfroze
     }
     s.send = (data) => {
@@ -182,7 +189,20 @@
       if (!timer) kick(false);
     };
     s.kick = () => kick(true); // app-layer re-arm after a credential/intent change
-    s.close = () => { closed = true; clearTimeout(stableTimer); if (timer) { clearTimeout(timer); timer = null; } try { if (ws) ws.close(); } catch (e) { /* fine */ } };
+    s.close = () => {
+      closed = true;
+      clearTimeout(stableTimer);
+      clearTimeout(bornTimer);
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (root.removeEventListener) { root.removeEventListener('online', wake); root.removeEventListener('pageshow', wake); }
+      if (typeof document !== 'undefined' && document.removeEventListener) {
+        document.removeEventListener('visibilitychange', onVis);
+        document.removeEventListener('resume', wake);
+      }
+      const conns = root.__gifosConns;
+      if (conns) { const i = conns.indexOf(s); if (i >= 0) conns.splice(i, 1); }
+      try { if (ws) ws.close(); } catch (e) { /* fine */ }
+    };
     s._raw = () => ws; // test hook: lets the e2e suite yank the live socket
     connect();
     (root.__gifosConns = root.__gifosConns || []).push(s);
