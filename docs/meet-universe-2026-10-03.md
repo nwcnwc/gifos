@@ -39,9 +39,10 @@ Both boxes were at load 20-24 on 4-6 cores, so these numbers measure contention 
 | `74daa16b` | fragment reassembly is bounded by bytes not count; gossip duplicates are dropped before Ed25519 verification; a clock more than 10 min off is named as the cause instead of "network"; `doorPeers` is O(S) | `test/unit/frag-size.js`, `door-peers.js`, `test/mesh/e2e-mesh-identity.js`, `e2e-mesh-wire.js` |
 | `a8e4333d` | the password epoch floor is bounded: a pulse cannot saturate the generation and break every future grant | `test/unit/meet-pw-epoch.js` (24 checks), `e2e-meet-password.js` leg |
 | `79e11ca0` | gossip repaints are coalesced into one pass per 250 ms window with one derivation and one layout (was: the whole tile/outbound/adapt cascade per received status frame); chips are written only on change (a focused "stop sharing" chip no longer loses focus every beat); the admin-room blur chip names the host | `test/unit/repaint-cascade.js`, `e2e-screen-share.js`, `e2e-meet-mod.js`, `e2e-status-plane.js` quiet leg |
+| `5c509aa1` | stage votes and hands: one verdict per voter (up and down can no longer be held at once), a vote-off is final, a step-up the C cap excludes disarms itself instead of entering the stage later unbidden, stage/hands/votes use the same hold-over liveness rule as consent and the roster (a late hidden-tab beat no longer tears a stager out of every strip) | `e2e-vote-stage.js` leg 3b, `e2e-stage-cap-race.js` (new, C=2), `e2e-stage-holdover.js` (new) |
 | `1ebf0be5`, `36960958` | moderation reaches every sink (filmstrip, PiP, iOS native full screen obey video-off and blur); the stage-app pull-through forgets a departed asker; the stage data lane verifies an app frame before retaining it | `test/unit/meet-moderation-sinks.js`, `room-flood-laws.js` §7, `e2e-meet-mod.js`, `e2e-meeting-app.js` |
 
-Verification of the combined tree, as of 14:00 UTC:
+Verification of the combined tree, as of 13:45 UTC:
 
 | where | suites | result |
 |---|---|---|
