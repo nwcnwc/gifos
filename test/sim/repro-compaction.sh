@@ -2,8 +2,9 @@
 # repro-compaction.sh — Q2 COMPACTION (roadmap §3, healing-laws law T).
 #
 # A settled deep LEAF that a fresh probe would place STRICTLY SHALLOWER walks its
-# own ALIVE up-chain and joins the nearest strictly-shallower OCCUPIED row
-# (densify) via an atomic law-T move. depth is a monotone-decreasing potential,
+# own ALIVE up-chain and joins the nearest strictly-shallower OCCUPIED row that
+# has a densify slot the mover can still leave, via an atomic law-T move.
+# depth is a monotone-decreasing potential,
 # so MOVES provably SETTLE; the move empties lone-row deep sections into their
 # ancestors' rows (the sdn-mirror no-route payoff, docs/media-plane.md).
 #
@@ -94,7 +95,7 @@ done
 [ "$sumOn" -le "$sumOff" ] || { echo "   FAIL: aggregate deepening across seeds ($sumOn > $sumOff)"; ok=0; }
 [ "$sumSecOn" -lt "$sumSecOff" ] || { echo "   FAIL: aggregate sections not reduced ($sumSecOn !< $sumSecOff)"; ok=0; }
 [ "$sumLoneOn" -lt "$sumLoneOff" ] || { echo "   FAIL: aggregate lone-rows not reduced ($sumLoneOn !< $sumLoneOff)"; ok=0; }
-echo "   (optimal depth reached: $([ "$onMax" = "$onMin" ] && echo yes || echo "no — $onMax vs min $onMin, residual under-full-ancestor seats)")"
+echo "   (last seed maxDepth=$onMax)"
 [ "$ok" = 1 ] && echo "   PASS" || fail=1
 
 echo "=== 2) MOVES settle (no oscillation) over a long idle window ==="

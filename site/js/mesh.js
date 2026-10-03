@@ -1356,13 +1356,34 @@
         }
       this.emit(mm.nc, { t: 'NOROOM', nd: this.hasCoord ? topo.pcDepth(this.coord.pc) : 0 });
     }
+    // Column j of this head's row is a densify slot the mover can still leave.
+    // Free, and not an internal hole (its down-child heals that, C1). A column
+    // with an occupant to its right is not the trailing edge: compactEligible
+    // lets only the rightmost occupant leave. Sitting left of a row-mate who has
+    // a down-child pins the mover, because that row-mate is not a leaf and never
+    // compacts. Sitting left of any occupant in a row at depth >= 3 pins the
+    // same way: the probe stops in that deep row instead of climbing to a
+    // depth-1 or depth-2 row that can still densify. A trailing cell is still
+    // taken at any depth. Twin of compactDensifyCol in test/sim/mesh_seat.inc.
+    compactDensifyCol(j) {
+      const cell = { pc: this.coord.pc, r: this.coord.r, i: j };
+      if (this.occ.has(ck(cell))) return false;
+      if (this.occGet(ck(topo.down(cell))) != null) return false;
+      for (let k = j + 1; k < C(); k++) {
+        const rk = { pc: this.coord.pc, r: this.coord.r, i: k };
+        if (!this.occ.has(ck(rk))) continue;
+        if (topo.pcDepth(this.coord.pc) >= 3 || this.occGet(ck(topo.down(rk))) != null) return false;
+      }
+      return true;
+    }
     // Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1)
     // climbs the seeker's OWN up-chain — every hop an ALIVE link (row → head →
-    // owner) — and joins the NEAREST strictly-shallower OCCUPIED row (densify).
-    // Reliable (no long route over a fragmented mesh, no reliance on a shallow
-    // seat's stale view of a deep row), monotone (the seeker's depth strictly
-    // decreases), and it empties lone-row deep sections into their ancestors'
-    // rows — the media-plane payoff. The seeker's coord rides in mm.coord.
+    // owner) — and joins the NEAREST strictly-shallower OCCUPIED row that has a
+    // densify slot the mover can still leave. Reliable (no long route over a
+    // fragmented mesh, no reliance on a shallow seat's stale view of a deep
+    // row), monotone (the seeker's depth strictly decreases), and it empties
+    // lone-row deep sections into their ancestors' rows — the media-plane
+    // payoff. The seeker's coord rides in mm.coord.
     serveCompact(mm) {
       if (!this.hasCoord || this.state !== 3 || mm.ttl <= 0) return;
       const sd = topo.pcDepth(mm.coord.pc);
@@ -1371,17 +1392,16 @@
       // a deep row). A non-head hands the probe to its own row head (direct link).
       if (this.coord.i !== 0) { const h = this.occGet(ck({ pc: this.coord.pc, r: this.coord.r, i: 0 })); if (h != null && h !== this.id) this.emit(h, { t: 'FIND', nc: mm.nc, tag: 1, coord: mm.coord, ttl: mm.ttl - 1 }); return; }
       // I am a row head. If my row is a DEEP row STRICTLY shallower than the
-      // seeker, offer the first free DENSIFYING slot in it (a trailing frontier:
-      // free + down-child empty, so the seeker lands a childless leaf and never
-      // displaces a healer). NEVER Section 1 (pc==0): the home is filled only
-      // under H1-S1 ring-conservatism — compaction seating a leaf in an S1 cell
-      // whose occupant is merely unreachable (not confirmed dead) could mint a
+      // seeker, offer the first densify slot the mover can still leave
+      // (compactDensifyCol). A row whose only free cells would pin the mover is
+      // climbed past. NEVER Section 1 (pc==0): the home is filled only under
+      // H1-S1 ring-conservatism — compaction seating a leaf in an S1 cell whose
+      // occupant is merely unreachable (not confirmed dead) could mint a
       // divergent home. The chain climbs THROUGH S1 but never seats there.
       if (this.coord.pc !== 0 && topo.pcDepth(this.coord.pc) < sd) {
-        for (let j = 1; j < C(); j++) { const cell = { pc: this.coord.pc, r: this.coord.r, i: j };
-          if (this.occ.has(ck(cell))) continue;                    // occupied (I know my row first-hand)
-          if (this.occGet(ck(topo.down(cell))) != null) continue;  // internal hole — its down-child heals it (C1)
-          this.admit(cell, mm); return;                            // densify: seat the seeker beside me, PLACE routed back (tag==1)
+        for (let j = 1; j < C(); j++) {
+          if (!this.compactDensifyCol(j)) continue;
+          this.admit({ pc: this.coord.pc, r: this.coord.r, i: j }, mm); return; // densify: seat the seeker beside me, PLACE routed back (tag==1)
         }
       }
       // My row is full or not shallower — climb one level toward the home.

@@ -446,13 +446,35 @@ void Seat::serveFind(Msg& mm){
   FINDLOG("NOROOM deep-dead-end");
   Msg m;m.t=NOROOM;m.id=id;m.nd=(uint8_t)(hasCoord?pcDepth(coord.pc):0); NOROOM_BYDEPTH[m.nd<16?m.nd:15]++; emit(mm.nc,m);
 }
+// Column j of this head's row is a densify slot the mover can still leave.
+// Free, and not an internal hole (its down-child heals that, C1). A column
+// with an occupant to its right is not the trailing edge: compactEligible
+// lets only the rightmost occupant leave. Sitting left of a row-mate who has
+// a down-child pins the mover there, because that row-mate is not a leaf and
+// never compacts. Sitting left of any occupant in a row at depth >= 3 pins
+// the same way: the probe stops in that deep row instead of climbing to a
+// depth-1 or depth-2 row that can still densify, and the right-hand occupant
+// does not clear the gap. A trailing cell (nobody to its right) is still
+// taken at any depth.
+static bool compactDensifyCol(Seat& s, int j){
+  Coord cell={s.coord.pc,s.coord.r,(uint8_t)j};
+  if(s.occ.count(ckey(cell))) return false;
+  if(s.occGet(ckey(down(cell)))>=0) return false;
+  for(int k=j+1;k<C;k++){
+    Coord rk={s.coord.pc,s.coord.r,(uint8_t)k};
+    if(!s.occ.count(ckey(rk))) continue;
+    if(pcDepth(s.coord.pc)>=3 || s.occGet(ckey(down(rk)))>=0) return false;
+  }
+  return true;
+}
 // Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1) climbs
 // the seeker's OWN up-chain — every hop an ALIVE link (row → head → owner) — and
-// joins the NEAREST strictly-shallower OCCUPIED row (densify). Reliable (no long
-// route over a fragmented mesh, no reliance on stale S1 knowledge of deep rows),
-// monotone (the seeker's depth strictly decreases), and it empties lone-row deep
-// sections into their ancestors' rows — the media-plane payoff. The seeker's
-// coord rides in mm.coord; sd = its depth.
+// joins the NEAREST strictly-shallower OCCUPIED row that has a densify slot the
+// mover can still leave. Reliable (no long route over a fragmented mesh, no
+// reliance on stale S1 knowledge of deep rows), monotone (the seeker's depth
+// strictly decreases), and it empties lone-row deep sections into their
+// ancestors' rows — the media-plane payoff. The seeker's coord rides in
+// mm.coord; sd = its depth.
 void Seat::serveCompact(Msg& mm){
   if(!hasCoord||state!=3||mm.ttl<=0) return;
   int sd = pcDepth(mm.coord.pc);
@@ -462,17 +484,17 @@ void Seat::serveCompact(Msg& mm){
   // deep row). A non-head hands the probe to its own row head (a direct link).
   if(coord.i!=0){ int h=occGet(ckey({coord.pc,coord.r,0})); if(h>=0&&h!=id){ Msg m=mm; m.ttl=mm.ttl-1; emit(h,m); } return; }
   // I am a row head. If my row is a DEEP row STRICTLY shallower than the seeker,
-  // offer the first free DENSIFYING slot in it (a trailing frontier: free +
-  // down-child empty, so the seeker lands a childless leaf and never displaces a
-  // healer). NEVER Section 1 (coord.pc==0): the home is filled only under H1-S1
+  // offer the first densify slot the mover can still leave (compactDensifyCol:
+  // free, down-child empty, not pinned left of a row-mate who will not move).
+  // A row whose only free cells would pin the mover is climbed past. NEVER
+  // Section 1 (coord.pc==0): the home is filled only under H1-S1
   // ring-conservatism — compaction filling an S1 cell whose occupant is merely
   // unreachable (not confirmed dead) could mint a divergent home. So the chain
   // climbs THROUGH S1 but never seats a compactor there.
   if(coord.pc!=0 && pcDepth(coord.pc) < sd){
-    for(int j=1;j<C;j++){ Coord cell={coord.pc,coord.r,(uint8_t)j};
-      if(occ.count(ckey(cell))) continue;                 // occupied (I know my row first-hand)
-      if(occGet(ckey(down(cell)))>=0) continue;           // internal hole — its down-child heals it (C1)
-      ADMIT_SITE="compact-densify"; admit(cell,mm); return; // densify: seat the seeker beside me, PLACE routed back (tag==1)
+    for(int j=1;j<C;j++){
+      if(!compactDensifyCol(*this,j)) continue;
+      ADMIT_SITE="compact-densify"; admit({coord.pc,coord.r,(uint8_t)j},mm); return; // densify: seat the seeker beside me, PLACE routed back (tag==1)
     }
   }
   // My row is full or not shallower than the seeker — climb one level toward the
@@ -556,14 +578,11 @@ void Seat::tryOffer(){
   // Same quiescence as the probe: never stir a region a heal is still settling.
   if(TICK-seatedAt<COMPACT_SETTLE || TICK-healAt<COMPACT_SETTLE || TICK-lastChurn<COMPACT_SETTLE) return;
   offerAt=TICK+COMPACT_PERIOD+(long long)(rng()*COMPACT_PERIOD);
-  // A free DENSIFYING slot in my row, known first-hand — the exact scan
-  // serveCompact serves from (free + down-child empty, so the mover lands a
-  // childless leaf and never displaces a healer).
+  // A densify slot in my row, known first-hand — the exact scan serveCompact
+  // serves from (compactDensifyCol), so an offer never names a cell the admit
+  // will refuse.
   bool slot=false;
-  for(int j=1;j<C;j++){ Coord cell={coord.pc,coord.r,(uint8_t)j};
-    if(occ.count(ckey(cell))) continue;
-    if(occGet(ckey(down(cell)))>=0) continue;
-    slot=true; break; }
+  for(int j=1;j<C;j++){ if(compactDensifyCol(*this,j)){ slot=true; break; } }
   if(!slot) return;
   // Send it DOWN: to a random live down-child head under my row. The walk
   // (serveOffer) descends until it finds an eligible mover.
