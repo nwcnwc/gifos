@@ -97,7 +97,9 @@ function makeAudio() {
 
 // ---- rule 3: Leave stops the recorder, the captures and the rescan ----------
 {
-  const src = lift('    function leaveMeeting() {', '    const leaveBtn = ');
+  // Leave runs stopLocalCapture (recorder, captions, share, speech, wake lock)
+  // and releaseAudioContext, defined just above it: lift all three.
+  const src = lift('    function stopLocalCapture() {', '    const leaveBtn = ');
   const calls = [];
   const recRec = { state: 'recording', stop() { this.state = 'inactive'; calls.push('rec.stop'); } };
   const leaveMeeting = new Function('myStatus', 'stopScreenShare', 'stopSpeech', 'sendMeshLeave', 'localStream', 'peers', 'dropPeer', 'document',

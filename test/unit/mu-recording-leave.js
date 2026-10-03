@@ -212,7 +212,7 @@ check('no recording reloads immediately', sinks.recResumePlan(false, false) === 
   check('the Record button does nothing while a start is in flight', click.indexOf('if (recStarting) return;') >= 0);
 
   check('a visible freeze saves or reloads through resumeReload', html.indexOf('if (frozeGap && !document.hidden) { resumeReload(); return; }') >= 0);
-  check('a resumed tab uses the same path', html.indexOf('if ((frozeGap || Date.now() - hbLastAt > 150000) && peers.size) { resumeReload(); return; }') >= 0);
+  check('a resumed tab uses the same path', /if \(\(frozeGap \|\| frozeThisBeat\(wallGap, monoNow - hbLastMono, peers\.size\)\) && peers\.size\) \{ resumeReload\(\); return; \}/.test(html));
   check('the stadium composite stores its element and not an empty rws list',
     /compOf\.set\('sd', \{ via: 'mosaic', streamId: stream\.id, stream, names: \[\], cnt: roomPastSection\(\) \? displayCount\(\) : knownTotal\(\), el: v \}\);/.test(html));
   check('the stage strip stores its element', /compOf\.set\('sgs', \{ via: 'stage', streamId: stream\.id, stream, names: stageIds\(\), el: v \}\);/.test(html));

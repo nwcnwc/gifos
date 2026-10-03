@@ -425,6 +425,19 @@
   window.gifosPinTarget = pinTarget;
   var decision = pinTarget(location.pathname, location.search, location.hash);
   if (decision && decision.redirect) location.replace(decision.redirect);
+  // A document that stays refreshes gifos_current for the next visit.
+  // The redirect above is still immediate. desktop.js is the other writer.
+  try {
+    if (typeof fetch === 'function') {
+      fetch('/version.json', { cache: 'no-store' }).then(function (r) {
+        return r && r.ok ? r.json() : null;
+      }).then(function (j) {
+        var v = j && j.current;
+        if (!v || !/^\d+\.\d+\.\d+$/.test(String(v))) return;
+        try { localStorage.setItem('gifos_current', String(v)); } catch (e2) {}
+      }).catch(function () {});
+    }
+  } catch (e) {}
 })();
 </script>
 <!-- Theming gate: hide chrome behind the theme-color backdrop until the theme
@@ -2406,7 +2419,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return hbWorker;
       } catch (e) { hbFallback = setInterval(fn, ms); return null; }
     }
-    let hbTick = 0, hbLastAt = Date.now(), frozeGap = 0; // frozeGap: latched freeze evidence (see the beat handler)
+    function frozeThisBeat(wallDelta, monoDelta, peerCount) {
+      // Date.now() jumps when the clock is set forward. performance.now()
+      // does not. A frozen tab moves both. Reload only when both do.
+      return wallDelta > 150000 && monoDelta > 150000 && peerCount > 0;
+    }
+    let hbTick = 0, hbLastAt = Date.now(), hbLastMono = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0, frozeGap = 0;
     if (bgClock(SCALE.HB, () => {
       hbTick++;
       // THE FREEZE DETECTOR'S CLOCK — the gap is measured HERE, before the
@@ -2419,8 +2437,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // resume). The latch survives the flush; the reload fires as soon as
       // we are visible (here, or in visibilitychange below).
       const nowBeat = Date.now();
-      if (nowBeat - hbLastAt > 150000 && peers.size) frozeGap = nowBeat - hbLastAt;
+      const nowMono = (typeof performance !== 'undefined' && performance.now) ? performance.now() : nowBeat;
+      if (frozeThisBeat(nowBeat - hbLastAt, nowMono - hbLastMono, peers.size)) frozeGap = nowBeat - hbLastAt;
       hbLastAt = nowBeat;
+      hbLastMono = nowMono;
       if (frozeGap && !document.hidden) { resumeReload(); return; }
       // A hidden tab beats at a third of the pace (12s — still inside every 15s
       // freshness window): a phone in a pocket keeps its seat without waking
@@ -2449,6 +2469,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const sv = (window.__starve = window.__starve || { beats: 0, eligible: 0, kicked: 0, why: {} });
         sv.beats++;
         const occNamed = new Set();
+        const rosterSet = new Set(rosterIds);
         { const ms = meshSeat(); if (ms) for (const v of ms.occ.values()) if (v && v !== myId) occNamed.add(v); }
         for (const [pid, p] of peers) {
           const why = (w) => { sv.why[w] = (sv.why[w] || 0) + 1; };
@@ -2550,7 +2571,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // are starving toward) OR my own OCC still names them (task #11:
           // a departed member's zombie pair, roster-absent, which nothing
           // else was auditing). Mesh NAMING alone was the circular gate.
-          if (!rosterIds.includes(pid) && !occNamed.has(pid)) { why('noroster'); continue; }
+          if (!rosterSet.has(pid) && !occNamed.has(pid)) { why('noroster'); continue; }
           // the STARVED side rebuilds — starvation is first-hand evidence and
           // only one side of an asymmetric pair has it (the dialer-designation
           // gate left pairs where the victim wasn't the designated dialer
@@ -2625,7 +2646,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // freeze that actually stales the room (statuses die at 60s holdover).
       // frozeGap: the beat handler may have measured (and latched) the gap
       // before this event fired — see the flush-order note at the clock.
-      if ((frozeGap || Date.now() - hbLastAt > 150000) && peers.size) { resumeReload(); return; }
+      const wallGap = Date.now() - hbLastAt;
+      const monoNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : (hbLastMono + wallGap);
+      if ((frozeGap || frozeThisBeat(wallGap, monoNow - hbLastMono, peers.size)) && peers.size) { resumeReload(); return; }
       reactRoomState();
       // Android freezes <video> elements consuming canvas-capture streams
       // while the tab is hidden — the TRACK stays live (others keep seeing
@@ -3087,13 +3110,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       admTickT = setInterval(tickAdminClose, 1000);
       tickAdminClose();
     }
+    function refreshGifosCurrent() {
+      // Off the channel decision. desktop.js is the other writer, and a
+      // meeting-only device never loads it. The next visit follows current.
+      try {
+        if (typeof fetch !== 'function') return;
+        fetch('/version.json', { cache: 'no-store' }).then(function (r) {
+          return r && r.ok ? r.json() : null;
+        }).then(function (j) {
+          var v = j && j.current;
+          if (!v || !/^\d+\.\d+\.\d+$/.test(String(v))) return;
+          try { localStorage.setItem('gifos_current', String(v)); } catch (e) {}
+        }).catch(function () {});
+      } catch (e) {}
+    }
+    setTimeout(refreshGifosCurrent, 1000);
     function closeRoomNoHost() {
       clearAdminClose();
       leaving = true;                          // stop the auto-reconnect loop
+      try { stopLocalCapture(); } catch (e) {}
+      try { sendMeshLeave(); } catch (e) {}
       try { meshNode && meshNode.stop(); } catch (e) {}
-      for (const pid of Array.from(peers.keys())) dropPeer(pid);
       try { if (localStream) localStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
       try { stopRoomClocks(); } catch (e) {}
+      for (const pid of Array.from(peers.keys())) { try { dropPeer(pid); } catch (e) {} }
+      try { releaseAudioContext(); } catch (e) {}
       const cm = document.getElementById('closed-modal'); if (cm) cm.style.display = 'flex';
     }
     // Drive purely off the relay's admin roster (the one authority a client
@@ -3169,7 +3210,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // that ignores it keeps transmitting), and the receiver blur level
         // rides along so the big feed and the thumb paint it.
         if (p.connected && (pipReady(p.video) || fsHeld(p.video)) && !seatDark(statusOf.get(pid)) && !forcedCamOff(pid)) {
-          out.push({ key: 'peer:' + pid, label: rosterNames[pid] || 'Guest', v: p.video, bl: blurLevelFor(pid) });
+          out.push({ key: 'peer:' + pid, label: displayName(pid), v: p.video, bl: blurLevelFor(pid) });
         }
       }
       const sd = stadiumEl.querySelector('[data-row="sd"] video');
@@ -3255,6 +3296,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     });
 
     // ---- tiles ---------------------------------------------------------------
+    function nameInitial(name) {
+      const ch = Array.from(String(name || ''))[0];
+      return ch ? ch.toUpperCase() : '\u2022';
+    }
+    function displayName(pid) {
+      if (pid === myId) return myName() || '\u2026';
+      return rosterNames[pid] || (peers.get(pid) || {}).name || '\u2026';
+    }
     function makeTile(id, name, isMe, headless) {
       const tile = document.createElement('div');
       tile.className = 'tile' + (isMe ? ' me' : '');
@@ -3263,7 +3312,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       video.autoplay = true; video.playsInline = true;
       if (isMe) video.muted = true;
       const avatar = document.createElement('div');
-      avatar.className = 'avatar'; avatar.textContent = (name || '•')[0].toUpperCase();
+      avatar.className = 'avatar'; avatar.textContent = nameInitial(name);
       const label = document.createElement('span');
       label.className = 'name'; label.textContent = name || '…';
       const chips = document.createElement('div');
@@ -3347,7 +3396,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const gMute = mod.mute && mod.mute.on, gBlur = mod.blur && mod.blur.on, gCam = mod.cam && mod.cam.on;
       const chips = [];
       if (!isMe && peerAway(id, 25000)) chips.push('<span>⏾ stepped away</span>');
-      if (!isMe && t.relayed) chips.push('<span>📡 via ' + esc((peers.get(t.relayed) || {}).name || 'a friend') + '</span>');
+      if (!isMe && t.relayed) chips.push('<span>📡 via ' + esc(displayName(t.relayed)) + '</span>');
       else if (!isMe && t.noRoute && !peerAway(id)) chips.push('<span class="warn">🚧 can’t connect straight to them — something on this network blocks video (common at work)</span>');
       if (stageIds().includes(isMe ? myId : id)) chips.push('<span>🎙 on stage</span>');
       // WHAT IS ON SCREEN, AND WHOSE. A screen share is the one feed where the
@@ -3471,6 +3520,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let ac = null;
     const meters = new Map(); // id -> { an, src, data }
     const speakingOf = new Map(); // id ('me'|pid) -> bool, for the composite overlay
+    function releaseMeter(id) {
+      const m = meters.get(id);
+      if (m) {
+        try { if (m.src && m.src.disconnect) m.src.disconnect(); } catch (e) {}
+        try { if (m.an && m.an.disconnect) m.an.disconnect(); } catch (e) {}
+      }
+      meters.delete(id);
+      speakingOf.delete(id);
+    }
     // The identity BURNED onto a person's face in every composite (approach A):
     // name strip, hand glyph, live green talking frame. Computed the same on
     // every device from shared status + the local audio meter.
@@ -3486,7 +3544,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // NO "(you)" here — a burned label rides the composite up to EVERYONE, so
       // it must be the person's plain name (my self-tile shows "(you)" via its
       // own DOM label, not the burn-in).
-      const name = isMe ? myName() : (rosterNames[pid] || (peers.get(pid) || {}).name || '…');
+      const name = displayName(pid);
       return { name, hand: !!st.hand, talking: !!speakingOf.get(isMe ? 'me' : pid) };
     };
     function ensureAc() {
@@ -3512,7 +3570,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const track = stream.getAudioTracks()[0];
       if (!track) return;
       const old = meters.get(id);
-      if (old) { try { old.src.disconnect(); } catch (e) {} }
+      if (old) { try { old.src.disconnect(); } catch (e) {} try { if (old.an) old.an.disconnect(); } catch (e) {} }
       try {
         const src = ac.createMediaStreamSource(new MediaStream([track]));
         const an = ac.createAnalyser(); an.fftSize = 256;
@@ -3550,7 +3608,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const stgSet = (() => { try { return new Set(stageIds()); } catch (e) { return null; } })();
       for (const [id, m] of meters) {
         const t = id === 'me' ? meTile : peers.get(id);
-        if (!t) { meters.delete(id); continue; }
+        if (!t) { releaseMeter(id); continue; }
         const unpainted = id !== 'me' && stgSet && !stgSet.has(id)
           && !!(t.tile && t.tile.style.display === 'none');
         if (unpainted) {
@@ -4002,11 +4060,46 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // PHONES CUT DEEPER, EVEN PLUGGED IN (Nathan 2026-07-26, after a Moto
     // drained 30%→2% OVERNIGHT ON ITS CHARGER): a phone SoC+screen can lose
     // to a weak charger at full quality, so being a phone is itself tier ≥1.
-    const IS_MOBILE = !!((navigator.userAgentData && navigator.userAgentData.mobile)
-      || /Android|iPhone|iPad|Mobi/i.test(navigator.userAgent));
+    function mobileDevice(nav) {
+      nav = nav || {};
+      // iPadOS Safari sends a Macintosh UA and no userAgentData. A Mac
+      // with no touch points stays a desktop.
+      return !!((nav.userAgentData && nav.userAgentData.mobile)
+        || /Android|iPhone|iPad|Mobi/i.test(nav.userAgent || '')
+        || ((nav.maxTouchPoints || 0) > 1 && /Mac/.test(nav.platform || '')));
+    }
+    const IS_MOBILE = mobileDevice(navigator);
     // CHARGER LOSING: plugged in but the level is FALLING — the overnight
     // Moto failure exactly. Emergency tier until the level rises again.
-    let drainTier = 0, lastLvl = null;
+    function drainStep(st, charging, level) {
+      let tripped = false;
+      if (charging && st.last !== null && st.last !== undefined) {
+        if (level < st.last) {
+          st.falls = (st.falls || 0) + 1;
+          if (st.falls >= 2 && st.tier !== 3) {
+            st.tier = 3;
+            st.trip = level;
+            tripped = true;
+          }
+        } else if (level > st.last) {
+          st.falls = 0;
+          if (st.tier === 3 && st.trip !== null && level > st.trip) {
+            st.tier = 0;
+            st.trip = null;
+          }
+        }
+      } else if (!charging) {
+        st.tier = 0;
+        st.falls = 0;
+        st.trip = null;
+      }
+      st.last = level;
+      return tripped;
+    }
+    // Two falling readings, not one 1% wobble from adaptive charging.
+    // The cut clears only after the level rises past the reading that tripped it.
+    let drainTier = 0;
+    const drainState = { tier: 0, last: null, falls: 0, trip: null };
     if (navigator.getBattery) navigator.getBattery().then((b) => {
       const upd = () => {
         // ON BATTERY IS NOW ACTUAL POLICY (2026-07-31). The old ladder was
@@ -4019,11 +4112,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // at least the phone floor (2 ⇒ 180p), and half a battery means the
         // bottom rung (3 ⇒ 144p) — reached at 50%, not 25%.
         const t = b.charging ? 0 : (b.level <= 0.5 ? 3 : 2);
-        if (b.charging && lastLvl !== null) {
-          if (b.level < lastLvl) drainTier = 3;
-          else if (b.level > lastLvl) drainTier = 0;
-        } else if (!b.charging) drainTier = 0; // unplugged: battTier owns it
-        lastLvl = b.level;
+        const tripped = drainStep(drainState, !!b.charging, b.level);
+        drainTier = drainState.tier;
+        if (tripped) setStatus('🔋 Plugged in, but the battery is falling. Sending lighter video.');
         if (t === battTier) { adapt(); return; } // drainTier may still have moved
         battTier = t;
         adapt();
@@ -4166,9 +4257,44 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // the phone's steady state. The raw path may spend up to ~3.2x the rung
       // on a portrait phone — the accepted price of never fighting the camera.
       const ckey = q.w + 'x' + q.h + '@' + q.fps;
-      if (track && (trackQ.t !== track || trackQ.k !== ckey)) {
-        trackQ.t = track; trackQ.k = ckey;
-        track.applyConstraints({ width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } }).catch(() => { trackQ.t = null; });
+      // A rejected applyConstraints used to clear trackQ.t, so the next
+      // adapt() asked again. Back off 30s. A rung change retries at once.
+      // OverconstrainedError drops the frameRate cap and tries once more.
+      if (track && constraintDue(trackQ, track, ckey, Date.now())) {
+        trackQ.t = track;
+        trackQ.k = ckey;
+        trackQ.failK = ckey;
+        trackQ.failedAt = Date.now();
+        const fpsAsk = { width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { max: q.fps } };
+        const whAsk = { width: { ideal: q.w }, height: { ideal: q.h } };
+        const ask = trackQ.noFps === ckey ? whAsk : fpsAsk;
+        let pending;
+        try { pending = track.applyConstraints(ask); } catch (e) { pending = Promise.reject(e); }
+        Promise.resolve(pending).then(() => {
+          if (trackQ.t !== track || trackQ.k !== ckey) return;
+          trackQ.failK = '';
+          trackQ.failedAt = 0;
+          if (ask === fpsAsk) trackQ.noFps = '';
+        }, (err) => {
+          if (trackQ.t !== track || trackQ.k !== ckey) return;
+          if (err && err.name === 'OverconstrainedError' && trackQ.noFps !== ckey) {
+            trackQ.noFps = ckey;
+            let again;
+            try { again = track.applyConstraints(whAsk); } catch (e2) { again = Promise.reject(e2); }
+            Promise.resolve(again).then(() => {
+              if (trackQ.t !== track || trackQ.k !== ckey) return;
+              trackQ.failK = '';
+              trackQ.failedAt = 0;
+            }, () => {
+              if (trackQ.t !== track || trackQ.k !== ckey) return;
+              trackQ.failK = ckey;
+              trackQ.failedAt = Date.now();
+            });
+            return;
+          }
+          trackQ.failK = ckey;
+          trackQ.failedAt = Date.now();
+        });
       }
       // ONCE per sweep, not once per sender: stageCeilingKbps walks the roster
       // through participantCount(), and adapt() runs on every connect and every
@@ -4254,7 +4380,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // value that always looks unset would re-write every sender every sweep —
     // the setParameters storm the skip-if-unchanged rule above exists to avoid.
     const degOf = new WeakMap();
-    const trackQ = { t: null, k: '' }; // the camera track adapt() last constrained, and to what
+    function constraintDue(q, track, ckey, now) {
+      if (!track) return false;
+      const same = q.t === track && q.k === ckey;
+      if (q.failK === ckey && q.t === track && (now - (q.failedAt || 0) < 30000)) return false;
+      if (same && q.failK !== ckey) return false;
+      return true;
+    }
+    const trackQ = { t: null, k: '', failK: '', failedAt: 0, noFps: '' }; // last ask, plus a rejection backoff
     // COMPOSITES FOLLOW THE TIER TOO (2026-07-31 power work). Every packer took
     // the flat SCALE.COMP_FPS (8) — no call site has ever passed `fps` — so a
     // phone that has cut its OWN camera to the bottom of the ladder still
@@ -4408,7 +4541,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (Date.now() < statusHoldUntil) return;   // an explicit message is showing
       statusEl.classList.remove('alert');
       const n = participantCount();
-      const live = Array.from(peers.values()).filter((p) => p.connected).length;
       // THE LABEL MUST NAME WHAT WE ACTUALLY SEND (2026-07-29, Nathan: "it says
       // 480p, I unplugged, it still says 480p"). rung(n) is only the HEADCOUNT
       // baseline; adapt() then pushes it down by the power tier (a phone is
@@ -4436,8 +4568,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // cannot see. Say it while she is alone — that is exactly when she is
       // waiting for the guest who is being refused.
       const savedLock = (n === 1 && roomPw && pwFromStore) ? ' · 🔒 locked with a password you saved earlier — guests need it' : '';
-      statusEl.textContent = (n === 1 ? 'Just you — send the invite; the link has no expiry'
+      const nextStatus = (n === 1 ? 'Just you — send the invite; the link has no expiry'
         : displayCount() + ' in the meeting · ' + q.label) + link + savedLock + extra;
+      if (statusEl.textContent !== nextStatus) statusEl.textContent = nextStatus;
     }
 
     // ---- mesh plumbing ---------------------------------------------------------
@@ -4504,11 +4637,32 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const coordKeyOf = (pid) => { const s = meshSeat(); if (s) { for (const [k, v] of s.occ) if (v === pid) return k; } return null; };
     let fwdSeq = 0;
     const fwdSeen = new Map(); // envelope id -> at (hop dedup / loop-kill)
+    function fwdSeenNote(map, id, now) {
+      if (!id || !map) return;
+      const at = now || Date.now();
+      map.set(id, at);
+      // Insertion order is oldest first. Stop at the first young entry,
+      // and never walk more than 32. The cap evicts the oldest anyway.
+      if (map.size > 512) {
+        const cut = at - 60000;
+        let n = 0;
+        for (const [k, t] of map) {
+          if (n >= 32) break;
+          if (t >= cut) break;
+          map.delete(k);
+          n++;
+        }
+      }
+      while (map.size > 4096) {
+        const k = map.keys().next().value;
+        if (k === undefined) break;
+        map.delete(k);
+      }
+    }
     function fwdDedup(id) {
       if (!id) return true; // legacy envelope (no id): old single-hop semantics
       if (fwdSeen.has(id)) return false;
-      fwdSeen.set(id, Date.now());
-      if (fwdSeen.size > 512) { const cut = Date.now() - 60000; for (const [k, at] of fwdSeen) if (at < cut) fwdSeen.delete(k); }
+      fwdSeenNote(fwdSeen, id);
       return true;
     }
     // The one mesh STEP from coord c toward target seat t. Honors the row law:
@@ -4672,7 +4826,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const envl = { k: kind, from: m.from, to: m.to, tc: m.tc, id: m.id, ttl, m: m.m };
       const handoff = (p) => {
         if (!p || p.id === viaPid || !(p.connected && p.dc && p.dc.readyState === 'open')) return false;
-        if (m.id) { fwdSeen.set(m.id, Date.now()); if (fwdSeen.size > 512) { const cut = Date.now() - 60000; for (const [k, at] of fwdSeen) if (at < cut) fwdSeen.delete(k); } }
+        if (m.id) fwdSeenNote(fwdSeen, m.id);
         txStats.hopFwd++; dcSend(p, envl); return true;
       };
       const hp = nextHopDc(m.to, m.tc);
@@ -4683,7 +4837,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const fid of friends) if (handoff(peers.get(fid))) return;
       // hopRelay only when the target may still answer on the relay.
       if (m.ttl != null && relaySocketed.has(m.to)) {
-        if (m.id) { fwdSeen.set(m.id, Date.now()); }
+        if (m.id) fwdSeenNote(fwdSeen, m.id);
         txStats.hopRelay++;
         txm(() => net.seal(roomE2E, envl).then((sealed) => net.sendChunked(sealed, (piece) => relaySendObj({ t: 'peer', to: m.to, msg: piece }))));
         return;
@@ -5104,7 +5258,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       p.tile.remove();
       peers.delete(peerId);
       recSrcDirty = true;
-      meters.delete(peerId);
+      releaseMeter(peerId);
       if (typeof dropStatus === 'function') dropStatus(peerId); else statusOf.delete(peerId); // a stale status must not haunt the room's consensus
       forgetConns(peerId);
       if (typeof sgaForgetWaiter === 'function') sgaForgetWaiter(peerId); // a departed asker is no reason to keep chasing
@@ -5305,7 +5459,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // How many hands are up in the WHOLE room: the fold's total past one section.
     function handTotal(q) { const dg = digLists(); return Math.max(q.length, dg ? dg.handN : 0); }
     function learn(from, msg, p, adm) {
-      if (msg.name && p) { const nm = String(msg.name).slice(0, 40); p.name = nm; p.label.textContent = nm; p.avatar.textContent = (nm[0] || '?').toUpperCase(); }
+      if (msg.name && p) { const nm = String(msg.name).slice(0, 40); p.name = nm; p.label.textContent = nm; p.avatar.textContent = nameInitial(nm); }
       if (msg.name) rosterNames[from] = String(msg.name).slice(0, 40);
       if (msg.ip) ipsOf[from] = String(msg.ip).slice(0, 64);
       if (p) p.lastHeard = Date.now();
@@ -5515,7 +5669,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const sp = peers.get(from);
         if (sp) {
           sp.lastHeard = Date.now();
-          if (msg.name && sp.name !== msg.name) { const nm = String(msg.name).slice(0, 40); sp.name = nm; if (sp.label) sp.label.textContent = nm; if (sp.avatar) sp.avatar.textContent = (nm[0] || '?').toUpperCase(); }
+          if (msg.name && sp.name !== msg.name) { const nm = String(msg.name).slice(0, 40); sp.name = nm; if (sp.label) sp.label.textContent = nm; if (sp.avatar) sp.avatar.textContent = nameInitial(nm); }
           if ('sid' in msg && sidIsNews(sp, msg.sid)) { sp.ownSid = msg.sid; claimOwnStream(sp); }
         }
         // ONE PULSE, ONE RE-DERIVATION: every DC-linked section mate hears each
@@ -5700,6 +5854,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       meshGone.set(pid, Date.now());
       occVanish.delete(pid);
       if (typeof dropStatus === 'function') dropStatus(pid); else statusOf.delete(pid); forgetConns(pid); delete rosterNames[pid]; delete ipsOf[pid]; delete devOf[pid];
+      pidFirstSeen.delete(pid); meshRxByPid.delete(pid); tlFiredPid.delete(pid); speakingOf.delete(pid);
       // A probe-confirmed departure is ABSENCE EVIDENCE (2026-07-29): without
       // this, a departed admin stayed "present" until the 30s admSeen decay,
       // so the host-absence grace could not even START for half a minute — a
@@ -5808,43 +5963,40 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // as the likely problem. It never founds and never fakes — the wire keeps
     // re-knocking underneath, and the veil lifts the instant the seat lands.
     // (Sits UNDER the password modal: typing the password IS joining.)
-    let joinVeilEl = null, unseatedSince = 0;
+    let joinVeilEl = null, unseatedSince = 0, veilCeilLogged = false;
     setInterval(() => {
       if (!room || typeof meshSeat !== 'function') return;
       const s = meshSeat();
       const seated = !!(s && s.state === 3 && s.hasCoord);
-      if (seated) { unseatedSince = 0; if (joinVeilEl) { joinVeilEl.remove(); joinVeilEl = null; } return; }
+      if (seated) { unseatedSince = 0; veilCeilLogged = false; if (joinVeilEl) { joinVeilEl.remove(); joinVeilEl = null; } return; }
       const now = Date.now();
       if (!unseatedSince) { unseatedSince = now; return; }
       if (now - unseatedSince < 4000) return; // fast joins never see it
       if (!joinVeilEl) {
         joinVeilEl = document.createElement('div');
         joinVeilEl.id = 'joinveil';
-        joinVeilEl.innerHTML = '<div class="jv-box"><div class="jv-spin"></div><h3 id="jv-t">Reaching the meeting…</h3><p id="jv-p">Connecting you to the room.</p></div>';
+        joinVeilEl.innerHTML = '<div class="jv-box" role="status" aria-live="polite"><div class="jv-spin"></div><h3 id="jv-t">Reaching the meeting…</h3><p id="jv-p">Connecting you to the room.</p></div>';
         document.body.appendChild(joinVeilEl);
       }
       const waited = now - unseatedSince;
-      // THE SEAT COUNTDOWN (decision A on the dark admitter, 2026-07-27,
-      // docs/design-dark-admitter.md): a knocker held at a dark door must
-      // KNOW they are not out of luck. The ceiling on any seat wait is the
-      // vouch reap of the dark admitter (REAP_MS = 195000 from when IT was
-      // last heard) + seating; counting from OUR OWN wait clock over-
-      // estimates safely (the admitter went dark at or before our first
-      // knock). Promise it ONLY while the relay socket is up — with the
-      // relay down the wait is unbounded and the honest message is the
-      // network one.
+      const veilSay = (title, body) => {
+        const ht = joinVeilEl.querySelector('#jv-t');
+        const hp = joinVeilEl.querySelector('#jv-p');
+        if (ht && ht.textContent !== title) ht.textContent = title;
+        if (hp && hp.textContent !== body) hp.textContent = body;
+      };
+      // Past 8 s with the relay up, the veil states elapsed seconds.
+      // console.debug notes the 210 s reap bound once. After that bound
+      // the veil says the wait has run long. With the relay down, the
+      // door line after 20 s is the message.
       if (waited > 8000 && relayUp()) {
-        const left = Math.max(0, Math.ceil((210000 - waited) / 1000)); // 195s reap + 15s seat margin
-        if (left > 0) {
-          joinVeilEl.querySelector('#jv-t').textContent = 'Waiting for a seat…';
-          joinVeilEl.querySelector('#jv-p').textContent = 'The room is rearranging — someone may have dropped mid-handoff. You’ll be seated within ' + left + 's, usually much sooner.';
-        } else {
-          joinVeilEl.querySelector('#jv-t').textContent = 'This is taking longer than it ever should.';
-          joinVeilEl.querySelector('#jv-p').textContent = 'Check your connection, or close this tab and reopen the link — a fresh start usually clears it.';
-        }
+        const left = Math.max(0, Math.ceil((210000 - waited) / 1000)); // reap bound, not a promise on screen
+        const secs = Math.max(1, Math.ceil(waited / 1000));
+        if (!veilCeilLogged) { veilCeilLogged = true; try { console.debug('seat ceiling 210s'); } catch (e) {} }
+        if (left > 0) veilSay('Finding you a seat\u2026', 'Still joining (' + secs + ' s).');
+        else veilSay('This is taking longer than it ever should.', 'Check your connection, or close this tab and reopen the link. A fresh start usually clears it.');
       } else if (waited > 20000) {
-        joinVeilEl.querySelector('#jv-t').textContent = 'Still trying to reach the meeting…';
-        joinVeilEl.querySelector('#jv-p').textContent = 'Nobody is answering the door of this meeting yet — it may be your internet connection. We keep knocking, and you’ll be in the moment it answers.';
+        veilSay('Still trying to reach the meeting\u2026', 'Nobody is answering the door of this meeting yet. It may be your internet connection. We keep knocking, and you will be in the moment it answers.');
       }
     }, 1000);
 
@@ -5895,7 +6047,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } else {
         appWaitEl.querySelector('#aw-t').textContent = 'This invite isn’t live right now';
         appWaitEl.querySelector('#aw-p').innerHTML = 'An app invite works while the friend who shared it has the app open — the app comes from their device, not from a server. Nobody is in the room, so the link has gone quiet. Ask them to open the app and share it again: the same link comes back to life.'
-          + '<a class="aw-home" href="/">Meanwhile, get GifOS — and apps of your own</a>';
+          + '<a class="aw-home" href="/" target="_blank" rel="noopener">Meanwhile, get GifOS — and apps of your own</a>';
       }
     }, 1000);
 
@@ -15544,14 +15696,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Returns true when a recording was in flight: its onstop hands the file
     // over (the download), so the page must stay up until then — the card's
     // Close is the way home, not an immediate navigation.
-    function leaveMeeting() {
+    function stopLocalCapture() {
       let flushing = false;
       try {
         if (recRec && recRec.state !== 'inactive') {
-          // Same order as the Record button: halt the compositor BEFORE
-          // stop(), or the encoder's flush starves behind it on a weak device.
           if (typeof recDraw === 'function') { try { recDraw(); } catch (e) {} }
-          recRec.stop(); flushing = true;
+          recRec.stop();
+          flushing = true;
         }
       } catch (e) {}
       try { if (typeof stopWhisper === 'function') stopWhisper(); } catch (e) {}
@@ -15570,10 +15721,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } catch (e) {}
 
       try { if (typeof stopSpeech === 'function') stopSpeech(); } catch (e) {}
+      try { if (camIdleT) { clearTimeout(camIdleT); camIdleT = null; } } catch (e) {}
+      try {
+        if (wakeLock) { const w = wakeLock; wakeLock = null; Promise.resolve(w.release()).catch(function () {}); }
+      } catch (e) {}
+      return flushing;
+    }
+    function releaseAudioContext() {
+      try {
+        if (ac && typeof ac.close === 'function') { const c = ac; ac = null; c.close(); }
+      } catch (e) {}
+    }
+    function leaveMeeting() {
+      const flushing = stopLocalCapture();
       sendMeshLeave();
       try { if (typeof stopRoomClocks === 'function') stopRoomClocks(); } catch (e) {}
       try { if (localStream) localStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
       for (const pid of Array.from(peers.keys())) { try { dropPeer(pid); } catch (e) {} }
+      try { releaseAudioContext(); } catch (e) {}
       const lm = document.getElementById('left-modal'); if (lm) lm.style.display = 'flex';
       return flushing;
     }

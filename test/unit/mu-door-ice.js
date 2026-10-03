@@ -80,8 +80,9 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---- 3. one sponsored copy, and a stale answer is not applied ----
 {
-  const fwd = between('    function fwdDedup(id) {', '    function fwdNextCoord');
-  check('fwdDedup is liftable', fwd.startsWith('    function fwdDedup'));
+  // fwdDedup records through fwdSeenNote (the bounded sweep), defined just above it.
+  const fwd = between('    function fwdSeenNote(map, id, now) {', '    function fwdNextCoord');
+  check('fwdDedup is liftable', fwd.startsWith('    function fwdSeenNote') && fwd.indexOf('    function fwdDedup(id) {') > 0);
   const fwdDedup = new Function('let fwdSeen = new Map();\n' + fwd + '\nreturn fwdDedup;')();
   check('the first envelope id is new and the second is a duplicate', fwdDedup('e1') === true && fwdDedup('e1') === false);
   check('an envelope with no id is not dropped (legacy single hop)', fwdDedup('') === true && fwdDedup(null) === true);

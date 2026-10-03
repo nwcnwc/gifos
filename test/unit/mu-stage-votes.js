@@ -156,7 +156,8 @@ function between(start, end) {
 
 // ---- Leave stops a share locally, then the clocks, after the farewell ----
 {
-  const src = between('    function leaveMeeting() {', '    const leaveBtn = ');
+  // Leave runs stopLocalCapture and releaseAudioContext, defined just above it.
+  const src = between('    function stopLocalCapture() {', '    const leaveBtn = ');
   function load(extra, myStatus) {
     const calls = [];
     const leaveMeeting = new Function(
@@ -233,7 +234,7 @@ function between(start, end) {
   check('handQueue holds a late hidden beat', /function handQueue\(\) \{[\s\S]{0,900}stHold\(pid\)/.test(html));
   check('stage votes hold a late hidden beat', html.indexOf('if (!stHold(pid)) continue;') > 0);
   check('takeMod returns before a second verify', /function takeMod\(from, msg\) \{[\s\S]{0,450}if \(seen\) \{[\s\S]{0,240}return;/.test(html));
-  check('confirmGone deletes the departed target', /function confirmGone\(pid, why\) \{[\s\S]{0,1400}delete modTable\[pid\]/.test(html));
+  check('confirmGone deletes the departed target', (() => { const a = html.indexOf('function confirmGone(pid, why) {'); const e = html.indexOf('\n    }\n', a); const b = html.indexOf('delete modTable[pid]', a); return a > 0 && b > a && b < e; })());
   check('mergeMod leaves a buried target buried', /target !== '\*' && meshGone\.has\(target\)/.test(html));
 }
 
