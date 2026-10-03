@@ -6740,8 +6740,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         window.__regrabLog.push({ t: Date.now(), reason: reason || 'unknown', staged: (typeof stageIds === 'function' ? stageIds().indexOf(myId) >= 0 : null) });
         if (window.__regrabLog.length > 20) window.__regrabLog.shift();
       } catch (e) {}
-      navigator.mediaDevices.getUserMedia({ video: camVideoConstraints(), audio: true })
-        .then((s) => {
+      gumWithMicFallback(navigator.mediaDevices, { video: camVideoConstraints(), audio: true })
+        .then(({ stream: s }) => {
           const nv = s.getVideoTracks()[0], na = s.getAudioTracks()[0];
           // fresh tracks come back live — restore the user's actual choices
           if (nv) nv.enabled = !myStatus.camOff;
@@ -6837,9 +6837,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // in ordinary conversation). Same swap idiom as reviveCamera: replace only
     // the senders that carry OUR old mic track (never the fold-mix aux tracks),
     // and mutate the SAME localStream so our announced stream id never changes.
-    let micMode = 'voice', micGrabbing = false;
+    let micMode = 'voice', micGrabbing = false, micWant = null;
     function setMicMode(mode, force) {
-      if ((mode === micMode && !force) || micGrabbing || !localStream) return;
+      if (!localStream) return;
+      // A request that lands while a grab is in flight is KEPT, never dropped:
+      // every caller fires once (song start, song end, a device change), so a
+      // dropped request is a mode that never applies — a follower suppressed
+      // through the whole song, or a leader left in music mode (no echo
+      // cancellation) for the rest of the meeting. The last request wins and
+      // runs the moment the grab settles; at most one grab is ever in flight.
+      if (micGrabbing) { micWant = { mode, force: !!force }; return; }
+      if (mode === micMode && !force) return;
       // 'music' (the song leader): the whole speech pipeline off. 'sing' (a
       // follower): suppression and auto-gain off — they treat a held note as
       // noise and a crescendo as a fault — but echo cancellation stays, since a
@@ -6851,7 +6859,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           : { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
       micGrabbing = true;
       navigator.mediaDevices.getUserMedia({ audio: want }).then((s) => {
-        micGrabbing = false;
         const na = s.getAudioTracks()[0];
         if (!na) return;
         micMode = mode;
@@ -6868,7 +6875,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (old) { try { old.stop(); } catch (e) {} localStream.removeTrack(old); }
         localStream.addTrack(na);
         meterFor('me', localStream);
-      }).catch(() => { micGrabbing = false; /* mic re-grab refused — keep the current mode */ });
+      }).catch(() => { /* mic re-grab refused — keep the current mode */ })
+        .finally(() => {
+          micGrabbing = false;
+          const w = micWant; micWant = null;
+          if (w) setMicMode(w.mode, w.force); // the request kept during the grab
+        });
     }
 
     // Headphones plugged in (or pulled out) MID-MEETING: with an active mic,
@@ -7652,8 +7664,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // camera. While the prompt is PENDING the tile shows the same quiet
           // dark square a granted-but-disabled camera shows — no special state.
           const md = navigator.mediaDevices;
+          // The combined ask falls back to the microphone alone when the
+          // camera is missing, disabled or held (gumWithMicFallback): a
+          // webcam-less desktop joins with a mic, not view-only for life.
           const gum = (md && md.getUserMedia)
-            ? md.getUserMedia({ video: camVideoConstraints(), audio: true })
+            ? gumWithMicFallback(md, { video: camVideoConstraints(), audio: true }).then((r) => {
+              if (r.camErr) { try { window.__gumBootNoCam = r.camErr.name || String(r.camErr); } catch (e) {} } // harness breadcrumb: mic-only boot, and why
+              return r.stream;
+            })
             : Promise.reject(new Error('no media devices'));
           bootGumPending = gum.finally(() => { bootGumPending = null; });
           gum.then((stream) => {
@@ -7679,7 +7697,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             // boot gUM is silent by design — view-only join — which made the
             // per-launch no-video flake unattributable from the outside.)
             try { window.__gumBootErr = (e && e.name ? e.name + ': ' : '') + String(e && e.message || e); } catch (e2) {}
-            tileNote(meTile, 'View-only: no camera/mic permission. You still see and hear everyone \u2014 tap the mic or camera button above to ask again.');
+            tileNote(meTile, gumRefused(e)
+              ? 'View-only: no camera/mic permission. You still see and hear everyone \u2014 tap the mic or camera button above to ask again.'
+              : 'View-only: no camera or microphone found (' + ((e && e.name) || 'error') + '). You still see and hear everyone \u2014 tap the mic or camera button above to try again.');
             updateTile('me');
           });
           // The boot promise deliberately does NOT wait on the prompt.
@@ -12797,6 +12817,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // View-only must be an antechamber, not a sentence.
     let lateAsk = false;
     let bootGumPending = null; // knock-first: the boot's own getUserMedia while it is in flight — THE one ask; lateMedia must join it, never race it
+    // NO CAMERA IS NOT NO MICROPHONE. A combined camera+mic ask rejects as a
+    // whole when the camera is missing, disabled by policy or held by another
+    // app (NotFoundError / NotReadableError / OverconstrainedError), and the
+    // microphone was lost with it: every webcam-less desktop joined view-only
+    // for life and was told to close an app that did not exist. So a combined
+    // ask that fails for any reason but a REFUSAL is asked again for audio
+    // alone. A refusal (NotAllowedError / SecurityError) is the user's answer
+    // and is never re-asked: one prompt per tap, never two.
+    // Resolves { stream, camErr }: camErr is the camera's error when the
+    // stream is the audio-only fallback, else null.
+    function gumRefused(e) { return !!(e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')); }
+    function gumWithMicFallback(md, constraints) {
+      return md.getUserMedia(constraints).then((stream) => ({ stream, camErr: null }), (e) => {
+        if (!constraints.video || !constraints.audio || gumRefused(e)) throw e;
+        return md.getUserMedia({ audio: true }).then((stream) => ({ stream, camErr: e }));
+      });
+    }
     // The mesh may have been built recvonly (we had nothing to offer when the
     // pc was born) — add our tracks to every live pc and re-offer; perfect
     // negotiation absorbs it, and the fresh m-lines guarantee an ontrack on
@@ -12855,8 +12892,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // camera we took.
       const appRoom = document.body.classList.contains('app-room');
       setStatus(appRoom ? 'Asking for your microphone…' : 'Asking for camera & microphone…');
-      md.getUserMedia(appRoom ? { audio: true } : { video: camVideoConstraints(), audio: true })
-        .then((s) => {
+      // A camera tap while the mic is already held asks for video alone: the
+      // held mic is never re-taken, and a missing camera then fails on its own.
+      const haveMic = !!(localStream && localStream.getAudioTracks()[0]);
+      const ask = appRoom ? { audio: true } : (kind === 'cam' && haveMic) ? { video: camVideoConstraints() } : { video: camVideoConstraints(), audio: true };
+      gumWithMicFallback(md, ask)
+        .then(({ stream: s, camErr }) => {
           lateAsk = false;
           // Quiet-join discipline still holds: only the tapped control goes on.
           for (const tr of s.getTracks()) tr.enabled = tr.kind === (kind === 'cam' ? 'video' : 'audio');
@@ -12875,22 +12916,30 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               else localStream.addTrack(tr);
             }
           }
+          // The camera goes on only when a video track was actually taken:
+          // the audio-only fallback lands the mic (quiet) and says why.
+          const gotCam = !!localStream.getVideoTracks()[0];
           myStatus.muted = kind !== 'mic';
-          myStatus.camOff = kind !== 'cam';
+          myStatus.camOff = kind !== 'cam' || !gotCam;
           attachLocalTracks();
           paintControls();
           refreshOutbound();
           broadcastStatus();
           reactRoomState();
           updateMediaSession();
-          setStatus(kind === 'cam' ? 'Camera on.' : 'Mic on.');
+          setStatus(kind === 'cam'
+            ? (gotCam ? 'Camera on.' : 'No camera on this device (' + ((camErr && camErr.name) || 'error') + '). Your microphone is ready — tap the mic button to talk.')
+            : 'Mic on.');
         })
         .catch((err) => {
           lateAsk = false;
-          const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
-          setStatus(denied
+          const name = (err && err.name) || 'error';
+          const what = ask.audio ? (ask.video ? 'camera or microphone' : 'microphone') : 'camera'; // name only what was asked for
+          setStatus(gumRefused(err)
             ? 'The browser refused the camera & microphone. Check this site’s permissions in the browser settings — or open this meeting link in Safari or Chrome (some browsers, and links opened inside another app, block calls).'
-            : 'No usable camera or microphone (' + ((err && err.name) || 'error') + '). Another app may be holding them — close it and tap again.');
+            : name === 'NotFoundError'
+              ? 'No ' + what + ' was found on this device (NotFoundError). Plug one in and tap again.'
+              : 'No usable ' + what + ' (' + name + '). Another app may be holding it — close it and tap again.');
         });
     }
 
