@@ -9284,7 +9284,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const ak = p.id + '|' + m.key;
         const prevAnn = mosAnn.get(ak);
         const annNew = !prevAnn || prevAnn.streamId !== m.streamId;
-        mosAnn.set(ak, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, mt: m.mt, h: (typeof m.h === 'number' ? m.h : undefined), at: Date.now() });
+        mosAnn.set(ak, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, mt: m.mt, h: (typeof m.h === 'number' ? m.h : undefined), ao: (m.ao === 1 ? 1 : undefined), at: Date.now() });
         if (annNew) schedReconcile(); else schedClaim();
       } else if (m.k === 'mx-end' && typeof m.key === 'string') {
         mosAnn.delete(p.id + '|' + m.key);
@@ -10179,7 +10179,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const pipeDenyUntil = new Map(); // jk -> ms when the deny lapses
     const pipeDenyN = new Map();     // jk -> how many times denied (backoff)
     const attachFailAt = new Map(); // peer id -> rebuiltAt that already failed addTrack
-    const stgAudioMemo = new Map(); // source stream -> audio-only copy for a down hop
+    // Keyed by the source stream and only read by key, so a WeakMap: a feed
+    // that churns out of the mosaic takes its audio-only copy with it.
+    let stgAudioMemo = new WeakMap(); // source stream -> audio-only copy for a down hop
     // STAGE-PIPE-DENY
     function pipeDenyWait(hits) {
       const k = Math.max(1, hits | 0);
@@ -10886,6 +10888,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (memo) memo.set(stream, { a: a0, n: aud.length, stream: out });
       return out;
     }
+    // An audio-only down copy is announced ao:1. It carries no face, so the
+    // receiver must never relay it up or across toward Section 1, where it
+    // would sit as a standby for the strip and win a failover with no video.
+    function stgDownMeta(meta, sent, src) {
+      return sent === src ? meta : Object.assign({}, meta, { ao: 1 });
+    }
     // END-STAGE-DOWN-SHIP
     function dropMosIn(rk) {
       const c = mosIn.get(rk); if (!c) return;
@@ -10999,7 +11007,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the row+column fabric, two link-disjoint paths. Structural relay slots
     // (sub/x1/x2) keep the plain single sticky claim.
     const isRedun = (rk) => rk === 'sdm' || rk === 'sdx' || rk === 'sdn' || rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
-    const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols, mt: ann.mt, h: ann.h });
+    const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols, mt: ann.mt, h: ann.h, ao: ann.ao });
     // Hop count of a held stg copy for re-flooding: my copy's announced h + 1.
     // A copy with NO h (an old client's announce) re-floods as far (998+1) —
     // claimable when it is the only path, always outranked by a counted chain.
@@ -11532,10 +11540,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Past WAKE_MAX with no decoded advance, park it and remember suspect:
       // the cadence drops to the 900ms watch, and dark stays disarmed until
       // the primary advances again.
-      if (!standbyStaysHot(fb, now, WAKE_MAX)) { /* fb updated inside */ }
+      // One read per pass: the call parks a stale wake as it answers, so a
+      // second read would see the state the first one just changed.
+      const stdHot = standbyStaysHot(fb, now, WAKE_MAX);
       const hot = new Set();
       if (pri && inCand(pri)) hot.add(pri.via + '|' + pri.streamId);
-      if (std && standbyStaysHot(fb, now, WAKE_MAX)) hot.add(std.via + '|' + std.streamId);
+      if (std && stdHot) hot.add(std.via + '|' + std.streamId);
       // YOU CANNOT CLAIM WHAT YOU HAVE TOLD THE SENDER NOT TO SEND.
       //
       // With no primary, `hot` was EMPTY, so every announcer for this slot was
@@ -11737,7 +11747,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       mosAnn.clear();
       mosFb.clear();
       pipeDeny.clear(); pipeDenyUntil.clear(); pipeDenyN.clear();
-      attachFailAt.clear(); stgAudioMemo.clear();
+      attachFailAt.clear(); stgAudioMemo = new WeakMap();
       if (prodPack) { prodPack.stop(); prodPack = null; }
       if (sdPack) { sdPack.stop(); sdPack = null; }
       for (const pk of sdnPacks.values()) pk.stop();
@@ -12187,22 +12197,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Same owner rule as the S1 flood: a stager already HAS its own face —
         // shipping it back is waste at best, and (before the mosResolve guard)
         // the echo that thrashed the whole lane.
-        const relayStg = (key, stream, via, h) => {
+        // ao: the held copy is an audio-only down copy (stgDownMeta). It came
+        // from above and has no face, so it goes down only; up or across it
+        // would become a Section 1 standby that fails over to no picture.
+        const relayStg = (key, stream, via, h, ao) => {
           const owner = key.indexOf('stg:') === 0 ? key.slice(4).split('^')[0] : null;
           const skip = (t) => !t || t === via || (owner && t === owner);
           const hm = { h }; // hop count from the producer — claims prefer min-h (see prefCand)
-          if (upTgt && !skip(upTgt)) { const jk = shipMos(key, upTgt, stream, hm, key); if (jk) wanted.add(jk); }
-          if (xUpPid && xUpPid !== upTgt && !skip(xUpPid)) { const jk = shipMos(key + '^x', xUpPid, stream, hm, key); if (jk) wanted.add(jk); }
+          if (!ao && upTgt && !skip(upTgt)) { const jk = shipMos(key, upTgt, stream, hm, key); if (jk) wanted.add(jk); }
+          if (!ao && xUpPid && xUpPid !== upTgt && !skip(xUpPid)) { const jk = shipMos(key + '^x', xUpPid, stream, hm, key); if (jk) wanted.add(jk); }
           // and DOWN: the strip is video-only — the per-stager feeds must
           // reach EVERY subtree so Stage audio can fold at each ear.
           const dnP = occPid(T.down(c));
           if (dnP && !skip(dnP) && dnP !== upTgt) {
             const dnSt = stgDownShip(key, stream, !!(owner && sharingScreen(owner)), stgAudioMemo);
-            if (dnSt) { const jk = shipMos(key, dnP, dnSt, hm, key); if (jk) wanted.add(jk); }
+            if (dnSt) { const jk = shipMos(key, dnP, dnSt, stgDownMeta(hm, dnSt, stream), key); if (jk) wanted.add(jk); }
           }
         };
         if (amStager) { const st = mySelfStream(); if (st) relayStg('stg:' + myId, st, null, 0); }
-        for (const k of heldStg) { const f = mosIn.get(k); relayStg(k, f.stream, f.via, stgHop(f)); }
+        for (const k of heldStg) { const f = mosIn.get(k); relayStg(k, f.stream, f.via, stgHop(f), !!(f.meta && f.meta.ao)); }
         if (iAmHead) for (const k of heldStg) { // my row folds at its ears too
           const f = mosIn.get(k);
           const owner = k.slice(4).split('^')[0];
@@ -12211,7 +12224,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             if (!mate || mate === f.via || mate === owner) continue; // never back to the sender, never to the stager itself
             const earSt = stgDownShip(k, f.stream, sharingScreen(owner), stgAudioMemo);
             if (!earSt) continue;
-            const jm = shipMos(k, mate, earSt, { h: stgHop(f) }, k); if (jm) wanted.add(jm);
+            const jm = shipMos(k, mate, earSt, stgDownMeta({ h: stgHop(f) }, earSt, f.stream), k); if (jm) wanted.add(jm);
           }
         }
       } else {
@@ -12241,7 +12254,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const dnP = occPid(T.down(c)); // and DOWN — Stage audio folds at every ear
           if (!skip(dnP)) {
             const dnSt = stgDownShip(key, stream, !!(owner && sharingScreen(owner)), stgAudioMemo);
-            if (dnSt) { const jk = shipMos(key, dnP, dnSt, hm, key); if (jk) wanted.add(jk); }
+            if (dnSt) { const jk = shipMos(key, dnP, dnSt, stgDownMeta(hm, dnSt, stream), key); if (jk) wanted.add(jk); }
           }
         };
         if (amStager) { const st = mySelfStream(); if (st) floodOne('stg:' + myId, st, null, 0); }
@@ -12589,10 +12602,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       return bestPid;
     }
+    // sgaSnapHost walks every status and the digest apps list. One snap frame
+    // asks it from up to three places, so a frame shares one lazy answer.
+    function sgaHostMemo(sid) {
+      let host;
+      return () => (host === undefined ? (host = sgaSnapHost(sid)) : host);
+    }
     // Same author: the later wall clock wins, and an equal clock keeps the
     // higher counter. A different author wins only when that author is the
     // advertised host, even if their clock is behind the previous host.
-    function sgaSnapWins(cur, m) {
+    function sgaSnapWins(cur, m, hostOf) {
       if (!m || !m.sid) return false;
       if (!cur) return true;
       if (cur.seq === m.seq) return false;
@@ -12602,19 +12621,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (cb !== ca) return cb > ca;
         return sgaSnapCount(m.seq) > sgaSnapCount(cur.seq);
       }
-      const host = sgaSnapHost(m.sid);
+      const host = hostOf ? hostOf() : sgaSnapHost(m.sid);
       if (host && b === host) return true;
       if (host && a === host) return false;
       return (m.at || 0) > (cur.at || 0);
     }
-    function sgaConsiderSnap(m) {
+    function sgaConsiderSnap(m, hostOf) {
+      const hostOfM = hostOf || sgaHostMemo(m.sid);
       const cur = sgaSnap.get(m.sid);
-      if (sgaSnapWins(cur, m)) {
+      if (sgaSnapWins(cur, m, hostOfM)) {
         sgaSnap.set(m.sid, m);
-        if (sgaSnapSender(m.seq) === sgaSnapHost(m.sid)) sgaSnapChal.delete(m.sid);
+        if (sgaSnapSender(m.seq) === hostOfM()) sgaSnapChal.delete(m.sid);
         return true;
       }
-      const host = sgaSnapHost(m.sid);
+      const host = hostOfM();
       const b = sgaSnapSender(m.seq);
       if (b && b !== host) {
         const prev = sgaSnapChal.get(m.sid);
@@ -12638,10 +12658,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (subs) for (const cb of [...subs]) { try { cb(m); } catch (e) {} }
       }
     }
-    function sgaDeliver(m) {
+    function sgaDeliver(m, hostOf) {
       if (m.kind === 'app') { sgaAdmitApp(m); return; } // retained, served and delivered only once verified
       if (m.kind === 'snap') {
-        const won = sgaConsiderSnap(m);
+        const won = sgaConsiderSnap(m, hostOf);
         const held = sgaSnap.get(m.sid);
         // serve the snap we kept, not a copy that lost the host check
         const w = sgaWant.get(m.sid);
@@ -12807,9 +12827,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!m.sid || m.seq == null || m.kind !== 'snap') return;
       const cur = sgaSnap.get(m.sid);
       if (cur && cur.seq === m.seq) return;
-      if (cur && !sgaSnapWins(cur, m)) { sgaConsiderSnap(m); return; } // maybe the next host, racing the ad
+      const hostOf = sgaHostMemo(m.sid); // one host walk for this frame
+      if (cur && !sgaSnapWins(cur, m, hostOf)) { sgaConsiderSnap(m, hostOf); return; } // maybe the next host, racing the ad
       sgaSeen.set(m.sid + '|' + m.seq, Date.now()); // a later flood dup of this seq stays deduped
-      sgaDeliver(m); // retains the snap, wakes subscribers, serves waiters — NO re-fan
+      sgaDeliver(m, hostOf); // retains the snap, wakes subscribers, serves waiters — NO re-fan
     }
     function sgaRecv(fromPid, m) {
       if (!m.sid || m.seq == null) return;
@@ -14643,9 +14664,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const root = await storage.getDirectory();
           const handle = await root.getFileHandle(name, { create: true });
           const writable = await handle.createWritable();
+          // drop: the OPFS file is origin storage the person never sees, so
+          // recDeliver deletes it once the download has had its minute.
           return recStreamSink('opfs', writable, async () => {
             const file = await handle.getFile();
-            return { href: URL.createObjectURL(file), name: name };
+            return { href: URL.createObjectURL(file), name: name, drop: () => root.removeEntry(name) };
           });
         }
       } catch (e) {}
@@ -14670,13 +14693,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         a.href = saved.href;
         a.download = saved.name || recFileName();
         a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+        setTimeout(() => {
+          URL.revokeObjectURL(a.href);
+          if (typeof saved.drop === 'function') { try { Promise.resolve(saved.drop()).catch(() => {}); } catch (e) {} }
+        }, 60000);
         return 'download';
       }
       if (saved && saved.saved) { setStatus('Recording saved.'); return 'saved'; }
       return '';
     }
     function resumeReload() {
+      const REC_SAVE_MAX_MS = 20000;
       try {
         const recording = !!(recRec && recRec.state !== 'inactive');
         const plan = recResumePlan(recording, recReloadAfterStop);
@@ -14687,6 +14714,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           try {
             if (typeof recDraw === 'function') { try { recDraw(); } catch (e2) {} }
             setStatus('Saving your recording, then rejoining the meeting.');
+            // onstop reloads after the file is finished. If onstop or the
+            // sink's finish never settles, the latch above would make every
+            // later freeze wait forever, so the page still reloads by itself.
+            setTimeout(() => location.reload(), REC_SAVE_MAX_MS);
             recRec.stop();
             return;
           } catch (e3) { recReloadAfterStop = false; }
@@ -14765,8 +14796,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       if (src.bus === 'stage') {
         const f = mosIn.get('stg:' + pid);
-        if (f && f.stream) { src.video = f.el; src.stream = f.stream; }
+        if (f && f.stream) { src.video = recStageVideo(f); src.stream = f.stream; }
       }
+    }
+    // Below Section 1 a stg:X feed arrives audio-only (stgDownShip): the face
+    // rides in the received stage strip. Its audio still feeds the mix; the
+    // picture falls back to the strip so the tile is not an empty letter.
+    function recStageVideo(f) {
+      const vts = (f.stream && typeof f.stream.getVideoTracks === 'function') ? f.stream.getVideoTracks() : [];
+      for (let i = 0; i < vts.length; i++) if (vts[i] && vts[i].readyState !== 'ended') return f.el;
+      const strip = compOf.get('sgs');
+      return (strip && strip.el) || f.el;
     }
     let recSrcCache = null;
     function recSources() {
@@ -14786,7 +14826,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           mute: !!(modOf(pid).mute && modOf(pid).mute.on), camOff: seatDark(st) };
         if (stg.has(pid)) {
           const f = mosIn.get('stg:' + pid);
-          if (f && f.stream) { src.video = f.el; src.stream = f.stream; }
+          if (f && f.stream) { src.video = recStageVideo(f); src.stream = f.stream; }
           src.bus = 'stage'; g.stage.push(src);
         } else if (mates.has(pid)) { src.bus = 'row'; g.row.push(src); }
         else { src.bus = 'stadium'; g.stadium.push(src); }
@@ -14806,6 +14846,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Called from the mesh tick, not from the 15 fps draw. A changed roster,
     // seat, digest stage or fold is what makes the next frame rebuild.
     function recNoteStruct() {
+      // Only a running recorder reads the source cache each frame. With none,
+      // the tick does not walk the roster; it marks the cache stale so the
+      // next start builds it fresh.
+      if (!recRec || recRec.state === 'inactive') { recSrcDirty = true; return; }
       try {
         const parts = [String(rosterIds.length), String(peers.size), String(myStatus.stg || 0)];
         for (let i = 0; i < rosterIds.length; i++) {

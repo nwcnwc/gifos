@@ -190,6 +190,30 @@ function finishDarkAndRest() {
     check('a null stream ships nothing', stgDownShip('stg:owner', null, false, memo) === null);
   }
 
+  // ---- follow-ups: memo lifetime, one hot read, audio-only copies stay down --
+  {
+    const src = lift('    function stgDownShip(key, stream, screenOn, memo) {', '    // END-STAGE-DOWN-SHIP');
+    let stgDownMeta = null;
+    try { stgDownMeta = new Function('MediaStream', src + '\nreturn typeof stgDownMeta === "function" ? stgDownMeta : null;')(function () {}); } catch (e) {}
+    check('stgDownMeta sits in the down-ship block', typeof stgDownMeta === 'function');
+    if (stgDownMeta) {
+      const hm = { h: 2 }, full = { id: 'full' }, ao = { id: 'ao' };
+      const tagged = stgDownMeta(hm, ao, full);
+      check('an audio-only down copy is announced ao', tagged && tagged.ao === 1 && tagged.h === 2 && hm.ao === undefined);
+      check('a full down copy (screen share) keeps the plain meta', stgDownMeta(hm, full, full) === hm);
+    }
+    const shipDn = html.match(/shipMos\((?:key|k), (?:dnP|mate), (?:dnSt|earSt), stgDownMeta\(/g) || [];
+    check('the deep down-leg, the head row re-fan and the S1 down-leg tag their copies', shipDn.length === 3, shipDn.length);
+    check('the mx receiver keeps the ao tag', /mosAnn\.set\(ak, \{[^\n]*ao: \(m\.ao === 1 \? 1 : undefined\)/.test(html));
+    check('annMeta carries ao onto the claimed slot', /const annMeta = \(ann\) => \(\{[^\n]*ao: ann\.ao \}\)/.test(html));
+    const rs = between('        const relayStg = (key, stream, via, h, ao) => {', '        if (iAmHead) for (const k of heldStg)');
+    check('relayStg ships an ao copy neither up nor across', /if \(!ao && upTgt && !skip\(upTgt\)\)/.test(rs) && /if \(!ao && xUpPid && xUpPid !== upTgt && !skip\(xUpPid\)\)/.test(rs));
+    check('relayStg is told when the held copy is ao', /relayStg\(k, f\.stream, f\.via, stgHop\(f\), !!\(f\.meta && f\.meta\.ao\)\)/.test(rs));
+    check('stgAudioMemo is a WeakMap, never iterated or sized', /let stgAudioMemo = new WeakMap\(\);/.test(html) && !/stgAudioMemo\.(clear|size|keys|values|entries|forEach)\b/.test(html) && !/of stgAudioMemo\b/.test(html));
+    const cr = between('    function claimRedun(rk, arr) {', '\n    function ');
+    check('claimRedun reads standbyStaysHot once per pass', (cr.match(/standbyStaysHot\(/g) || []).length === 1, (cr.match(/standbyStaysHot\(/g) || []).length);
+  }
+
   // ---- wiring pins ----------------------------------------------------------
   const ear = between('    function ensureStageEar() {', '    function syncStageEar');
   check('ensureStageEar resumes the context before it returns the existing ear', ear.indexOf('ensureAc()') >= 0 && ear.indexOf('ensureAc()') < ear.indexOf('if (stageEar) return'));
@@ -211,7 +235,7 @@ function finishDarkAndRest() {
   check('the deep down-leg and the S1 down-leg call stgDownShip', (html.match(/stgDownShip\(key, stream, !!\(owner && sharingScreen\(owner\)\), stgAudioMemo\)/g) || []).length === 2);
   check('a deep head row re-fan calls stgDownShip', /stgDownShip\(k, f\.stream, sharingScreen\(owner\), stgAudioMemo\)/.test(html));
   check('an attach failure is logged and remembered per pc generation', /why: 'attach-failed'/.test(html) && /attachFailAt\.get\(to\) === attachGen/.test(html) && /job\.attachErr = \(e && e\.name\) \|\| 'error'/.test(html));
-  check('stopMosaic clears deny expiry and attach failures', /pipeDeny\.clear\(\); pipeDenyUntil\.clear\(\); pipeDenyN\.clear\(\)/.test(html) && /attachFailAt\.clear\(\); stgAudioMemo\.clear\(\)/.test(html));
+  check('stopMosaic clears deny expiry and attach failures', /pipeDeny\.clear\(\); pipeDenyUntil\.clear\(\); pipeDenyN\.clear\(\)/.test(html) && /attachFailAt\.clear\(\); stgAudioMemo = new WeakMap\(\);/.test(html));
   check('pipe failback still unships after the deny stamp', (html.match(/pipeDeny\.add\(jk\); unshipMos\(jk, true\)/g) || []).length >= 2);
   check('suspect is watchable, not urgent', /if \(\(fb\.dark \|\| fb\.wakeAt\) && !fb\.suspect\) \{ urgent = true; break; \}/.test(html) && /if \(fb\.suspect \|\| mosStandby\.get\(rk\)\) watchable = true/.test(html));
   const hot = between('const WAKE_MAX = MOS_GRACE * 3', 'function mosVideo');

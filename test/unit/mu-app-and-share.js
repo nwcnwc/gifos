@@ -80,7 +80,7 @@ function sliceFrom(start, endMark) {
 
 // ---- snap from the advertised host replaces a slower clock (finding 87) ----
 {
-  const src = sliceFrom('    const sgaSnapChal = new Map();', '    function sgaDeliver(m) {');
+  const src = sliceFrom('    const sgaSnapChal = new Map();', '    function sgaDeliver(m');
   check('sgaSnapWins is where the lift expects it', /function sgaSnapWins/.test(src));
   function make(env) {
     return new Function('appStops', 'statusOf', 'myStatus', 'myId', 'meshGone', 'stHold', 'digLists', 'sgaSnap', 'sgaWant', 'peers', 'dcSend', 'sgaSubs',
@@ -107,6 +107,29 @@ function sliceFrom(start, endMark) {
   check('once that author is the host, the slower clock replaces the old snap',
     env.sgaSnap.get('sid') && env.sgaSnap.get('sid').seq === 'new:1' && got[0] === 'new:1',
     env.sgaSnap.get('sid'));
+}
+
+// ---- one host walk per snap frame ----
+{
+  const src = sliceFrom('    const sgaSnapChal = new Map();', '    function sgaDeliver(m');
+  let walks = 0;
+  const env = {
+    appStops: new Map(), statusOf: new Map(), myStatus: { app: { s: 'sid', ts: 1 } }, myId: 'old',
+    meshGone: new Map(), stHold: () => true, digLists: () => { walks++; return null; }, sgaSnap: new Map(), sgaWant: new Map(),
+    peers: new Map(), dcSend: () => {}, sgaSubs: new Map(),
+  };
+  const api = new Function('appStops', 'statusOf', 'myStatus', 'myId', 'meshGone', 'stHold', 'digLists', 'sgaSnap', 'sgaWant', 'peers', 'dcSend', 'sgaSubs',
+    src + '\nreturn { sgaConsiderSnap };')(
+    env.appStops, env.statusOf, env.myStatus, env.myId, env.meshGone, env.stHold, env.digLists, env.sgaSnap, env.sgaWant, env.peers, env.dcSend, env.sgaSubs);
+  env.sgaSnap.set('sid', { sid: 'sid', seq: 'old:3', at: 5000, kind: 'snap' });
+  walks = 0;
+  api.sgaConsiderSnap({ sid: 'sid', seq: 'new:1', at: 1000, kind: 'snap' });
+  check('a challenger snap walks the host list once', walks === 1, walks);
+  env.statusOf.set('new', { app: { s: 'sid', ts: 9 } });
+  walks = 0;
+  const won = api.sgaConsiderSnap({ sid: 'sid', seq: 'new:2', at: 1000, kind: 'snap' });
+  check('a snap from the new host wins with one host walk', won === true && walks === 1, walks);
+  check('sgaRecvSnap hands its host lookup to sgaConsiderSnap', /if \(cur && !sgaSnapWins\(cur, m, hostOf\)\) \{ sgaConsiderSnap\(m, hostOf\); return; \}/.test(html) && /sgaDeliver\(m, hostOf\)/.test(html));
 }
 
 // ---- song flag, mix, leader name (findings 81, 82, 91, 93) ----

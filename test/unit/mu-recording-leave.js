@@ -82,10 +82,12 @@ check('no recording reloads immediately', sinks.recResumePlan(false, false) === 
 
   const noPick = {};
   const opfsChunks = [];
+  const opfsRemoved = [];
   const opfsNav = {
     storage: {
       async getDirectory() {
         return {
+          async removeEntry(name) { opfsRemoved.push(name); },
           async getFileHandle(name, opts) {
             check('OPFS creates the recording file', opts && opts.create === true && name === 'clip.webm');
             return {
@@ -105,6 +107,46 @@ check('no recording reloads immediately', sinks.recResumePlan(false, false) === 
   await opfsSink.write('c2');
   const opfsSaved = await opfsSink.finish();
   check('without a picker the chunks go to OPFS in order', opfsSink.kind === 'opfs' && JSON.stringify(opfsChunks) === JSON.stringify(['c1', 'c2']) && opfsSaved.href === 'blob:opfs:2');
+  check('the OPFS result can delete its file', typeof opfsSaved.drop === 'function' && opfsRemoved.length === 0);
+  if (typeof opfsSaved.drop === 'function') await opfsSaved.drop();
+  check('drop removes the recording file from OPFS', JSON.stringify(opfsRemoved) === JSON.stringify(['clip.webm']));
+
+  // recDeliver: the OPFS file goes with the blob url, after the download had its minute.
+  {
+    const dsrc = sliceBetween('    function recDeliver(saved) {', '    function resumeReload() {');
+    const timers = [];
+    const revoked = [];
+    let clicked = 0, dropped = 0;
+    const docD = { createElement() { return { click() { clicked++; } }; } };
+    const deliver = new Function('document', 'URL', 'setTimeout', 'setStatus', 'recFileName', dsrc + '\nreturn recDeliver;')(
+      docD, { revokeObjectURL(h) { revoked.push(h); } }, (fn, ms) => { timers.push({ fn, ms }); }, () => {}, () => 'x.webm');
+    const how = deliver({ href: 'blob:opfs:9', name: 'clip.webm', drop() { dropped++; return Promise.resolve(); } });
+    check('an OPFS result downloads and waits before cleanup', how === 'download' && clicked === 1 && dropped === 0 && revoked.length === 0);
+    for (const t of timers) t.fn();
+    check('the revoke timeout also deletes the OPFS file', revoked[0] === 'blob:opfs:9' && dropped === 1);
+    const how2 = deliver({ href: 'blob:ram', name: 'r.webm' });
+    for (const t of timers.slice(1)) t.fn();
+    check('a RAM result with no file still downloads', how2 === 'download');
+  }
+
+  // resumeReload: a save that never settles still reloads.
+  {
+    const rsrc = sliceBetween('    function resumeReload() {', '    // One dialog behaviour');
+    const timers = [];
+    let reloads = 0, stops = 0;
+    const env = new Function('recResumePlan', 'setStatus', 'location', 'setTimeout',
+      'let recRec = { state: "recording", stop() { env.stops++; } }; let recRestart = null; let recDraw = null; let recReloadAfterStop = false; const env = { stops: 0 };\n' + rsrc +
+      '\nreturn { resumeReload, env, latched: () => recReloadAfterStop };')(
+      sinks.recResumePlan, () => {}, { reload() { reloads++; } }, (fn, ms) => { timers.push({ fn, ms }); });
+    env.resumeReload();
+    check('a freeze while recording stops the recorder and does not reload yet', env.env.stops === 1 && reloads === 0 && env.latched() === true);
+    env.resumeReload();
+    check('a second freeze waits for the save', env.env.stops === 1 && reloads === 0);
+    const fb = timers.filter((t) => t.ms >= 15000 && t.ms <= 30000);
+    check('a fallback reload is armed for a save that never settles', fb.length === 1, timers.map((t) => t.ms));
+    for (const t of fb) t.fn();
+    check('the fallback reloads the page', reloads === 1);
+  }
 
   const ramHeld = [];
   const ramOpen = new Function('window', 'navigator', 'URL', 'Blob', pure + '\nreturn { recOpenSink, hold: null };')(
@@ -151,10 +193,39 @@ check('no recording reloads immediately', sinks.recResumePlan(false, false) === 
 
   const note = sliceBetween('    function recNoteStruct() {', '    // Scope →');
   const noted = new Function('rosterIds', 'peers', 'myStatus', 'statusOf', 'meshCoord', 'digLists', 'compOf',
-    'let recSrcDirty = false; let recStructSig = "";\n' + note + '\nrecNoteStruct();\nconst d1 = recSrcDirty;\nrecSrcDirty = false;\nrecNoteStruct();\nconst d2 = recSrcDirty;\nrosterIds.push("new");\nrecNoteStruct();\nconst d3 = recSrcDirty;\nreturn { d1, d2, d3 };');
+    'const recRec = { state: "recording" }; let recSrcDirty = false; let recStructSig = "";\n' + note + '\nrecNoteStruct();\nconst d1 = recSrcDirty;\nrecSrcDirty = false;\nrecNoteStruct();\nconst d2 = recSrcDirty;\nrosterIds.push("new");\nrecNoteStruct();\nconst d3 = recSrcDirty;\nreturn { d1, d2, d3 };');
   const nres = noted([], peers, { stg: 0 }, statusOf, () => ({ pc: '', r: 0, i: 0 }), () => null, compOf);
   check('recNoteStruct dirties on the first roster picture only', nres.d1 === true && nres.d2 === false);
   check('recNoteStruct dirties when the roster changes', nres.d3 === true);
+  let rosterReads = 0;
+  const idleRoster = new Proxy(['a', 'b'], { get(t, k) { rosterReads++; return t[k]; } });
+  const idle = new Function('rosterIds', 'peers', 'myStatus', 'statusOf', 'meshCoord', 'digLists', 'compOf', 'recRec',
+    'let recSrcDirty = false; let recStructSig = "";\n' + note + '\nrecNoteStruct();\nreturn { dirty: recSrcDirty };');
+  const ir = idle(idleRoster, peers, { stg: 0 }, statusOf, () => null, () => null, compOf, null);
+  check('with no recorder the tick does not walk the roster', rosterReads === 0, rosterReads);
+  check('with no recorder the source list is left stale for the next start', ir.dirty === true);
+  rosterReads = 0;
+  idle(idleRoster, peers, { stg: 0 }, statusOf, () => null, () => null, compOf, { state: 'inactive' });
+  check('a stopped recorder does not walk the roster either', rosterReads === 0, rosterReads);
+
+  // A deep seat's stg feed is audio-only: the stager's picture comes from the strip.
+  {
+    const stripEl = { id: 'strip' }, aoEl = { id: 'ao-el' }, vidEl = { id: 'vid-el' };
+    const aoStream = { id: 'ao', getVideoTracks() { return []; }, getAudioTracks() { return [{}]; } };
+    const vStream = { id: 'v', getVideoTracks() { return [{ readyState: 'live' }]; }, getAudioTracks() { return [{}]; } };
+    const comp2 = new Map([['sgs', { via: 'stage', stream: { id: 'sg' }, streamId: 'sg', el: stripEl }]]);
+    const peers2 = new Map([['s1', { name: 'Stager', video: { srcObject: { id: 'cam' } } }]]);
+    const mos2 = new Map([['stg:s1', { stream: aoStream, el: aoEl }]]);
+    const rec2 = factory(comp2, () => false, { stg: 0 }, () => 'Me', meTile, { id: 'mic' }, peers2, new Map([['s1', { stg: 1 }]]),
+      () => 0, () => ({}), mos2, () => ['s1'], () => []);
+    const s1 = rec2.recSources().stage.filter((x) => x.key === 's1')[0];
+    check('an audio-only stg feed draws the received strip', s1 && s1.video === stripEl && s1.stream === aoStream, s1 && s1.video);
+    rec2.recSources();
+    check('a quiet frame keeps the strip picture', s1 && s1.video === stripEl);
+    mos2.set('stg:s1', { stream: vStream, el: vidEl });
+    rec2.recSources();
+    check('a stg feed with video draws its own element', s1 && s1.video === vidEl && s1.stream === vStream);
+  }
 
   const keys = [];
   let hid = 0, restored = 0;
