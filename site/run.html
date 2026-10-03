@@ -9715,7 +9715,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const fs = Array.from(files.values()).sort((a, b) => a.at - b.at);
       el.innerHTML = fs.length ? fs.map((f) => {
         const mine = (f.byId && f.byId === myId) || (!f.byId && f.by === myName());
-        const unpin = (amAdmin || mine) ? '<button class="row-del" data-del="' + esc(f.id) + '" title="Unpin for everyone">' + DEL_ICON + '</button>' : '';
+        // The button follows the receive rule (fdelAllowed): an open room takes
+        // anyone's unpin (attributed); an admin room takes the owner's or an admin's.
+        const unpin = (!hasAdminRoom() || amAdmin || mine) ? '<button class="row-del" data-del="' + esc(f.id) + '" title="Unpin for everyone">' + DEL_ICON + '</button>' : '';
         return '<div class="cfile" data-f="' + esc(f.id) + '"><span class="nm">' + esc(f.name) + '</span><small>' + fmtSize(f.size) + ' · ' + esc(f.by || '?') + '</small>'
           + (f.bytes ? '<button data-dl="' + esc(f.id) + '">⬇</button>' : '<small>receiving…</small>')
           + unpin + '</div>';

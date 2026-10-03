@@ -118,7 +118,9 @@ check('purgeAllFiles announces one ids frame', /sendAll\(msg\)/.test(html) && /k
   const purgeAt = seg.indexOf('purgeAllFiles(true)');
   check('the password purge runs after the admin refusal', adminAt >= 0 && purgeAt > adminAt, adminAt + ' ' + purgeAt);
 }
-check('the unpin glyph is owner or admin', /const unpin = \(amAdmin \|\| mine\)/.test(html));
+// The finding was scoped to ADMIN rooms (a guest unpinning the host's file);
+// an open room keeps anyone's unpin, as its receive rule (fdelAllowed) does.
+check('the unpin glyph is owner or admin in an admin room, and anyone\'s in an open room', /const unpin = \(!hasAdminRoom\(\) \|\| amAdmin \|\| mine\)/.test(html));
 check('askFile is the only want', /function askFile\(/.test(html) && /askFile\(known, p\)/.test(html) && !/dcSend\(p, \{ k: 'want'/.test(html.slice(html.indexOf('function takeMeta'), html.indexOf('function askFile'))));
 
 // A stalled source is stopped only when another source is queued. With no
@@ -209,5 +211,14 @@ check('renderChat and renderTranscript paint through paintLog and skip when hidd
   check('addTranscriptLine stores through keepOwnTranscript', /if \(!keepOwnTranscript\(m\)\) return;/.test(html));
 }
 
+// The unpin button follows the receive rule: in an open room anyone may unpin
+// (fdelAllowed answers true without an admin room), so the button may not be
+// hidden from a non-owner there; in an admin room it is the owner's or an admin's.
+{
+  const a = html.indexOf('    function renderFiles() {');
+  const body = a > 0 ? html.slice(a, html.indexOf('\n    }\n', a)) : '';
+  check('an open room offers every member the unpin button (the receive rule takes anyone\'s unpin there)',
+    /const unpin = \(!hasAdminRoom\(\) \|\| amAdmin \|\| mine\)/.test(body));
+}
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
