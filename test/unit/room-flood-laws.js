@@ -44,8 +44,14 @@ check('…and the mesh forwards nothing the app refused', has(mesh, /ok === fals
 const onRemote = run.slice(run.indexOf('function onRemote'), run.indexOf("} else if (m.k === 'sig')"));
 const rebroadcasts = (onRemote.match(/sendAll\(\{ k: '(chat|tr|fmeta|fdel|cdel)'/g) || []).filter((x) => !/k: 'hi'/.test(x));
 const hiMerge = onRemote.slice(onRemote.indexOf("m.k === 'hi'"), onRemote.indexOf("} else if (m.k === 'chat')"));
-const hiSends = (hiMerge.match(/sendAll\(/g) || []).length;
-check('a receiver never re-broadcasts a chat line, caption, file notice or deletion to the room', rebroadcasts.length === hiSends, { rebroadcasts: rebroadcasts.length, onlyIn: 'the hi merge', hiSends });
+const hiSends = (hiMerge.match(/sendAll\(|fanOut\(/g) || []).length;
+check('a receiver never re-broadcasts a chat line, caption, file notice or deletion to the room', rebroadcasts.length === 0, { rebroadcasts: rebroadcasts.length });
+// The 'hi' merge once re-flooded every line it learned (a newcomer's first
+// 'hi' is ALL news: up to 800 room-wide floods per join, O(history × N)).
+// What was news is handed on over my own open channels, once, like fmeta.
+check('the hi merge originates no room-wide flood (history rides the pair, not the room)', hiSends === 0, { hiSends });
+check('…and hands what was news on over my OWN links only, as one hi frame (dcSend), the source excluded', has(hiMerge, /q !== p && q\.dc && q\.dc\.readyState === 'open'\) dcSend\(q, \{ k: 'hi', chats: freshChats, trs: freshTrs \}\)/));
+check('…and the replay is taken as backfill, past the live per-author limiter', has(hiMerge, 'takeChat(c, true)') && has(hiMerge, 'takeTr(l, true)') && has(run, /function takeChat\(m, backfill\)[\s\S]{0,200}if \(!backfill && m\.byId !== myId && !chatRateOk\(m\.byId\)\) return false;/) && has(run, /function takeTr\(m, backfill\)[\s\S]{0,300}if \(!backfill && writer !== myId && !chatRateOk\('tr:' \+ writer\)\) return false;/));
 check('a file notice is handed on over my OWN links only (dcSend), never fanned out', has(onRemote, /takeMeta\(m\.f, p\)\) \{[^\n]*dcSend\(q, \{ k: 'fmeta'/) && !has(onRemote, "sendAll({ k: 'fmeta'"));
 
 // 4. the flood guard

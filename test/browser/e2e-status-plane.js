@@ -26,6 +26,8 @@
 //   Two of the ten pages run with clocks a minute wrong (one slow, one fast).
 //   7. statusOf is bounded by the plane (section + DataChannel pairs), not by
 //      the room (scale-audit V2).
+//   8. history rides the pair, not the room: an 11th seat joining a room with
+//      30 chat lines by one author holds all 30 and originates no room flood.
 //
 // Run: site on 8099 + relay on 8790 (test/servers/dev.sh), then
 //   node test/browser/e2e-status-plane.js
@@ -266,6 +268,34 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   const fin = await Promise.all(pages.map(sp));
   const over = fin.map((x, i) => (x && x.statusN > 2 * 2 - 1 + x.dcLinks ? 'P' + i + ':' + x.statusN + '>' + (3 + x.dcLinks) : null)).filter(Boolean);
   check('every seat\'s statusOf <= C*C-1 + its open DataChannels (the V2 bound)', over.length === 0, { over, sizes: fin.map((x) => x && x.statusN) });
+
+  // ---- 8. HISTORY RIDES THE PAIR, NOT THE ROOM --------------------------------
+  // A newcomer learns the chat over its channels' 'hi' replay. That replay once
+  // (a) re-flooded every learned line room-wide — a join cost O(history × N)
+  // frames, 30 floods here — and (b) ran through the live per-author limiter,
+  // so of 30 lines by one author the newcomer kept 20 and never saw the rest.
+  const hist = [];
+  for (let i = 0; i < 30; i++) hist.push(await pages[0].evaluate((t) => window.__gifosVideo.sayForTest(t), 'history line ' + i));
+  const heldAll = await eventually(() => Promise.all(pages.map((pg) => pg.evaluate((ids) => ids.every((id) => window.__gifosVideo.chatHas(id)), hist).catch(() => false))), (v) => v.every(Boolean), 30000);
+  check('30 lines by one author reach every seated member (the author\'s own floods)', heldAll.ok, heldAll.v);
+  const h0 = await floods();
+  const late = await mk(N);
+  pages.push(late);
+  const lateT0 = Date.now(); let lateSeated = false;
+  while (Date.now() - lateT0 < 120000) {
+    if (await pwModalShown(late)) { try { await late.locator('#pw-new').fill(PW); await late.locator('#pw-save').click(); } catch (e) {} }
+    const s = await sp(late);
+    if (s && s.coord) { lateSeated = true; break; }
+    await sleep(1000);
+  }
+  check('an 11th seat joins the room with history', lateSeated);
+  const lateHeld = await eventually(() => late.evaluate((ids) => ids.filter((id) => window.__gifosVideo.chatHas(id)).length, hist).catch(() => -1), (n) => n === 30, 45000);
+  check('the newcomer holds ALL 30 lines of the history, not 20 (the replay is backfill, past the live limiter)', lateHeld.ok, { held: lateHeld.v });
+  await sleep(6000); // long enough for any re-flood of the replay to have happened
+  const h1 = await floods();
+  const joinFloods = h1.map((x, i) => x - (h0[i] || 0));
+  check('the newcomer originated NO room-wide flood for the history it learned', joinFloods[N] === 0, { joinFloods });
+  check('…and no seated member re-flooded anything for the join', joinFloods.slice(0, N).every((x) => x === 0), { joinFloods });
 
   check('no page errors', errs.length === 0, errs.slice(0, 5));
   await browser.close();

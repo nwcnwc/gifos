@@ -8050,14 +8050,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // evidence as signaling — feed the mesh intake (see onSignal).
       try { const s = meshSeat(); if (s && s.heardFrom && p.id) s.heardFrom(p.id); } catch (e) {}
       if (m.k === 'hi') {
-        // Union-merge — and GOSSIP ONWARD whatever was news: a delegate
-        // learning a missed line over the bridge hands it down its own leaf.
-        const freshChats = [];
-        (m.chats || []).forEach((c) => { if (takeChat(c)) freshChats.push(c); });
-        for (const c of freshChats) sendAll({ k: 'chat', m: c });
-        let trNew = false;
-        (m.trs || []).forEach((l) => { if (takeTr(l)) { trNew = true; sendAll({ k: 'tr', m: l }); } });
-        if (trNew) renderTranscript();
+        // Union-merge. The replay is BACKFILL (takeChat/takeTr's second
+        // argument): the per-author limiter is for a live flood, and applied
+        // to a one-shot replay it kept 20 lines per speaker and the rest never
+        // came again. The frame itself is the bound (500 chats + 300 lines).
+        // Whatever was NEWS is handed on over my OWN open channels, once per
+        // link per 10 s, as one 'hi' frame with the source excluded — the
+        // fmeta law: a missed line crosses a link, never the room. Each hop
+        // forwards only what it lacked, so the chain stops where the history
+        // is already held: a newcomer's first 'hi' hands the room's history
+        // to its other links and they hold it. O(links) frames per join —
+        // sendAll per line here made every join O(history) room-wide floods.
+        const freshChats = [], freshTrs = [];
+        (m.chats || []).forEach((c) => { if (takeChat(c, true)) freshChats.push(c); });
+        (m.trs || []).forEach((l) => { if (takeTr(l, true)) freshTrs.push(l); });
+        if (freshTrs.length) renderTranscript();
+        if ((freshChats.length || freshTrs.length) && chatRateOk('hi:' + p.id, 1)) {
+          for (const pid of gossipIds()) { const q = peers.get(pid); if (q && q !== p && q.dc && q.dc.readyState === 'open') dcSend(q, { k: 'hi', chats: freshChats, trs: freshTrs }); }
+        }
         for (const id in m.tombs || {}) takeTomb(id, m.tombs[id]);
         // Chat tombstones re-prove themselves: each carries its own signed
         // 'cdel' order, verified here exactly as when it was first issued
@@ -8389,22 +8399,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the map grew without bound and every arrival re-painted all of it.
     const CHAT_MAX = 500, CHAT_PER_10S = 20;
     const chatRate = new Map(); // byId -> [timestamps]
-    function chatRateOk(byId) {
+    function chatRateOk(byId, max) { // max: a caller's own window budget (default the per-author one)
       const now = Date.now(), k = String(byId || '?');
       const l = (chatRate.get(k) || []).filter((t) => now - t < 10000);
-      if (l.length >= CHAT_PER_10S) return false;
+      if (l.length >= (max || CHAT_PER_10S)) return false;
       l.push(now); chatRate.set(k, l);
       if (chatRate.size > 256) chatRate.clear();
       return true;
     }
+    // Drops the oldest by `at`, deleting by KEY: chat and trs are keyed by id,
+    // trSeen by the line's text, and deleting by value.id trimmed only the
+    // first two (trSeen grew for the life of the tab and sorted on every line).
     function trimMap(map, max) {
       if (map.size <= max) return;
-      const old = Array.from(map.values()).sort((a, b) => (a.at || 0) - (b.at || 0));
-      for (let i = 0; i < old.length - max; i++) map.delete(old[i].id);
+      const old = Array.from(map.entries()).sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
+      for (let i = 0; i < old.length - max; i++) map.delete(old[i][0]);
     }
-    function takeChat(m) {
+    function takeChat(m, backfill) { // backfill: a 'hi' replay — bounded by its frame, not by the live limiter
       if (!m || !m.id || chat.has(m.id) || chatTombs.has(m.id)) return false;
-      if (m.byId !== myId && !chatRateOk(m.byId)) return false;
+      if (!backfill && m.byId !== myId && !chatRateOk(m.byId)) return false;
       // While the admin's chat-off stands, only a verified admin's NEW lines
       // land — receiver-enforced, so a DOM-hacked sender is still unheard by
       // everyone honest. Lines from BEFORE the switch stay: turning chat off
@@ -11909,10 +11922,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!s || s.src === src) { trSeen.set(n, { at: m.at || 0, src, id: m.id }); trimMap(trSeen, CHAT_MAX); }
       return false;
     }
-    function takeTr(m) {
+    function takeTr(m, backfill) { // backfill: a 'hi' replay — see takeChat
       if (!m || !m.id || trs.has(m.id)) return false;
       const writer = String(m.scribe || m.byId);
-      if (writer !== myId && !chatRateOk('tr:' + writer)) return false;
+      if (!backfill && writer !== myId && !chatRateOk('tr:' + writer)) return false;
       // A scribe can OFFER lines, never impose them: another device's scribed
       // line is kept only if I chose that scribe under Settings → Captions.
       if (m.scribe && m.scribe !== myId && ccSourceId !== m.scribe) return false;
