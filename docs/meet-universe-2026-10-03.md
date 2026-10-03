@@ -81,7 +81,7 @@ Fixers for `mesh.js` (unsigned YIELD/CONFIRM/LEAVE/MOVED/DRAIN acceptance; the Ã
 - **Boot path**: 25 parser-blocking scripts (~1.95 MB) before the lobby, a synchronous `version.json` XHR on a first visit, a `document.write` theme chain, the body hidden up to 1.5 s waiting for a theme variable.
 - **Vote-off majority from forged device tags; device-tag squatting locks a person out** (relay): both change the civility model in `docs/threat-model.md`.
 - **Graceful leave 6.1 s** and **the forged-status window** are queued as round-2 packages (`/home/nathan/mu-work/packages-r2.json`).
-- The full list: `/home/nathan/mu-work/findings-ALL.json` (280 entries, each with file:line, evidence, proposed fix and guard).
+- The severity 4-5 slice with status: [`meet-universe-findings-2026-10-03.md`](meet-universe-findings-2026-10-03.md) (74 rows: 39 landed, 9 with a fixer in flight, 4 skipped pending a decision, 22 open). The full 280 are in the work directory (`findings-ALL.json`), each with file:line, evidence, proposed fix and guard.
 
 ## How to continue
 
