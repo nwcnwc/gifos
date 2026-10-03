@@ -1154,9 +1154,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <div id="lob-admin" class="lob-expand" style="display:none">
         <input id="lob-admin-name" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off">
         <label class="lob-pwlab">🔑 <b id="lob-admin-pass-head">Admin password</b> — yours alone — <b>do not share it</b><small id="lob-admin-pass-note">This is what puts you in charge of the room. Guests don’t need it. Anyone you give it to can run the room too.</small></label>
-        <input id="lob-admin-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="off">
+        <input id="lob-admin-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="new-password">
         <label class="lob-pwlab">🎟 <b id="lob-guest-pass-head">Guest password</b> — the one you <b>do</b> share<small id="lob-guest-pass-note">Optional, but faces stay blurred until you set one. Guests type it to get in. It is not part of the link — send it to them yourself. The Password button changes it later.</small></label>
-        <input id="lob-guest-pass" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="off">
+        <input id="lob-guest-pass" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="new-password">
         <div class="lob-row"><button id="lob-admin-cancel" class="lob-ghost">Cancel</button><button id="lob-admin-go">Create &amp; enter</button></div>
         <div id="lob-admin-err" class="lob-err"></div>
       </div>
@@ -1410,9 +1410,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <h3 id="pw-title">Room password</h3>
       <p id="pw-hint">Anyone in the meeting can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.</p>
       <div id="pw-cur-row" style="display:flex;gap:.5rem;margin-bottom:.8rem">
-        <input id="pw-cur" type="password" readonly>
+        <input id="pw-cur" type="password" readonly autocomplete="new-password">
       </div>
-      <input id="pw-new" type="password" maxlength="64" placeholder="New password" autocomplete="off">
+      <input id="pw-new" type="password" maxlength="64" placeholder="New password" autocomplete="new-password">
       <div style="display:flex;gap:.5rem;justify-content:center">
         <button id="pw-save">Save</button>
         <button id="pw-cancel" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Close</button>
@@ -1425,7 +1425,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <h3>Room admin</h3>
       <p id="adm-hint"></p>
       <div id="adm-setup">
-        <input id="adm-pass" type="password" maxlength="64" placeholder="Admin password" autocomplete="off">
+        <input id="adm-pass" type="password" maxlength="64" placeholder="Admin password" autocomplete="new-password">
         <button id="adm-enable">Sign in as admin</button>
       </div>
       <div id="adm-panel" style="display:none;text-align:left">
@@ -5821,6 +5821,68 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let meshNode = null;
     const relayUp = () => !!(meshNode && meshNode.relayUp());
     const relaySendObj = (o) => { if (meshNode) meshNode.relaySend(o); };
+    // A targeted relay copy is only for a socket the relay can deliver to,
+    // and only when sendAll did not already hand the frame to an open
+    // DataChannel. A socketless deep seat is dropped by the relay.
+    function relayCopyTargets() {
+      const out = [];
+      for (const pid of relaySocketed) {
+        if (!pid || pid === myId) continue;
+        const p = peers.get(pid);
+        if (p && p.dc && p.dc.readyState === 'open') continue;
+        out.push(pid);
+      }
+      return out;
+    }
+    function channelsDrained() {
+      for (const p of peers.values()) {
+        if (p.dc && p.dc.readyState === 'open' && p.dc.bufferedAmount > 0) return false;
+      }
+      return true;
+    }
+    // Resolve once seals queued before this call have reached their
+    // channels and those channels have drained. Never wait longer than capMs.
+    function flushOutbound(capMs) {
+      const cap = capMs == null ? 600 : capMs;
+      return new Promise((resolve) => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        const t0 = Date.now();
+        const poll = () => {
+          if (done) return;
+          if (channelsDrained() || Date.now() - t0 >= cap) { finish(); return; }
+          setTimeout(poll, 40);
+        };
+        txm(() => Promise.resolve()).then(poll);
+        setTimeout(finish, cap);
+      });
+    }
+    // relay.js meters a non-door socket at 600 frames, then 3/s, and drops
+    // the rest of one burst. One sealed grant is one frame. 480 leaves room
+    // for this socket's own beats in that same instant. 500 ms stays under
+    // 3/s once those beats are counted too.
+    const RELAY_COPY_BURST = 480;
+    const RELAY_COPY_GAP_MS = 500;
+    function paceRelayCopies(pids, env) {
+      const ids = [];
+      for (const pid of pids) if (pid && pid !== myId) ids.push(pid);
+      let i = 0;
+      const sendSome = (n) => {
+        let sent = 0;
+        while (sent < n && i < ids.length && !leaving) {
+          const pid = ids[i++];
+          net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece }));
+          sent++;
+        }
+        if (i < ids.length && !leaving) setTimeout(() => sendSome(1), RELAY_COPY_GAP_MS);
+      };
+      sendSome(RELAY_COPY_BURST);
+    }
+    function pwChainFailed(err, reopen) {
+      setStatus('Could not use the password (' + ((err && err.name) || 'Error') + ').');
+      if (reopen) { pwBlocked = true; showPwModal(true); }
+      else pwBlocked = false;
+    }
     // Mesh control frames prefer the pair's DataChannel ({k:'mesh'}, sealed
     // like all DC traffic); the wire falls back to sealed relay {t:'peer'}
     // when no channel exists yet (greeter first-contact).
@@ -6145,7 +6207,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function storePwEpoch(ep) { pwEpoch = ep; try { myStatus.pwEp = ep; } catch (e) {} try { localStorage.setItem(pwEpochKey(), String(ep)); } catch (e) {} mirrorRoomState({ pwEp: ep }); }
     // §LOCK EXPIRY (2026-08-06). The password store is a LAST-USED cache, not a
     // permanent property of a room name. Its clock lives beside it (same idiom
-    // as the epoch above) and is refreshed every time the password is actually
+    // as the epoch above) and is refreshed while the password is actually
     // WORKING — set, granted, typed, or simply carrying a room with someone
     // else in it. So a weekly room never re-asks, while a name you have not
     // met under that password in PW_TTL forgets it and stops locking strangers
@@ -6157,7 +6219,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // that does not clear the deployed trap instantly.
     const pwAtKey = () => 'gifos_vpwat_' + roomKey();
     const PW_TTL = 14 * 24 * 3600 * 1000;
-    function touchPw() { if (!roomPw) return; try { localStorage.setItem(pwAtKey(), String(Date.now())); } catch (e) {} }
+    // The sweeper calls touchPw on every pass. setItem is synchronous and
+    // wakes every other open tab, so the stamp moves at most once per
+    // PW_TOUCH_MS. A room in use still stays inside PW_TTL.
+    const PW_TOUCH_MS = 10 * 60 * 1000;
+    function touchPw() {
+      if (!roomPw) return;
+      try {
+        const prev = parseInt(localStorage.getItem(pwAtKey()), 10) || 0;
+        if (prev && Date.now() - prev < PW_TOUCH_MS) return;
+        localStorage.setItem(pwAtKey(), String(Date.now()));
+      } catch (e) {}
+    }
     // The room has PROVED this password wrong (the door refused it, or the room
     // turned out to be open). Remembering it any longer re-runs the trap on the
     // next visit, so it goes — the human can always type the real one.
@@ -6350,13 +6423,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (pwProbe === 'probing' && pwHeld) {
             pwLog('open-key probe refused at the door → the room IS locked; restoring the remembered password');
             pwProbe = 'restored'; roomPw = pwHeld; pwHeld = ''; pwFromStore = false; touchPw();
-            net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; return rekeyRoom(true); }).then(() => startMesh());
+            net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; return rekeyRoom(true); }).then(() => startMesh()).catch((err) => pwChainFailed(err, true));
             return;
           }
           if (pwProbe === '' && pwFromStore && roomPw) {
             pwLog('R6 holding a REMEMBERED password → probing the open key');
             pwProbe = 'probing'; pwHeld = roomPw; roomPw = '';
-            net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; return rekeyRoom(true); }).then(() => startMesh());
+            net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; return rekeyRoom(true); }).then(() => startMesh()).catch((err) => pwChainFailed(err, true));
             reactRoomState();
             return;
           }
@@ -6536,7 +6609,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
                 // them by construction; the relay's socket list is not. A
                 // non-greeter holds only the doors ('door' scope), so it PULLS
                 // the full list first and fans on its arrival.
-                const fan = () => { for (const pid of relaySocketed) { if (pid === myId) continue; net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece })); } };
+                const fan = () => paceRelayCopies(relaySocketed, env);
                 if (relayRosterScope === 'full') fan();
                 else { pendingDoorGrant = fan; relaySendObj({ t: 'who' }); }
               });
@@ -7164,7 +7237,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       document.getElementById('pw-title').textContent = locked ? 'This room is locked' : 'Room password';
       document.getElementById('pw-hint').textContent = locked
         ? 'Enter the room password to join the meeting.'
-        : 'Anyone in the meeting can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.';
+        : hasAdminRoom()
+          ? 'Only the admin can set or change it. It reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.'
+          : 'Anyone in the meeting can set or change it. It reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.';
       document.getElementById('pw-cur-row').style.display = locked ? 'none' : 'flex';
       document.getElementById('pw-cur').value = roomPw;
       pwEyeHide(document.getElementById('pw-cur')); // every open starts hidden — the eye reveals on demand
@@ -7172,13 +7247,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const inp = document.getElementById('pw-new');
       inp.value = ''; inp.placeholder = locked ? 'Password' : 'New password';
       document.getElementById('pw-save').textContent = locked ? 'Join' : 'Save';
-      document.getElementById('pw-cancel').style.display = locked ? 'none' : '';
+      const cancel = document.getElementById('pw-cancel');
+      cancel.style.display = '';
+      cancel.textContent = locked ? 'Leave' : 'Close';
       pwModal.dataset.mode = locked ? 'join' : 'manage';
       pwModal.style.display = 'flex';
       inp.focus();
     }
     document.getElementById('pwbtn').onclick = () => showPwModal(false);
-    document.getElementById('pw-cancel').onclick = () => { pwModal.style.display = 'none'; };
+    document.getElementById('pw-cancel').onclick = () => {
+      if (pwModal.dataset.mode === 'join') { location.href = MEET_PATH; return; }
+      pwModal.style.display = 'none';
+    };
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || pwModal.style.display === 'none') return;
+      if (pwModal.dataset.mode === 'join') { location.href = MEET_PATH; return; }
+      pwModal.style.display = 'none';
+    });
     document.getElementById('pw-save').onclick = () => {
       const v = document.getElementById('pw-new').value.trim();
       if (pwModal.dataset.mode === 'join') {
@@ -7191,7 +7276,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // and the key I read the room with now contains it (§8): a wrong
         // password doesn't just bounce at the courtesy gate, it can't decrypt.
         Promise.all([net.meetPwProof(room, av, roomPw), rekeyRoom(true)])
-          .then(([pr]) => { pwProof = pr; startMesh(); }); // wrong password → bounced right back here
+          .then(([pr]) => { pwProof = pr; startMesh(); }).catch((err) => pwChainFailed(err, true)); // wrong password → bounced right back here
       } else {
         // Clearing the password opens the room — warn that it also deletes any
         // shared files, then purge them for everyone.
@@ -7234,12 +7319,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // down/rebuilding at THIS instant needs the grant more than anyone
           // — grant healing covers them only once their stale beats flow,
           // and a DC-less deep member's beats are occ-gated and may not.
-          // Each rostered member also gets a sealed targeted copy over the
+          // Each relay-reachable member without an open channel also gets a sealed targeted copy over the
           // relay ({t:'peer'} → onRemote), under the SAME old key as the
           // flood; the epoch guard absorbs doubles.
           try {
             const env = await net.seal(roomE2E, grant);
-            for (const pid of gossipIds()) net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece }));
+            for (const pid of relayCopyTargets()) net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece }));
           } catch (e) {}
           storePwEpoch(ep); retainedGrant = grant; // the setter retains its own grant — it heals stale neighbours like anyone else
           // KEY ROTATION (§8): the pwinfo above is sealed under the OLD key —
@@ -7258,7 +7343,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // at the state block. Exclusion is untouched: the excluded are
           // disconnected/tombstoned before the change and no one heals them.
           txm(() => Promise.resolve()).then(() => rekeyRoom());
-        });
+        }).catch((err) => pwChainFailed(err, false));
         renderFiles(); // reflect the new password state (files allowed / the lock note)
         reactRoomState(); // the password is the key to clear video — re-derive MY tiles now, not on the next heartbeat
         pwModal.style.display = 'none';
@@ -7274,10 +7359,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       box.innerHTML = '';
       if (!amAdmin) return;
       if (!roomBan.length) { box.innerHTML = '<span style="color:#667">Nobody is banned.</span>'; return; }
+      const names = banNames();
       for (const b of roomBan) {
         const row = document.createElement('div'); row.className = 'brow';
         const nm = document.createElement('span'); nm.style.flex = '1';
-        nm.textContent = (banNames()[b.d] || nameForDev(b.d) || 'unnamed') + ' · ' + b.d;
+        nm.textContent = (names[b.d] || nameForDev(b.d) || 'unnamed') + ' · ' + b.d;
         const btn = document.createElement('button'); btn.textContent = 'Unban';
         btn.onclick = () => { admSigned('unban', { dev: b.d }).then((w) => { if (w) relaySendObj({ t: 'unban', dev: b.d, w }); }); };
         row.appendChild(nm); row.appendChild(btn); box.appendChild(row);
@@ -7307,19 +7393,38 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Minting a room lives in Invite now, so this button is never a creator.
       const v = document.getElementById('adm-pass').value.trim();
       if (!v) return;
+      const btn = document.getElementById('adm-enable');
+      const hint = document.getElementById('adm-hint');
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
       setStatus('🛡 Checking the password… (takes a few seconds)');
-      const K = await deriveAdminKey(room, v);
-      document.getElementById('adm-pass').value = '';
+      let K;
+      try { K = await deriveAdminKey(room, v); }
+      catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Sign in as admin';
+        hint.textContent = 'Could not check the password (' + ((err && err.name) || 'Error') + ').';
+        return;
+      }
       // V commits to the PUBLIC KEY of the keypair K seeds (§9) — the check
       // is local, instant, and needs no relay round-trip.
-      if (!(await adoptAdmKey(K))) { setStatus('🛡 Wrong admin password.'); return; }
-      try { localStorage.setItem(admStoreKey(), admKey); } catch (e) {}
+      if (!(await adoptAdmKey(K))) {
+        btn.disabled = false;
+        btn.textContent = 'Sign in as admin';
+        hint.textContent = 'Wrong admin password.';
+        setStatus('🛡 Wrong admin password.');
+        return;
+      }
+      btn.disabled = false;
+      document.getElementById('adm-pass').value = '';
+      try { localStorage.setItem(admStoreKey(), admKey); } catch (e2) {}
       mirrorRoomState({ admin: true });
       admModal.style.display = 'none';
       setStatus('🛡 You are signed in as admin.');
       applyAdminUi();
       broadcastStatus(); // the next signed heartbeat announces my adminship to every peer
     };
+
     // ---- who is on this meeting (names + addresses) -------------------------------
     // P2P meetings are direct connections: everyone can already learn everyone's
     // network address, so GifOS makes it VISIBLE — nobody here is anonymous,
@@ -7511,7 +7616,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         sessId = d.sid; sessTok = d.tok; roomE2E = d.key; pwProof = pr;
         myDevHash = dh.slice(0, 16);
         startMesh();
-      });
+      }).catch((err) => setStatus('Could not join the meeting (' + ((err && err.name) || 'Error') + ').'));
     }
 
     // Meetings joined via a shared link go in the same list the desktop's
@@ -8551,7 +8656,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             if (pwModal.dataset.mode === 'join') pwModal.style.display = 'none';
             startMesh(); // same re-entry as typing it — state intact
           }
-        });
+        }).catch((err) => pwChainFailed(err, wasBlocked));
         const purged = cleared ? purgeAllFiles(false) : 0; // password gone → shared files go with it
         renderFiles();
         setStatus(m.pw ? '🔒 Room password ' + (m.by ? 'set by ' + m.by : 'updated')
@@ -13542,9 +13647,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               (others ? 'The ' + others + ' ' + ppl + ' here won\'t move automatically, so leave the box ticked to drop the new link into this room\'s chat and they can follow you over.' : 'You\'ll switch to it now.') + '</div>' +
             '<input id="inv-adm-room" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off" value="' + esc(room) + '" style="width:100%;box-sizing:border-box;margin-bottom:.5rem">' +
             '<label class="lob-pwlab">🔑 <b>Admin password</b> — yours alone — <b>do not share it</b><small>This is what puts you in charge of the room. Guests don’t need it. Anyone you give it to can run the room too.</small></label>' +
-            '<input id="inv-adm-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
+            '<input id="inv-adm-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="new-password" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
             '<label class="lob-pwlab">🎟 <b>Guest password</b> — the one you <b>do</b> share<small>Optional, but faces stay blurred until you set one. Guests type it to get in. It is not part of the link — send it to them yourself.</small></label>' +
-            '<input id="inv-adm-guest" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
+            '<input id="inv-adm-guest" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="new-password" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
             (others ? '<label style="display:flex;gap:.5rem;align-items:flex-start;cursor:pointer;margin-bottom:.7rem;font-size:.9rem"><input type="checkbox" id="inv-adm-post" checked style="margin-top:.2rem"><span>Post the new link to this room\'s chat so the ' + others + ' ' + ppl + ' here can follow me over.</span></label>' : '') +
             '<div style="display:flex;gap:.5rem;justify-content:flex-end"><button id="inv-adm-back" style="' + surfaceBtn + '">Back</button><button id="inv-adm-go">Create &amp; switch</button></div>' +
           '</div>' +
@@ -13582,7 +13687,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const guest = (document.getElementById('inv-adm-guest').value || '').trim();
         go.disabled = true; go.textContent = 'Creating…';
         invModal.style.display = 'none';
-        await createAdminRoom(chosen, pass, post, guest);
+        try {
+          await createAdminRoom(chosen, pass, post, guest);
+        } catch (err) {
+          go.disabled = false; go.textContent = 'Create & switch';
+          invModal.style.display = 'flex';
+          setStatus('Could not create the room (' + ((err && err.name) || 'Error') + ').');
+        }
       };
       for (const i of body.querySelectorAll('input[type=password]')) pwEye(i); // the mint's two fields get their eyes before first focus
       invModal.style.display = 'flex';
@@ -13628,15 +13739,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // RELAY-ENVELOPE COPY: the fan-out above rides DC pairs + gossip, and
         // this page LEAVES in 600ms — a member whose pair is young/rebuilding
         // at this exact instant loses the link FOREVER (chat is an event;
-        // nothing re-mints it, and the minter is gone). So every rostered
-        // member also gets a sealed targeted copy over the relay ({t:'peer'}
+        // nothing re-mints it, and the minter is gone). A member the relay can still reach, and whose channel is not
+        // open, also gets a sealed targeted copy over the relay ({t:'peer'}
         // → onRemote), which needs no pair at all. The id-dedup absorbs the
         // double delivery on healthy pairs.
         try {
           const env = await net.seal(roomE2E, { k: 'chat', m });
-          for (const pid of gossipIds()) net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece }));
+          for (const pid of relayCopyTargets()) net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece }));
         } catch (e) {}
-        await new Promise((r) => setTimeout(r, 600)); // let the P2P chat + relay copies flush before we leave
+        await flushOutbound(600); // seals queued, channels drained, never longer than 600 ms
       }
       location.replace(MEET_PATH + '#v=' + chosen + '&av=' + V);
       location.reload(); // load the new admin room fresh — I arrive as its admin
