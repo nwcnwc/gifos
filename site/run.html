@@ -520,6 +520,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
                 background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; font-size: .8rem; }
   @media (hover: hover) and (pointer: fine) { .bar button:hover { border-color: var(--accent, #7b5cff); } }
   .bar button.off { border-color: #ff5c5c; color: #ff9c9c; }
+  /* A control the browser cannot honour stays VISIBLE and grey: a missing
+     button reads as "GifOS has no screen share", a grey one reads as "not
+     here" and, pressed, says why. */
+  .bar button.dim { opacity: .45; }
   /* Collapsible header: only mic / camera / blur stay on the always-visible row;
      everything else — action buttons, status/roster messages, the invite bar —
      lives in .barmore (flows inline via display:contents when open, hidden when
@@ -6867,7 +6871,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           setMicMode(micMode, true); // same mode, fresh session → fresh route
           // A route change can pause background audio elements — re-kick them.
           for (const el of document.querySelectorAll('.tile video, .rowtile video')) {
-            if (el._aud && el._aud.srcObject) el._aud.play().catch(() => {});
+            if (el._aud && el._aud.srcObject) el._aud.play().catch((e) => audioBlocked(el._aud, e));
           }
         }, 400); // devices settle in a burst — act once
       });
@@ -8782,8 +8786,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const fold = MM.createAudioFold(ac);
       const el = new Audio(); el.autoplay = true;
       el.srcObject = fold.dest.stream;
-      const pr = el.play(); if (pr && pr.catch) pr.catch(() => {});
       stageEar = { fold, el, sids: new Map() };
+      const pr = el.play(); if (pr && pr.catch) pr.catch((e) => audioBlocked(el, e)); // the stage ear is the one element a sharer's voice rides
     }
     // My own outbound feed as a STABLE MediaStream (what I broadcast — the
     // blurred/raw video plus my mic). While staged this aux feed is the ONLY
@@ -11268,9 +11272,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       shareBtn.title = on
         ? 'You are sharing your screen with the meeting — tap to stop'
         : 'Show the whole room a window, a tab or your desktop. (To share a GifOS app, use Run app — everyone runs it themselves.)';
-      // FEATURE DETECTION, NEVER A UA CHECK (the preflight's rule). iOS Safari
-      // has no getDisplayMedia at all; a button that always fails is a lie.
-      shareBtn.style.display = canScreenShare() ? '' : 'none';
+      // FEATURE DETECTION, NEVER A UA CHECK (the preflight's rule). A phone
+      // browser without getDisplayMedia used to HIDE the button, and the
+      // first customer meeting read that as "there is no share button at
+      // all". The button now stays, greyed; pressing it says why (2026-10-02).
+      shareBtn.classList.toggle('dim', !canScreenShare());
+      shareBtn.style.display = '';
       // A screen on the Stage wants height. This does not rebuild the layout —
       // it lets the strip grow the way the broadcast skin already does.
       document.body.classList.toggle('screen-on', screenSharers().length > 0);
@@ -11341,6 +11348,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     if (shareBtn) shareBtn.onclick = () => {
       if (myStatus.scr) { stopScreenShare(); return; }
+      if (!canScreenShare()) {
+        setStatus('🖥 This browser has no screen-capture support, so it cannot share a screen. Most phone browsers cannot; a computer browser can. To show a document from a phone, open it as an app with Run app.', 15000);
+        return;
+      }
       openShareSheet();
     };
     // The self-tile's chip is the always-visible stop (see updateTile). One
@@ -11426,11 +11437,57 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // picture, and the faders drive the companions. (Elements, not WebAudio:
     // element playout is what the phone's echo canceller uses as its
     // reference, and what background-audio policy exempts.)
+    // A REFUSED play() IS A SILENT PERSON, NOT A NON-EVENT (2026-10-02: in the
+    // first customer meeting one phone lost one voice for a minute while the
+    // call itself was fine, and it "came back by itself" — on the next tap).
+    // A browser may refuse to start a NEW audio element (phone autoplay
+    // policy, an audio-session interruption, a route change). Every companion
+    // element's play() now lands here on failure: the element is remembered,
+    // retried on a beat, retried on the next tap or key anywhere on the page,
+    // and the person is told. A separate sweep re-kicks any companion the
+    // platform merely PAUSED (an interruption that ends without a rejection).
+    const blockedAudio = new Set();
+    let audioKickArmed = false;
+    function audioUnblocked(el) {
+      blockedAudio.delete(el);
+      if (blockedAudio.size || !audioKickArmed) return;
+      audioKickArmed = false;
+      document.removeEventListener('pointerdown', audioKick, true);
+      document.removeEventListener('keydown', audioKick, true);
+      setStatus('🔊 Sound is back.');
+    }
+    function audioRetry(el) {
+      let pr = null; try { pr = el.play(); } catch (e) {}
+      if (pr && pr.then) pr.then(() => audioUnblocked(el)).catch(() => {});
+    }
+    function audioKick() { for (const el of Array.from(blockedAudio)) audioRetry(el); }
+    function audioBlocked(el, err) {
+      if (!el || !el.srcObject) return;
+      blockedAudio.add(el);
+      if (!audioKickArmed) {
+        audioKickArmed = true;
+        document.addEventListener('pointerdown', audioKick, true);
+        document.addEventListener('keydown', audioKick, true);
+      }
+      setStatus('🔇 This device refused to play someone’s sound (' + ((err && err.name) || 'error') + '). Tap anywhere on the page to hear them.', 15000);
+      setTimeout(() => { if (blockedAudio.has(el)) audioRetry(el); }, 1500);
+    }
+    setInterval(() => { // the pause sweep: a companion that is paused but not refused is restarted
+      for (const v of document.querySelectorAll('.tile video, .rowtile video')) {
+        const a = v._aud; if (!a || !a.srcObject || !a.paused || blockedAudio.has(a)) continue;
+        let pr = null; try { pr = a.play(); } catch (e) {}
+        if (pr && pr.catch) pr.catch((e) => audioBlocked(a, e));
+      }
+      if (stageEar && stageEar.el && stageEar.el.srcObject && stageEar.el.paused && !blockedAudio.has(stageEar.el)) {
+        let pr = null; try { pr = stageEar.el.play(); } catch (e) {}
+        if (pr && pr.catch) pr.catch((e) => audioBlocked(stageEar.el, e));
+      }
+    }, 3000);
     function busVolume(el, vol) {
       if (!el.srcObject) { if (el._aud) el._aud.srcObject = null; el.volume = vol; return; }
       if (!el._aud) { el._aud = new Audio(); el._aud.autoplay = true; }
       el.muted = true; // the <video> is picture-only, always — sound lives in the companion
-      if (el._aud.srcObject !== el.srcObject) { el._aud.srcObject = el.srcObject; el._aud.play().catch(() => {}); }
+      if (el._aud.srcObject !== el.srcObject) { el._aud.srcObject = el.srcObject; el._aud.play().catch((e) => audioBlocked(el._aud, e)); }
       el._aud.volume = vol;
       el._aud.muted = !!el._gmute; // group mute rides the same pipe as the faders
     }
@@ -14441,6 +14498,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       transcriptTexts: () => Array.from(trs.values()).sort((a, b) => a.at - b.at).map((l) => l.by + ': ' + l.text),
       transcriptBlocks: () => trBlocks().map((l) => l.by + ': ' + l.text),
       transcriptDrops: () => trDrops,
+      audioBlockedForTest: () => blockedAudio.size,
+      audioBlockForTest: (el, name) => audioBlocked(el, { name }),
       takeTrForTest: (m) => takeTr(m),
       leaveForTest: () => leaveMeeting(),
       recording: () => !!(recRec && recRec.state !== 'inactive'),
