@@ -340,7 +340,12 @@ server.on('upgrade', (req, socket, head) => {
       if (meter.doorDrops % 100 === 1) clog('DOOR-DROP peer=' + peer + ' drops=' + meter.doorDrops + ' tokens=' + (meter.tokens | 0));
       return false;
     }
-    if (len <= BURST && meter.tokens >= len && meter.frames >= 1) { meter.tokens -= len; meter.frames -= 1; meter.warned = false; return true; }
+    if (len <= BURST && meter.tokens >= len && meter.frames >= 1) {
+      // Mirrors relay.js overBudget: a frame bucket refilled to FRAME_BURST has
+      // been inside the budget, so the strike count starts over.
+      if (meter.frames >= FRAME_BURST) meter.strikes = 0;
+      meter.tokens -= len; meter.frames -= 1; meter.warned = false; return true;
+    }
     if (!meter.warned) {
       meter.warned = true;
       meter.strikes++;
@@ -364,7 +369,9 @@ server.on('upgrade', (req, socket, head) => {
   // The old rule re-sent the whole list to every socket on every connect and
   // close: a burst of N joiners cost ~N³/3 list entries (13 GB of buffered
   // frames at N=700), and the 30-socket session cap existed only to hide it.
-  const isGreeter = (c) => !!c.gblob;
+  // A live registration only (mirrors relay.js isGreeter): the blob stays
+  // after gexp for genesisHash's re-register grace, but is not a door.
+  const isGreeter = (c) => !!c.gblob && (c.gexp || 0) > Date.now();
   const WHO_MIN_MS = 5000;
   const rosterMsg = (full) => {
     const msg = { t: 'roster', scope: full ? 'full' : 'door', peers: [] };
@@ -528,16 +535,21 @@ server.on('upgrade', (req, socket, head) => {
     return out;
   };
   const knock = (c, gk, gblob) => {
+    const prev = { gkh: c.gkh, gseen: c.gseen, gmint: c.gmint, gblob: c.gblob, gexp: c.gexp };
     const have = genesisHash();
     let founded = false, admitted = false;
     const wasGreeter = isGreeter(c);
     if (!have) { c.gkh = gk ? sha256hex(gk) : null; founded = admitted = !!c.gkh; if (founded) { c.gmint = Date.now(); delete c.gblob; delete c.gexp; } } // empty ⇒ found (R3); a stale blob would hide the mint from genesisHash
     else if (gk && sha256hex(gk) === have) { c.gkh = have; admitted = true; }       // key match ⇒ join pool
     if (c.gkh) c.gseen = Date.now(); // a knock is proof of life — see genesisHash
-    if (admitted && gblob) {
-      const prev = { gblob: c.gblob, gexp: c.gexp };
-      c.gblob = String(gblob).slice(0, GBLOB_CAP); c.gexp = Date.now() + GREETER_TTL_MS;
-      if (!attFits(attOf(c), 'knock')) Object.assign(c, prev); // the Worker's saveAtt failed: the registration is not kept
+    if (admitted && gblob) { c.gblob = String(gblob).slice(0, GBLOB_CAP); c.gexp = Date.now() + GREETER_TTL_MS; }
+    if (!attFits(attOf(c), 'knock')) {
+      // Mirrors relay.js knock: the Worker's saveAtt failed, so nothing is
+      // kept, and the reply carries no `admitted` (the client's R3a arm reads
+      // admitted:false as a key mismatch and would requeue an honest greeter).
+      for (const k of Object.keys(prev)) { if (prev[k] === undefined) delete c[k]; else c[k] = prev[k]; }
+      c.send(JSON.stringify({ t: 'greeters', list: greeterList(c), founded: false, error: 'registration too large' }));
+      return;
     }
     const list = greeterList(c);
     if (GREETDEBUG) greetLog(sess, parts[1], c, { gk, gblob, have, founded, admitted, listLen: list.length });
@@ -669,7 +681,9 @@ server.on('upgrade', (req, socket, head) => {
       if (process.env.RELAY_DEBUG) msgRate.delete(peer);
       toGreeters(JSON.stringify({ t: 'peer-leave', peer })); // the doors' full lists stay exact; nobody else routes on it
       tallyVotes();
-      if (isGreeter(conn)) doorsChanged(null); // a door closed: every non-greeter's door list changes; the greeters heard the leave
+      // The blob, not its live TTL (mirrors relay.js cleanup): a lapse sends
+      // no door list, so the non-greeters' last list may still name it.
+      if (conn.gblob) doorsChanged(null); // a door closed: every non-greeter's door list changes; the greeters heard the leave
       // The registry is occupancy. The Worker forgets a room whose last seat left.
       if (sess.clients.size === 0) sessions.delete(parts[1]);
     };

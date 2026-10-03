@@ -598,8 +598,10 @@ export class Session {
     if (!saveAtt(ws, a)) {
       // Nothing was written. Do not index the copy in hand, and do not tell
       // the client the registration landed. Both would publish a door the
-      // attachment does not hold.
-      this.send(ws, { t: 'greeters', list: this.greeterList(ws), founded: false, admitted: false, error: 'registration too large' });
+      // attachment does not hold. No `admitted` either: the client's R3a arm
+      // reads admitted:false as a genesis-key mismatch and requeues after
+      // three, so a full attachment must give no key verdict at all.
+      this.send(ws, { t: 'greeters', list: this.greeterList(ws), founded: false, error: 'registration too large' });
       return;
     }
     this.ixAdd(ws, a); // a blob or a founder's mint puts this socket in the door set
@@ -1084,7 +1086,9 @@ export class Session {
     if (cur && cur !== ws && this.open(cur)) return;
     if (a.role === 'mesh' && (!opts || opts.leave !== false)) this.toGreeters({ t: 'peer-leave', peer: a.peer }); // the doors' full lists stay exact; nobody else routes on it
     if (a.role === 'mesh' && (!opts || opts.tally !== false)) this.tallyVotes();
-    if (this.isGreeter(a)) this.doorsChanged(null); // a door closed: every non-greeter's door list changes; the greeters heard the leave
+    // The blob, not its live TTL: a lapse sends no door list, so the
+    // non-greeters' last list still names a lapsed greeter until this close.
+    if (a.gblob) this.doorsChanged(null); // a door closed: every non-greeter's door list changes; the greeters heard the leave
   }
 }
 

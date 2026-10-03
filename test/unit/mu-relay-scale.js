@@ -8,8 +8,21 @@
 //   3. a door roster built after GREETER_TTL does not name the lapsed blob,
 //      and the claim grace still holds the room;
 //   4. an address already at the socket cap is recounted once, not on every
-//      retry, and a stale high count still loses to a real free slot.
+//      retry, and a stale high count still loses to a real free slot;
+//   5. a lapsed greeter's close still re-sends the door list (its blob, not
+//      its live TTL, is what put it on the non-greeters' lists);
+//   6. test/servers/relay-local.js applies the same rules: a lapsed blob is
+//      off the door roster, its close re-sends the door list, strikes reset
+//      on a full frame bucket, and an overflow reply carries no `admitted`.
 import { makeRoom, fakeClock } from '../lib/relay-worker.js';
+import { spawn } from 'child_process';
+import fs from 'fs';
+import net from 'net';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let fails = 0;
 const check = (name, cond, extra) => {
@@ -38,7 +51,10 @@ const q = (peer, more) => Object.assign({ role: 'mesh', token: 'T', peer, dev: p
     check('adding the blob crosses 2 KB', preview.length > 2048, preview.length);
     await room.session.knock(j.server, 'KEY', 'B'.repeat(1024));
     const bad = j.server.of('greeters').at(-1);
-    check('overflow answers admitted:false', bad && bad.admitted === false && bad.founded === false && bad.error === 'registration too large', bad);
+    // The client's R3a arm counts admitted:false as a genesis-key mismatch and
+    // requeues after three; an honest greeter with a full attachment must not
+    // be read as sealed out, so the overflow reply gives no verdict.
+    check('overflow answers with no admitted verdict', bad && !('admitted' in bad) && bad.founded === false && bad.error === 'registration too large', bad);
     check('the blob was not stored', !room.session.att(j.server).gblob);
     check('the socket is not a greeter', room.session.isGreeter(room.session.att(j.server)) === false);
     check('the socket stays open', !j.server.closed);
@@ -100,6 +116,12 @@ const q = (peer, more) => Object.assign({ role: 'mesh', token: 'T', peer, dev: p
       check('the sealed list omits the lapsed blob', gg && gg.list.length === 0, gg && gg.list);
       check('the claim grace still holds the room', gg && gg.founded === false && gg.admitted === true, gg);
       check('the lapsed socket is still open', !g.server.closed);
+
+      // ---- 5. the lapsed greeter closes: N's door list still names it -------
+      const before = n.server.of('roster').filter((m) => m.scope === 'door').length;
+      room.clientClose(g.server);
+      const doors = n.server.of('roster').filter((m) => m.scope === 'door');
+      check('a lapsed greeter closing re-sends the door list', doors.length === before + 1 && doors.at(-1).peers.indexOf('G') < 0, doors.map((m) => m.peers));
     } finally { clock.restore(); }
   }
 
@@ -135,6 +157,46 @@ const q = (peer, more) => Object.assign({ role: 'mesh', token: 'T', peer, dev: p
       const back = await room2.connect('cap2', q('BACK'), ip);
       check('a stale cap is recounted and the free slot is taken', back.server && back.server.of('joined').length === 1 && !back.server.closed, back.server && back.server.closed);
     } finally { clock.restore(); }
+  }
+
+  // ---- 6. relay-local.js mirrors the Worker -------------------------------
+  {
+    const src = fs.readFileSync(path.join(ROOT, 'test/servers/relay-local.js'), 'utf8');
+    check('relay-local resets strikes when the frame bucket is full', /if \(meter\.frames >= FRAME_BURST\) meter\.strikes = 0;/.test(src));
+    const over = (src.match(/if \(!attFits\(attOf\(c\), 'knock'\)\)[\s\S]*?\n {4}\}/) || [''])[0];
+    const reply = (over.match(/c\.send\([^\n]*\);/) || [''])[0];
+    check('relay-local answers an overflow with an error and no admitted', /error: 'registration too large'/.test(reply) && !/admitted/.test(reply) && /return;/.test(over), over);
+
+    const port = await new Promise((res) => { const sv = net.createServer(); sv.listen(0, '127.0.0.1', () => { const p = sv.address().port; sv.close(() => res(p)); }); });
+    const env = Object.assign({}, process.env, { RELAY_PORT: String(port), RELAY_HOST: '127.0.0.1',
+      RELAY_GREETER_TTL_MS: '600', RELAY_CLAIM_GRACE_MS: '60000', RELAY_MINT_GRACE_MS: '60000' });
+    delete env.RELAY_DEBUG;
+    const relay = spawn(process.execPath, [path.join(ROOT, 'test/servers/relay-local.js')], { env, stdio: ['ignore', 'ignore', 'ignore'] });
+    const open = (peer) => {
+      const ws = new WebSocket('ws://127.0.0.1:' + port + '/s/lapse?role=mesh&token=T&peer=' + peer + '&dev=' + peer + 'd&gk=KEY');
+      ws.msgs = [];
+      ws.addEventListener('message', (e) => { try { ws.msgs.push(JSON.parse(e.data)); } catch (_) {} });
+      ws.ready = new Promise((res, rej) => { ws.addEventListener('open', () => res()); ws.addEventListener('error', rej); });
+      ws.doors = () => ws.msgs.filter((m) => m.t === 'roster' && m.scope === 'door');
+      return ws;
+    };
+    try {
+      let g = null;
+      for (let i = 0; i < 40 && !g; i++) { await sleep(50); const w = open('G'); try { await w.ready; g = w; } catch (_) {} }
+      check('relay-local listens', !!g);
+      if (g) {
+        g.send(JSON.stringify({ t: 'knock', gk: 'KEY', gblob: 'SEALED(g)' })); await sleep(150);
+        const n = open('N'); await n.ready; await sleep(150);
+        check('relay-local: a live greeter is on the door roster', n.doors().length && n.doors().at(-1).peers.indexOf('G') >= 0, n.doors());
+        await sleep(700);
+        const n2 = open('N2'); await n2.ready; await sleep(150);
+        check('relay-local: after the TTL the door roster omits the lapsed greeter', n2.doors().length && n2.doors().at(-1).peers.indexOf('G') < 0, n2.doors());
+        const before = n.doors().length;
+        g.close(); await sleep(250);
+        check('relay-local: a lapsed greeter closing re-sends the door list', n.doors().length === before + 1 && n.doors().at(-1).peers.indexOf('G') < 0, n.doors());
+        n.close(); n2.close();
+      }
+    } finally { relay.kill('SIGKILL'); }
   }
 
   console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILED');
