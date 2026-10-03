@@ -96,6 +96,10 @@ async function dragOnto(page, srcName, dstName) {
 
   const b = await chromium.launch({ executablePath: CHROME });
   const ctx = await b.newContext({ viewport: { width: 1200, height: 850 } });
+  // The Home Screen seeds its default store apps a few seconds after it
+  // paints (the Whisper captions provider into the Providers folder). That
+  // can land mid-test and move what this suite measures, so it is marked done.
+  await ctx.addInitScript({ content: "try{localStorage.setItem('gifos_store_default_offline-stt-whisper','done')}catch(e){}" });
   const p = await ctx.newPage();
   p.on('pageerror', (e) => console.log('  [pageerror]', e.message));
   await p.goto(BASE + '/index.html');
