@@ -60,7 +60,10 @@ Verification of the combined tree, as of 13:45 UTC:
 | the <behavior-box> | e2e-meet-mod, e2e-meeting-app | green (57, 17) |
 | the <gate-host> | e2e-status-plane | 3 red on the first combined run: the quiet-room layout count (fixed in `1b22e23d`), and the two 30-line history legs, which sent their 30 lines in a burst and so tripped the live per-author limiter (20 per 10 s, by design) before the replay was measured — the leg now paces them. Re-run pending. |
 
-Still queued when this was written: e2e-vote-stage, e2e-stage-cap-race, e2e-stage-holdover, e2e-mosaic, the vanish drill on the <gate-host>; the whole mesh tier on the <orchestrator>.
+| the <gate-host> | e2e-vote-stage, e2e-stage-cap-race (new), e2e-stage-holdover (new), e2e-mosaic, e2e-meeting-app, e2e-meet-mod | green (10, 7, 6, 20, 17, 57) |
+| the <gate-host> | drills/e2e-vanish-browser | green (11): a graceful leave is gone from every survivor in **0.0 s** (baseline 6.1 s, the one product red of the baseline gate); a crashed browser's seat is freed first-hand in 6.6 s (baseline 6.6 s). The 21.8 s seen on the <llm-box> was that box carrying five browsers on four cores. |
+
+Still running when this was written: the status-plane and video reruns on the stream-claim fix, and the whole mesh tier on the <orchestrator>.
 
 ## Still in flight when this was written
 
