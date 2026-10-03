@@ -86,7 +86,21 @@
     s.delete(pipeId);
     if (!s.size) { taps.delete(srcId); tapTs.delete(srcId); skrLast.delete(srcId); }
   }
-  const WORKER_SRC = codecMismatch.toString() + '\n' + releaseTap.toString() + '\n' + `
+  // The worker cannot see the page's functions, so it carries its own copy of
+  // the two helpers above, as plain source inside the literal (worker-source-
+  // parses.js parses that literal; a concatenated string would hide it).
+  // mu-mesh-wire-pipe.js asserts the two copies are the same code.
+  const WORKER_SRC = `
+function codecMismatch(mime, tmplMime, tmplN, seen) {
+  if (mime && tmplMime) return mime !== tmplMime;
+  return (tmplN | 0) >= 8 && (seen | 0) > 0;
+}
+function releaseTap(taps, tapTs, skrLast, srcId, pipeId) {
+  const s = taps.get(srcId);
+  if (!s) return;
+  s.delete(pipeId);
+  if (!s.size) { taps.delete(srcId); tapTs.delete(srcId); skrLast.delete(srcId); }
+}
 const taps = new Map();   // srcId -> Set(pipeId)
 const tapTs = new Map();  // srcId -> the tap's transformer (the SKR handle)
 const skrLast = new Map();// srcId -> last sendKeyFrameRequest ms (rate limit)

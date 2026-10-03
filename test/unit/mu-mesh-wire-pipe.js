@@ -197,6 +197,17 @@ let done = Promise.resolve();
 
   const src = MP._workerSrc();
   check('the worker source parses', (() => { new Function(src); return true; })());
+  {
+    // The worker carries its own copy of both helpers (a Worker cannot see the
+    // page). The copies must be the same code, or the tests above prove nothing
+    // about the worker.
+    const srcText = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'site', 'js', 'mesh-pipe.js'), 'utf8');
+    const lit = (srcText.match(/const WORKER_SRC = `([\s\S]*?)`;/) || [])[1] || '';
+    const norm = (x) => String(x).replace(/\s+/g, ' ').trim();
+    const inWorker = (fn) => norm(lit).indexOf(norm(fn.toString())) >= 0;
+    check('the worker literal carries the same codecMismatch as the page', inWorker(MP.codecMismatch));
+    check('the worker literal carries the same releaseTap as the page', inWorker(MP.releaseTap));
+  }
   check('the worker source calls releaseTap and codecMismatch',
     src.indexOf('function releaseTap') >= 0 && src.indexOf('function codecMismatch') >= 0
     && src.indexOf('releaseTap(taps, tapTs, skrLast') >= 0
