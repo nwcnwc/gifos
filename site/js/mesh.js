@@ -261,6 +261,11 @@
 
   // A Section-1 key has pc==0 — its string ckey starts "0_".
   const isS1key = (k) => k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95;
+  // A roster is what a seat re-seats AGAINST (HOME in the dance, DRAIN's
+  // fan-down): a non-empty list of {k: cell key, v: peer id}. It arrives off
+  // the wire, so its shape is checked before it is stored — a roster-less or
+  // junk DRAIN used to leave tick() throwing on `roster.length` every tick.
+  const rosterOk = (r) => Array.isArray(r) && r.length > 0 && r.every((e) => e && typeof e.k === 'string' && (typeof e.v === 'string' || typeof e.v === 'number'));
   // ownerCoordOf(c): the coord that owns cell c (its head's up), or null for Section 1.
   const ownerCoordOf = (c) => (c.pc === 0 ? null : topo.up({ pc: c.pc, r: c.r, i: 0 }));
   // A tiny non-crypto key hash for the modelled relay / genesis identity. In
@@ -1550,7 +1555,7 @@
       // mesh route → drop the dead roster and re-enter the front door. Below
       // the drain branch it was unreachable for a seat holding a STALE roster.
       if (TICK - this.lastAck > 220) { this.haveRoster = false; this.roster = []; this.drainAt = 0; this.requeue(); return; }
-      if (this.haveRoster && this.roster.length) { if (!this.drainAt) { const rc = this.rosterCells(); for (let c = 0; c < C(); c++) { const x = this.occGet(ck(rc[c])); if (x != null && x !== this.id) this.emit(x, { t: 'DRAIN', roster: this.roster }); } this.drainAt = TICK + 25 + (this.rng() * 10 | 0); } return; }
+      if (this.haveRoster && this.roster.length) { if (!this.drainAt) { const rc = this.rosterCells(); for (let c = 0; c < C(); c++) { const x = this.occGet(ck(rc[c])); if (x != null && x !== this.id) this.emit(x, { t: 'DRAIN', roster: this.roster, id: this.id }); } this.drainAt = TICK + 25 + (this.rng() * 10 | 0); } return; } // `id`: a DRAIN is signed and honoured only from the receiver's anchor
       if (TICK - this.rosterAskAt > 40) {
         this.rosterAskAt = TICK; const x = topo.crossLink(this.coord); let xid = x ? this.occGet(ck(x)) : null;
         if (xid != null && xid !== this.id) { this.emit(xid, { t: 'WHOHOME', from: this.id, via: this.id, ttl: 60 }); }
@@ -2366,9 +2371,15 @@
             this.maybeResolveFork();
             return;
           }
+          // A SEATED seat hears HOME only as the answer to a WHOHOME it sent
+          // (drainOrReenter, E1 — re-asked every 40 ticks while it needs one).
+          // Unsolicited, the frame is unsigned and names no sender, and it
+          // used to re-key the seat (a greeter presenting a wrong genesis key
+          // is sealed out of its own door, R3a) and replace its roster.
+          if (this.state === 3 && TICK - this.rosterAskAt > 120) return;
           if (m.gkey != null) this.genKey = m.gkey; // learn this meeting's genesis key (the dance)
-          if (this.state === 1) { if (!m.roster || !m.roster.length) { this.retryAt = TICK - 10; return; } this.roster = m.roster; this.haveRoster = true; this.lastReach = TICK; this.seatTries = 0; this.resumeTries = 0; const t = this.pickRoster(); if (t != null) this.askSeat(t); else this.retryAt = TICK - 10; } // reached a greeter: note it for R6; a landed HOME re-arms the resume budget
-          else if (this.state === 3 && m.roster && m.roster.length) { this.roster = m.roster; this.haveRoster = true; }
+          if (this.state === 1) { if (!rosterOk(m.roster)) { this.retryAt = TICK - 10; return; } this.roster = m.roster; this.haveRoster = true; this.lastReach = TICK; this.seatTries = 0; this.resumeTries = 0; const t = this.pickRoster(); if (t != null) this.askSeat(t); else this.retryAt = TICK - 10; } // reached a greeter: note it for R6; a landed HOME re-arms the resume budget
+          else if (this.state === 3 && rosterOk(m.roster)) { this.roster = m.roster; this.haveRoster = true; }
           return;
         }
         case 'FIND': if (m.tag === 1) this.serveCompact(m); else { this.findNc = m.nc; try { this.serveFind(m); } finally { this.findNc = null; } } return; // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission. Untagged: the seeker is at the door for the whole scan (knock-is-evidence phantom scope — 03c)
@@ -2529,8 +2540,16 @@
           return;
         }
         case 'DRAIN': {
+          // E1: a DRAIN dissolves my whole subtree, so it is honoured from ONE
+          // author — my ANCHOR (the occupant of my owner cell), the only seat
+          // the law lets fan it down. The frame is S4-signed and `id` is bound
+          // to the signer (verifyFill), so a row-mate or a sponsor-forwarded
+          // stranger cannot wear the anchor's name.
+          if (!this.verifyFill(m)) return;
           if (!this.hasCoord || this.state !== 3 || this.coord.pc === 0 || this.drainAt) return;
-          this.roster = m.roster; this.haveRoster = true; const rc = this.rosterCells(); for (let c = 0; c < C(); c++) { const x = this.occGet(ck(rc[c])); if (x != null && x !== this.id) this.emit(x, { t: 'DRAIN', roster: m.roster }); } this.drainAt = TICK + 6 + (this.rng() * 12 | 0); this.wake(); return;
+          const oc = this.ownerCoord(); if (!oc || m.id == null || this.occGet(ck(oc)) !== m.id) return;
+          if (!rosterOk(m.roster)) return;
+          this.roster = m.roster; this.haveRoster = true; const rc = this.rosterCells(); for (let c = 0; c < C(); c++) { const x = this.occGet(ck(rc[c])); if (x != null && x !== this.id) this.emit(x, { t: 'DRAIN', roster: m.roster, id: this.id }); } this.drainAt = TICK + 6 + (this.rng() * 12 | 0); this.wake(); return;
         }
         case 'CHALLENGE': if (this.evil) { this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return; } if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return;
         case 'CONFIRM': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck && m.id !== this.id && m.id < this.id) { if (this.moving) this.rollbackMove(); else this.requeue(); } return;

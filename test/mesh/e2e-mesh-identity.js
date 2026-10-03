@@ -206,6 +206,34 @@ async function waitConverged(nodes, N, ms) {
     check('4: a seated node does not blame its own clock for a skewed neighbour', skewSeated.length === 0, { skewSeated });
   }
 
+  // ---------- Property 5: a frame that VACATES a seat is gated at the wire ----------
+  // DRAIN (healing-laws E1) dissolves a whole subtree. It is in the wire's
+  // SIGNED set and mesh.js honours it only from the receiver's anchor, so over
+  // the PRODUCTION ingest path (recvCtl -> ingest -> verifyFill -> seat.recv):
+  //   - an unsigned DRAIN never reaches the seat at all;
+  //   - a DRAIN signed by a member that is not the anchor reaches the seat
+  //     with s4ok and is refused (here the seat is Section 1, which never
+  //     drains; the anchor rule itself is pinned in test/mesh/recv-authority.js);
+  //   - an unsolicited HOME does not re-key a seated greeter (R3a: a greeter
+  //     presenting a wrong genesis key is sealed out of its own door).
+  {
+    const W2 = nodes[1]; const seat = W2.seat;
+    const recv0 = seat.recv.bind(seat); let drainsIn = 0, lastDrain = null;
+    seat.recv = (m) => { if (m && m.t === 'DRAIN') { drainsIn++; lastDrain = m; } return recv0(m); };
+    const roster = [{ k: '0_0_0', v: 'k_' + '0'.repeat(40) }];
+    const coord0 = seat.hasCoord ? net.topo.ckey(seat.coord) : null; const gk0 = seat.genKey;
+    W2.recvCtl({ t: 'DRAIN', roster, id: W2.peer });            // unsigned, wearing the seat's own id
+    await sleep(300);
+    check('5: unsigned DRAIN over the production ingest never reaches the seat', drainsIn === 0 && seat.state === 3 && net.topo.ckey(seat.coord) === coord0, { drainsIn });
+    const E2 = await ident.mint();                                 // a real member key, not the anchor
+    const d = { t: 'DRAIN', roster, id: E2.peerId }; d.s4 = await ident.signFill(E2, d);
+    W2.recvCtl(d);
+    W2.recvCtl({ t: 'HOME', gkey: 'x_bogus_key', roster, id: E2.peerId });
+    await sleep(300);
+    check('5: a DRAIN signed by a non-anchor member is delivered verified (s4ok) and refused — seat kept, no drain armed', drainsIn === 1 && lastDrain.s4ok === true && seat.state === 3 && net.topo.ckey(seat.coord) === coord0 && !seat.drainAt, { drainsIn, drainAt: seat.drainAt });
+    check('5: an unsolicited HOME does not re-key a seated greeter', seat.genKey === gk0 && seat.genKey !== 'x_bogus_key');
+  }
+
   for (const n of nodes) n.stop();
   relay.kill();
   await sleep(200);
