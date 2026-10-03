@@ -89,6 +89,15 @@ Areas merged: relay security and scale, the local relay's parity, stadium media,
 
 **Follow-ups fixed in the same pass:** the worker source the guard could no longer parse (`worker-source-parses.js` was red), dialogs dismissable into a stranded page (the locked-room prompt, the name prompt, the left and closed screens), a one-row stadium padded to four dark rows, the room-wide scribe advert in a one-section room, a far scribe silencing your own speech, CC staying lit after the speech engine gave up, a former admin blocking the auto-close, status lines cut off on phones, the wake lock retaken after Leave, unpaced password copies over the relay, the hand queue's repeated "(stage full)", a late first camera grant thrown away, the deep-seat recording's black stager tile, the audio-only stage copy relayed up and across, the stage memo map that only grew, recordings left in browser storage, the relay's overflow reply that made an honest greeter requeue, and the local relay's parity with the Worker.
 
+**A regression on `meet-universe-2026-10-03` itself, not from the merge.** Bisected on the gate host (idle x86, 8 cores) across seven commits: everything up to `b6178215` is green, and `e5cdce8a` ("bound occupancy frames") and every commit after it fail two mesh-tier guards that pass on the original baseline:
+
+| guard | before `e5cdce8a` | at `e5cdce8a` and the merged tip |
+|---|---|---|
+| `test/mesh/e2e-vanish.js` graceful close | the seat is freed at once | freed in 57 ticks (about 28 s) |
+| `test/mesh/flood-burst.js` 1000 joiners at once | all seated, no duplicates, 18-42 s | deadlock: 986-987 of 1000 seated, 28-29 duplicate seats |
+
+The cause in the code: `e5cdce8a` adds LEAVE, MOVED, CONFIRM, YIELD, PHONE and PONG to the wire's signed set. Signing is asynchronous, and Leave stops the node in the same tick, so the signed farewell never leaves and the survivors fall back to the silence horizon. Signing and verifying every heartbeat also slows the burst until seating deadlocks and duplicate seats appear. Two directions keep the security gain: a LEAVE signed in advance (re-signed on a seat move and before the signature window lapses) so Leave can send it synchronously; and PHONE/PONG accepted only from the transport-stamped direct link of that peer instead of a signature per beat. This is the other agent's area on its own branch, so it was not changed here.
+
 **Decisions for Nathan (merged as the other agent wrote them, not changed):**
 - **Remembered blur level.** Your last blur choice now carries into the next meeting. `docs/meeting.md` says everyone joins Max-blurred; the room's consent rule still gates clear video.
 - **Blur hold after a big room's fold goes missing.** It dropped from about 300 s to about 120 s. It is a privacy hold, so it is your call.
