@@ -205,9 +205,15 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   // already holding. A seat that holds the feed must paint the FEED, and the
   // painted element's ASPECT is the proof: the strip is square by
   // construction, the share is the shape of the shared display.
+  // The strip is this seat's own canvas, so it paints first; stageDirect
+  // switches on the next sweep, once the held feed has decoded a frame ("no
+  // pixels yet — the strip stands"). So wait for the share's shape, within
+  // the same 25 s budget, and judge what is painted then. Reading the first
+  // frame measured the race, not the rule: 720x720, then 1280x720 1.5 s
+  // later and for every read after it (probe, 3 Oct 2026).
   await b.waitForFunction(() => {
     const p = window.__gifosVideo.screenInfo().stagePaint;
-    return p && p.w > 0 && p.h > 0;
+    return p && p.w > 0 && p.h > 0 && p.w !== p.h;
   }, null, { timeout: 25000 }).catch(() => {});
   const paint = (await info(b)).stagePaint;
   check('the viewer paints the share itself, not a square strip cell of it',
