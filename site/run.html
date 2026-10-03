@@ -19,7 +19,7 @@
 <meta http-equiv="Content-Security-Policy" content="frame-src about:">
 <meta name="referrer" content="same-origin">
 <meta name="robots" content="noindex">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0a0a0f">
 <!-- First paint is dark GROUND, immediately: the real theme gate lives ~400
@@ -4706,9 +4706,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     // Sealed frame over this pair's DataChannel (chat, files, relay control).
     const dcSend = (p, msg) => {
-      if (!p || !p.dc || p.dc.readyState !== 'open') return;
+      if (!p || !p.dc || p.dc.readyState !== 'open') return Promise.resolve();
       const dc = p.dc;
-      txm(() => net.seal(roomE2E, msg).then((env) =>
+      return txm(() => net.seal(roomE2E, msg).then((env) =>
+        net.sendChunked(env, (piece, str) => { try { dc.send(str); } catch (e) {} })));
+    };
+    // File bodies ride their own chain and one chunk at a time. The shared
+    // seal chain used to take every chunk in one synchronous loop, before
+    // bufferedAmount moved, so the backpressure check never fired and a chat
+    // line queued behind the whole pin.
+    const fileTx = net.makeChain();
+    const dcSendFile = (p, msg) => {
+      if (!p || !p.dc || p.dc.readyState !== 'open') return Promise.resolve();
+      const dc = p.dc;
+      return fileTx(() => net.seal(roomE2E, msg).then((env) =>
         net.sendChunked(env, (piece, str) => { try { dc.send(str); } catch (e) {} })));
     };
     // Room-wide fan-out. DataChannel pairs hear it directly (viaDc — free and
@@ -5377,6 +5388,42 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // run by the sweeper: occupancy gossip settling can change who my
     // neighbours are, and the link set must follow without waiting for the
     // next roster.
+    // The one neighbour that may send the channel-less hi. ids is the
+    // target's link set (or null when this seat cannot see it). Unknown
+    // means send: dropping the only copy is worse than a duplicate union-merge.
+    function lateHiSender(selfId, ids) {
+      if (!selfId || !ids || !ids.length) return true;
+      let low = selfId, mine = false;
+      for (const id of ids) {
+        if (id === selfId) mine = true;
+        if (String(id) < String(low)) low = id;
+      }
+      if (!mine) return true;
+      return low === selfId;
+    }
+    // The target's neighbours, by the same arithmetic as mesh seat linkPeers:
+    // owned links, plus the parent of the target's head cell.
+    function targetLinkIds(pid) {
+      const s = meshSeat();
+      if (!s || !s.hasCoord || !s.occ || !net.topo) return null;
+      let coord = null;
+      for (const [k, v] of s.occ) if (v === pid) { coord = net.topo.unck(k); break; }
+      if (!coord) return null;
+      const ids = [], seen = new Set();
+      const add = (x) => { if (x != null && x !== pid && !seen.has(x)) { seen.add(x); ids.push(x); } };
+      for (const olc of net.topo.ownedLinks(coord)) add(s.occ.get(net.topo.ckey(olc)));
+      const u = net.topo.up({ pc: coord.pc, r: coord.r, i: 0 });
+      if (u) add(s.occ.get(net.topo.ckey(u)));
+      return ids;
+    }
+    function deliverLateHi(pid, hi) {
+      const relayDown = !relayUp();
+      const notOnRelay = relayRosterScope === 'full' ? !relaySocketed.has(pid) : relayNoSockRecently(pid);
+      const sendRelay = () => { txm(() => net.seal(roomE2E, hi).then((env) => net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece })))); };
+      if (!relayDown && !notOnRelay) { sendRelay(); return; }
+      if (sponsorSend({ k: 'fhi', from: myId, to: pid, tc: coordKeyOf(pid), id: myId + ':hi:' + (++fwdSeq), ttl: 12, m: hi })) return;
+      if (!relayDown) sendRelay();
+    }
     function ensureLink(pid, name) {
       if (!linkTo(pid)) return; // the sweeper retires unwanted links, with grace
       let p = peers.get(pid);
@@ -5400,15 +5447,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Newcomers can't trust gossip for moderation in admin rooms — an
         // admin hands them the table over the relay's stamped path.
         if (amAdmin) sendSig(pid, { kind: 'mod', mod: modTable, modw: gossipModW() });
-        // A newcomer still channel-less after a grace gets the union-merge
-        // 'hi' over the RELAY (sealed) — chat and history converge even for
-        // a fully P2P-blocked participant. Smaller slices: relay budget.
+        // A newcomer still channel-less after a grace gets ONE hi. The open
+        // channel (wireDc) is the primary path. This timer is only the case
+        // where the channel never opens, and it waits long enough that a slow
+        // ICE connect does not also pay the relay. The lowest id among the
+        // target's neighbours sends it. sendSig is the wrong door: a socketless
+        // target is wrapped as fsig, and that handler drops a frame whose inner
+        // has no signaling kind, so the history was thrown away. deliverLateHi
+        // uses the relay when the target is socketed, and fhi (same hops as
+        // fsig) when not. Smaller slices: relay budget.
         const late = p;
         late.hiLate = setTimeout(() => {
-          if (peers.get(pid) === late && !(late.dc && late.dc.readyState === 'open')) {
-            sendSig(pid, { k: 'hi', chats: Array.from(chat.values()).slice(-200), trs: Array.from(trs.values()).slice(-100), metas: fileMetas(), tombs: tombObj() });
-          }
-        }, 8000);
+          if (peers.get(pid) !== late || (late.dc && late.dc.readyState === 'open')) return;
+          if (!lateHiSender(myId, targetLinkIds(pid))) return;
+          deliverLateHi(pid, { k: 'hi', chats: Array.from(chat.values()).slice(-200), trs: Array.from(trs.values()).slice(-100), metas: fileMetas(), tombs: tombObj(), ctombs: ctombsObj() });
+        }, 20000);
       }
       p.absentSince = 0;
       if (name && p.name !== name) { p.name = name; p.label.textContent = name; }
@@ -7295,11 +7348,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } else {
         // Clearing the password opens the room — warn that it also deletes any
         // shared files, then purge them for everyone.
-        if (!v && roomPw && files.size > 0) {
-          const n = files.size;
-          if (!confirm('Clearing the password opens this room to anyone — and DELETES the ' + n + ' file' + (n > 1 ? 's' : '') + ' shared here, for everyone. Continue?')) return;
-          purgeAllFiles(true);
-        }
         // A ROOM I CANNOT RE-KEY MUST NOT RE-KEY *ME* (2026-07-29). In an
         // admin room the relay refuses a non-admin's setpw — correctly — but
         // this handler used to store the new password and rotate the local
@@ -7314,6 +7362,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           setStatus(PW_ADMIN_ONLY); // the same sentence the door's refusal shows — one message for one rule
           pwModal.style.display = 'none';
           return;
+        }
+        // Clearing the password opens the room. The purge stays BELOW the
+        // admin refusal: a guest's rejected setpw used to tombstone every pin
+        // for the room and then learn the relay would not take the order.
+        if (!v && roomPw && files.size > 0) {
+          const n = files.size;
+          if (!confirm('Clearing the password opens this room to anyone — and DELETES the ' + n + ' file' + (n > 1 ? 's' : '') + ' shared here, for everyone. Continue?')) return;
+          purgeAllFiles(true);
         }
         storePw(v);
         net.meetPwProof(room, av, roomPw).then(async (pr) => {
@@ -8260,6 +8316,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return true;
     }
     const MAX_FILE = 25 * 1024 * 1024;
+    const FILE_PART = 32768;
     let unread = 0;
 
     const chatPanel = document.getElementById('chatpanel');
@@ -8267,6 +8324,52 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const fmtSize = (n) => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n > 1024 ? (n / 1024 | 0) + ' KB' : n + ' B';
     const b64ofPart = (part) => { let s = ''; for (let i = 0; i < part.length; i += 8192) s += String.fromCharCode.apply(null, part.subarray(i, i + 8192)); return btoa(s); };
     const partOfB64 = (b) => { const s = atob(b); const out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; };
+    // A chunk is addressed by the FILE's size, never by the peer's seq or
+    // total. A sparse seq used to become a holey array, and finishing the
+    // transfer walked every hole on the main thread.
+    function takeFc(f, m) {
+      if (!f || f.bytes || !m || tombs.has(f.id)) return 'drop';
+      const size = f.size | 0;
+      if (size < 0 || size > MAX_FILE) return 'drop';
+      const expect = Math.max(1, Math.ceil(size / FILE_PART));
+      const seq = m.seq | 0;
+      const total = m.total | 0;
+      if (total !== expect || seq < 0 || seq >= expect) return 'drop';
+      if (typeof m.b !== 'string' || m.b.length > (Math.ceil(FILE_PART / 3) * 4 + 8)) return 'drop';
+      let part;
+      try { part = partOfB64(m.b); } catch (e) { return 'drop'; }
+      if (part.length > FILE_PART) return 'drop';
+      const off = seq * FILE_PART;
+      const last = seq === expect - 1;
+      if (off + part.length !== (last ? size : off + FILE_PART)) return 'drop';
+      if (!f.buf) { f.buf = new Uint8Array(size); f.got = 0; f.have = new Uint8Array(expect); }
+      if (f.have[seq]) return 'dup';
+      f.buf.set(part, off);
+      f.have[seq] = 1;
+      f.got++;
+      if (f.got < expect) return 'part';
+      f.bytes = f.buf; f.buf = null; f.have = null; f.parts = null;
+      return 'done';
+    }
+    function fdelAllowed(adminRoom, hasGoodSig, ownerId, fromId) {
+      if (!adminRoom) return true;
+      if (hasGoodSig) return true;
+      return !!(ownerId && fromId && ownerId === fromId);
+    }
+    function fdelList(m) {
+      if (!m) return [];
+      const cap = 500;
+      if (Array.isArray(m.ids)) {
+        const out = [];
+        for (const id of m.ids) {
+          if (out.length >= cap) break;
+          if (typeof id === 'string' && id && id.length < 80) out.push(id);
+        }
+        return out;
+      }
+      if (typeof m.id === 'string' && m.id && m.id.length < 80) return [m.id];
+      return [];
+    }
 
     // Chat-class fan-out: P0 the pair's DataChannel, P2 a sealed envelope over
     // the relay's peer routing for anyone we have no channel to — so chat,
@@ -8290,14 +8393,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       onDc(p || { id: from, dc: null }, null, m);
     }
     function fileMetas() {
-      return Array.from(files.values()).map((f) => ({ id: f.id, name: f.name, size: f.size, mime: f.mime, by: f.by, at: f.at }));
+      return Array.from(files.values()).map((f) => ({ id: f.id, name: f.name, size: f.size, mime: f.mime, by: f.by, byId: f.byId, at: f.at }));
     }
     function tombObj() { const o = {}; for (const [k, v] of tombs) o[k] = v; return o; }
+    function ctombsObj() { const o = {}; for (const [id, w] of chatTombs) o[id] = w; return o; }
 
     function wireDc(p, dc) {
       p.dc = dc;
       dc.onopen = () => {
-        dcSend(p, { k: 'hi', chats: Array.from(chat.values()).slice(-500), trs: Array.from(trs.values()).slice(-300), metas: fileMetas(), tombs: tombObj(), ctombs: (() => { const o = {}; for (const [id, w] of chatTombs) o[id] = w; return o; })() });
+        clearTimeout(p.hiLate); p.hiLate = null;
+        dcSend(p, { k: 'hi', chats: Array.from(chat.values()).slice(-500), trs: Array.from(trs.values()).slice(-300), metas: fileMetas(), tombs: tombObj(), ctombs: ctombsObj() });
         // THE MOMENT A CHANNEL EXISTS is the moment the stage pulls can finally
         // travel. Everything below was silently impossible a millisecond ago:
         // sgaFan delivers only to peers whose DC is already OPEN, so a
@@ -8373,7 +8478,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         (m.trs || []).forEach((l) => { if (takeTr(l, true)) freshTrs.push(l); });
         if (freshTrs.length) renderTranscript();
         if ((freshChats.length || freshTrs.length) && chatRateOk('hi:' + p.id, 1)) {
-          for (const pid of gossipIds()) { const q = peers.get(pid); if (q && q !== p && q.dc && q.dc.readyState === 'open') dcSend(q, { k: 'hi', chats: freshChats, trs: freshTrs }); }
+          for (const pid of gossipIds()) {
+            const q = peers.get(pid);
+            if (q && q.id === p.id) continue; // fhi applies on a stand-in; do not hand the frame back to its author
+            if (q && q !== p && q.dc && q.dc.readyState === 'open') dcSend(q, { k: 'hi', chats: freshChats, trs: freshTrs }); }
         }
         for (const id in m.tombs || {}) takeTomb(id, m.tombs[id]);
         // Chat tombstones re-prove themselves: each carries its own signed
@@ -8385,7 +8493,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           admVerify(w, 'cdel', Infinity).then((o) => { if (o && o.id === id && applyCdel(id, w)) renderChat(); });
         }
         (m.metas || []).forEach((meta) => takeMeta(meta, p));
-        renderChat(); renderFiles();
+        if (freshChats.length) renderChat();
+        renderFiles();
       } else if (m.k === 'chat') {
         if (takeChat(m.m)) {
           renderChat();
@@ -8428,22 +8537,42 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } else if (m.k === 'want') {
         const f = files.get(m.id);
         if (f && f.bytes) sendFileOver(p, m.id);
-        else if (f) (f.wanters = f.wanters || []).push(p); // send once our own copy lands
+        else if (f && p && p.id) {
+          f.wanters = f.wanters || [];
+          if (!f.wanters.some((w) => w && w.id === p.id)) f.wanters.push(p);
+        }
       } else if (m.k === 'fc') {
         const f = files.get(m.id);
-        if (!f || f.bytes || tombs.has(m.id)) return;
-        f.parts = f.parts || []; f.got = f.got || 0;
-        if (!f.parts[m.seq]) { f.parts[m.seq] = partOfB64(m.b); f.got++; }
-        if (f.got >= m.total) {
-          let len = 0; for (const c of f.parts) len += c ? c.length : 0;
-          const all = new Uint8Array(len); let off = 0;
-          for (const c of f.parts) if (c) { all.set(c, off); off += c.length; }
-          f.bytes = all; f.parts = null;
-          renderFiles();
-          for (const w of (f.wanters || []).splice(0)) sendFileOver(w, f.id);
-        }
+        if (!f || tombs.has(m.id)) return;
+        const r = takeFc(f, m);
+        if (r === 'part' || r === 'dup') armFileAsk(f);
+        if (r !== 'done') return;
+        stopFileAsks(f, p && p.id);
+        renderFiles();
+        for (const w of (f.wanters || []).splice(0)) sendFileOver(w, f.id);
+      } else if (m.k === 'fc-stop') {
+        if (m.id && p) (p.fcStop = p.fcStop || new Set()).add(m.id);
       } else if (m.k === 'fdel') {
-        if (takeTomb(m.id, { by: m.by, at: m.at })) renderFiles(); // one flood from its author — never re-broadcast (see chat)
+        // One flood from its author, never re-broadcast (see chat). An admin
+        // room takes the order from a signed fdel, or from the owner unpinning
+        // their own file (the frame author is the owner). A guest's unsigned
+        // fdel for someone else's pin does not land. ids is one frame for a
+        // whole purge; id is one pin.
+        const ids = fdelList(m);
+        if (!ids.length) return;
+        const apply = () => { let n = 0; for (const id of ids) if (takeTomb(id, { by: m.by, at: m.at })) n++; if (n) renderFiles(); };
+        if (!hasAdminRoom()) { apply(); return; }
+        if (m.w) {
+          admVerify(m.w, 'fdel', Infinity).then((o) => {
+            if (!o) return;
+            const signed = fdelList(o);
+            if (signed.length !== ids.length || signed.some((id, i) => id !== ids[i])) return;
+            apply();
+          });
+          return;
+        }
+        const from = p && p.id;
+        if (ids.every((id) => { const f = files.get(id); return fdelAllowed(true, false, f && f.byId, from); })) apply();
       } else if (m.k === 'tr') {
         if (takeTr(m.m)) {
           renderTranscript();
@@ -8488,6 +8617,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           return;
         }
         fwdOnward('fsig', m, p.id);
+      } else if (m.k === 'fhi') {
+        // Channel-less hi (deliverLateHi). Same hops as fsig. Only the named
+        // target applies the inner hi. A hop that is not the target passes it on.
+        if (!m.m || m.m.k !== 'hi') return;
+        if (m.to === myId) { onDc({ id: String(m.from || (p && p.id) || ''), dc: null }, null, m.m); return; }
+        fwdOnward('fhi', m, p && p.id);
       } else if (m.k === 'ck') {
         // Clock sync (the grid's metronome): answer with our clock immediately;
         // the asker derives offset + rtt NTP-style. Rides the free DC path.
@@ -8750,49 +8885,132 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // other participants too; receivers of a pw-cleared just purge locally.
     function purgeAllFiles(announce) {
       const ids = Array.from(files.keys());
-      for (const id of ids) {
-        const t = { by: myName(), at: Date.now() };
-        takeTomb(id, t);
-        if (announce) sendAll({ k: 'fdel', id, by: t.by, at: t.at });
-      }
+      const at = Date.now(), by = myName();
+      for (const id of ids) takeTomb(id, { by, at });
       renderFiles();
+      if (announce && ids.length) {
+        const msg = { k: 'fdel', ids: ids.slice(0, 500), by, at };
+        if (hasAdminRoom() && amAdmin) admSigned('fdel', { ids: msg.ids }).then((w) => { if (w) sendAll(Object.assign({ w: w }, msg)); });
+        else sendAll(msg);
+      }
       return ids.length;
     }
     function takeMeta(meta, p) {
       if (!meta || !meta.id || tombs.has(meta.id)) return false;
       const known = files.get(meta.id);
       if (known) {
-        // Already listed but still body-less: this (re-)gossiped source may
-        // have a working channel the first announcer didn't — ask them too.
-        // Duplicate serves are harmless (chunks dedupe by seq).
-        if (!known.bytes) dcSend(p, { k: 'want', id: meta.id });
+        if (!known.bytes) askFile(known, p);
         return false;
       }
-      if (meta.size > MAX_FILE) return false;
-      files.set(meta.id, { id: meta.id, name: String(meta.name || 'file').slice(0, 120), size: meta.size | 0, mime: meta.mime, by: meta.by, at: meta.at, bytes: null });
-      dcSend(p, { k: 'want', id: meta.id }); // dcSend no-ops without a channel; a later source re-asks (above)
+      const size = meta.size | 0;
+      if (size < 0 || size > MAX_FILE) return false;
+      const byId = (typeof meta.byId === 'string' && meta.byId) ? meta.byId : undefined;
+      const f = { id: meta.id, name: String(meta.name || 'file').slice(0, 120), size: size, mime: meta.mime, by: meta.by, byId: byId, at: meta.at, bytes: null };
+      files.set(meta.id, f);
+      askFile(f, p);
       return true;
+    }
+    // One source at a time. A second announcer waits. No bytes for 8s means
+    // that source is stalled: stop it and ask the next. Bytes landing send
+    // fc-stop to everyone else who was asked.
+    function askFile(f, p) {
+      if (!f || f.bytes || !p || !p.id || !p.dc) return;
+      f.asked = f.asked || new Set();
+      if (f.asking && f.asking !== p.id) { (f.nextAsk = f.nextAsk || new Set()).add(p.id); return; }
+      if (f.asking === p.id) return;
+      f.asked.add(p.id);
+      f.asking = p.id;
+      dcSend(p, { k: 'want', id: f.id });
+      armFileAsk(f);
+    }
+    function armFileAsk(f) {
+      if (!f || f.bytes) return;
+      clearTimeout(f.askT);
+      f.askT = setTimeout(() => {
+        if (f.bytes) return;
+        const stalled = f.asking;
+        f.asking = null;
+        if (stalled) { const q = peers.get(stalled); if (q) dcSend(q, { k: 'fc-stop', id: f.id }); }
+        let next = null;
+        if (f.nextAsk) { for (const id of f.nextAsk) { next = id; break; } }
+        if (next) { f.nextAsk.delete(next); const q = peers.get(next); if (q) askFile(f, q); }
+      }, 8000);
+    }
+    function stopFileAsks(f, keepId) {
+      if (!f) return;
+      clearTimeout(f.askT);
+      f.asking = null;
+      const ids = new Set(f.asked || []);
+      if (f.nextAsk) for (const id of f.nextAsk) ids.add(id);
+      f.nextAsk = null;
+      for (const id of ids) {
+        if (id === keepId) continue;
+        const q = peers.get(id);
+        if (q) dcSend(q, { k: 'fc-stop', id: f.id });
+      }
+    }
+    function nextFileChunk(seq, total, bufferedAmount, stopped) {
+      if (stopped) return 'stop';
+      if (seq >= total) return 'done';
+      if (bufferedAmount > (1 << 20)) return 'wait';
+      return 'send';
     }
     function sendFileOver(p, id) {
       const f = files.get(id);
-      if (!f || !f.bytes) return;
-      const CH = 32768, total = Math.max(1, Math.ceil(f.bytes.length / CH));
+      if (!f || !f.bytes || !p) return;
+      p.filePump = p.filePump || {};
+      if (p.filePump[id]) return;
+      const total = Math.max(1, Math.ceil(f.bytes.length / FILE_PART));
       let seq = 0;
-      (function pump() {
-        while (seq < total) {
-          if (!p.dc || p.dc.readyState !== 'open') return;
-          if (p.dc.bufferedAmount > (1 << 20)) { setTimeout(pump, 60); return; } // backpressure (seal lag makes it approximate)
-          const part = f.bytes.subarray(seq * CH, (seq + 1) * CH);
-          dcSend(p, { k: 'fc', id, seq, total, b: b64ofPart(part) });
-          seq++;
+      p.filePump[id] = true;
+      const pump = () => {
+        if (!p.filePump || !p.filePump[id]) return;
+        const dead = !p.dc || p.dc.readyState !== 'open';
+        const stopped = dead || !!(p.fcStop && p.fcStop.has(id));
+        const step = nextFileChunk(seq, total, (p.dc && p.dc.bufferedAmount) || 0, stopped);
+        if (step === 'stop' || step === 'done') {
+          if (p.fcStop) p.fcStop.delete(id);
+          delete p.filePump[id];
+          return;
         }
-      })();
+        if (step === 'wait') {
+          const dc = p.dc;
+          let woke = false;
+          const go = () => { if (woke) return; woke = true; try { dc.removeEventListener('bufferedamountlow', go); } catch (e) {} pump(); };
+          try { dc.bufferedAmountLowThreshold = 1 << 20; dc.addEventListener('bufferedamountlow', go); } catch (e) {}
+          setTimeout(go, 60);
+          return;
+        }
+        const part = f.bytes.subarray(seq * FILE_PART, (seq + 1) * FILE_PART);
+        const n = seq++;
+        Promise.resolve(dcSendFile(p, { k: 'fc', id, seq: n, total, b: b64ofPart(part) })).then(() => setTimeout(pump, 0));
+      };
+      pump();
     }
 
+    function logNearBottom(log) {
+      if (!log) return true;
+      return log.scrollHeight - log.clientHeight - log.scrollTop <= 40;
+    }
+    // A reader who scrolled up stays there. The log used to jump to the bottom
+    // on every line. A hidden panel is not rebuilt; opening it paints once.
+    function paintLog(log, html) {
+      if (!log) return;
+      const stick = logNearBottom(log);
+      const prev = log.scrollTop;
+      log.innerHTML = html;
+      log.scrollTop = stick ? log.scrollHeight : prev;
+    }
+    function chatPanelOpen() { return !!(chatPanel && chatPanel.classList.contains('open')); }
+    function transcriptShown() {
+      const w = document.getElementById('trwrap');
+      return !!(w && w.classList.contains('show'));
+    }
     function renderChat() {
+      if (!chatPanelOpen() || transcriptShown()) return;
       const log = document.getElementById('chatlog');
       const ms = Array.from(chat.values()).sort((a, b) => a.at - b.at).slice(-200); // the newest 200 are the log; older lines stay in the map for delete/history
-      log.innerHTML = ms.map((m) => {
+      let html = ms.map((m) => {
         const body = m.link
           ? esc(m.text) + ' <a href="' + esc(m.link) + '" style="color:#8ab4ff;font-weight:600">Join →</a>'
           : esc(m.text);
@@ -8802,8 +9020,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return '<div class="cmsg' + (m.byId === myId ? ' mine' : '') + '"><b>' + esc(m.by) + '</b>' + body + del + '</div>';
       }).join('');
       const co = chatOffInfo();
-      if (co) log.innerHTML += '<div class="cmsg" style="opacity:.65"><b>🔇</b>Chat was turned off' + (co.by ? ' by ' + esc(co.by) : '') + '.' + (amAdmin ? '' : ' Only the host can post.') + '</div>';
-      log.scrollTop = log.scrollHeight;
+      if (co) html += '<div class="cmsg" style="opacity:.65"><b>🔇</b>Chat was turned off' + (co.by ? ' by ' + esc(co.by) : '') + '.' + (amAdmin ? '' : ' Only the host can post.') + '</div>';
+      paintLog(log, html);
     }
     // The chat gate: repainted on every mod merge and admin-state flip. The
     // admin keeps a live input while chat is off (announcements still flow);
@@ -8843,10 +9061,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // can wander into shouldn't leak shared files. No password → no files.
       if (!roomPw) { el.innerHTML = '<small style="color:#889">🔒 Set a room password (the Password button) to share files here. Files are off in open rooms.</small>'; return; }
       const fs = Array.from(files.values()).sort((a, b) => a.at - b.at);
-      el.innerHTML = fs.length ? fs.map((f) =>
-        '<div class="cfile" data-f="' + esc(f.id) + '"><span class="nm">' + esc(f.name) + '</span><small>' + fmtSize(f.size) + ' · ' + esc(f.by || '?') + '</small>'
-        + (f.bytes ? '<button data-dl="' + esc(f.id) + '">⬇</button>' : '<small>receiving…</small>')
-        + '<button class="row-del" data-del="' + esc(f.id) + '" title="Unpin for everyone">' + DEL_ICON + '</button></div>').join('')
+      el.innerHTML = fs.length ? fs.map((f) => {
+        const mine = (f.byId && f.byId === myId) || (!f.byId && f.by === myName());
+        const unpin = (amAdmin || mine) ? '<button class="row-del" data-del="' + esc(f.id) + '" title="Unpin for everyone">' + DEL_ICON + '</button>' : '';
+        return '<div class="cfile" data-f="' + esc(f.id) + '"><span class="nm">' + esc(f.name) + '</span><small>' + fmtSize(f.size) + ' · ' + esc(f.by || '?') + '</small>'
+          + (f.bytes ? '<button data-dl="' + esc(f.id) + '">⬇</button>' : '<small>receiving…</small>')
+          + unpin + '</div>';
+      }).join('')
         : '<small style="color:#667">No files yet — attach one below.</small>';
     }
     document.getElementById('cfilelist').addEventListener('click', (e) => {
@@ -8858,10 +9079,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         a.download = f.name; a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       } else if (del) {
-        const t = { by: myName(), at: Date.now() };
-        takeTomb(del, t);
-        sendAll({ k: 'fdel', id: del, by: t.by, at: t.at });
-        renderFiles();
+        const f = files.get(del);
+        if (!f) return;
+        const mine = (f.byId && f.byId === myId) || (!f.byId && f.by === myName());
+        if (!(amAdmin || mine)) return;
+        const emit = (w) => {
+          const t = { by: myName(), at: Date.now() };
+          takeTomb(del, t);
+          const msg = { k: 'fdel', id: del, by: t.by, at: t.at };
+          if (w) msg.w = w;
+          sendAll(msg);
+          renderFiles();
+        };
+        // An admin room's delete is a signed order, same as cdel. The owner
+        // of the pin may still unpin their own file without being an admin;
+        // receivers accept that only when the frame author is the file's byId.
+        if (hasAdminRoom() && amAdmin) admSigned('fdel', { id: del }).then((w) => { if (w) emit(w); });
+        else emit(null);
       }
     });
     document.getElementById('chatform').addEventListener('submit', (e) => {
@@ -8886,9 +9120,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (file.size > MAX_FILE) { setStatus(file.name + ' is over the 25 MB pin limit.'); continue; }
         const reader = new FileReader();
         reader.onload = () => {
-          const f = { id: uid('f'), name: file.name, size: file.size, mime: file.type, by: myName(), at: Date.now(), bytes: new Uint8Array(reader.result) };
+          const f = { id: uid('f'), name: file.name, size: file.size, mime: file.type, by: myName(), byId: myId, at: Date.now(), bytes: new Uint8Array(reader.result) };
           files.set(f.id, f);
-          sendAll({ k: 'fmeta', f: { id: f.id, name: f.name, size: f.size, mime: f.mime, by: f.by, at: f.at } });
+          sendAll({ k: 'fmeta', f: { id: f.id, name: f.name, size: f.size, mime: f.mime, by: f.by, byId: f.byId, at: f.at } });
           renderFiles();
         };
         reader.readAsArrayBuffer(file);
@@ -12424,6 +12658,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       return out;
     }
+    // The speaker's own lines enter here, not through takeTr. takeTr trims.
+    // This path used to leave trs unbounded for the life of the caption.
+    function keepOwnTranscript(m) {
+      if (trEcho(m) === true) return false;
+      trs.set(m.id, m);
+      trimMap(trs, CHAT_MAX);
+      return true;
+    }
     function showCaption(byId, text) {
       const t = byId === myId ? meTile : peers.get(byId);
       if (!t || !t.cap) return;
@@ -12433,20 +12675,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       t.capT = setTimeout(() => t.cap.classList.remove('show'), 6000);
     }
     function renderTranscript() {
+      if (!chatPanelOpen() || !transcriptShown()) return;
       const log = document.getElementById('trlog');
       const lines = trBlocks();
-      log.innerHTML = lines.length
+      const html = lines.length
         ? lines.map((l) => '<div class="trline"><b>' + esc(l.by) + '</b>' + esc(l.text) + (l.scribeBy ? ' <small style="color:var(--muted,#8888aa)">✍ ' + esc(l.scribeBy) + '</small>' : '') + '</div>').join('')
         : '<small style="color:#667">Tap CC in the bar and each phone writes down what its own person says — the lines gather here with names. Muted phones do not caption: unmute to be written down.</small>';
-      log.scrollTop = log.scrollHeight;
+      paintLog(log, html);
     }
     function addTranscriptLine(text, at, forId) { // forId: a scribe writing down THAT person
       text = String(text || '').trim();
       if (!text) return;
       const m = { id: uid('t'), byId: myId, by: myName(), at: at || Date.now(), text: text.slice(0, 400) };
       if (forId && forId !== myId) { m.byId = forId; m.by = String(rosterNames[forId] || (peers.get(forId) || {}).name || '…').slice(0, 40); m.scribe = myId; m.scribeBy = myName(); }
-      if (trEcho(m) === true) return; // I only HEARD this — another device already wrote it down
-      trs.set(m.id, m);
+      if (!keepOwnTranscript(m)) return; // I only HEARD this — another device already wrote it down
       sendAll({ k: 'tr', m });
       renderTranscript();
       showCaption(m.byId, m.text);
@@ -13020,7 +13262,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       c.style.display = showTr ? 'none' : '';
       document.getElementById('paneltitle').textContent = showTr ? 'Transcript' : 'Meeting chat';
       document.getElementById('trtab').textContent = showTr ? 'Chat' : 'Transcript';
-      if (showTr) renderTranscript();
+      if (showTr) renderTranscript(); else renderChat();
     }
     document.getElementById('trtab').onclick = () => {
       setPanelView(!document.getElementById('trwrap').classList.contains('show'));
