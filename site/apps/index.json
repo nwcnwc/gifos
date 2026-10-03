@@ -5335,7 +5335,7 @@
       "appId": "offline-bible-study",
       "name": "Bible Study",
       "shortName": "Study",
-      "version": "0.8.1",
+      "version": "0.9.0",
       "tagline": "Read Henry, Calvin and the fathers, with scripture open beside them.",
       "author": {
         "name": "GifOS",
@@ -5343,8 +5343,8 @@
       },
       "minBuild": 2304,
       "offline": true,
-      "releaseDate": "2026-09-21",
-      "updated": "2026-09-21",
+      "releaseDate": "2026-10-03",
+      "updated": "2026-10-03",
       "categories": [
         "Learning"
       ],
@@ -5362,17 +5362,17 @@
         39
       ],
       "cover": "/apps/offline-bible-study/cover.jpg",
-      "bytes": 131182447,
+      "bytes": 131511068,
       "download": 0,
-      "optionalCount": 1243,
-      "optionalDownload": 1423245133,
+      "optionalCount": 1469,
+      "optionalDownload": 1310103070,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-09-21"
+        "ts": "2026-10-03"
       },
-      "sha256": "b41b1aa1cad3a9145dec27dd82a6351f0edcd02e3f622da4ddf3f3b22f03e649"
+      "sha256": "5f35d20c8ca057ef613c6fb1b9a022747a26bb7bead9d044c1b5bc050f1c6cfc"
     },
     {
       "slug": "offline-llm-bitnet",

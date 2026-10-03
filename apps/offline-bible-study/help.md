@@ -1,9 +1,15 @@
 # Bible Study
 
 A library of classic Bible study books, with the Bible open beside them.
-Everything is built into the app — two Bibles, the fathers through the
-nineteenth century, dictionaries, topical indexes, the Hebrew and Greek —
-so nothing is downloaded and it works with no connection at all.
+The app comes with a first set of it built in — the World English Bible and
+the King James, one major work from every quarter of the church,
+dictionaries, topical indexes, the Hebrew and Greek — and works with no
+connection at all. The rest of the library comes in **collections**: under
+"The whole library", each collection has a foundational pack and an
+everything-else pack, downloaded once with a tap and kept with the app.
+The other 137 Bible translations, in 63 languages, download the same way:
+tap one in the translation list and it is yours from then on. Search covers
+whatever you have downloaded.
 
 ## The two halves of the screen
 
@@ -73,13 +79,16 @@ Grouped by age, oldest first — the same order as the library button.
   on, word by word, with a pronunciation, a short meaning, and a
   Strong's number that opens the dictionary entry.
 - **Apostolic and Nicene** — Schaff's Ante-Nicene and Nicene fathers (37
-  volumes), the Didache in Greek, Josephus in Whiston's English.
+  volumes), the Didache in Greek with our English beside it, Josephus in
+  Whiston's English.
 - **Medieval** — Aquinas's *Catena Aurea* (the Fathers on the Gospels)
-  and *Summa*, the *Imitation of Christ*, the Latin *Glossa Ordinaria*,
-  Palamas in Greek.
+  and *Summa*, the *Imitation of Christ*, the Latin *Glossa Ordinaria*
+  with our English, Palamas in Greek (Migne PG 151 and PG 150) with our
+  English, and the *Philokalia* (volumes 1 and 2 with our English).
 - **Reformation** — Geneva notes, Challoner's Douay notes, Calvin's
   commentaries and *Institutes*, Luther in the public-domain English we
-  can keep, the Trent catechism.
+  can keep, the Trent catechism, Castellio's Latin reply to Calvin with
+  our English.
 - **Post-Reformation** — Matthew Henry (concise and complete), Lightfoot,
   Burkitt, Wesley, Poole, Owen, Edwards, the 1689 Confession, Gill's
   *Body of Divinity*.
@@ -98,8 +107,13 @@ Grouped by age, oldest first — the same order as the library button.
 - **Your notes** — everything you have written, chapter by chapter.
 
 A few works are in the language they were written (Latin, Greek, Hebrew)
-because no public-domain English exists. They are in the library anyway. Each commentary opens at the chapter you
-are in, or reads as a book from Contents.
+because no public-domain English exists. They are in the library anyway.
+Where we have made an English of one of those, a switch on the page
+crosses between the original and ours, and the English is labelled as
+ours every time — it is not a historical translation, and it is not a
+copyrighted modern one (Palmer/Sherrard/Ware, Meyendorff, and the like
+are not sources). Each commentary opens at the chapter you are in, or
+reads as a book from Contents.
 
 ## Search
 
@@ -127,9 +141,18 @@ number — `H430`, `G26` — to open that word.
 
 ## The Bible panel
 
-- **The translation button** at the top of the panel switches between
-  the World English Bible and the King James, or puts one beside the
-  other in parallel columns.
+- **The translation button** at the top of the panel lists 139
+  translations in 63 languages. World English and King James are inside
+  the app; the rest show their size and download once when tapped, then
+  stay on this device. By default the list shows the translations that
+  have the book you are reading; **All translations** shows every one.
+  Type a language or a name to filter.
+- **Parallel columns** — up to three translations side by side, in any
+  languages. A Greek or Hebrew text lines up with the English verse by
+  verse, even where its chapters are numbered differently.
+- **Include Apocrypha** in Settings shows the deuterocanonical books in
+  the translations that carry them.
+- **Alt+←/→** moves back and forward through the places you have read.
 - **Tap a verse** to move the page to it. Tap it again to open it for
   highlighting and notes. Tap the big chapter number to clear the
   selected verse and read the chapter whole.
@@ -138,7 +161,13 @@ number — `H430`, `G26` — to open that word.
   on the study material on the page.
 - **Note** — write in the margin of a verse. Notes appear under **Your
   notes** in the library and in Search. **Voice note** records instead.
-- **Compare** — the same verse in every translation, side by side.
+- **Compare** — the same verse in every translation open on this device,
+  side by side.
+- **Bookmark** — the ribbon in the panel head marks the place; a bookmark
+  on the verse sheet marks that verse. Bookmarks are listed under **Your
+  notes**.
+- **Search** covers every translation on screen, each under its own
+  heading, and your own notes — including notes kept to one translation.
 - Small **\*** and **†** marks are the translators' own footnotes and
   cross references — tap them.
 
@@ -169,9 +198,26 @@ days. Miss a day and the plan offers the next unread day.
 
 ## Read aloud
 
-"Read aloud from here" on any verse reads the chapter to you, following
-along verse by verse, using the voice set up in GifOS. Nothing leaves
-your device.
+The **Listen** button in the Bible panel's head reads the chapter to you
+from the verse you are on; the one in the work's tab row reads the page
+you are on. "Read aloud from here" on any verse starts there. The line
+being read is lit and kept in view (**Follow along** in Settings turns
+that off).
+
+The Listen sheet holds the controls: Play and Pause, Stop, a step back or
+forward, the **voice** and the **speed**. The voices are the ones this
+device already has — the phone's or the computer's own, in whatever
+languages it carries — and, if GifOS has been given a text-to-speech
+model in Settings → AI models, that voice too. Voices the device keeps
+work with no connection; a voice marked "online" is spoken by the
+browser's own service. Nothing you read leaves your device.
+
+Under **More voices** the sheet names the neural voices GifOS can be
+given from the App Store — Kokoro for machines with a graphics chip,
+KittenTTS, eSpeak — with what each costs and how fast it is. A chosen
+voice is measured as it speaks, and the sheet says whether it keeps up
+with your speed; a voice too slow for this device is undone by removing
+that provider app in GifOS.
 
 ## Reading together
 
