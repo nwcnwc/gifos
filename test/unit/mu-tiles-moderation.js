@@ -282,16 +282,8 @@ function runFn(name, prelude, call) {
   check('Help and the lobby name Max blur', (src.match(/fully blurred \(Max\)/g) || []).length >= 2);
   check('the admin video hammer reads as an action', /Turn Video on/.test(src) && /Turn Video off/.test(src));
   check('the action label still contains the words the camera hammer test waits for', /Turn Video on/.test(extractFn(src, 'updateCamAllBtn') || ''));
-  // Everyone joins Max-blurred in every meeting (docs/meeting.md). A blur
-  // level must never be remembered between meetings.
-  const boot = (src.match(/const myStatus = \{[^}]*\}/) || [''])[0];
-  check('every meeting starts Max-blurred: myStatus boots with blur 2', /blur:\s*2\b/.test(boot), boot);
-  check('no stored blur level is read at boot', !/getItem\([^)]*blur/i.test(src) && !/storedBlurLevel/.test(src));
-  const setBlur = extractFn(src, 'setPersonalBlur') || '';
-  check('setPersonalBlur is in run.html', !!setBlur);
-  check('setPersonalBlur does not remember the level', !/localStorage/.test(setBlur));
-  check('nothing writes a blur level to storage', !/setItem\([^)]*blur/i.test(src));
-  check('a blur level left by an older build is removed at boot', /localStorage\.removeItem\('gifos_blur'\)/.test(src));
+  // Joining Max-blurred, and never remembering the level between meetings,
+  // is guarded in test/unit/meet-join-max-blur.js (a privacy rule).
 }
 
 // ---- parked phone vs a playing feed (finding 54; 267 is the same bug) ------

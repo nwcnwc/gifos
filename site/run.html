@@ -1928,7 +1928,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // level is never remembered between meetings: a choice made for one room
     // must not walk into the next one, where the people and the consent are
     // different. Nothing reads or writes a stored blur level; a key left by a
-    // build that did is removed here.
+    // build that did is removed here. A privacy rule, guarded in the release
+    // gate by test/unit/meet-join-max-blur.js.
     try { localStorage.removeItem('gifos_blur'); } catch (e) {}
     const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, pwEp: 0, scr: 0, scribe: false };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur, scr }
