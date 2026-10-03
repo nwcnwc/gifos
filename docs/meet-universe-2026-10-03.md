@@ -103,6 +103,23 @@ The cause in the code: `e5cdce8a` adds LEAVE, MOVED, CONFIRM, YIELD, PHONE and P
 - **Blur hold after a big room's fold goes missing.** It dropped from about 300 s to about 120 s. It is a privacy hold, so it is your call.
 - **Stage composition.** A Section-1 seat now shows a sharer's raw screen with small face overlays, while deeper seats get the composite strip, so the two see different stages.
 
+## After the merge into main (evening of 3 Oct)
+
+`meet-universe-merged-2026-10-03` was merged into `main` (`0101bf69`) and deleted with `meet-universe-2026-10-03`, `claim-birth-age` (a WIP superseded by `f0cfb3f6`; kept as a local git bundle) and `release/0.9.13`-`0.9.15` (their tags keep every commit). `release/0.9.16`, the current release line, and the four open Dependabot branches remain. The repository's CI (Check, Pages) passed on the merge.
+
+Verification on `main` found more, all fixed on `main` with a guard or a corrected suite:
+
+| what | fix |
+|---|---|
+| `e5cdce8a` (on `meet-universe-2026-10-03`) broke graceful leave, the 1000-joiner burst (duplicate seats) and joining in the browser (`e2e-video` 1 of 6 green) | reverted in `b416e1ce`, twins together; without it: burst green, leave instant, `e2e-video` back near the pre-merge rate. Its security findings (unsigned eviction frames) are open again, as before 3 Oct; the redo should accept a frame from the peer's own direct link and sign a LEAVE in advance |
+| the unpin button and its tap were owner-or-admin even in an open room, though the receive rule takes anyone's unpin there (the finding was about admin rooms) | the button and the tap follow the receive rule |
+| a pinned file's one-source ask waited 8 s before re-asking a silent source, so a want lost in a password re-key cost 8-16 s | 3 s before the first chunk, 8 s once chunks flow |
+| suites that read stale state on slow boxes or hit deliberate changes: the recorder's save picker (headless cannot answer it), the coalesced repaint, one sink per feed in the filmstrip, the app remount on the room lane (`e2e-ctc-mp`, `e2e-worldview-mp`), a real device change for a headphone plug, and the Home Screen's default-store seed counted as an app's network or landing mid-drag | each suite corrected without loosening what it asserts |
+
+Still open after this pass:
+- `e2e-video`'s three-phone meshing leg (line ~900) still times out in about one run in three on the gate host. Pre-merge it passed every run measured.
+- The rest of the browser tier on the slower boxes includes reds that pass on the gate host (`e2e-sing-relay`, `e2e-links`, `e2e-stadium-dup`); they look like box load and need a fleet rerun to confirm.
+
 ## Still in flight when this was written
 
 Fixers for `mesh.js` (unsigned YIELD/CONFIRM/LEAVE/MOVED/DRAIN acceptance; the ×5 beat re-fan; the per-link flood budget; the 30 s lost-FIND and 15 s fork-probe waits), stage flags and votes (ghost stage flag, up-and-down from one voter), and the media ghosts (a crashed peer's structural claims painting a frozen block; hops waiting on the 2 s sweep; recording held in RAM). Their worktrees are `/tmp/mu-wt/<package>`; a patch lands in `/home/nathan/mu-work/patches/` when done.
