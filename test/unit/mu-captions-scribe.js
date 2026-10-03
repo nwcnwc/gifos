@@ -136,7 +136,12 @@ check('knownTotal says statuses reach the section', /Statuses reach the\s+\/\/ s
 check('wspSync keeps my own Whisper capture unless the chosen scribe hears me',
   /\(!ccSourceId \|\| !ccSourceWritesMe\(\)\) && whisperReady\(\)\) want\.add\('me'\)/.test(html));
 check('the 2 s tick re-syncs my engine when the scribe link changes', /if \(ccSourceId && ccSourceWritesMe\(\) !== ccSrcDirect\) syncSpeech\(\)/.test(html));
-check('caption lines are still sendAll, not given a scope here', /sendAll\(\{ k: 'tr', m \}\);/.test(html));
+// Caption lines ride sendAll scoped to the SPEAKER (2026-10-03, captionScope):
+// the section, or the room for a stager. A scribe's line about a row-mate stays
+// in the scribe's section, which holds everyone who hears that row-mate.
+// test/mesh/caption-bye-scope.js measures the cost.
+check('caption lines ride sendAll with the speaker\'s scope (captionScope)', /sendAll\(\{ k: 'tr', m \}, captionScope\(m\.byId\)\);/.test(html)
+  && /function captionScope\(byId\) \{ return stageIds\(\)\.includes\(byId\) \? undefined : \{ scope: 'section' \}; \}/.test(html));
 
 // ---- the scribe hears the stage before silent row-mates ----
 {
