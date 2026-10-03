@@ -1,25 +1,19 @@
 #!/usr/bin/env bash
 #
-# swarm-test-mode.sh — temporarily relax the abuse protections for YOUR OWN
-# load test, then put them back. Two guards block a swarm, and this flips both:
+# swarm-test-mode.sh — temporarily relax the Cloudflare rate-limit rule for
+# YOUR OWN load test, then put it back. The rule is disabled zone-wide for the
+# test window.
 #
-#   1. The relay's PER-IP caps (8 sockets/IP, 120 joins/min/IP, edge limiter) —
-#      relaxed only for the IPs you name, by deploying the relay with a
-#      TRUSTED_IPS allowlist. Everyone else stays fully capped.
-#   2. The Cloudflare rate-limit rule — disabled zone-wide for the test window
-#      (the relay's own per-IP caps still protect against non-allowlisted IPs).
+# The relay itself needs nothing: it has no per-address caps since 3 Oct 2026
+# (relay/README.md "Limits"), so the TRUSTED_IPS allowlist redeploy this script
+# used to do is gone. An IP list after `on` is accepted and ignored.
 #
-# WHICH IPs: only the ones running MANY bots need listing — your home network's
-# public IP (get it with `curl -s ifconfig.me`) and any AWS box packing >8 bots.
-# Instances running <=8 bots each are already under the cap; don't bother.
-#
-#   export CF_API_TOKEN=...        # for the Cloudflare rule toggle (optional)
-#   ./scripts/swarm-test-mode.sh on  203.0.113.7,198.51.100.4   # home + a big box
+#   export CF_API_TOKEN=...        # for the Cloudflare rule toggle
+#   ./scripts/swarm-test-mode.sh on
 #   #  ... run the swarm ...
-#   ./scripts/swarm-test-mode.sh off                            # restore everything
+#   ./scripts/swarm-test-mode.sh off                            # restore the rule
 #
-# Needs wrangler (logged in) for the relay redeploy; jq + curl + CF_API_TOKEN
-# for the Cloudflare rule (skipped with a warning if the token is absent).
+# Needs jq + curl + CF_API_TOKEN (skipped with a warning if the token is absent).
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -60,28 +54,9 @@ set_rules_enabled() { # $1 = true|false
   else warn "Couldn't toggle the rule:"; echo "$R" | jq -r '(.errors//[])[] | "        [\(.code)] \(.message)"'; fi
 }
 
-# --- redeploy the relay with (or without) the TRUSTED_IPS allowlist ----------
-deploy_relay() { # $1 = comma-ip-list or ""
-  command -v npx >/dev/null || die "npx/wrangler not found — can't redeploy the relay."
-  if [ -n "$1" ]; then
-    say "Deploying relay with TRUSTED_IPS allowlist: $1"
-    npx wrangler deploy -c relay/wrangler.toml --var "TRUSTED_IPS:$1" || die "relay deploy failed."
-    ok "relay live — those IPs now bypass the per-IP caps"
-  else
-    say "Redeploying relay with caps back to normal (no allowlist)"
-    npx wrangler deploy -c relay/wrangler.toml || die "relay deploy failed."
-    ok "relay live — per-IP caps enforced for everyone again"
-  fi
-}
-
 case "$MODE" in
   on)
-    [ -n "$IPS" ] || die "usage: $0 on <ip1,ip2,...>   (the IPs running many bots — home + any dense AWS box)"
     say "SWARM TEST MODE: ON"
-    [[ "$IPS" =~ ^[0-9a-fA-F.:,]+$ ]] || die "IPs must be a comma-separated list of addresses (got '$IPS')"
-    # Deploy FIRST, then lift the backstop: a failed deploy used to leave the
-    # zone-wide rate limit off with nothing to show for it.
-    deploy_relay "$IPS"
     trap 'set_rules_enabled true' ERR
     set_rules_enabled false
     say "Ready. Run your swarm. When done: ./scripts/swarm-test-mode.sh off"
@@ -89,12 +64,11 @@ case "$MODE" in
   off)
     say "SWARM TEST MODE: OFF (restoring protections)"
     set_rules_enabled true
-    deploy_relay ""
     say "Protections restored."
     ;;
   *)
-    echo "usage: $0 on <ip1,ip2,...>   |   off"
-    echo "  on  : allowlist those IPs in the relay + disable the Cloudflare rate-limit rule"
-    echo "  off : restore both"
+    echo "usage: $0 on   |   off"
+    echo "  on  : disable the Cloudflare rate-limit rule"
+    echo "  off : restore it"
     exit 2 ;;
 esac

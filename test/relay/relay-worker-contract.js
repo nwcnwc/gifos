@@ -20,6 +20,14 @@ import { makeRoom, fakeClock } from '../lib/relay-worker.js';
 let fails = 0;
 const check = (name, cond, extra) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (extra !== undefined && !cond ? '  ' + JSON.stringify(extra) : '')); if (!cond) fails++; };
 const q = (peer, more) => Object.assign({ role: 'mesh', token: 'T', peer, dev: peer + 'd' }, more || {});
+// webSocketMessage starts a knock without awaiting it (the knock hashes its
+// gk first), so a frame's knock is done only when its {t:'greeters'} reply is
+// out. Wait for that reply: the next upgrade must see the registration.
+const knockFrame = async (room, ws, obj) => {
+  const n = ws.of('greeters').length;
+  await room.msg(ws, obj);
+  for (let i = 0; i < 500 && ws.of('greeters').length === n; i++) await new Promise((r) => setImmediate(r));
+};
 
 (async () => {
   // ---- 1. no device tag: 4012, never a strike -------------------------------
@@ -42,7 +50,7 @@ const q = (peer, more) => Object.assign({ role: 'mesh', token: 'T', peer, dev: p
   {
     const room = makeRoom();
     const g = await room.connect('r2', q('G', { gk: 'KEY' }));
-    await room.msg(g.server, { t: 'knock', gk: 'KEY', gblob: 'SEALED(g)' });
+    await knockFrame(room, g.server, { t: 'knock', gk: 'KEY', gblob: 'SEALED(g)' });
     const a1 = await room.connect('r2', q('A1', { dev: 'devA', rs: 'rsA' }));
     const a2 = await room.connect('r2', q('A2', { dev: 'devA', rs: 'rsA' })); // a second tab of the same device
     check('the older same-device socket is closed 4000', a1.server.closed && a1.server.closed.code === 4000, a1.server.closed);
@@ -82,7 +90,7 @@ const q = (peer, more) => Object.assign({ role: 'mesh', token: 'T', peer, dev: p
     await burst(f.server);
     check('past the mint grace an unconverted founder is frame-metered again (warned)', f.server.of('error').length >= 1, f.server.of('error').length);
     const g = await room.connect('r3', q('G', { gk: 'KEY' })); // the room reopened: G founds and registers
-    await room.msg(g.server, { t: 'knock', gk: 'KEY', gblob: 'SEALED(g)' });
+    await knockFrame(room, g.server, { t: 'knock', gk: 'KEY', gblob: 'SEALED(g)' });
     await burst(g.server);
     check('a live registered greeter stays a door: no warning for a burst', g.server.of('error').length === 0, g.server.of('error'));
     clock.restore();
@@ -113,7 +121,7 @@ const q = (peer, more) => Object.assign({ role: 'mesh', token: 'T', peer, dev: p
     const room = makeRoom();
     const long = 'k'.repeat(200);
     const a = await room.connect('r5', q('A'));
-    await room.msg(a.server, { t: 'knock', gk: long, gblob: 'SEALED(a)' });
+    await knockFrame(room, a.server, { t: 'knock', gk: long, gblob: 'SEALED(a)' });
     const b = await room.connect('r5', q('B', { gk: long.slice(0, 128) }));
     const gb = b.server.of('greeters')[0];
     check('a 200-char gk and its 128-char prefix name the same genesis', gb && gb.admitted === true && gb.founded === false, gb);

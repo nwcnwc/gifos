@@ -197,7 +197,7 @@ degenerate case — and larger rooms scale by the tree
   Hibernation API, so an idle session or meeting room is evicted from memory and
   accrues **no duration charges** — Cloudflare bills actual messages, not
   wall-clock meeting length. Each socket's identity (role, peer id, salted
-  IP tag, token, room password proof) rides in its serialized attachment —
+  token, room password proof) rides in its serialized attachment —
   no display name (the `?name=` param is deliberately ignored) and never the
   raw IP, which survives
   eviction but dies with the connection — **the relay persists nothing,
@@ -207,18 +207,18 @@ degenerate case — and larger rooms scale by the tree
   subtlety learned the hard way: with hibernation the server must **echo
   `ws.close()`** from `webSocketClose`, or the browser's close handshake
   never completes and client-side reconnect logic never fires.
-- **Abuse guards**: C²+C = 30 sockets per session (the greeter pool plus
-  knock churn — see above), 8 per IP per session, 120
-  joins/min per IP per session, plus a best-effort per-IP upgrade limiter in
-  the outer Worker. Generous for humans (a NAT'd household of flappy phones
-  never notices), hostile to loops. The bandwidth token-bucket (1 MB burst,
-  ~384 Kbps sustained) still guarantees media can't tunnel through.
+- **Abuse guards**: per connection, never per network address. Each socket
+  has a byte meter (1 MB burst, ~384 Kbps sustained, so media can't tunnel
+  through) and a frame meter that warns, then closes a hot loop with 1013.
+  There is no socket cap per session and no cap per address: hundreds of
+  people behind one office or carrier NAT share one address. The per-address
+  caps and the edge upgrade limiter were removed on 3 Oct 2026.
 - **Origin allowlist**: the Worker rejects WebSocket upgrades whose `Origin`
   is not `gifos.app` (or a subdomain, or localhost, or absent) with a `403`.
   Browsers set `Origin` themselves and page JS cannot forge it, so this
   reliably stops a random website from using the relay as a free message bus.
   It is *not* a boundary against non-browser clients (curl can send any
-  `Origin`) — those are what the per-IP and bandwidth caps are for; the two
+  `Origin`) — those are what the per-connection byte and frame meters are for; the two
   layers compose. Configurable via the `ALLOWED_ORIGINS` env var
   (comma-separated exact origins and/or `*.host` suffix patterns; `*` opens
   it up); the built-in default covers gifos.app and its subdomains, and

@@ -223,17 +223,13 @@ server.on('upgrade', (req, socket, head) => {
   const ip = socket.remoteAddress || 'unknown';
 
   // Abuse guards — mirror the Worker's caps so tests exercise them.
-  // DEV MODE IS THE DEFAULT — no abuse guards. The per-IP socket cap, the
-  // join-rate cap and the frame meter are PRODUCTION
-  // concerns (they exist to blunt abuse of a shared, billed relay); a
-  // checkout on a workstation has no abuser to blunt, and every dev box
-  // drives its whole fleet from ONE address, so the per-IP cap of 8 is
-  // precisely wrong here. This bit us REPEATEDLY because guards-on used to
-  // be the default and every NEW harness re-learned it the hard way: first
-  // the swarm silently lost bots to "too many connections from your
-  // network", then release.sh (born after that lesson) ran the whole
-  // browser tier against a bare relay and e2e-handq meshed exactly 8/10
-  // forever. A tool that lives in test/servers/ defaults to TEST semantics.
+  // DEV MODE IS THE DEFAULT — no abuse guards. The byte and frame meters are
+  // PRODUCTION concerns (they exist to blunt abuse of a shared, billed
+  // relay); a checkout on a workstation has no abuser to blunt. A tool that
+  // lives in test/servers/ defaults to TEST semantics. Neither mode has a
+  // per-address cap: production removed its per-address socket cap, join-rate
+  // cap and edge limiter on 3 Oct 2026, because hundreds of people behind one
+  // office or carrier NAT share one address (test/relay/relay-shared-address.js).
   //
   // RELAY_PROD=1 opts back into the production-mirroring guards — for the
   // suites that ASSERT them (e2e-relay spawns its own on a private port).
@@ -247,10 +243,6 @@ server.on('upgrade', (req, socket, head) => {
   // close costs the relay O(greeters), not O(sockets). RELAY_MAX_SOCKETS stays
   // as an experiment knob only.
   const MAX_SOCKETS_PER_SESSION = parseInt(process.env.RELAY_MAX_SOCKETS || '0', 10) || Infinity;
-  // TRUSTED_IPS (env) bypasses the PER-IP caps for load tests — mirrors the
-  // Worker. For a big LOCAL swarm, run: TRUSTED_IPS=127.0.0.1,::1,::ffff:127.0.0.1 node test/servers/relay-local.js
-  const TRUSTED = String(process.env.TRUSTED_IPS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const trusted = DEV || TRUSTED.includes(ip);
   // Connection tracing (RELAY_DEBUG=1). A swarm bot that "comes up but never
   // seats" is almost always a connection that never landed — rejected by a
   // cap, or aimed at a DIFFERENT session id than the one being watched. The
@@ -269,8 +261,6 @@ server.on('upgrade', (req, socket, head) => {
   // uncoded, exactly as production does.
   const REJECT_CODES = {
     'too many joining right now — try again in a moment': 1013,
-    'too many connections from your network': 1013,
-    'joining too fast — slow down': 1013,
     'the relay is a greeter — app sessions ride the room mesh now': 4010,
     'bad room token': 1008,
     'password required': 4003,
@@ -292,23 +282,10 @@ server.on('upgrade', (req, socket, head) => {
   };
   const allConns = () => sess.clients.size;
   if (allConns() >= MAX_SOCKETS_PER_SESSION) { rejectConn('this session is full'); return; }
-  // The raw IP is used only TRANSIENTLY (rate-limit counting here); it is
-  // never STORED on the connection. Mirrors relay/src/relay.js: a salted hash
-  // is what rides the per-socket state, so a state/log dump yields opaque tags,
-  // not addresses. Identity (name/IP) reaches peers only sealed under the room
-  // key, which this relay never holds.
-  const iph = crypto.createHash('sha256').update('gifos-relay-ip-tag|' + ip).digest('hex').slice(0, 24);
-  let mine = 0;
-  for (const c of sess.clients.values()) if (c.iph === iph) mine++;
-  if (mine >= 8 && !trusted) { rejectConn('too many connections from your network'); return; }
-  sess.joins = sess.joins || new Map();
-  const nowJ = Date.now();
-  const jlog = (sess.joins.get(ip) || []).filter((t) => nowJ - t < 60000);
-  jlog.push(nowJ); sess.joins.set(ip, jlog);
-  if (jlog.length > 120 && !trusted) { rejectConn('joining too fast — slow down'); return; }
-  conn.iph = iph;
+  // The raw IP is used only for the one-time whoami frame; it is never STORED
+  // on the connection, nor any hash of it. Mirrors relay/src/relay.js.
   clog('ACCEPT sid=' + parts[1] + ' peer=' + peer + ' role=' + role + ' ip=' + ip
-    + (trusted ? ' (trusted)' : '') + ' sessConns=' + (allConns() + 1) + ' fromThisIp=' + (mine + 1));
+    + ' sessConns=' + (allConns() + 1));
 
   // Bandwidth + frame-rate guards — token buckets, mirror the Worker (media
   // must go P2P; tiny-frame loops get warned, then cut with 1013).
@@ -428,7 +405,7 @@ server.on('upgrade', (req, socket, head) => {
   // is refused, a later write that does not fit is dropped and logged (to
   // stderr — the suites ignore this relay's stdout).
   const ATT_CAP = 2048;
-  const attOf = (c, extra) => Object.assign({ role: 'mesh', peer: c.peer, iph: c.iph, tok: token, pw: sess.pw, av: sess.av, dev: c.dev, ban: sess.ban, rs: c.rs,
+  const attOf = (c, extra) => Object.assign({ role: 'mesh', peer: c.peer, tok: token, pw: sess.pw, av: sess.av, dev: c.dev, ban: sess.ban, rs: c.rs,
     gkh: c.gkh, gblob: c.gblob, gexp: c.gexp, gseen: c.gseen, gmint: c.gmint, admTs: sess.admTs }, extra || {});
   const attFits = (att, what) => {
     const n = JSON.stringify(att).length;
@@ -607,7 +584,7 @@ server.on('upgrade', (req, socket, head) => {
       if ((p === peer || (dev && c.dev === dev)) && c.rs && c.rs !== rs) { rejectConn('that id is in use from another device'); return; }
     }
     conn.rs = rs;
-    if (!attFits(attOf(Object.assign({ peer, iph, dev, rs }, {})), 'join')) { rejectConn('join state too large'); return; } // the Worker closes 1008 when serializeAttachment throws
+    if (!attFits(attOf(Object.assign({ peer, dev, rs }, {})), 'join')) { rejectConn('join state too large'); return; } // the Worker closes 1008 when serializeAttachment throws
     for (const [p, c] of Array.from(sess.clients)) {
       if (p === peer || (dev && c.dev === dev)) {
         sess.clients.delete(p);
@@ -720,6 +697,6 @@ server.listen(PORT, HOST, () => {
   // MAX_SOCKETS_PER_SESSION inside the upgrade handler).
   const sessionCap = parseInt(process.env.RELAY_MAX_SOCKETS || '0', 10) || Infinity;
   const sessionCapText = Number.isFinite(sessionCap) ? String(sessionCap) : 'Infinity';
-  if (process.env.RELAY_PROD === '1') console.log('  RELAY_PROD=1 — prod-mirroring abuse guards ON (8 sockets/IP, session cap ' + sessionCapText + ', frame meter)');
+  if (process.env.RELAY_PROD === '1') console.log('  RELAY_PROD=1 — prod-mirroring abuse guards ON (byte + frame meters per connection, no per-address cap, session cap ' + sessionCapText + ')');
   else console.log('  DEV mode (default) — abuse guards OFF. Set RELAY_PROD=1 to mirror the production caps.');
 });

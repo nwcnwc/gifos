@@ -10,14 +10,14 @@
  * idle session or call room costs NOTHING while nobody is talking: the DO is
  * evicted from memory between messages and Cloudflare only bills actual
  * activity, not wall-clock call length. Everything a handler needs to know
- * about a socket (role, peer id, a SALTED IP tag, token, room password) rides
+ * about a socket (role, peer id, device tag, token, room password) rides
  * in its serialized attachment, which survives eviction but DIES WITH THE
  * CONNECTION — the relay persists nothing, ever. Identity is never in the
  * attachment or the roster in readable form: display NAMES and network
  * ADDRESSES travel end-to-end sealed under the meeting-URL key the relay does
- * not hold, and the stored IP is a salted hash used only for per-IP abuse
- * caps — so the relay routes anonymous peer ids over an encrypted roster it
- * cannot read. A room's token and password
+ * not hold, and no address or address hash is stored at all — so the relay
+ * routes anonymous peer ids over an encrypted roster it cannot read. A room's
+ * token and password
  * are therefore properties of its CURRENT OCCUPANTS: the first arrival to an
  * empty room re-establishes them from their own session, and everyone after
  * that must match the people already inside — except that in an ADMIN room
@@ -39,9 +39,11 @@
  * BANDWIDTH GUARD — hard caps on message size and per-connection throughput so
  * nobody can tunnel audio/video through the door. Media is P2P or nothing.
  *
- * ABUSE GUARDS — per-session socket cap, per-IP socket cap, per-IP join-rate
- * cap inside each session, and a best-effort per-IP upgrade limiter in the
- * outer Worker (per-isolate, catches hot loops at the edge PoP).
+ * ABUSE GUARDS — per CONNECTION, never per network address: the byte meter,
+ * the frame meter, and the {t:'who'} pull interval. There is NO per-address
+ * cap. Hundreds of people behind one office, campus or carrier NAT share one
+ * address, and an attacker just uses more addresses, so a per-address cap
+ * locked out the first and never stopped the second (removed 3 Oct 2026).
  *
  * Protocol (all JSON text frames):
  *   mesh → relay : { t:'peer', to:<peer>, msg:{} }  → routed peer↔peer (sealed signaling)
@@ -71,31 +73,9 @@ async function keyHex(pubB64) {
   return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 // The relay OBSERVES a socket's IP (Cloudflare terminates the connection) but
-// must never PERSIST it in readable form: a peer's network address is theirs
-// and their room-mates', not something a relay-state dump or log should hand
-// out. So the per-IP abuse caps key on a SALTED HASH of the IP, kept in the
-// attachment — equality still counts sockets-per-network, but a state breach
-// yields opaque tags, not addresses. (A party holding the salt AND the code
-// could still brute-force IPv4 — but that party can already log raw IPs, so
-// the salt raises the bar exactly against the storage/log-only adversary this
-// is meant to stop.) Set ABUSE_SALT in the environment to make it a real
-// secret; the default keeps dev and tests working.
-// Per-IP caps key on the NETWORK, not the address: an IPv6 host holds a /64
-// (or more) and would otherwise present 2^64 distinct "IPs" to every cap.
-// IPv4 keys as itself. The compressed `::` form is expanded first so the
-// first four hextets are the real prefix.
-function ipKey(ip) {
-  ip = String(ip || '');
-  if (ip.indexOf(':') < 0) return ip;
-  const halves = ip.split('::');
-  let groups = halves[0] ? halves[0].split(':') : [];
-  if (halves.length > 1) {
-    const tail = halves[1] ? halves[1].split(':') : [];
-    while (groups.length + tail.length < 8) groups.push('0');
-    groups = groups.concat(tail);
-  }
-  return groups.slice(0, 4).map((g) => g.toLowerCase().replace(/^0+(?=.)/, '')).join(':') + '::/64';
-}
+// never stores it, nor any hash of it: the only use is the one-time whoami
+// frame back to that same socket. A peer's network address is theirs and
+// their room-mates', not something a relay-state dump or log should hand out.
 // Every write of a socket's state goes through here: the platform caps an
 // attachment at 2 KB and THROWS past it, and a swallowed throw was a founder
 // that recorded nothing (R3), a greeter that silently left the pool. The
@@ -104,14 +84,6 @@ function ipKey(ip) {
 function saveAtt(ws, a) {
   try { ws.serializeAttachment(a); return true; }
   catch (e) { console.log('attachment overflow', a && a.peer, String(e && e.message || '').slice(0, 80)); return false; }
-}
-async function ipTag(ip, env) {
-  const salt = (env && env.ABUSE_SALT) || 'gifos-relay-ip-tag';
-  // Say so, once per isolate, when production runs on the public default:
-  // the privacy property this hash promises does not exist until
-  // `wrangler secret put ABUSE_SALT` has been run (relay/README.md).
-  if (!(env && env.ABUSE_SALT) && !(env && env.ALLOWED_ORIGINS_DEV) && !ipTag.warned) { ipTag.warned = true; console.log('ABUSE_SALT unset: IP tags use the public default salt'); }
-  return (await sha256hex(salt + '|' + ipKey(ip))).slice(0, 24);
 }
 // A session id "<room>.<verifier>" carries its verifier after the LAST dot —
 // hex, 24–64 chars (24 now, legacy 64). ONE derivation, used by BOTH the app
@@ -177,12 +149,10 @@ const REFILL_BYTES_PER_SEC = 48 * 1024; // ~384 Kbps sustained — below even lo
 // and what it really bounded was roster() re-sending EVERY socket to EVERY
 // socket on every connect and close — ~N³/3 list entries for a burst of N.
 // The roster is now scoped to the doors (see roster()), so a connect or close
-// costs O(greeters) sends, and the per-IP caps below bound abuse.
-const MAX_SOCKETS_PER_IP = 8;       // several devices behind one NAT are fine
-const RECOUNT_MIN_MS = 10 * 1000;   // an address already at that cap is recounted at most this often
+// costs O(greeters) sends, and the per-connection meters below bound abuse.
+// There is NO per-address cap either (see ABUSE GUARDS in the banner).
 const WHO_MIN_MS = 5000;            // one full-roster pull per socket per 5s
 const WHO_CACHE_MS = 1000;          // the pulled list is rebuilt at most this often (see fullRosterForPull)
-const MAX_JOINS_PER_IP_MIN = 120;   // several flapping devices behind one NAT stay fine
 
 // GREETER REGISTRY (healing-laws R2/R3) — the relay's ONE piece of state beyond
 // live occupancy. Per session it holds H(genesis key) + a TTL'd list of SEALED
@@ -278,23 +248,11 @@ function overBudget(meter, len, door) {
   return true;
 }
 
-// A comma-list of source IPs (TRUSTED_IPS env var) that BYPASS the PER-IP caps
-// — for the operator's OWN load tests, where hundreds of bots share a few
-// egress IPs. Unset in normal operation, so the caps apply to everyone. Set it
-// only during a rehearsal (`wrangler deploy --var TRUSTED_IPS:"a,b"`), clear it
-// after. It never lifts the per-SESSION cap (that's section size, not abuse)
-// nor the byte/frame guards — a runaway loop is still cut even from a test box.
-function isTrusted(ip, env) {
-  if (!env || !env.TRUSTED_IPS) return false;
-  return String(env.TRUSTED_IPS).split(',').map((s) => s.trim()).filter(Boolean).includes(ip);
-}
-
 export class Session {
   constructor(state, env) {
     this.state = state;
-    this.env = env;           // for the TRUSTED_IPS test-mode allowlist
+    this.env = env;
     this.meters = new Map();  // ws -> meter; in-memory, rebuilt after hibernation
-    this.joinLog = new Map(); // salted ip tag -> [join timestamps]; best-effort, in-memory. Never a raw address.
     this.bornAt = Date.now(); // wedge self-heal: age-gates the self-abort below
     this.wedgeStrikes = [];   // timestamps of internal accept-path failures
     this.whoAt = new WeakMap(); // socket -> last full-roster pull (the {t:'who'} rate limit); in-memory, dies with the socket
@@ -323,7 +281,7 @@ export class Session {
 
   // ---- THE DOOR INDEX (in-memory; rebuilt once per wake) ----
   // With no session cap, everything a JOIN touches must cost O(door) or O(1),
-  // never O(sockets): the per-IP count, the replaced-tab eviction, the vote
+  // never O(sockets): the replaced-tab eviction, the vote
   // gate, genesisHash, greeterList, toGreeters and the door roster all used to
   // walk every socket and deserialize its attachment — ~5 million attachment
   // reads for a 1,000-person burst on this single-threaded object (measured
@@ -334,7 +292,7 @@ export class Session {
   // wake. Dead entries are dropped lazily wherever the door set is walked.
   ix() {
     if (this._ix) return this._ix;
-    const ix = { door: new Set(), iph: new Map(), dev: new Map(), peer: new Map(), voters: new Set(), room: null };
+    const ix = { door: new Set(), dev: new Map(), peer: new Map(), voters: new Set(), room: null };
     this._ix = ix;
     for (const ws of this.members()) this.ixAdd(ws, this.att(ws));
     return ix;
@@ -347,7 +305,6 @@ export class Session {
     if (a.peer) ix.peer.set(a.peer, ws); // the newest socket for an id wins (a reload replaces its old one)
     if (this._ixed.has(ws)) return;
     this._ixed.add(ws);
-    if (a.iph) ix.iph.set(a.iph, (ix.iph.get(a.iph) || 0) + 1);
     if (a.dev) { let set = ix.dev.get(a.dev); if (!set) ix.dev.set(a.dev, (set = new Set())); set.add(ws); }
   }
   ixDel(ws, a) {
@@ -356,7 +313,6 @@ export class Session {
     this._ixed.delete(ws);
     ix.door.delete(ws); ix.voters.delete(ws);
     if (a.peer && ix.peer.get(a.peer) === ws) ix.peer.delete(a.peer);
-    if (a.iph) { const n = (ix.iph.get(a.iph) || 1) - 1; if (n > 0) ix.iph.set(a.iph, n); else ix.iph.delete(a.iph); }
     if (a.dev) { const set = ix.dev.get(a.dev); if (set) { set.delete(ws); if (!set.size) ix.dev.delete(a.dev); } }
     if (ix.room === ws) ix.room = null;
   }
@@ -387,8 +343,8 @@ export class Session {
   }
   rosterTo(ws, full) { this.send(ws, this.rosterMsg(full || this.isGreeter(this.att(ws)))); }
   // The full list for a {t:'who'} pull costs one attachment read per socket.
-  // Any socket may pull once per WHO_MIN_MS and a network holds 8 sockets, so
-  // a crowd of pullers made the object rebuild it per pull; it is built at
+  // Any socket may pull once per WHO_MIN_MS, and any number of sockets may
+  // share one network, so a crowd of pullers made the object rebuild it per pull; it is built at
   // most once per WHO_CACHE_MS and the pulls inside that window share it.
   fullRosterForPull() {
     const now = Date.now();
@@ -696,34 +652,8 @@ export class Session {
     // the host slot is epoch-guarded only (a friend may keep it going).
     const sid = (url.pathname.split('/').filter(Boolean)[1] || '');
 
-    // ---- abuse guards ----
-    // 1013 = RFC 6455 "Try Again Later" (the client backs off + retries).
-    const trusted = isTrusted(ip, this.env); // operator load-test IPs skip the per-IP caps
-    const iph = await ipTag(ip, this.env);   // salted tag; the raw IP is never stored
-    const now = Date.now();
-    let mine = this.ix().iph.get(iph) || 0;
-    if (mine >= MAX_SOCKETS_PER_IP && !trusted) {
-      // Recount before refusing, so a missed close cannot lock a network out.
-      // An address already at the cap retries this path on every upgrade, and
-      // the join-rate log is not written until the cap allows the join.
-      let recAt = this.recountAt;
-      if (!recAt || recAt.size > 2000) this.recountAt = recAt = new Map();
-      const last = recAt.get(iph) || 0;
-      if (now - last >= RECOUNT_MIN_MS) {
-        mine = 0; for (const ws of this.members()) if (this.att(ws).iph === iph) mine++;
-        this.ix().iph.set(iph, mine);
-        recAt.set(iph, now);
-      }
-    }
-    if (mine >= MAX_SOCKETS_PER_IP && !trusted) return reject('too many connections from your network', 1013);
-    // Same salted tag as the attachment (iph). ipKey() is only the network
-    // prefix inside that hash; storing the prefix would keep a raw IPv4 or an
-    // IPv6 /64 in this object until the map is cleared.
-    const log = (this.joinLog.get(iph) || []).filter((t) => now - t < 60000);
-    log.push(now);
-    if (this.joinLog.size > 2000) this.joinLog.clear(); // best-effort burst damper; bounded memory while awake
-    this.joinLog.set(iph, log);
-    if (log.length > MAX_JOINS_PER_IP_MIN && !trusted) return reject('joining too fast — slow down', 1013);
+    // No per-address guard here: many people share one address behind a NAT.
+    // The per-connection meters (webSocketMessage) bound what each socket costs.
 
     // ONE RUNTIME (docs/one-runtime.md step 6): the app-session STAR is DELETED.
     // The relay is a GREETER + DOOR for mesh rooms and nothing else — app state
@@ -830,7 +760,7 @@ export class Session {
         this.cleanup(ws, { leave: old.peer !== peer, tally: false }); // a reload keeps its id: no departure to announce
       }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
-      try { server.serializeAttachment({ role: 'mesh', peer, iph, tok: token, pw: roomPw, av, dev, ban, rs }); }
+      try { server.serializeAttachment({ role: 'mesh', peer, tok: token, pw: roomPw, av, dev, ban, rs }); }
       catch (e) { try { server.close(1008, 'join state too large'); } catch (e2) {} return new Response(null, { status: 101, webSocket: client }); }
       this.ixAdd(server, this.att(server));
       this.send(server, { t: 'joined', peer });
@@ -1092,25 +1022,11 @@ export class Session {
   }
 }
 
-// Best-effort per-IP upgrade limiter at the edge: per-isolate memory, so it's
-// a burst damper (each PoP isolate counts separately), not a global ledger —
-// the real per-session guards live in the Durable Object above.
-const ipHits = new Map(); // salted ip tag -> [timestamps]; never a raw address
-async function edgeLimited(ip, env) {
-  const now = Date.now();
-  const k = await ipTag(ip, env); // same tag as the door cap; ipKey() stays inside the hash
-  const log = (ipHits.get(k) || []).filter((t) => now - t < 60000);
-  log.push(now);
-  ipHits.set(k, log);
-  if (ipHits.size > 10000) ipHits.clear(); // cap memory; it's best-effort anyway
-  return log.length > 300;
-}
-
 // Which sites may use this relay. A browser sets Origin itself and page JS
 // CANNOT forge or override it, so this reliably shuts out random websites
 // freeloading on the relay as a free message bus. It is NOT a defense against
-// non-browser clients (curl can send any Origin) — the per-IP + bandwidth
-// caps handle those. Configure via the ALLOWED_ORIGINS env var (comma-list of
+// non-browser clients (curl can send any Origin) — the per-connection byte
+// and frame meters handle those. Configure via the ALLOWED_ORIGINS env var (comma-list of
 // exact origins and/or "*.host" suffix patterns); the built-in default covers
 // gifos.app and its subdomains. A request with NO Origin header (native apps,
 // same-origin navigations, curl) is allowed through — Origin gates browsers,
@@ -1143,8 +1059,6 @@ export default {
       if (!originAllowed(request.headers.get('Origin'), env)) {
         return new Response('forbidden origin', { status: 403 });
       }
-      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-      if (await edgeLimited(ip, env) && !isTrusted(ip, env)) return new Response('rate limited', { status: 429 });
       const id = env.SESSION.idFromName(parts[1]);
       return env.SESSION.get(id).fetch(request);
     }

@@ -35,9 +35,9 @@
  *   node test/swarm/swarm.js --room test --n 20 \
  *     --base http://127.0.0.1:8099 --relay ws://127.0.0.1:8790
  *
- * RELAY_DEV=1 matters: relay-local.js otherwise mirrors the production caps
- * (8 sockets per IP), and every local bot shares one IP — bot 9 onward is
- * refused. Off-box (a tailnet/LAN relay) also wants SWARM_INSECURE_ORIGINS
+ * RELAY_DEV=1 (now the default) turns the frame meter off for the bots. No
+ * mode caps sockets per address, so every local bot sharing one IP is fine.
+ * Off-box (a tailnet/LAN relay) also wants SWARM_INSECURE_ORIGINS
  * for the plain-HTTP origin; see the launch args below.
  *
  * Options:

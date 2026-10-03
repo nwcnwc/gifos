@@ -1,14 +1,14 @@
 // mu-relay-scale.js — relay scale bugs that stayed after the door contract.
 //
 // The production Session, in Node, through test/lib/relay-worker.js.
-// MAX_SOCKETS_PER_IP stays 8. What this pins:
+// There is no per-address cap (test/relay/relay-shared-address.js). What this pins:
 //   1. a knock whose attachment will not fit is not admitted and not indexed;
 //   2. frame strikes reset once the frame bucket refills, and three bursts
 //      without that refill still close 1013;
 //   3. a door roster built after GREETER_TTL does not name the lapsed blob,
 //      and the claim grace still holds the room;
-//   4. an address already at the socket cap is recounted once, not on every
-//      retry, and a stale high count still loses to a real free slot;
+//   4. many sockets from one address all join, and a join does not walk
+//      every socket (the old per-address recount did, at the cap);
 //   5. a lapsed greeter's close still re-sends the door list (its blob, not
 //      its live TTL, is what put it on the non-greeters' lists);
 //   6. test/servers/relay-local.js applies the same rules: a lapsed blob is
@@ -125,37 +125,25 @@ const q = (peer, more) => Object.assign({ role: 'mesh', token: 'T', peer, dev: p
     } finally { clock.restore(); }
   }
 
-  // ---- 4. at-cap recount is not once per retry ------------------------------
+  // ---- 4. one address, many sockets, no scan per join ----------------------
   {
     const clock = fakeClock();
     try {
       const ip = '203.0.113.50';
       const room = makeRoom();
       const up = [];
-      for (let i = 0; i < 8; i++) up.push(await room.connect('cap', q('P' + i), ip));
-      check('eight sockets from one address join', up.every((c) => c.server && c.server.of('joined').length === 1 && !c.server.closed));
-      const ninth = await room.connect('cap', q('P8'), ip);
-      check('the ninth is refused 1013', ninth.server && ninth.server.closed && ninth.server.closed.code === 1013, ninth.server && ninth.server.closed);
-      check('the refusal names the network cap', ninth.server.of('error').some((m) => m.error === 'too many connections from your network'));
+      for (let i = 0; i < 9; i++) up.push(await room.connect('cap', q('P' + i), ip));
+      check('nine sockets from one address join', up.every((c) => c.server && c.server.of('joined').length === 1 && !c.server.closed));
       let scans = 0;
       const orig = room.state.getWebSockets.bind(room.state);
       room.state.getWebSockets = () => { scans++; return orig(); };
-      let refused = 0;
+      let joined = 0;
       for (let i = 0; i < 50; i++) {
         const c = await room.connect('cap', q('X' + i), ip);
-        if (c.server && c.server.closed && c.server.closed.code === 1013) refused++;
+        if (c.server && c.server.of('joined').length === 1 && !c.server.closed) joined++;
       }
-      check('fifty further retries are refused', refused === 50, refused);
-      check('those retries do not walk every socket', scans === 0, scans);
-
-      const room2 = makeRoom();
-      const held = [];
-      for (let i = 0; i < 8; i++) held.push(await room2.connect('cap2', q('H' + i), ip));
-      room2.clientClose(held[7].server);
-      const iph = room2.session.att(held[0].server).iph;
-      room2.session.ix().iph.set(iph, 8);
-      const back = await room2.connect('cap2', q('BACK'), ip);
-      check('a stale cap is recounted and the free slot is taken', back.server && back.server.of('joined').length === 1 && !back.server.closed, back.server && back.server.closed);
+      check('fifty more from the same address join', joined === 50, joined);
+      check('those joins do not walk every socket', scans === 0, scans);
     } finally { clock.restore(); }
   }
 

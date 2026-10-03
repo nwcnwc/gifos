@@ -194,8 +194,13 @@ sink; a client regains burst budget by reconnecting.
 - It **never carries media** — a server-enforced **token-bucket** (≈1 MB burst,
   ~384 Kbps sustained) makes tunnelling video through it impractical; live media
   is strictly peer-to-peer.
-- Practical abuse guards: **per-IP socket caps, join-rate caps, hard
-  message-size caps, and an origin allowlist**.
+- Practical abuse guards: **per-connection byte and frame meters, hard
+  message-size caps, and an origin allowlist**. There is **no cap per
+  network address**. An office, campus or carrier NAT puts hundreds of
+  people behind one address, and an attacker can use more addresses, so a
+  per-address cap locks out the first and does not stop the second. The
+  per-address caps (8 sockets, 120 joins a minute, 300 upgrades a minute at
+  the edge) were removed on 3 Oct 2026.
 - For MEETINGS the relay is additionally a **zero-knowledge greeter registry**
   (docs/healing-laws.md R2/R3): per room it holds only `H(genesis key)` and
   TTL'd greeter addresses **sealed under the room key it does not hold**
@@ -204,10 +209,11 @@ sink; a client regains burst budget by reconnecting.
   identities. It gates only GENESIS (empty registry ⇒ first knocker founds;
   the DO's single thread serialises it) and arbitrates nothing else.
 
-**Residual risk:** metering is in-memory, so a determined client can regain a
-burst bucket across reconnects. Accepted for now — the socket/join caps bound it,
-and we add zero persistence by design. Revisit with a per-IP cooldown if abuse
-appears.
+**Residual risk:** metering is in-memory and per connection, so a client can
+regain a burst bucket by reconnecting, and a client with many connections gets
+a bucket for each. Accepted: each connection still costs at most its own
+budget, and we add zero persistence by design. No per-address limit is planned,
+for the NAT reason above.
 
 ### Boundary E — multiplayer peers
 
@@ -260,8 +266,8 @@ clients; a lost reply causes duplicate writes on reconnect.
   transiently observes the source `CF-Connecting-IP` (accepted — Cloudflare logs
   it at the transport layer regardless). But it never *stores* it readable: it
   hands each socket its own address once (`whoami`), and the client seals that
-  into the roster for peers; the only IP the relay *persists*, in the socket
-  attachment, is a **salted hash** used solely for per-IP abuse caps by equality.
+  into the roster for peers; the relay keeps **no address and no hash of one**
+  in the socket attachment or anywhere else.
   Media endpoints (ICE candidates) already travel inside the sealed signaling.
 - **Device tags are room-salted, so the relay cannot correlate a device across
   rooms.** The relay needs a stable per-room token to enforce bans and vote-offs

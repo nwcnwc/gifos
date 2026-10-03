@@ -7,11 +7,14 @@
 # What it does:
 #   1. Reads your zone + account IDs and prints your Workers/zone plan (the real
 #      anti-bankruptcy fact: Workers Free = hard 100k req/day, NO overage).
-#   2. Creates three per-IP Rate-Limiting rules (the global cap the in-code
+#   2. Creates two per-IP Rate-Limiting rules (the global cap the in-code
 #      per-isolate limiters can't be):
-#        - relay.gifos.app        60/min  -> block          (WS: block, never challenge)
 #        - cors-proxy.gifos.app  240/min  -> block
-#        - gifos.app + *.gifos.app 1000/min -> managed challenge  (site/theme backstop)
+#        - gifos.app + *.gifos.app 1200/min -> managed challenge  (site/theme backstop)
+#      relay.gifos.app is EXEMPT from every rule here: a meeting is a burst of
+#      WebSocket upgrades, and an office or carrier NAT sends all of them from
+#      one address. The relay meters each connection instead (relay/README.md
+#      "Limits"). Re-running this script removes an older relay rule.
 #   3. Turns on Bot Fight Mode.
 #   4. Tears down the removed MCP Worker: deletes the gifos-mcp script, its
 #      Workers custom domain, and the mcp.gifos.app DNS record.
@@ -95,25 +98,22 @@ warn "Reminder: Workers FREE has no overage — a flood just returns 429s until 
 say "Rate-limiting rules (per IP, per edge PoP)"
 # Period is 10s and mitigation 10s — the ONLY values the Free plan allows;
 # both are valid on paid plans too, so one schema fits all. Counts are per-10s
-# (×6 ≈ per-minute): relay 10 (=60/min), cors-proxy 40 (=240/min), backstop
-# 200 (=1200/min).
+# (×6 ≈ per-minute): cors-proxy 40 (=240/min), backstop 200 (=1200/min).
+# No relay rule: per-address limits lock out a whole NAT (see the header).
 RULES=$(jq -n --arg z "$ZONE_NAME" '
-  [ { description:"gifos-harden: relay flood cap",
-      expression:"(http.host eq \"relay.\($z)\")", action:"block",
-      ratelimit:{characteristics:["ip.src","cf.colo.id"], period:10, requests_per_period:10, mitigation_timeout:10} },
-    { description:"gifos-harden: cors-proxy flood cap",
+  [ { description:"gifos-harden: cors-proxy flood cap",
       expression:"(http.host eq \"cors-proxy.\($z)\")", action:"block",
       ratelimit:{characteristics:["ip.src","cf.colo.id"], period:10, requests_per_period:40, mitigation_timeout:10} },
     { description:"gifos-harden: site + theme backstop",
       expression:"(http.host eq \"\($z)\" or ends_with(http.host, \".\($z)\")) and http.host ne \"relay.\($z)\"", action:"managed_challenge",
       ratelimit:{characteristics:["ip.src","cf.colo.id"], period:10, requests_per_period:200, mitigation_timeout:10} } ]')
 # The Free plan allows only ONE http_ratelimit rule, so keep a consolidated
-# fallback: block ANY subdomain (relay, cors-proxy, 0-9 mirror — the
-# Worker/DO-backed hosts, i.e. the ones that actually cost money) that floods.
-# 600/min is generous for a real page load yet shuts a hot loop.
+# fallback: block ANY subdomain except the relay (cors-proxy, 0-9 mirror —
+# the Worker-backed hosts that cost money) that floods. 600/min is generous
+# for a real page load yet shuts a hot loop. The relay is exempt (header).
 SINGLE=$(jq -n --arg z "$ZONE_NAME" '
   [ { description:"gifos-harden: subdomain flood cap",
-      expression:"(ends_with(http.host, \".\($z)\"))", action:"block",
+      expression:"(ends_with(http.host, \".\($z)\") and http.host ne \"relay.\($z)\")", action:"block",
       ratelimit:{characteristics:["ip.src","cf.colo.id"], period:10, requests_per_period:100, mitigation_timeout:10} } ]')
 EP=$(cf GET "/zones/$ZID/rulesets/phases/http_ratelimit/entrypoint")
 RSID=$(echo "$EP" | jq -r '.result.id // empty')
@@ -130,7 +130,7 @@ push_rules() { # $1 = rules array -> creates/updates the http_ratelimit ruleset
     cf POST "/zones/$ZID/rulesets" "$(jq -n --argjson r "$1" '{name:"gifos rate limits", kind:"zone", phase:"http_ratelimit", rules:$r}')"
   fi
 }
-R=$(push_rules "$RULES"); N=3
+R=$(push_rules "$RULES"); N=2
 # 50001 = too many rules for this plan (Free = 1). Collapse to the single rule.
 if ! succeeded "$R" && echo "$R" | jq -e '((.errors // [])[] | select(.code == 50001))' >/dev/null 2>&1; then
   warn "This plan allows only ONE rate-limit rule — consolidating to a single subdomain flood cap."

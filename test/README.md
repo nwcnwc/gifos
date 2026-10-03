@@ -576,18 +576,17 @@ in this list on purpose:
 with relay-dev.sh's port — neither is a standing fixture, so start whichever
 one the moment needs.
 
-`relay-local.js` runs UNGUARDED by default (DEV mode): every test box drives
-its whole fleet from one IP, so the production per-IP cap of 8 is precisely
-wrong locally — it silently starved the swarm once and the release gate's
-browser tier a second time (e2e-handq meshed exactly 8/10, forever). Set
-`RELAY_PROD=1` to mirror the production abuse guards (8 sockets/IP, the join
-rate, the frame meter). There is no per-session socket cap in either mode, nor in
+`relay-local.js` runs UNGUARDED by default (DEV mode). Set `RELAY_PROD=1` to
+mirror the production abuse guards: the per-connection byte and frame meters.
+Neither mode, nor production, has a per-address cap (removed 3 Oct 2026;
+`test/relay/relay-shared-address.js` guards it). `TRUSTED_IPS`, still set by
+some suites, no longer does anything. There is no per-session socket cap in either mode, nor in
 production: the roster is scoped to the doors (greeters get the full list and
 join/leave deltas, everyone else the doors only), so a burst of any size costs
 the relay O(greeters) per join. `test/mesh/flood-burst.js` (1000 dev, 500
 `RELAY_PROD=1`) and `test/relay/relay-roster-scope.js` guard it; the latter runs
 against the real Worker too (`RELAY_URL=ws://127.0.0.1:8794` under
-`RELAY_DEV_TRUSTED=127.0.0.1,::1 test/servers/relay-dev.sh`).
+`test/servers/relay-dev.sh`).
 Ban/eviction/owned-slot semantics are core session logic and are active in BOTH modes.
 
 **node 22 or newer, always.** `gifos-net.js` opens the relay socket with the

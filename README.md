@@ -286,7 +286,7 @@ The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wr
 - ✅ Meeting safety: unblurred video requires a room password (plus unanimous consent in plain rooms / a connected admin); personal GLOBAL vote-off lists (majority-of-devices boot, no forgeable ban list); who-is-here address transparency
 - ✅ IRL party games: secret roles, hidden ballots, and simultaneous reveals dealt to each player's own phone; the drama happens in the room
 - ✅ Provenance signatures: sign app GIFs by domain (Ed25519) or email (OpenPGP — Ed25519 or RSA keys); verified against real gpg in CI
-- ✅ Scale-hardened relay: WebSocket hibernation (idle sessions cost nothing), zero persistence, per-IP and per-session abuse guards
+- ✅ Scale-hardened relay: WebSocket hibernation (idle sessions cost nothing), zero persistence, per-connection byte and frame meters (no per-address caps, so a whole office behind one NAT gets in)
 - ✅ Computer images: whole-desktop backup GIFs that **boot** in isolated namespaces, recursively
 - ✅ Version pinning: archived builds under `/versions/`, update bar, additive-only data migrations
 - ✅ End-to-end encrypted sessions: every content frame is AES-256-GCM sealed under keys derived from the link secret ("derive, don't send") — the relay routes on a separate derivation and only ever carries ciphertext

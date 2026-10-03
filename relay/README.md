@@ -18,21 +18,35 @@ npm install -g wrangler        # if you don't have it
 wrangler login                 # authorize your Cloudflare account
 wrangler deploy
 # → https://gifos-relay.<your-subdomain>.workers.dev
-
-# Once per deployment, and BEFORE the first real room: the per-IP abuse
-# caps key on a salted hash of each socket's address (relay.js ipTag).
-# Without this secret the salt is a public constant from the source, so a
-# state or log dump is brute-forceable back to IPv4 addresses. The Worker
-# logs "ABUSE_SALT unset" once per isolate while it is missing.
-# ../deploy-all.sh does this for you (ensure_secret); the script lives at the repo root. By hand it is:
-openssl rand -hex 32 | wrangler secret put ABUSE_SALT
 ```
+
+`../deploy-all.sh` deploys this Worker with the others; the script lives at
+the repo root. The relay needs no secret. It stores no network address and no
+hash of one. An `ABUSE_SALT` secret left over from an older deploy is unused.
 
 Then point the app at it — edit `site/js/relay-config.js`:
 
 ```js
 window.GIFOS_RELAY = 'wss://gifos-relay.<your-subdomain>.workers.dev';
 ```
+
+### Limits
+
+The relay limits each **connection**, never each network address:
+
+- a byte meter per socket: a 1 MB burst, then about 384 Kbps
+  (`BURST_BYTES`, `REFILL_BYTES_PER_SEC`);
+- a frame meter per socket: a 600-frame burst, then 3 frames a second;
+  a socket that keeps overrunning is closed with 1013;
+- one full-roster pull (`{t:'who'}`) per socket every 5 seconds (`WHO_MIN_MS`).
+
+There is no cap on sockets or joins per address. An office, a campus or a
+carrier NAT puts hundreds of people behind one address, and a per-address
+cap locked all of them out. It did not stop an attacker, who can use more
+addresses. The old caps were 8 sockets per address per room, 120 joins a
+minute per address per room, and 300 upgrades a minute per address at the
+edge. They were removed on 3 Oct 2026. `test/relay/relay-shared-address.js`
+checks that 50 sockets and a 1000-join burst from one address all get in.
 
 ### Custom domain
 

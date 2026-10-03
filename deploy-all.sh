@@ -126,10 +126,7 @@ for d in "${WORKERS[@]}"; do
   echo
 done
 
-# The relay's per-IP abuse caps key on a salted hash of each socket's address
-# (relay.js ipTag). Without this secret the salt is a public constant from the
-# source, and a state or log dump is brute-forceable back to IPv4 addresses.
-ensure_secret relay ABUSE_SALT
-echo
+# The relay keeps no address and no address hash (no per-address caps since
+# 3 Oct 2026), so it needs no ABUSE_SALT secret. An old one left set is unused.
 
 echo "All ${#WORKERS[@]} Workers deployed."

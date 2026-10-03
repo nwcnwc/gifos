@@ -10,8 +10,8 @@
 #
 # Everyone — bots and people — loads the REAL https://gifos.app and reaches the
 # swarm relay through the relay override (Settings → Relay, i.e. localStorage
-# gifos_relay). The production relay caps 8 sockets per IP; relay-local.js under
-# RELAY_DEV=1 has no caps, so a box can hold a hundred bots.
+# gifos_relay). Neither the production relay nor relay-local.js caps sockets per
+# address (removed 3 Oct 2026), so a box can hold a hundred bots.
 # Every box schedules its own shutdown at boot (TTL_MIN) with terminate-on-
 # shutdown, so a lost orchestrator cannot leak instances.
 set -u

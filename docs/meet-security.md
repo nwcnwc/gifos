@@ -135,8 +135,7 @@ is an accepted limit, not an oversight.
 
 ## The relay's knowledge, in one paragraph
 
-The relay holds: live sockets, opaque peer ids, room-salted device tags, a
-salted IP hash for abuse caps, `H(genesis key)`, and TTL'd sealed greeter
+The relay holds: live sockets, opaque peer ids, room-salted device tags, `H(genesis key)`, and TTL'd sealed greeter
 blobs. It reaches a greeter's socket **directly by that greeter's opaque peer
 id** — that is how an introduction is delivered, and there is nothing to hide
 in it: greeters are the room's public front door, every newcomer touches one,
