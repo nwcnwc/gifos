@@ -2543,13 +2543,20 @@
           // here (one signed member used to fill a greeter's whole home).
           if (m.id == null || !cellKeyOk(m.ck) || !this.claimRel(m.ck, m.id, false)) return;
           const sure = this.linkIs(m, m.id);
-          if (this.hasCoord && this.state === 3 && m.ck === ck(this.coord) && m.id !== this.id && m.id < this.id) {
+          if (this.hasCoord && this.state === 3 && m.ck === ck(this.coord) && m.id !== this.id) {
             // A rival for MY cell. Only Section 1 is settled by challenge (two
             // rings sharing one door, healing-laws R5) — a deep cell is settled
             // by its one arbiter, my phone target. A rival first-hand live at
-            // another cell in my view is in two places: not a rival.
+            // another cell in my view is in two places: not a rival. A LOWER id
+            // is challenged (its CONFIRM may unseat me); a HIGHER one is never
+            // written into my own seat — it gets my HELLO, so it can challenge
+            // me in turn (lower id wins either way).
             if (this.coord.pc !== 0 || this.liveElsewhere(m.id, m.ck)) return;
-            if (TICK - this.challAt > 20) { this.challAt = TICK; this.challTo = { id: m.id, ck: m.ck, at: TICK }; this.emit(m.id, { t: 'CHALLENGE', ck: m.ck, from: this.id }); }
+            if (TICK - this.challAt > 20) {
+              this.challAt = TICK;
+              if (m.id < this.id) { this.challTo = { id: m.id, ck: m.ck, at: TICK }; this.emit(m.id, { t: 'CHALLENGE', ck: m.ck, from: this.id }); }
+              else this.emit(m.id, { t: 'HELLO', ck: m.ck, id: this.id });
+            }
             return;
           }
           const prev = this.occGet(m.ck);

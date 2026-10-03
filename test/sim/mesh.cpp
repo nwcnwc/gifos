@@ -1711,6 +1711,16 @@ int main(int argc,char**argv){
     // lie <id|coord> <mode> — the adversary knob. mode 1 = SUPPRESS (publish
     // refuse=0, part=0: the ONE dangerous direction, G4.2); mode 2 = inflate n
     // (harmless by G2); 0 = honest.
+    // evil <frac> — HOSTILE MEMBERS (docs/meet-security.md §AUTH): the frac*N
+    // seated seats with the LOWEST ids (every lower-id-wins rule favours them)
+    // turn hostile: each tick they send every neighbour a HELLO claiming that
+    // neighbour's own cell (attack()), and they answer every CHALLENGE with a
+    // CONFIRM. A hostile seat signs only as itself (the sim's signature model).
+    // `state`'s evict counts honest seats unseated.
+    else if(op=="evil"){
+      double frac=tk.size()>1?atof(tk[1].c_str()):0.02; vector<int> ids; for(int q=0;q<nextId;q++) if(alive[q]&&seats[q]->state==3) ids.push_back(q);
+      sort(ids.begin(),ids.end()); int ne=max(1,(int)(N*frac)); int done=0; for(int q:ids){ if(done>=ne) break; seats[q]->evil=true; wake(q); done++; }
+      printf("OK evil seats=%d\n",done); }
     else if(op=="lie"){
       string who=tk.size()>1?tk[1]:""; int mode=tk.size()>2?atoi(tk[2].c_str()):1; int q=-1;
       if(who.find('/')!=string::npos){ size_t sl=who.find('/'),dt=who.find('.',sl); string ps=who.substr(0,sl); uint32_t pc=0; for(char ch:ps)pc=childPath(pc,ch-'0');

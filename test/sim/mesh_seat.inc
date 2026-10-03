@@ -1533,11 +1533,16 @@ void Seat::recv(Msg& m){
       // author — but the CELL is the author's word: it must be one I relate to.
       if(m.id<0 || !cellOk(m.ck) || !claimRel(m.ck,m.id,false)) return;
       bool sure=linkIs(m,m.id);
-      if(hasCoord&&state==3&&m.ck==ckey(coord)&&m.id!=id&&m.id<id){
+      if(hasCoord&&state==3&&m.ck==ckey(coord)&&m.id!=id){
         // a rival for MY cell: only Section 1 is settled by challenge (a deep
-        // cell by its one arbiter); a rival first-hand live elsewhere is in two places
+        // cell by its one arbiter); a rival first-hand live elsewhere is in two
+        // places. A LOWER id is challenged; a HIGHER one is never written into
+        // my own seat — it gets my HELLO, so it can challenge me (mesh.js twin).
         if(coord.pc!=0 || liveElsewhere(m.id,m.ck)) return;
-        if(TICK-challAt>20){ challAt=(int)TICK; challToId=m.id; challToCk=m.ck; challToAt=(int)TICK; Msg c;c.t=CHALLENGE;c.ck=m.ck;c.from=id; emit(m.id,c);} return; }
+        if(TICK-challAt>20){ challAt=(int)TICK;
+          if(m.id<id){ challToId=m.id; challToCk=m.ck; challToAt=(int)TICK; Msg c;c.t=CHALLENGE;c.ck=m.ck;c.from=id; emit(m.id,c); }
+          else { Msg h;h.t=HELLO;h.ck=m.ck;h.id=id; emit(m.id,h); } }
+        return; }
       int prev=occGet(m.ck);
       // E2: yield only between FIRST-HAND-LIVE claimants. A prev that is only gossip
       // (a phantom) is NOT first-hand live ⇒ no yield ⇒ the real sender is accepted.

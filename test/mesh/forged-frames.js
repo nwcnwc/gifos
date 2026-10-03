@@ -206,6 +206,19 @@ function partA() {
     for (const k of Object.keys(s0)) { grew[k] = s1[k] - s0[k]; worst = Math.max(worst, grew[k]); }
     check('A8 10,000 junk cell keys (S1SYNC, PONG, HELLO, ROUTED, LEAVE): no map grows by more than 2C (' + worst + ')', worst <= 2 * C(), grew);
   }
+  // A10 a signed HELLO claiming the RECEIVER'S OWN cell, from a higher id:
+  // main wrote the claimant into the victim's own seat in its own view (and so
+  // into the rosters it hands newcomers).
+  for (const link of ['H', null]) {
+    const r = room(); const s1 = r.seats.filter((s) => s.coord.pc === 0).sort((a, b) => (a.id < b.id ? -1 : 1));
+    const V = s1[0]; const Hs = r.seats.slice().sort((a, b) => (a.id < b.id ? 1 : -1))[0]; const g = guard(V); const vk = ck(V.coord);
+    inject(r.env, V, signed(Hs, { t: 'HELLO', ck: vk, id: Hs.id }), link === 'H' ? Hs.id : null);
+    run(r.env, 2);
+    const own = V.occGet(vk);
+    const inRoster = V.s1Roster().filter((e) => e.k === vk).length;
+    run(r.env, 150);
+    check('A10 HELLO for the victim\'s own cell from a higher id (' + (link ? 'H\'s link' : 'relay') + ') is never written into the victim\'s own seat', own !== Hs.id && inRoster === 1 && g.kept(), { own: own === Hs.id ? 'H' : own === V.id ? 'V' : own, inRoster, g });
+  }
   // A9 a replayed signed goodbye: H captures a seat's real signed LEAVE (with
   // where it went) and replays it with the destination changed.
   {

@@ -118,5 +118,27 @@ for TARGET in "/0.0" "/1.0"; do
 done
 
 echo
+echo "── HOSTILE MEMBERS: low-id seats claim every neighbour's own cell ──"
+# The sim's adversary (Seat::attack + CHALLENGE answered by CONFIRM), run by the
+# lowest ids so every lower-id rule favours them. A member that claims a cell
+# it does not hold must unseat nobody (docs/meet-security.md §AUTH: a rival
+# first-hand live at another cell is in two places; a deep cell is settled by
+# its arbiter, not by a claimant). Then newcomers must still seat.
+for EV in 0.02 0.05; do
+  out=$(printf "init 300\nconverge 200000\ntick 200\nstate\nevil %s\ntick 3000\nspawn 30\nconverge 600000\nstate\ndups\nquit\n" "$EV" | "$BIN" --service 2>/dev/null)
+  e0=$(echo "$out" | grep '^STATE' | sed -n 1p | grep -oE 'evict=[0-9]+' | cut -d= -f2)
+  e1=$(echo "$out" | grep '^STATE' | sed -n 2p | grep -oE 'evict=[0-9]+' | cut -d= -f2)
+  seated=$(echo "$out" | grep '^STATE' | sed -n 2p | grep -oE 'seated=[0-9]+' | cut -d= -f2)
+  dups=$(echo "$out" | grep -m1 '^DUPS' | grep -oE '[0-9]+' | head -1)
+  ev=$(( ${e1:-0} - ${e0:-0} ))
+  if [ "$ev" = 0 ] && [ "${seated:-0}" = 330 ] && [ "${dups:-1}" = 0 ]; then
+    echo "PASS  hostile members $EV of 300: honest seats unseated=0, 30 newcomers seated=$seated/330 dups=$dups"
+  else
+    echo "FAIL  hostile members $EV of 300: honest seats unseated=$ev seated=${seated:-?}/330 dups=${dups:-?}"
+    fail=$((fail+1))
+  fi
+done
+
+echo
 [ $fail = 0 ] && { echo "ALL PASS — a hostile fabric and an uncooperative seat do not stop joining"; exit 0; }
 echo "$fail FAILED"; exit 1

@@ -59,14 +59,14 @@ const rate = +(mesh.match(/const GSP_RATE = (\d+)/) || [])[1], burst = +(mesh.ma
 const srate = +(mesh.match(/const GSP_SRC_RATE = (\d+)/) || [])[1], sburst = +(mesh.match(/GSP_SRC_BURST = (\d+)/) || [])[1];
 check('the per-link budget exists and is small (rate ' + rate + '/tick, burst ' + burst + ')', rate > 0 && rate <= 20 && burst > 0 && burst <= 400, { rate, burst });
 check('the per-author budget exists and is smaller (rate ' + srate + '/tick, burst ' + sburst + ')', srate > 0 && srate <= rate && sburst > 0 && sburst <= burst, { srate, sburst });
-check('_gspRecv spends the budget before a message is seen or forwarded', has(mesh, /if \(!this\._gspBudget\(m\.from, m\.src\)\) \{[^\n]*return; \}\n\s*g\.set\(m\.gid/));
+check('_gspRecv spends the budget before a message is seen or forwarded — keyed on the link the transport named (lk) when it named one, else the delivering peer', has(mesh, /if \(!this\._gspBudget\(m\.lk != null \? m\.lk : m\.from, m\.src\)\) \{[^\n]*return; \}[^\n]*\n\s*g\.set\(m\.gid/));
 check('the guard has no production off switch (env.GSP_GUARD === false is the harness control only)', (mesh.match(/GSP_GUARD/g) || []).length === 2 && !has(run, 'GSP_GUARD') && !has(wire, 'GSP_GUARD'));
 // The per-link bucket keys on the link that delivered the frame, so the wire
 // must NAME it: run.html hands recvCtl the pair's pid (and the sponsor
 // envelope's origin), the relay path hands the relay's `from`, and ingest
 // stamps a frame that carries no sender field of its own.
-check('run.html hands recvCtl the delivering pair and the sponsor-envelope origin', has(run, 'meshNode.recvCtl(m.m, p.id)') && has(run, 'meshNode.recvCtl(m.m, m.from)'));
-check('the wire stamps the delivering peer onto a frame with no sender field (DC and relay paths)', has(wire, /recvCtl\(m, via\) \{[^\n]*ingest\(m, via\)/) && has(wire, 'ingest(o.m, m.from)') && has(wire, 'if (via != null && m.from == null) m.from = via;'));
+check('run.html hands recvCtl the delivering pair (direct only off a real DataChannel) and the sponsor-envelope origin (never direct)', has(run, 'meshNode.recvCtl(m.m, p.id, !!dc)') && has(run, 'meshNode.recvCtl(m.m, m.from);') && !has(run, /meshNode\.recvCtl\(m\.m, m\.from, /));
+check('the wire stamps the delivering peer onto a frame with no sender field (DC and relay paths); the relay path is never direct', has(wire, /recvCtl\(m, via, direct\) \{[^\n]*ingest\(m, via, direct\)/) && has(wire, 'ingest(o.m, m.from, false)') && has(wire, 'if (via != null && m.from == null) m.from = via;'));
 check('a gid names its author: the seat and the identity layer both refuse a gid that does not start with its src', has(mesh, "!m.gid.startsWith(m.src + ':')") && has(ident, "!String(m.gid).startsWith(from + ':')"));
 
 // 5. signed gossip
