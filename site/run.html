@@ -789,8 +789,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      THEMSELVES their browser also broadcasts blurred pixels (canvas), so a
      receiver editing the DOM can't recover a clear image — the CSS here is
      the visible half of a two-sided guarantee. */
-  .tile video.blur1 { filter: blur(11px) saturate(.9); transform: scale(1.07); }
-  .tile video.blur2 { filter: blur(26px) saturate(.75); transform: scale(1.15); }
+  .tile video.blur1, #fsmain.blur1, .fsthumb video.blur1 { filter: blur(11px) saturate(.9); transform: scale(1.07); }
+  .tile video.blur2, #fsmain.blur2, .fsthumb video.blur2 { filter: blur(26px) saturate(.75); transform: scale(1.15); }
   #blurall.on { border-color: #ffb86c; color: #ffd23c; background: #2a1f10; }
   #camall.on { border-color: #ff5c5c; color: #ff9c9c; background: #2a1010; }
   /* Admin-absence countdown: an admin room only lives while its host is here. */
@@ -2588,6 +2588,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const [pid, p] of peers) {
         // a camOff peer's track still decodes (black) frames — skip by STATUS
         if (!p.connected || seatDark(statusOf.get(pid)) || !pipReady(p.video)) continue;   // a screen sharer is the BEST float target, not a skipped one
+        // Moderation reaches the float: the PiP window paints the RAW frames
+        // (no CSS there), so a peer an admin turned off, or one a moderator
+        // blurred, is never floated — the receiver-side rule holds in every
+        // sink, not only the grid tile.
+        if (forcedCamOff(pid) || modBlurOn(pid)) continue;
         if (speakingOf.get(pid)) return p.video; // the talker beats first-connected
         first = first || p.video;
       }
@@ -2805,6 +2810,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // honest; only two colluding hackers could see each other, which no P2P
     // rule can prevent.
     const forcedCamOff = (id) => { const m = modOf(id).cam; return !!(m && m.on); };
+    const modBlurOn = (id) => { const m = modOf(id).blur; return !!(m && m.on); };
     function enforceForcedCam() {
       // "Video off for everyone" means VIDEO, not "camera". A screen share is
       // video leaving this device on the same senders, so a share that survived
@@ -3047,8 +3053,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (pipReady(v)) out.push({ key: 'stage:' + ((v.closest('.rowtile') || {}).dataset || {}).row, label: 'On stage', v });
       }
       for (const [pid, p] of peers) {
-        if (p.connected && pipReady(p.video) && !seatDark(statusOf.get(pid))) {
-          out.push({ key: 'peer:' + pid, label: rosterNames[pid] || 'Guest', v: p.video });
+        // The filmstrip is a SINK like the grid tile: an admin's video-off
+        // hides the peer here too (the ORDER, not their status — a sender
+        // that ignores it keeps transmitting), and the receiver blur level
+        // rides along so the big feed and the thumb paint it.
+        if (p.connected && pipReady(p.video) && !seatDark(statusOf.get(pid)) && !forcedCamOff(pid)) {
+          out.push({ key: 'peer:' + pid, label: rosterNames[pid] || 'Guest', v: p.video, bl: blurLevelFor(pid) });
         }
       }
       const sd = stadiumEl.querySelector('[data-row="sd"] video');
@@ -3065,7 +3075,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const st = main.v.srcObject;
         if (fsmain.srcObject !== st) { fsmain.srcObject = st; const pr = fsmain.play(); if (pr && pr.catch) pr.catch(() => {}); }
         fsmain.dataset.key = main.key;
-      } else { fsmain.srcObject = null; fsmain.dataset.key = ''; }
+        fsBlurClass(fsmain, main.bl);
+      } else { fsmain.srcObject = null; fsmain.dataset.key = ''; fsBlurClass(fsmain, 0); }
       const want = src.map((s) => s.key).join('|');
       if (fsstrip.dataset.set !== want) {
         fsstrip.dataset.set = want;
@@ -3079,6 +3090,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const th = document.createElement('div'); th.className = 'fsthumb'; th.dataset.key = s.key;
           const tv = document.createElement('video'); tv.autoplay = true; tv.muted = true; tv.setAttribute('playsinline', ''); tv.setAttribute('muted', '');
           tv.srcObject = s.v.srcObject; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {});
+          fsBlurClass(tv, s.bl);
           const lb = document.createElement('span'); lb.className = 'fslbl'; lb.textContent = s.label;
           th.appendChild(tv); th.appendChild(lb);
           th.onclick = () => { fsSel = s.key; fsRefresh(); };
@@ -3090,10 +3102,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const s = src.find((x) => x.key === th.dataset.key);
           const tv = th.querySelector('video');
           if (s && tv && tv.srcObject !== s.v.srcObject) { tv.srcObject = s.v.srcObject; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {}); }
+          if (s && tv) fsBlurClass(tv, s.bl); // the level can change while the set stays (a block lands, the room clears)
         }
       }
       fsPaintSel();
     }
+    // The same two blur classes the grid tile wears (CSS: #fsmain / .fsthumb video).
+    function fsBlurClass(v, bl) { v.classList.remove('blur1', 'blur2'); if (bl) v.classList.add('blur' + bl); }
     function openFsView(key) {
       fsSel = key || null;
       fsview.classList.add('on');
@@ -3139,7 +3154,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       maxbtn.addEventListener('click', (e) => {
         e.stopPropagation();
         // iOS Safari can only fullscreen a <video> natively — no overlay there.
-        if (!document.fullscreenEnabled && video.webkitEnterFullscreen) { try { video.webkitEnterFullscreen(); } catch (e2) {} return; }
+        // The native player paints the RAW frames: no CSS blur, no cam-off
+        // hide. So a remote feed that is blurred or video-off never takes
+        // it; the in-page overlay (position:fixed, same CSS) serves instead.
+        const moderated = !isMe && (forcedCamOff(id) || blurLevelFor(id) > 0);
+        if (!document.fullscreenEnabled && video.webkitEnterFullscreen && !moderated) { try { video.webkitEnterFullscreen(); } catch (e2) {} return; }
         openFsView(isMe ? 'me' : 'peer:' + id);
       });
       tile.appendChild(maxbtn);
@@ -4896,6 +4915,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       meters.delete(peerId);
       statusOf.delete(peerId); // a stale status must not haunt the room's consensus
       forgetConns(peerId);
+      if (typeof sgaForgetWaiter === 'function') sgaForgetWaiter(peerId); // a departed asker is no reason to keep chasing
       if (typeof reconcileApp === 'function') reconcileApp(); // a departing host ends the shared app
       endRelayRolesFor(peerId);
       // Media plane: forget this peer's mosaic announces/demand and fail any feed
@@ -11141,16 +11161,64 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const due = sgaPending.splice(0, sgaPending.length).filter((e) => now - e.at < SGA_PEND_TTL);
       for (const e of due) sgaFan(e.m, null);
     }
-    function sgaDeliver(m) {
-      if (m.kind === 'app') {
-        // First copy wins: app bytes for a sid are immutable for the session.
-        if (!sgaApp.has(m.sid)) sgaApp.set(m.sid, m);
-        const aw = sgaAppWant.get(m.sid);
-        if (aw) {
-          sgaAppWant.delete(m.sid);
-          for (const pid of aw.keys()) { const p2 = peers.get(pid); if (p2 && p2.dc && p2.dc.readyState === 'open') dcSend(p2, { k: 'sga-app', m }); }
-        }
+    // THE LANE VERIFIES AN 'app' FRAME BEFORE IT RETAINS ONE (2026-10-03).
+    // Retention is first-copy-wins and immutable, and a held copy is served
+    // to every neighbour that asks — so the lane used to retain whatever
+    // arrived first. Any room member holds the room key, so any member could
+    // push a frame with kind:'app' and the live sid at a node that had no
+    // bytes yet; that node kept the fake, refused the real copy for the rest
+    // of the session and served the fake onward. The owner's signature is
+    // the gate (app-owner makeVerifier, the pk pinned from the app ad where
+    // the ad carries one, else the sid's own binding): a frame that fails it
+    // is dropped and the chase goes on. My OWN broadcast is retained as is.
+    const sgaAppVer = new Map(); // sid -> { pk, ver } (one pin per sid and ad key)
+    let sgaAOP = null;           // the app-owner module, loaded once (runtime.js loads it the same way)
+    function sgaAppOwner() {
+      if (window.GifOS && GifOS.appOwner) return Promise.resolve(GifOS.appOwner);
+      if (sgaAOP) return sgaAOP;
+      sgaAOP = new Promise((resolve, reject) => {
+        const el = document.createElement('script'); el.src = 'js/app-owner.js';
+        el.onload = () => (window.GifOS && GifOS.appOwner) ? resolve(GifOS.appOwner) : reject(new Error('app-owner.js empty'));
+        el.onerror = () => { sgaAOP = null; reject(new Error('app-owner.js failed')); };
+        document.head.appendChild(el);
+      });
+      return sgaAOP;
+    }
+    // The owner pk the room's ad names for this sid, if any ad does.
+    function sgaAdPk(sid) {
+      if (myStatus.app && myStatus.app.s === sid) return myStatus.app.pk || null;
+      for (const [pid, st] of statusOf) if (st && st.app && st.app.s === sid && st.app.pk && !meshGone.has(pid)) return st.app.pk;
+      const dg = digLists();
+      if (dg) for (const e of dg.apps) if (e.id && e.a && e.a.s === sid && e.a.pk && !meshGone.has(e.id)) return e.a.pk;
+      return null;
+    }
+    const sgaAppInFlight = new Set(); // sid|sig being verified: a widened ask is answered by several holders with the SAME frame
+    function sgaAdmitApp(m) {
+      if (sgaApp.has(m.sid) || !m.d) return;
+      const fk = m.sid + '|' + String(m.d.sig || '').slice(0, 64);
+      if (sgaAppInFlight.has(fk)) return;
+      sgaAppInFlight.add(fk);
+      const pk = sgaAdPk(m.sid);
+      sgaAppOwner().then((AO) => {
+        let v = sgaAppVer.get(m.sid);
+        if (!v || v.pk !== pk) { v = { pk, ver: AO.makeVerifier(m.sid, pk) }; sgaAppVer.set(m.sid, v); }
+        return v.ver.verify(m.d);
+      }).then((r) => { sgaAppInFlight.delete(fk); if (r && r.ok) sgaRetainApp(m); }, () => { sgaAppInFlight.delete(fk); });
+    }
+    // Verified (or my own) app bytes: retain, serve the waiters, wake the subscribers.
+    function sgaRetainApp(m) {
+      if (sgaApp.has(m.sid)) return;   // immutable — the first VERIFIED copy wins
+      sgaApp.set(m.sid, m);
+      const aw = sgaAppWant.get(m.sid);
+      if (aw) {
+        sgaAppWant.delete(m.sid);
+        for (const pid of aw.keys()) { const p2 = peers.get(pid); if (p2 && p2.dc && p2.dc.readyState === 'open') dcSend(p2, { k: 'sga-app', m }); }
       }
+      const subs = sgaSubs.get(m.sid);
+      if (subs) for (const cb of [...subs]) { try { cb(m); } catch (e) {} }
+    }
+    function sgaDeliver(m) {
+      if (m.kind === 'app') { sgaAdmitApp(m); return; } // retained, served and delivered only once verified
       if (m.kind === 'snap') {
         const cur = sgaSnap.get(m.sid);
         if (!cur || cur.seq === m.seq || (cur.at || 0) <= (m.at || 0)) sgaSnap.set(m.sid, m);
@@ -11202,6 +11270,36 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     //      serve costs a frame per open channel per 5 s and nothing more.
     const SGA_WIDEN_AFTER = 3, SGA_FAST_TRIES = 30;
     const sgaReqTries = new Map(), sgaAppReqTries = new Map();
+    // …AND THE WAITERS ARE FORGOTTEN (2026-10-03). "Wanted" counted every
+    // neighbour that ever asked, and nothing but a served frame or the owner's
+    // own drop removed one — so an ask for an app whose owner left before the
+    // bytes spread, or from an asker who then left, kept this node asking
+    // every open channel every 5 s for the rest of the meeting, and each
+    // receiver registered this node and chased in turn (two such nodes refresh
+    // each other forever). Three bounds: a waiter entry ages out unless the
+    // asker refreshes it (it asks again every 2–5 s while interested), a
+    // departed peer is forgotten at once, and a sid no live ad names is not
+    // wanted at all — presence (the app ad) is what makes a chase worth it.
+    const SGA_WANT_TTL = 30000;
+    function sgaWanters(map, sid) { // live waiters only; prunes in place
+      const w = map.get(sid); if (!w) return 0;
+      const cut = Date.now() - SGA_WANT_TTL;
+      for (const [pid, at] of w) if (at < cut || !peers.has(pid)) w.delete(pid);
+      if (!w.size) map.delete(sid);
+      return w.size;
+    }
+    function sgaForgetWaiter(pid) {
+      for (const map of [sgaWant, sgaAppWant]) for (const [sid, w] of map) { w.delete(pid); if (!w.size) map.delete(sid); }
+    }
+    function sgaAdvertised(sid) { // some live ad (mine, a fresh status, the digest) names this sid and no stop outranks it
+      const stop = appStops.get(sid);
+      const live = (ad) => !!(ad && ad.s === sid && !(stop && (ad.ts || 0) <= stop.at));
+      if (live(myStatus.app)) return true;
+      for (const [pid, st] of statusOf) if (st && live(st.app) && stHold(pid) && !meshGone.has(pid)) return true;
+      const dg = digLists();
+      if (dg) for (const e of dg.apps) if (e.id && e.id !== myId && !meshGone.has(e.id) && live(e.a)) return true;
+      return false;
+    }
     function sgaAskTargets(sid, tries) {
       const structural = sgaTargets();
       if (tries < SGA_WIDEN_AFTER) return structural;
@@ -11225,8 +11323,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       sgaRequest(sid);
       let tries = 0;
       const tick = () => {
-        const wanted = sgaSubs.has(sid) || (sgaWant.get(sid) || { size: 0 }).size;
-        if (sgaSnap.has(sid) || !wanted) { sgaReqTimer.delete(sid); sgaReqTries.delete(sid); return; }
+        const wanted = sgaSubs.has(sid) || (sgaWanters(sgaWant, sid) > 0 && sgaAdvertised(sid));
+        if (sgaSnap.has(sid) || !wanted) { sgaReqTimer.delete(sid); sgaReqTries.delete(sid); if (!sgaSubs.has(sid)) sgaWant.delete(sid); return; }
         sgaRequest(sid);
         sgaReqTimer.set(sid, setTimeout(tick, ++tries > SGA_FAST_TRIES ? 5000 : 2000));
       };
@@ -11248,8 +11346,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       sgaAppRequest(sid);
       let tries = 0;
       const tick = () => {
-        const wanted = sgaSubs.has(sid) || (sgaAppWant.get(sid) || { size: 0 }).size;
-        if (sgaApp.has(sid) || !wanted) { sgaAppTimer.delete(sid); sgaAppReqTries.delete(sid); return; }
+        const wanted = sgaSubs.has(sid) || (sgaWanters(sgaAppWant, sid) > 0 && sgaAdvertised(sid));
+        if (sgaApp.has(sid) || !wanted) { sgaAppTimer.delete(sid); sgaAppReqTries.delete(sid); if (!sgaSubs.has(sid)) sgaAppWant.delete(sid); return; }
         sgaAppRequest(sid);
         sgaAppTimer.set(sid, setTimeout(tick, ++tries > SGA_FAST_TRIES ? 5000 : 2000));
       };
@@ -11262,6 +11360,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function sgaAppServe(p, m) {
       const held = sgaApp.get(m.sid);
       if (held) { dcSend(p, { k: 'sga-app', m: held }); return; }
+      if (!sgaAdvertised(m.sid)) return; // no live ad names it: nothing to chase (the asker retries if an ad arrives)
       let w = sgaAppWant.get(m.sid); if (!w) { w = new Map(); sgaAppWant.set(m.sid, w); }
       w.set(p.id, Date.now());
       sgaAppChase(m.sid);
@@ -11274,6 +11373,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function sgaServe(p, m) {
       const held = sgaSnap.get(m.sid);
       if (held) { if (held.seq !== m.have) dcSend(p, { k: 'sga-snap', m: held }); return; }
+      if (!sgaAdvertised(m.sid)) return; // no live ad names it: nothing to chase (the asker retries if an ad arrives)
       let w = sgaWant.get(m.sid); if (!w) { w = new Map(); sgaWant.set(m.sid, w); }
       w.set(p.id, Date.now());
       sgaChase(m.sid);
@@ -11307,7 +11407,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // can answer sga-appreq like any other holder. Without this the owner
         // would broadcast the bytes and keep no copy to serve, which is what
         // forced every latecomer back to the direct 'need-app' path.
-        sgaDeliver(m); sgaFan(m, null);
+        if (kind === 'app') sgaRetainApp(m); else sgaDeliver(m); // my own bytes need no verifying
+        sgaFan(m, null);
         return m.seq;
       },
       subscribe(sid, cb) {
@@ -11316,15 +11417,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const snap = sgaSnap.get(sid);
         if (snap) { try { cb(snap); } catch (e) {} }
         else sgaChase(sid); // late joiner: pull the retained snap from the mesh
-        // ...and the app bytes, from whichever PEER already has them.
-        const appHeld = sgaApp.get(sid);
+        // ...and the app bytes, from whichever PEER already has them — unless
+        // the ad names an owner key the held frame was not signed with (an
+        // earlier share of this sid, or a frame admitted before the ad was
+        // known): drop it and pull again.
+        let appHeld = sgaApp.get(sid);
+        const adPk = sgaAdPk(sid);
+        if (appHeld && adPk && appHeld.d && appHeld.d.pk !== adPk) { sgaApp.delete(sid); sgaAppVer.delete(sid); appHeld = null; }
         if (appHeld) { try { cb(appHeld); } catch (e) {} }
         else sgaAppChase(sid);
         return () => { s.delete(cb); if (!s.size) sgaSubs.delete(sid); };
       },
       drop(sid) {
         sgaSnap.delete(sid); sgaSubs.delete(sid); sgaWant.delete(sid);
-        sgaApp.delete(sid); sgaAppWant.delete(sid);
+        sgaApp.delete(sid); sgaAppWant.delete(sid); sgaAppVer.delete(sid);
         const ta = sgaAppTimer.get(sid); if (ta) { clearTimeout(ta); sgaAppTimer.delete(sid); }
         const t = sgaReqTimer.get(sid); if (t) { clearTimeout(t); sgaReqTimer.delete(sid); }
       },
@@ -14554,6 +14660,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       sgaAskForTest: (sid, fromPid) => sgaAppServe({ id: fromPid, dc: null }, { sid }),
       sgaChaseState: (sid) => ({ appTimer: sgaAppTimer.has(sid), snapTimer: sgaReqTimer.has(sid), appWant: (sgaAppWant.get(sid) || { size: 0 }).size, want: (sgaWant.get(sid) || { size: 0 }).size }),
       sgaSendForTest: (pid, msg) => { const p = peers.get(pid); if (!p) return false; dcSend(p, msg); return true; },
+      sgaInjectForTest: (msg) => { if (!msg || msg.k !== 'sga-app' || !msg.m || typeof msg.m.sid !== 'string') return false; sgaRecvApp(msg.m); return true; }, // a frame as the wire would hand it in
       appSid: () => appKey,
       sgaPullState: (sid) => ({ snap: sgaSnap.has(sid), app: sgaApp.has(sid), reqTries: sgaReqTries.get(sid) || 0, appTries: sgaAppReqTries.get(sid) || 0 }),
       appName: () => document.getElementById('appname').textContent,

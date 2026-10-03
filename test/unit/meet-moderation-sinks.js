@@ -25,8 +25,9 @@ check('fsSources exists', !!fsSrc);
 check('fsSources skips a peer under an admin video-off (forcedCamOff), not only a dark seat', /forcedCamOff\(pid\)/.test(fsSrc));
 check('fsSources carries the receiver blur level of each peer (blurLevelFor)', /blurLevelFor\(pid\)/.test(fsSrc));
 const fsRef = fn('function fsRefresh()', 'function openFsView');
-check('fsRefresh paints the blur class on the big feed (#fsmain)', /fsmain\.classList/.test(fsRef) && /blur/.test(fsRef));
-check('fsRefresh paints the blur class on every thumb', /tv\.classList/.test(fsRef));
+check('fsRefresh paints the blur class on the big feed (#fsmain)', /fsBlurClass\(fsmain, main\.bl\)/.test(fsRef));
+check('fsRefresh paints the blur class on every thumb, on build and on every re-borrow', (fsRef.match(/fsBlurClass\(tv, s\.bl\)/g) || []).length >= 2);
+check('fsBlurClass wears the same two classes the grid tile does', /function fsBlurClass\(v, bl\) \{ v\.classList\.remove\('blur1', 'blur2'\); if \(bl\) v\.classList\.add\('blur' \+ bl\); \}/.test(run));
 
 // 2. the PiP picker never floats a peer an admin turned off or a moderator blurred
 const pip = fn('function pipSource()', 'async function enterPip');
@@ -37,7 +38,7 @@ check('pipSource skips a peer under a moderator blur block (PiP paints the raw f
 const maxbtn = fn("maxbtn.addEventListener('click'", 'tile.appendChild(maxbtn)');
 check('the iOS native-fullscreen branch exists', /webkitEnterFullscreen/.test(maxbtn));
 check('…and a remote feed that is blurred or video-off never takes it (the overlay keeps the CSS)',
-  /webkitEnterFullscreen[\s\S]{0,200}(forcedCamOff\(id\)|blurLevelFor\(id\))/.test(maxbtn) && /blurLevelFor\(id\)/.test(maxbtn) && /forcedCamOff\(id\)/.test(maxbtn));
+  /const moderated = !isMe && \(forcedCamOff\(id\) \|\| blurLevelFor\(id\) > 0\);/.test(maxbtn) && /video\.webkitEnterFullscreen && !moderated\)/.test(maxbtn));
 
 // 4. the blur CSS covers the filmstrip sinks
 check('the blur1/blur2 CSS applies to #fsmain and .fsthumb video, not only .tile video',

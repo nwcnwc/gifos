@@ -143,12 +143,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ---- a FORGED app frame from a room member must not poison a latecomer ----
   // The lane retains the first 'app' frame for a sid as immutable and serves
-  // it onward. Any room member holds the room key, so any member can push a
-  // frame with kind:'app' and the live sid at a joiner who has no bytes yet;
-  // unverified, that fake was retained, the real copy refused forever, and
-  // the app never mounted for them. The lane must verify the owner's
-  // signature BEFORE retaining. Ben (an ordinary guest) pushes the fake at
-  // Fay the moment her seat appears, and keeps pushing while she wires.
+  // it onward. Any room member holds the room key, so any member can hand a
+  // joiner who has no bytes yet a frame with kind:'app' and the live sid —
+  // signed with a key of their own, which the lane never checked. Unverified,
+  // that fake was retained, the owner's copy refused forever, and the app
+  // never mounted for the joiner. The lane must verify the OWNER's signature
+  // before retaining. Two deliveries: Fay's own page feeds the forged frame in
+  // through the wire's receive path the instant her meeting object exists
+  // (deterministic: it lands before she learns the ad), and Ben pushes the
+  // same kind of fake at her over a real channel while she wires.
   const sid = await aMeet.evaluate(() => window.__gifosVideo.appSid());
   const forged = { k: 'sga-app', m: { k: 'sga', sid, seq: 'forge:' + Date.now(), kind: 'app',
     d: { p: { sid, kind: 'app', n: 1, body: { app: 'R0lGODlhAQABAAAAACw=', name: 'Forged' } }, pk: '11'.repeat(32), sig: '22'.repeat(64) }, at: Date.now() } };
@@ -156,10 +159,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const fCtx = await newUser('Fay');
   const fMeet = await fCtx.newPage();
   fMeet.on('pageerror', (e) => console.log('  [f meet pageerror]', e.message));
-  await fMeet.addInitScript(() => {
-    const arm = () => { if (window.__gifosVideo && window.__gifosVideo.sgaIsolateForTest) window.__gifosVideo.sgaIsolateForTest(true); else setTimeout(arm, 20); };
+  await fMeet.addInitScript((sid) => {
+    window.__forged = { state: 'armed' };
+    const arm = () => {
+      const v = window.__gifosVideo;
+      if (!v || !v.sgaInjectForTest || !v.sgaIsolateForTest) { setTimeout(arm, 20); return; }
+      v.sgaIsolateForTest(true); // no structural neighbours: the pull widens only after a few tries
+      const lib = () => (window.GifOS && GifOS.appOwner) ? Promise.resolve(GifOS.appOwner) : new Promise((res, rej) => {
+        const el = document.createElement('script'); el.src = 'js/app-owner.js';
+        el.onload = () => res(window.GifOS && GifOS.appOwner); el.onerror = () => rej(new Error('app-owner.js'));
+        document.head.appendChild(el);
+      });
+      lib().then((AO) => AO.createSigner()).then((signer) => signer.sign(sid, 'app', { app: 'R0lGODlhAQABAAAAACw=', name: 'Forged' })).then((f) => {
+        const ok = v.sgaInjectForTest({ k: 'sga-app', m: { k: 'sga', sid, seq: 'forge:self', kind: 'app', d: f, at: Date.now() } });
+        window.__forged = { state: ok ? 'injected' : 'refused', pk: f.pk, atMs: Date.now() };
+      }).catch((e) => { window.__forged = { state: 'error', err: String(e) }; });
+    };
     arm();
-  });
+  }, sid);
   await fMeet.goto(link);
   let fId = null;
   try { fId = await (await bMeet.waitForFunction((before) => window.__gifosVideo.peerIds().find((id) => !before.includes(id)) || null, bBefore, { timeout: 45000 })).jsonValue(); } catch (e) {}
@@ -169,9 +186,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await sleep(500);
   }
   await fMeet.waitForSelector('#appmount iframe', { timeout: 45000 }).catch(() => {});
-  const fState = await fMeet.evaluate((sid) => ({ active: window.__gifosVideo.appActive(), pull: window.__gifosVideo.sgaPullState(sid) }), sid);
-  console.log('  poisoned joiner: seat=' + (fId ? 'seen' : 'MISSING') + ' pushes=' + pushes + ' ' + JSON.stringify(fState));
-  check('a forged app frame pushed at a latecomer does not poison her lane (she still mounts the real app)', !!fId && pushes > 0 && fState.active);
+  const fState = await fMeet.evaluate((sid) => ({ active: window.__gifosVideo.appActive(), forged: window.__forged, pull: window.__gifosVideo.sgaPullState(sid) }), sid);
+  const fTrace = await fMeet.evaluate(() => (window.__appJoinTrace || []).map((e) => e.ev + '@' + e.ms + 'ms').join(' '));
+  console.log('  poisoned joiner: seat=' + (fId ? 'seen' : 'MISSING') + ' pushes=' + pushes + ' ' + JSON.stringify(fState) + ' trace: ' + (fTrace || '(none)'));
+  check('precondition: the forged, self-signed app frame reached the joiner\'s lane before the real bytes', fState.forged && fState.forged.state === 'injected');
+  check('a forged app frame does not poison a latecomer: she still mounts the real app  ' + JSON.stringify({ active: fState.active, forged: fState.forged && fState.forged.state, pushes, held: fState.pull.app }),
+    fState.forged && fState.forged.state === 'injected' && fState.active);
   await fCtx.close();
 
   // ---- Stopping the app tears the pane down for everyone ----
