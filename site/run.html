@@ -1951,7 +1951,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // A DOM hacker can set their own flag, but every RECEIVER runs this
     // filter — the open/admin room principle, unchanged.
     const canStage = (id) => !hasAdminRoom() || admins.includes(id) || !!(modOf(id).app && modOf(id).app.on);
-    const stageIds = () => {
+    // ONE DERIVATION PER REPAINT PASS. stageIds() and allConsent() walk the
+    // roster (and past one section build a seat map), and updateTile asked for
+    // both once per tile, so one refreshAllTiles cost O(tiles x roster). Inside
+    // a synchronous pass the shared state cannot change, so the first answer
+    // is the only answer: refreshAllTiles opens the memo and closes it in a
+    // finally, and outside a pass every call derives afresh as before.
+    let passMemo = null;
+    const reactStats = { passes: 0, scheduled: 0, tiles: 0, layouts: 0, chipWrites: 0 }; // repaint counters (reactStatsForTest)
+    const REACT_COALESCE_MS = 250; // gossip repaints coalesce into one pass per window (scheduleRoomReact)
+    let reactPending = false;
+    const memoPass = (k, f) => { if (!passMemo) return f(); if (!(k in passMemo)) passMemo[k] = f(); return passMemo[k]; };
+    const stageIds = () => memoPass('stg', stageIdsNow);
+    const stageIdsNow = () => {
       // A stage seat needs a FRESH status (same 15s rule as consent/roster):
       // a departed stager's lingering stg flag must not hold a seat — everyone
       // would keep painting a strip whose feed is gone (a big black tile).
@@ -2810,7 +2822,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         try { broadcastStatus(); } catch (e) {}
       }
     }
-    function refreshAllTiles() { updateTile('me'); for (const pid of peers.keys()) updateTile(pid); if (typeof updateBlurAllBtn === 'function') updateBlurAllBtn(); if (typeof updateCamAllBtn === 'function') updateCamAllBtn(); }
+    // Every tile from one derivation (passMemo), and ONE layout() for the pass:
+    // updateTile lays out after itself when called alone, but a pass that
+    // repaints P tiles laid the whole grid out P+1 times for one result.
+    function refreshAllTiles() {
+      passMemo = {};
+      try { updateTile('me', true); for (const pid of peers.keys()) updateTile(pid, true); }
+      finally { passMemo = null; }
+      layout();
+      if (typeof updateBlurAllBtn === 'function') updateBlurAllBtn(); if (typeof updateCamAllBtn === 'function') updateCamAllBtn();
+    }
     // ============================ THE BLUR RULE ==============================
     // ONE rule, computed identically on every device from shared state, drives
     // BOTH the pixels a sender broadcasts and the CSS every receiver applies —
@@ -2875,7 +2896,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       roomPastAt = Date.now();
       return d.refuse === 0 && !d.part;
     }
-    function allConsent() {
+    function allConsent() { return memoPass('cons', allConsentNow); }
+    function allConsentNow() {
       if (!consents(myStatus)) return false;
       if (!roomConsentOk()) return false;
       for (const pid of roomConsentIds()) { if (!freshConsent(pid)) return false; }
@@ -2909,6 +2931,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // occupancy, admin presence, or the password change.
     let lastCons = null;
     function reactRoomState() {
+      reactStats.passes++;
+      reactPending = false; // a synchronous pass answers any pass still queued
       refreshAllTiles();
       refreshOutbound();
       paintControls();
@@ -2921,6 +2945,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           lastCons = c;
         }
       }
+    }
+    // GOSSIP REPAINTS ARE COALESCED. A status frame from every section-mate
+    // (and a second copy of each over the DataChannel pair) used to run the
+    // whole cascade above once per frame; the state it re-derives changes on
+    // a handful of those frames. Intake sites call scheduleRoomReact() and
+    // the pass runs at most once per REACT_COALESCE_MS, carrying the latest
+    // state: added latency is bounded by the window, far inside the heartbeat
+    // (SCALE.HB). A timer, not an animation frame, so a hidden tab (a pocketed
+    // phone) still parks and re-derives. User actions keep calling
+    // reactRoomState() directly: a click is answered on the spot.
+    function scheduleRoomReact() {
+      if (reactPending) return;
+      reactPending = true;
+      reactStats.scheduled++;
+      setTimeout(() => { if (!reactPending) return; reactPending = false; roomReactPass(); }, REACT_COALESCE_MS);
+    }
+    function roomReactPass() {
+      reactRoomState();                                                 // their agreement (or its withdrawal) can move the whole room's floor
+      if (typeof paintShare === 'function') paintShare();               // someone STARTED sharing: give the stage its height now, not on the next 2s beat
+      if (typeof reconcileApp === 'function') reconcileApp();           // pick up / drop a shared app
     }
 
     // ---- admin-absence auto-close --------------------------------------------
@@ -3145,10 +3189,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Repaint one tile's overlay: mute/blur/camera chips (attributed when the
     // group applied them), receiver-side ENFORCEMENT of group mute/blur, and
     // the moderation menu's labels.
-    function updateTile(id) {
+    function updateTile(id, inPass) {
       const isMe = id === 'me';
       const t = isMe ? meTile : peers.get(id);
       if (!t) return;
+      reactStats.tiles++;
       const st = (isMe ? myStatus : statusOf.get(id)) || {};
       const mod = modOf(id);
       const gMute = mod.mute && mod.mute.on, gBlur = mod.blur && mod.blur.on, gCam = mod.cam && mod.cam.on;
@@ -3181,8 +3226,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       else if (st.muted) chips.push('<span>🎤 muted</span>');
       const bl = blurLevelFor(id);
       if (gBlur) chips.push('<span class="warn">🌫 blurred for everyone by ' + esc(mod.blur.by) + '</span>');
+      // What clears THIS tile is the blur rule's own branch: an admin room
+      // clears per tile once an admin is here (unanimity plays no part), so a
+      // consenting seat in the blurred waiting room is told to wait for the
+      // host, not for everyone. With the host present the tile is clear and
+      // this chip is unreachable.
       else if (bl && consents(st)) chips.push('<span>🌫 ' + (!roomPw ? 'blurred — a room password is the key to clear video'
-        : 'blurred until everyone is ready (camera on, No blur)') + '</span>');
+        : hasAdminRoom() ? 'blurred until the host is here' : 'blurred until everyone is ready (camera on, No blur)') + '</span>');
       else if (bl) chips.push('<span>🌫 ' + (bl === 2 ? 'max blur' : 'blurred') + '</span>');
       if (gCam) chips.push('<span class="warn">📷 video off for everyone by ' + esc(mod.cam.by) + '</span>');
       else if (st.camOff) chips.push('<span>📷 camera off</span>');
@@ -3196,7 +3246,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (sdv && vt.up[sdv]) chips.push('<span>🗳 ' + vt.up[sdv] + '/' + vt.need + ' to the stage</span>');
         if (sdv && vt.down[sdv]) chips.push('<span class="warn">🗳 ' + vt.down[sdv] + '/' + vt.need + ' off the stage</span>');
       }
-      t.chips.innerHTML = chips.join('');
+      // Write the chips only when they changed: a repaint runs on every gossip
+      // pass, and rebuilding identical spans drops keyboard focus from the
+      // .stopshare chip (role=button) and flashes every chip for nothing.
+      const chipHtml = chips.join('');
+      if (t.chipsHtml !== chipHtml) { t.chipsHtml = chipHtml; t.chips.innerHTML = chipHtml; reactStats.chipWrites++; }
       t.tile.classList.toggle('noroute', !isMe && !!t.noRoute);
       t.tile.classList.toggle('cam-off', seatDark(st) || !!gCam); // admin video-off hides the tile on every receiver; a screen share is not a dark seat
       t.video.classList.remove('blur1', 'blur2');
@@ -3227,13 +3281,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (a && a.enabled) { a.enabled = false; myStatus.muted = true; }
         paintControls();
       }
-      layout();
+      if (!inPass) layout(); // a pass (refreshAllTiles) lays out once after every tile
     }
     const esc = (s) => String(s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     // ---- feed ordering: focus feed on top, then raised hands in raise order --
     let focusId = null;
     function layout() {
+      reactStats.layouts++;
       const hands = [];
       const collect = (id, st) => { if (st && st.hand) hands.push([id, st.hand]); };
       collect('me', myStatus);
@@ -5032,7 +5087,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (msg.name) rosterNames[from] = String(msg.name).slice(0, 40);
       if (msg.ip) ipsOf[from] = String(msg.ip).slice(0, 64);
       if (p) p.lastHeard = Date.now();
-      if (msg.st) { takeStatus(from, msg.st); reactRoomState(); }
+      if (msg.st) { takeStatus(from, msg.st); scheduleRoomReact(); } // coalesced: one pass per window, not per offer/answer
       // Group moderation: signature-verified in admin rooms (§9), open in
       // plain rooms — the transport no longer matters, only the proof.
       takeMod(from, msg);
@@ -5176,12 +5231,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         }
         // ONE PULSE, ONE RE-DERIVATION: every DC-linked section mate hears each
         // beat twice (viaDc + GSPS over the same link); the second copy changed
-        // nothing, so it repaints nothing — tiles, outbound, stage, app.
-        if (took !== null) {
-          reactRoomState(); // their agreement (or its withdrawal) can move the whole room's floor
-          if (typeof paintShare === 'function') paintShare(); // someone STARTED sharing: give the stage its height now, not on the next 2s beat (the chip already landed with the tile repaint, and a strip that stays letterbox-small for two seconds beside a chip saying "screen" reads as a bug)
-          if (typeof reconcileApp === 'function') reconcileApp(); // pick up / drop a shared app
-        }
+        // nothing, so it schedules nothing. A fresh pulse asks for ONE coalesced
+        // pass (tiles, outbound, share height, shared app) per window — not one
+        // per status frame.
+        if (took !== null) scheduleRoomReact();
       } else if (msg.kind === 'mod') {
         takeMod(from, msg); // signature-verified in admin rooms (§9)
       } else if (msg.kind === 'appstop') {
@@ -15105,6 +15158,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       votesAgainst: (id) => voteTally[devOf[id]] || 0,
       myVoteCount: () => myVoteoffs.size,
       consensus: () => allConsent(),
+      // Repaint-cascade counters (e2e-status-plane's quiet leg): passes run,
+      // passes merely scheduled, tiles painted, layouts, chip DOM writes.
+      reactStatsForTest: () => Object.assign({}, reactStats),
       consentCount: () => consentCount(),
       adminPresent: () => adminPresent(),
       ips: () => Object.assign({}, ipsOf),

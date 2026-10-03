@@ -220,6 +220,16 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   // collapsed is the default — so the sharer's own tile chip has to be a way
   // out on its own. (The browser's own stop bar is the other, and it lands in
   // the same place through track.onended.)
+  // The chip is keyboard-reachable (role=button, tabindex=0) and must HOLD
+  // focus while the tile is repainted under it: the sharer's own heartbeat
+  // and the viewer's gossip repaint the self-tile every beat (SCALE.HB), and
+  // a chips rebuild on every repaint dropped focus to <body> — no keyboard or
+  // screen-reader user could ever reach the one always-on-screen stop.
+  await a.evaluate(() => { const el = document.querySelector('.stopshare'); if (el) el.focus(); });
+  await sleep(9000); // two heartbeats and their repaints
+  const focusHeld = await a.evaluate(() => !!(document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('stopshare')));
+  check('the stop chip keeps keyboard focus across two heartbeats of repaints (chips are written only when they change)', focusHeld,
+    await a.evaluate(() => (document.activeElement && (document.activeElement.className || document.activeElement.tagName)) || 'none'));
   const stopChip = await a.evaluate(() => {
     const el = document.querySelector('.stopshare');
     if (!el) return null;

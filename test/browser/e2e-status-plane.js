@@ -230,15 +230,27 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   // gossip frames than its section and links can send it. A future shortcut
   // that puts anything periodic back on the room-wide path trips the first
   // line; one that widens the heartbeat's scope trips the second.
-  const q0 = await gs();
+  const rs = () => Promise.all(pages.map((pg) => pg.evaluate(() => window.__gifosVideo.reactStatsForTest()).catch(() => null)));
+  const q0 = await gs(); const rs0 = await rs();
   await sleep(20000);
-  const q1 = await gs();
+  const q1 = await gs(); const rs1 = await rs();
   const originated = q1.map((x, i) => (x && q0[i]) ? x.roomFlood - q0[i].roomFlood : -1);
   const received = q1.map((x, i) => (x && q0[i]) ? x.inAll - q0[i].inAll : -1);
   const C = 2, beats = 20000 / 4000;
   const rxBound = Math.ceil(beats * (C * C - 1) * (2 * C - 1) * 1.5) + 20; // the harness bound per beat (C²-1)(2C-1), re-fans included, plus slack for the two DC-pulse copies and the admin-less room's own churn
   check('QUIET ROOM, 20 s: no seat originated a room-wide flood', originated.every((x) => x === 0), { originated });
   check('QUIET ROOM, 20 s: gossip frames received per seat stay under the section bound (' + rxBound + ')', received.every((x) => x >= 0 && x <= rxBound), { received, rxBound });
+  // THE REPAINT CASCADE (the cost BEHIND each frame). Every frame received
+  // above used to run the whole tile/outbound/adapt re-derivation at once:
+  // layout() once per tile per frame, and every tile's chips rewritten through
+  // innerHTML whether or not they changed. In a quiet room nothing on a tile
+  // changes, so no chip may be written at all; and a pass lays the grid out
+  // once, so layouts track passes (plus my own heartbeat's self-tile repaint,
+  // one per beat), never passes x tiles.
+  const dr = (k) => rs1.map((x, i) => (x && rs0[i]) ? x[k] - rs0[i][k] : -1);
+  const passes = dr('passes'), layouts = dr('layouts'), chipWrites = dr('chipWrites'), tiles = dr('tiles');
+  check('QUIET ROOM, 20 s: no seat rewrote a tile\'s chips (' + chipWrites.reduce((a, b) => a + b, 0) + ' writes; chips are written only on change)', chipWrites.every((x) => x >= 0 && x <= 2), { chipWrites, passes, tiles });
+  check('QUIET ROOM, 20 s: one layout per repaint pass, not one per tile', layouts.every((x, i) => x >= 0 && x <= passes[i] + beats + 6), { layouts, passes });
 
   // ---- 6. consent needs everyone -------------------------------------------------
   for (const pg of pages) { await pg.locator('#cam').click().catch(() => {}); await pg.evaluate(() => window.__gifosVideo.setBlur(0)).catch(() => {}); await sleep(300); }

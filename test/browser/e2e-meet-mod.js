@@ -277,6 +277,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await e.waitForFunction(() => window.__gifosVideo.adminsHere().length === 0, null, { timeout: 40000 });
   await e.waitForFunction((id) => { const b = window.__gifosVideo.blurClassOf(id); return b === null || b >= 1; }, dId, { timeout: 20000 });
   check('with NO admin present the room NEVER clears (blurred waiting room)', true);
+  // The guest consents (camera on, No blur) and the room is locked, so the
+  // chip on her own tile explains the blur. An admin room clears per tile on
+  // HOST presence; "until everyone is ready" names a condition that can
+  // never clear it here.
+  const meChip = () => e.evaluate(() => ((document.querySelector('.tile.me .chips') || {}).textContent) || '');
+  const hostChip = await e.waitForFunction(() => /blurred until the host is here/.test(((document.querySelector('.tile.me .chips') || {}).textContent) || ''), null, { timeout: 20000 }).then(() => true).catch(() => false);
+  check('the guest\'s own chip says the tile waits for the HOST, not for everyone', hostChip && !/everyone is ready/.test(await meChip()), await meChip());
   await e.waitForFunction(() => window.__gifosVideo.countdownShown(), null, { timeout: 30000 });
   check('the admin-absence countdown starts for the leftover guest', true);
 
