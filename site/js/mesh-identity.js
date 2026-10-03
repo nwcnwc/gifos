@@ -185,6 +185,7 @@
     let sp; try { sp = JSON.parse(s.sp); } catch (e) { return { ok: false, from: null }; }
     const from = sp.from;
     if (!from || typeof from !== 'string' || from !== m.src) return { ok: false, from: null };   // the frame's author IS the signer
+    if (!String(m.gid).startsWith(from + ':')) return { ok: false, from: null };                 // and the gid names that author: a signer may not mint ids in another seat's name (the seen set is keyed by gid)
     if ((await peerIdOf(s.pub)) !== from) return { ok: false, from: null };                    // id bound to key
     if ((await gossipStatement(from, m, sp.ts)) !== s.sp) return { ok: false, from: null };     // the statement describes THIS frame
     if (!(await net.edVerify(s.pub, s.sig, s.sp))) return { ok: false, from: null };

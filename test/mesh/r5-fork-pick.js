@@ -103,6 +103,60 @@ function mkEnv(onFork, homeFaces) {
   check('face list: Stadium when no Stage', fl2.tier === 'stadium' && fl2.faces[0] === 'm1');
   check('face list: roster last', fl3.tier === 'roster' && fl3.faces[0] === 'r1');
 
+  // ---- F: DARK GREETERS must not hold the newcomer for the full ceiling ----
+  // The probe fans WHOHOME to up to 5 greeters and waits for every HOME. A
+  // greeter whose socket died silently (a NAT zombie the watchdog has not
+  // dropped yet) never answers, so the probe used to idle to its 30-tick
+  // ceiling (15 s at the production tick) before seating on the HOMEs it
+  // already held. Now a short grace after the LAST HOME resolves it: the
+  // honest greeters' answers arrive within a round trip of each other, and a
+  // sample that is still missing after that is a dark door, not a slow one.
+  // Clock-driven: env.TICK advances and the seat ticks, exactly as the fabric
+  // drives it; no forkPending is poked.
+  {
+    const envF = mkEnv(() => { throw new Error('no fork'); });
+    envF.sent = [];
+    envF.send = (from, to, m) => { envF.sent.push({ at: envF.TICK, to, m }); };
+    const jF = new mesh.Seat('jF', envF);
+    const tickTo = (n) => { while (envF.TICK < n) { jF.tick(); envF.TICK++; } };
+    jF.join();
+    jF.recv({ t: 'GREETERS', list: ['g1', 'g2', 'g3'] });
+    check('F: three greeters → probe fans WHOHOME to all three', jF.forkProbe === true && envF.sent.filter((x) => x.m.t === 'WHOHOME').length === 3);
+    tickTo(2);
+    const rosterF = [{ k: 1, v: 'p1' }, { k: 2, v: 'p2' }];
+    jF.recv({ t: 'HOME', id: 'g1', gkey: 'ONE', roster: rosterF, stage: ['p1'], stadium: ['p1', 'p2'] });
+    const firstHomeAt = envF.TICK;
+    // g2 and g3 never answer. (Two samples already resolve at once; it is the
+    // ONE-sample probe that used to sit at the ceiling.)
+    let findAt = -1;
+    for (let t = 0; t < 60 && findAt < 0; t++) { jF.tick(); const f = envF.sent.find((x) => x.m.t === 'FIND'); if (f) findAt = f.at; envF.TICK++; }
+    check('F: with the other greeters dark, the seat-ask goes out within 10 ticks of the only HOME', findAt >= 0 && findAt - firstHomeAt <= 10, { findAt, firstHomeAt, wait: findAt - firstHomeAt });
+    check('F: …to a roster seat from the one cluster (no pick-one)', findAt >= 0 && ['p1', 'p2'].includes(envF.sent.find((x) => x.m.t === 'FIND').to) && jF.forkPaused === false);
+  }
+
+  // ---- G: EVERY probed greeter dark → the retry fires the tick the probe gives up ----
+  // No HOME at all means the probe concedes at its ceiling; it used to park
+  // retryAt so that the state-1 retry waited a further 20 ticks (10 s) on top.
+  {
+    const envG = mkEnv(() => { throw new Error('no fork'); });
+    envG.sent = []; envG.knocks = 0;
+    envG.send = (from, to, m) => { envG.sent.push({ at: envG.TICK, to, m }); };
+    envG.knock = () => { envG.knocks++; };
+    const jG = new mesh.Seat('jG', envG);
+    jG.join();
+    jG.recv({ t: 'GREETERS', list: ['d1', 'd2', 'd3'] });
+    envG.sent = []; envG.knocks = 0;
+    let gaveUpAt = -1, retryAt = -1;
+    for (let t = 0; t < 80 && retryAt < 0; t++) {
+      jG.tick();
+      if (gaveUpAt < 0 && !jG.forkProbe) gaveUpAt = envG.TICK;
+      if (gaveUpAt >= 0 && (envG.knocks > 0 || envG.sent.some((x) => x.m.t === 'WHOHOME'))) retryAt = envG.TICK;
+      envG.TICK++;
+    }
+    check('G: a probe with no HOME concedes at its ceiling (30 ticks)', gaveUpAt >= 0 && gaveUpAt <= 31, { gaveUpAt });
+    check('G: …and the next WHOHOME or knock fires within 2 ticks of conceding', retryAt >= 0 && retryAt - gaveUpAt <= 2, { gaveUpAt, retryAt, wait: retryAt - gaveUpAt });
+  }
+
   console.log(fail ? '\n' + fail + ' FAILED' : '\nALL PASS — R5 same-key tear + Stage/Stadium faces');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });

@@ -137,13 +137,45 @@ console.log('\n=== 5) BACKLOG — heartbeats stay out of it; a chat line still r
   const seated = [...env.seats.values()].filter((s) => s.alive && s.state === 3);
   const got = new Set(); const prev = new Map();
   for (const s of seated) { prev.set(s.id, s.onGossip); s.onGossip = (src, m) => { if (m && m.chat) got.add(s.id); }; }
+  // RE-FAN COST: count the copies of the chat line each holder hands each of
+  // its links. The beat re-fan is a repair for a flood that raced a heal, so
+  // a link is handed a message at most TWICE (the fan and one re-fan at the
+  // next beat); it used to re-send every link at +8, +16, +24 and +32, five
+  // copies of every chat line and caption out of every seat. A copy bound for
+  // the owner rides the fabric's routed path, so it is counted at its origin
+  // (stamped on first send), not at the hop that carries it.
+  const chatRx = new Map(); // to -> Map(origin -> copies)
+  const baseSend5 = env.send;
+  const seatAt = (c) => { const k = ck(c); for (const s of env.seats.values()) if (s.alive && s.hasCoord && ck(s.coord) === k) return s.id; return null; };
+  env.send = (from, to, m) => {
+    if (m && m.t === 'GSP' && m.m && m.m.chat && (!m.routing || m.rvia === from && m.o5 === undefined)) { // a direct copy, or a routed copy at its origin (a hop re-sends with rvia = itself but o5 already stamped)
+      m.o5 = from; const dst = m.routing ? seatAt(m.rdst) : to;
+      if (dst != null) { let r = chatRx.get(dst); if (!r) chatRx.set(dst, r = new Map()); r.set(from, (r.get(from) || 0) + 1); }
+    }
+    baseSend5(from, to, m);
+  };
   seated[0].gossip({ chat: 'hello room' });   // room-scoped, remembered
   got.add(seated[0].id);
   for (let b = 0; b < 6; b++) { for (const s of seated) s.gossip({ hb: 1 }, { scope: 'section', ephemeral: true }); run(env, BEAT); }
+  env.send = baseSend5;
   let ephInBacklog = 0; for (const s of seated) for (const e of (s.grecent || [])) if (e.m && e.m.hb) ephInBacklog++;
   for (const s of seated) s.onGossip = prev.get(s.id);
   check('no ephemeral heartbeat sits in any re-fan backlog', ephInBacklog === 0, { ephInBacklog });
   check(`the chat line reached every seat while section heartbeats flowed (${got.size}/${seated.length})`, got.size === seated.length);
+  let worst = 0, worstTo = null, total = 0, links = 0;
+  for (const [to, r] of chatRx) { for (const [, n] of r) { total += n; links++; if (n > worst) { worst = n; worstTo = to; } } }
+  check(`no holder hands any link the chat line more than twice (worst ${worst} copies on one link; ${(total / links).toFixed(2)} per link over ${links} links)`, worst <= 2, { worst, worstTo, perLink: +(total / links).toFixed(2) });
+  // CONTROL: the one re-fan still repairs a lost fan. Every first copy of a
+  // second chat line bound for one deep seat is dropped; the next beat's
+  // re-fan must still land it there.
+  const victim = seated.find((s) => s.hasCoord && s.coord.pc !== 0) || seated[seated.length - 1];
+  const dropped = new Set(); let gotLate = false;
+  victim.onGossip = (src, m) => { if (m && m.chat2) gotLate = true; };
+  env.send = (from, to, m) => { if (m && m.t === 'GSP' && m.m && m.m.chat2 && to === victim.id && !dropped.has(from)) { dropped.add(from); return; } baseSend5(from, to, m); };
+  seated[0].gossip({ chat2: 'second line' });
+  run(env, BEAT * 4);
+  env.send = baseSend5; victim.onGossip = prev.get(victim.id);
+  check(`control: with the first copy over every one of its ${dropped.size} links dropped, the re-fan still lands the line at the seat`, dropped.size >= 1 && gotLate, { dropped: dropped.size, gotLate });
 }
 
 console.log('\n=== 6) MIXED VERSIONS — an old client cannot re-flood a scoped heartbeat');

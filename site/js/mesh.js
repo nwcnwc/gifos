@@ -54,6 +54,7 @@
   // ---- constants (mirror test/sim/mesh.cpp — SWEPT values, tuned for C=5 and the
   // lastPhone>=8 heartbeat cadence; re-sweep in the sim before changing) ----
   const RELAY_TTL = 500;     // greeter entry lifetime (ticks)
+  const FORK_GRACE = 8;      // R5 probe: ticks after the latest HOME before a still-silent greeter counts as dark (4 s at the production tick; the harness's first-contact delay spreads HOMEs by up to 5)
   const RELAY_CAP = 72;      // max greeter entries the relay holds
   const E3_PERIOD = 200;     // Section-1 re-knock cadence (< RELAY_TTL so live seats stay listed)
   const STRAND_TTL = 500;    // R6: unreachable-for-this-long ⇒ take over (empty) or stranded (recoverable — retry after backoff)
@@ -339,7 +340,7 @@
       // genesis key AND by roster overlap (same-key torn home = two greeter
       // halves the newcomer alone can see). Two+ clusters ⇒ human pick-one.
       // Faces for the UI: Stage first, else Stadium (app fills via HOME fields).
-      this.forkProbe = false; this.forkAt = -1;
+      this.forkProbe = false; this.forkAt = -1; this.forkLastAt = -1; // forkLastAt: the tick the latest HOME sample landed
       this.forkSamples = []; // raw HOME samples before clustering
       this.forkOpts = new Map(); // optionId -> { id, gkey, gateway, roster, stage, stadium, faces }
       this.forkPending = 0; this.forkPaused = false;
@@ -987,10 +988,15 @@
     maybeResolveFork() {
       if (!this.forkProbe || this.forkPaused || this.state !== 1) return;
       const TICK = this.TICK;
-      const ready = this.forkPending <= 0 || (this.forkAt >= 0 && TICK - this.forkAt >= 30);
+      // Ready when every probed greeter answered, or FORK_GRACE ticks after the
+      // latest HOME with some still silent (the honest doors answer within a
+      // round trip of each other; a door still silent after the grace is dark,
+      // not slow — it used to hold the newcomer at the 30-tick ceiling), or at
+      // the ceiling with nothing at all.
+      const ready = this.forkPending <= 0 || (this.forkAt >= 0 && TICK - this.forkAt >= 30) || (this.forkSamples.length > 0 && this.forkLastAt >= 0 && TICK - this.forkLastAt >= FORK_GRACE);
       if (!ready && this.forkSamples.length < 2) return;
       if (this.forkSamples.length === 0) {
-        if (ready) { this.forkProbe = false; this.retryAt = TICK - 10; }
+        if (ready) { this.forkProbe = false; this.retryAt = TICK - 21; } // every door dark for the whole ceiling: the state-1 retry (TICK - retryAt > 20) fires this tick, not 11 ticks later
         return;
       }
       const opts = this.clusterForkSamples(this.forkSamples);
@@ -2103,15 +2109,23 @@
       const eph = !!(opts && opts.ephemeral);
       this.gseq = (this.gseq || 0) + 1; const gid = this.id + ':' + this.gseq;
       (this.gseen = this.gseen || new Map()).set(gid, this.TICK);
-      if (!eph) this._gspRemember(gid, this.id, payload, sc);
+      const tx = new Map(); // link -> copies handed (the re-fan's ledger, see _gspRefan)
+      if (!eph) this._gspRemember(gid, this.id, payload, sc, 0, undefined, tx);
       // A FRESH frame per emit: transports stamp to/from onto the object they
       // are handed, so one shared frame would reach only its last recipient.
-      for (const p of (sc !== undefined ? this.sectionPeers() : this.linkPeers())) this.emit(p, this._gspFrame({ gid, src: this.id, m: payload, sc, eph }));
+      for (const p of (sc !== undefined ? this.sectionPeers() : this.linkPeers())) { this.emit(p, this._gspFrame({ gid, src: this.id, m: payload, sc, eph })); tx.set(p, 1); }
     }
     _gspRecv(m) {
       if (this.s4 && !m.s4ok) return; // under S4 every gossip frame is verified before it gets here; an unverified one is nobody's
       const scoped = m.t === 'GSPS'; // the TYPE decides: a field on a 'GSP' frame scopes nothing
       if (scoped && (!Number.isInteger(m.sc) || !this.hasCoord || this.coord.pc !== m.sc)) return; // outside the section it was scoped to (a replay or a stale link), or no scope at all
+      // A gid NAMES ITS AUTHOR (`<src>:<seq>`, minted in gossip()). The seen
+      // set is keyed by gid alone, so a frame whose gid names another seat is
+      // refused before it can be marked seen: otherwise a member could sign
+      // frames (as itself) carrying a neighbour's next gids and every seat
+      // would drop that neighbour's next messages as duplicates. The identity
+      // layer refuses the same frame at verification; this holds without S4.
+      if (typeof m.gid !== 'string' || typeof m.src !== 'string' || !m.gid.startsWith(m.src + ':')) { this.gspForged = (this.gspForged || 0) + 1; return; }
       const g = this.gseen = this.gseen || new Map();
       if (g.has(m.gid)) return;
       // THE FLOOD GUARD. Each LINK may hand me GSP_RATE new messages a tick
@@ -2125,7 +2139,12 @@
       // over a calmer link still lands.
       if (!this._gspBudget(m.from, m.src)) { this.gspDropped = (this.gspDropped || 0) + 1; return; }
       g.set(m.gid, this.TICK);
-      if (g.size > 4096) { for (const [k, at] of g) if (this.TICK - at > 600) g.delete(k); } // horizon GC
+      // Horizon GC from the OLDEST entry, stopping at the first fresh one: the
+      // Map keeps insertion order and every entry is stamped with the tick it
+      // arrived, so the expired entries are a prefix. A receipt costs
+      // O(expired + 1) steps; a walk of the whole set per receipt was a
+      // 4,000-entry scan per frame in any room gossiping more than ~7 a tick.
+      if (g.size > 4096) { for (const [k, at] of g) { if (this.TICK - at > 600) g.delete(k); else break; } }
       if (g.size > 65536) { let n = g.size - 32768; for (const k of g.keys()) { if (n-- <= 0) break; g.delete(k); } } // hard cap: oldest first (a Map keeps insertion order)
       const ag = Number.isInteger(m.ag) && m.ag > 0 ? Math.min(m.ag, 1 << 20) : 0;
       // The app gets a COPY: what I forward (and remember for re-fan) must be
@@ -2133,9 +2152,10 @@
       // app stamps its own fields onto what it takes (takeStatus: rx).
       let own = m.m; try { if (this.s4 && m.m && typeof m.m === 'object') own = JSON.parse(JSON.stringify(m.m)); } catch (e) {}
       if (this.onGossip) { let ok; try { ok = this.onGossip(m.src, own, ag, scoped); } catch (e) {} if (ok === false) { this.gspRefused = (this.gspRefused || 0) + 1; return; } } // the app REFUSED it: not remembered, not forwarded
-      if (!m.eph) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined, ag, m.s4);
+      const tx = new Map(); tx.set(m.src, 2); if (m.from != null) tx.set(m.from, 2); // the author and the link that handed it to me hold it already
+      if (!m.eph) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined, ag, m.s4, tx);
       const e = { gid: m.gid, src: m.src, m: m.m, sc: scoped ? m.sc : undefined, eph: m.eph ? 1 : 0, ag0: ag, s4: m.s4 };
-      for (const p of (scoped ? this.sectionPeers() : this.linkPeers())) if (p !== m.src) this.emit(p, this._gspFrame(e));
+      for (const p of (scoped ? this.sectionPeers() : this.linkPeers())) if (p !== m.src) { this.emit(p, this._gspFrame(e)); tx.set(p, 1); }
     }
     // ANTI-ENTROPY, two repairs (dedup makes both idempotent):
     // 1. BEAT RE-FAN — a one-shot flood races topology convergence: a seat whose
@@ -2167,7 +2187,7 @@
       take(sk, GSP_SRC_RATE, GSP_SRC_BURST); take(lk, GSP_RATE, GSP_BURST);
       return true;
     }
-    _gspRemember(gid, src, m, sc, ag0, s4) { const g = this.grecent = this.grecent || []; const e = { gid, src, m, at: this.TICK }; if (sc !== undefined) e.sc = sc; if (ag0) e.ag0 = ag0; if (s4) e.s4 = s4; g.push(e); if (g.length > 64) g.shift(); }
+    _gspRemember(gid, src, m, sc, ag0, s4, tx) { const g = this.grecent = this.grecent || []; const e = { gid, src, m, at: this.TICK, tx: tx || new Map() }; if (sc !== undefined) e.sc = sc; if (ag0) e.ag0 = ag0; if (s4) e.s4 = s4; g.push(e); if (g.length > 64) g.shift(); }
     // A SCOPED message rides its OWN frame type, 'GSPS'. A client from before
     // the status plane knows only 'GSP' and drops an unknown type at recv()'s
     // default — so it can never strip the scope and re-flood a heartbeat to
@@ -2175,15 +2195,22 @@
     // N=400 leaked section heartbeats to 385 seats). It still hears its
     // row-mates' statuses over run.html's own DataChannel pulse.
     _gspFrame(e) { const f = { t: e.sc !== undefined ? 'GSPS' : 'GSP', gid: e.gid, src: e.src, m: e.m }; if (e.sc !== undefined) f.sc = e.sc; if (e.eph) f.eph = 1; if (e.s4) f.s4 = e.s4; /* the AUTHOR's signature travels with the message */ const ag = (e.ag0 || 0) + (e.at != null ? Math.max(0, this.TICK - e.at) : 0); if (ag > 0) f.ag = ag; return f; }
+    // Each entry keeps a ledger (e.tx: link -> copies handed). A link is handed
+    // a message at most TWICE — the fan and one re-fan at the next beat — and a
+    // link that appears later (a heal, a new neighbour) gets its two then. The
+    // receiver dedups, so a third copy bought nothing and cost a signed, sealed
+    // frame: re-fanning every link at +8, +16, +24 and +32 sent five copies of
+    // every chat line and caption out of every seat.
     _gspRefan() {
       const g = this.grecent; if (!g || !g.length) return;
       this.grecent = g.filter((e) => this.TICK - e.at <= 256); // replay horizon (memory-bounded with the 64 cap)
       for (const e of this.grecent) {
         if (this.TICK - e.at > 32) continue; // beat re-fan only while fresh
-        for (const p of (e.sc !== undefined ? this.sectionPeers() : this.linkPeers())) this.emit(p, this._gspFrame(e));
+        const tx = e.tx || (e.tx = new Map());
+        for (const p of (e.sc !== undefined ? this.sectionPeers() : this.linkPeers())) { const n = tx.get(p) || 0; if (n >= 2) continue; tx.set(p, n + 1); this.emit(p, this._gspFrame(e)); }
       }
     }
-    _gspReplay(to) { if (this.grecent) for (const e of this.grecent) this.emit(to, this._gspFrame(e)); } // a scoped entry reaching a seat outside its section is dropped there
+    _gspReplay(to) { if (this.grecent) for (const e of this.grecent) { this.emit(to, this._gspFrame(e)); const tx = e.tx || (e.tx = new Map()); tx.set(to, (tx.get(to) || 0) + 1); } } // a scoped entry reaching a seat outside its section is dropped there
 
     // ---- message dispatch ----
     recv(m) {
@@ -2224,7 +2251,7 @@
               this.state = 1; this.retryAt = TICK;
               return;
             }
-            this.forkProbe = true; this.forkAt = TICK; this.forkSamples = [];
+            this.forkProbe = true; this.forkAt = TICK; this.forkLastAt = -1; this.forkSamples = [];
             this.forkOpts = new Map(); this.forkPending = 0;
             const order = pool.slice();
             for (let i = order.length - 1; i > 0; i--) { const j = (this.rng() * (i + 1)) | 0; const t = order[i]; order[i] = order[j]; order[j] = t; }
@@ -2326,6 +2353,7 @@
             const gk = m.gkey != null ? String(m.gkey) : '';
             if (gk && m.roster && m.roster.length) {
               const faces = (m.roster || []).map((e) => (e && (e.v != null ? e.v : e))).filter(Boolean).map((v) => String(v).slice(0, 12));
+              this.forkLastAt = TICK;
               this.forkSamples.push({
                 gkey: gk,
                 gateway: m.id != null ? m.id : this.gateway,

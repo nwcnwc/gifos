@@ -8490,12 +8490,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Mesh control frames (mesh.js) ride the pair's DC like all control.
         p.meshRxAt = Date.now(); p.tlFired = false; // the starve detector's proof of a LIVE pair (see the hb beat)
         meshRxByPid.set(p.id, p.meshRxAt); tlFiredPid.delete(p.id); // pid-level (object churn can't launder silence)
-        if (meshNode && m.m) meshNode.recvCtl(m.m);
+        if (meshNode && m.m) meshNode.recvCtl(m.m, p.id); // the pair IS the link: the mesh budgets gossip per link by it
       } else if (m.k === 'fmesh') {
         // Sponsor-forwarded mesh control (mirrors fsig): mine ⇒ hand to the
         // mesh node as if it arrived direct; else pass it onward — direct
         // channel, else one ttl-bounded unicast mesh step (fwdOnward).
-        if (m.to === myId) { if (meshNode && m.m) meshNode.recvCtl(m.m); return; }
+        if (m.to === myId) { if (meshNode && m.m) meshNode.recvCtl(m.m, m.from); return; } // the envelope's origin is the mesh neighbour that spoke
         fwdOnward('fmesh', m, p.id);
       } else if (m.k === 'rkick') {
         // The far side has a streamless mapping from me: if any of my sender

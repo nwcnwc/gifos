@@ -327,8 +327,15 @@
     // never reorders a sender's frames); a good frame is delivered with m.s4ok
     // stamped and its key pinned, a forged one is dropped. Non-signed frames and
     // S4-off nodes pass straight through — the structural path is untouched.
-    function ingest(m) {
+    function ingest(m, via) {
       if (stopped || !seat || !m) return;
+      // THE LINK IS NAMED: `via` is the peer that delivered this frame (the
+      // DC pair's pid, a sponsor envelope's origin, the relay's `from`). A
+      // frame that carries no sender field of its own gets it, so the seat's
+      // per-link flood budget keys on the real link and S1SYNC's want-whole
+      // reply knows whom to ask. A frame that names its sender (WHOHOME's
+      // seeker, SITPING's assigner) keeps it.
+      if (via != null && m.from == null) m.from = via;
       // DEBUG sever (drill lever, mirrors the app's severPair): drop MESH
       // frames whose sender fields name a severed pid — without this, seat
       // liveness rides the wire's own relay fallback beneath the app-level
@@ -400,7 +407,7 @@
               // a THROW inside the seat's recv must be LOUD — the old shape
               // let it fall into the outer catch and masquerade as an
               // unopenable app frame, silently eating entry handshakes
-              try { ingest(o.m); } catch (e) { try { console.error('[mesh] recv threw on', o.m && o.m.t, e); } catch (e2) {} }
+              try { ingest(o.m, m.from); } catch (e) { try { console.error('[mesh] recv threw on', o.m && o.m.t, e); } catch (e2) {} }
             } else if (opts.onRelayMsg) opts.onRelayMsg(m);
           }).catch(() => { if (!stopped && opts.onRelayMsg) opts.onRelayMsg(m); });
           return;
@@ -795,7 +802,7 @@
       get identity() { return identity; },
       // DataChannel ingestion: the DC layer hands OPENED control objects here
       // (production unwraps its own sealed frames; {mw:1, m} envelopes route m).
-      recvCtl(m) { if (!stopped && seat && m) ingest(m); },
+      recvCtl(m, via) { if (!stopped && seat && m) ingest(m, via); }, // via: the delivering peer (optional; the link the flood budget keys on)
       // Room-wide app traffic (chat/status/votes/files): flood over the mesh —
       // the relay session is only the greeter pool now, not the room.
       gossip(payload, opts) { if (!stopped && seat) seat.gossip(payload, opts); }, // opts: { scope: 'section', ephemeral } — see mesh.js gossip()

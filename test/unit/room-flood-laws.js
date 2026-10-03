@@ -61,6 +61,13 @@ check('the per-link budget exists and is small (rate ' + rate + '/tick, burst ' 
 check('the per-author budget exists and is smaller (rate ' + srate + '/tick, burst ' + sburst + ')', srate > 0 && srate <= rate && sburst > 0 && sburst <= burst, { srate, sburst });
 check('_gspRecv spends the budget before a message is seen or forwarded', has(mesh, /if \(!this\._gspBudget\(m\.from, m\.src\)\) \{[^\n]*return; \}\n\s*g\.set\(m\.gid/));
 check('the guard has no production off switch (env.GSP_GUARD === false is the harness control only)', (mesh.match(/GSP_GUARD/g) || []).length === 2 && !has(run, 'GSP_GUARD') && !has(wire, 'GSP_GUARD'));
+// The per-link bucket keys on the link that delivered the frame, so the wire
+// must NAME it: run.html hands recvCtl the pair's pid (and the sponsor
+// envelope's origin), the relay path hands the relay's `from`, and ingest
+// stamps a frame that carries no sender field of its own.
+check('run.html hands recvCtl the delivering pair and the sponsor-envelope origin', has(run, 'meshNode.recvCtl(m.m, p.id)') && has(run, 'meshNode.recvCtl(m.m, m.from)'));
+check('the wire stamps the delivering peer onto a frame with no sender field (DC and relay paths)', has(wire, /recvCtl\(m, via\) \{[^\n]*ingest\(m, via\)/) && has(wire, 'ingest(o.m, m.from)') && has(wire, 'if (via != null && m.from == null) m.from = via;'));
+check('a gid names its author: the seat and the identity layer both refuse a gid that does not start with its src', has(mesh, "!m.gid.startsWith(m.src + ':')") && has(ident, "!String(m.gid).startsWith(from + ':')"));
 
 // 5. signed gossip
 check('the wire signs the gossip I author and refuses to send unsigned gossip', has(wire, /ident\.GOSSIP_T\.has\(m\.t\) && !m\.s4\) \{\n\s*if \(m\.src !== seat\.id\) return;/));
