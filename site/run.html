@@ -3289,6 +3289,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         src.connect(an);
         meters.set(id, { an, src, data: new Uint8Array(an.fftSize) });
       } catch (e) {}
+      // A Whisper capture taps this meter's source node; the old node was
+      // just disconnected, so the capture went deaf. Re-cut it on the new one.
+      if (typeof wspRebind === 'function') wspRebind(id);
     }
     let meterHiddenTick = 0, meterQuietTick = 0, meterAnyLive = false;
     setInterval(() => {
@@ -8815,6 +8818,33 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       stageEar = { fold, el, sids: new Map() };
       const pr = el.play(); if (pr && pr.catch) pr.catch((e) => audioBlocked(el, e)); // the stage ear is the one element a sharer's voice rides
     }
+    // What the ear folds, re-derived every sweep from the stg claims I hold.
+    // THE EAR IS MEMBERSHIP, NOT A PIPE (same law as the strip, 2026-08-05):
+    // only a key whose owner is in the gossiped stage set is folded. A
+    // stepped-down stager's claim lingers for the pipe grace (MOS_GRACE, then
+    // claimRedun) while its MAIN senders are already back on the row, so an
+    // ear gated on the claim played that voice twice for ~5 s.
+    // "Mute for everyone" is enforced here at the receiver, as on the direct
+    // tiles (updateTile): a muted owner's feed stays held at gain 0 — the
+    // stage lane gives a client that ignores the moderator no second mouth.
+    function syncStageEar(stagers) {
+      if (!stageEar) return;
+      const onStage = new Set(stagers);
+      const want2 = new Map();
+      for (const [k2, f2] of mosIn) {
+        if (k2.indexOf('stg:') !== 0 || k2 === 'stg:' + myId || !f2.stream) continue;
+        if (!onStage.has(k2.slice(4).split('^')[0])) continue;
+        want2.set(k2, f2.stream);
+      }
+      for (const [k2, sid] of [...stageEar.sids]) { const st2 = want2.get(k2); if (!st2 || st2.id !== sid) { stageEar.fold.remove(k2); stageEar.sids.delete(k2); } }
+      for (const [k2, st2] of want2) {
+        if (!stageEar.sids.has(k2)) { stageEar.fold.add(k2, st2, 1); stageEar.sids.set(k2, st2.id); }
+        const gm = modOf(k2.slice(4).split('^')[0]).mute;
+        if (stageEar.fold.setGain) stageEar.fold.setGain(k2, (gm && gm.on) ? 0 : 1); // a cached older fold lacks it: held at 1, as before
+      }
+      stageEar.el.volume = mix.stage;
+      stageEar.el.muted = !(mix.stage > 0); // iOS ignores volume; 0 must be `muted`
+    }
     // My own outbound feed as a STABLE MediaStream (what I broadcast — the
     // blurred/raw video plus my mic). While staged this aux feed is the ONLY
     // way my face and voice leave this device (the main senders are parked —
@@ -10797,13 +10827,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!iAmHead) { const sdm = mosIn.get('sdm'); paintStadiumTile(sdm ? sdm.stream : null); }
       // STAGE EAR: sum the per-stager feeds I hold, skipping my own.
       if (stagers.length) ensureStageEar();
-      if (stageEar) {
-        const want2 = new Map();
-        for (const [k2, f2] of mosIn) if (k2.indexOf('stg:') === 0 && k2 !== 'stg:' + myId && f2.stream) want2.set(k2, f2.stream);
-        for (const [k2, sid] of [...stageEar.sids]) { const st2 = want2.get(k2); if (!st2 || st2.id !== sid) { stageEar.fold.remove(k2); stageEar.sids.delete(k2); } }
-        for (const [k2, st2] of want2) if (!stageEar.sids.has(k2)) { stageEar.fold.add(k2, st2, 1); stageEar.sids.set(k2, st2.id); }
-        stageEar.el.volume = mix.stage;
-      }
+      syncStageEar(stagers);
       // ---- sdn MIRROR chain relays (Phase 2, docs/media-plane.md) ----------
       // Any seat (head or not) that claimed a 'sdnmr:<dst>' hop forwards it to
       // the NEXT coord of the same deterministic route (recomputed from the
@@ -11515,7 +11539,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       el.muted = true; // the <video> is picture-only, always — sound lives in the companion
       if (el._aud.srcObject !== el.srcObject) { el._aud.srcObject = el.srcObject; el._aud.play().catch((e) => audioBlocked(el._aud, e)); }
       el._aud.volume = vol;
-      el._aud.muted = !!el._gmute; // group mute rides the same pipe as the faders
+      // A bus at 0 is MUTED, not merely volume 0: iOS Safari ignores the
+      // HTMLMediaElement volume setter (sound stays under the hardware
+      // buttons), so a structural link's raw mic and a stager's direct track
+      // played at full level there — ghost voices, doubled stagers. `muted`
+      // is honoured everywhere; the fader range above 0 still rides volume.
+      el._aud.muted = !!el._gmute || !(vol > 0); // group mute rides the same pipe as the faders
     }
     function applyBuses() {
       const stg = new Set(stageIds());
@@ -11544,7 +11573,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Section A/V + audio are dropped; section-mates fold into the Stadium.
       // Progressive disclosure for the stadium fader.
       document.getElementById('mixlab-stadium').style.display = hasStadium ? '' : 'none';
-      if (stageEar) stageEar.el.volume = mix.stage; // the Stage fader drives the ear fold
+      if (stageEar) { stageEar.el.volume = mix.stage; stageEar.el.muted = !(mix.stage > 0); } // the Stage fader drives the ear fold (muted at 0: iOS ignores volume)
     }
     // The Settings modal: the sound mix's new home (same fader ids as when it
     // floated as its own Mix panel) plus the video-quality picker.
@@ -12076,6 +12105,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       try { w.src.disconnect(w.node); } catch (e) {}
       if (w.own) { try { w.src.disconnect(); } catch (e) {} }
       try { w.node.disconnect(); } catch (e) {}
+    }
+    // A meter was rebuilt (camera flip, mic mode, a peer's stream re-claimed):
+    // the capture on it holds a disconnected source and never ticks again.
+    // Stop it and let the want set re-start it on the fresh node.
+    function wspRebind(id) {
+      if (!wspCaps.has(id)) return;
+      wspStop(id);
+      wspSync();
     }
     function startWhisper() { return wspStart('me'); }
     function stopWhisper() { for (const id of Array.from(wspCaps.keys())) wspStop(id); wspQ.items.length = 0; }
@@ -12918,7 +12955,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const wire = (action, fn) => { try { ms.setActionHandler(action, fn); } catch (e) { /* action unsupported here */ } };
       wire('togglemicrophone', () => micBtn.onclick());
       wire('togglecamera', () => camBtn.onclick());
-      wire('hangup', () => { sendMeshLeave(); location.replace('index.html'); });
+      // The OS hang-up is the Leave button: a recording in flight is flushed
+      // and handed over first, and the page stays on the card for it.
+      wire('hangup', () => { if (!leaveMeeting()) location.replace('index.html'); });
       // Chrome auto-enters picture-in-picture for call sites that handle this —
       // flip away and the stage follows you as a floating tile. MUST route
       // through enterPip(): registering a second handler here used to CLOBBER
@@ -13275,13 +13314,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // instant goodbye an unload sends, done on purpose: share and captions
     // stop, the farewell floods, every local track stops, the seat closes,
     // and a plain card says so — with the way back.
+    // Returns true when a recording was in flight: its onstop hands the file
+    // over (the download), so the page must stay up until then — the card's
+    // Close is the way home, not an immediate navigation.
     function leaveMeeting() {
+      let flushing = false;
+      try {
+        if (recRec && recRec.state !== 'inactive') {
+          // Same order as the Record button: halt the compositor BEFORE
+          // stop(), or the encoder's flush starves behind it on a weak device.
+          if (typeof recDraw === 'function') { try { recDraw(); } catch (e) {} }
+          recRec.stop(); flushing = true;
+        }
+      } catch (e) {}
+      try { if (typeof stopWhisper === 'function') stopWhisper(); } catch (e) {}
+      try { if (whisperRescan) { clearInterval(whisperRescan); whisperRescan = null; } } catch (e) {}
       try { if (myStatus.scr && typeof stopScreenShare === 'function') stopScreenShare(); } catch (e) {}
       try { if (typeof stopSpeech === 'function') stopSpeech(); } catch (e) {}
       sendMeshLeave();
       try { if (localStream) localStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
       for (const pid of Array.from(peers.keys())) { try { dropPeer(pid); } catch (e) {} }
       const lm = document.getElementById('left-modal'); if (lm) lm.style.display = 'flex';
+      return flushing;
     }
     const leaveBtn = document.getElementById('leavebtn');
     if (leaveBtn) leaveBtn.onclick = leaveMeeting;

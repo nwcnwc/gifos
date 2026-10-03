@@ -592,6 +592,9 @@
         } catch (e) {}
       },
       remove(key) { const s = srcs.get(key); if (s) { try { s.src.disconnect(); s.gain.disconnect(); } catch (e) {} srcs.delete(key); } },
+      // Drive a folded source's gain in place (0 = silenced, still held — the
+      // ear's receiver-side "Mute for everyone"); an unknown key is a no-op.
+      setGain(key, v) { const s = srcs.get(key); if (s && s.gain.gain.value !== v) s.gain.gain.value = v; },
       clear() { for (const k of [...srcs.keys()]) this.remove(k); },
       keys: () => [...srcs.keys()],
     };
