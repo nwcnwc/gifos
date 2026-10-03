@@ -69,6 +69,31 @@ Verification of the combined tree, as of 13:45 UTC:
 
 Still running when this was written: the whole mesh tier on the <orchestrator>, and a full browser + drills tier split across the three fleet boxes.
 
+## The merge of the 18 findings branches (afternoon of 3 Oct)
+
+A second agent worked through the findings list and left one commit per area on 18 branches (`mu-findings/*`), each cut from the same commit of `meet-universe-2026-10-03`. They were merged, one at a time, into `meet-universe-merged-2026-10-03`, cut from the tip of `meet-universe-2026-10-03`; each branch was deleted from the remote the moment its merge was pushed. `meet-universe-2026-10-03`'s own newer commit (bounded occupancy frames) was merged in as well.
+
+Areas merged: relay security and scale, the local relay's parity, stadium media, the wire and pipe caps, door ICE and the filmstrip, boot and lobby, Whisper and speech, mic and camera, chat and files, admin and password, the shared app and screen share, recording and leave, stage media, stage votes, captions and scribe, join-lifetime maps, tiles and moderation.
+
+**Conflicts that needed a real port, not a side picked.** `captions-scribe` was written against code that `whisper-speech`, `chat-and-files` and `recording-leave` had rewritten, so its intents were carried onto their versions: stage-feed Whisper capture inside the worklet attach, stage-first scribe slots under the stall pause, the scribe offer beside the signed file delete, and recording-leave's streamed recorder with the Safari mp4 container, the late metronome subscribe and a full release on a failed start. `join-lifetime` and `tiles-moderation` each had eight hunks that kept both sides (the recording-safe reload, the departure maps, the filmstrip thumbs kept by key and reachable by keyboard, the blur-frame recovery).
+
+**Review found five blocking regressions, all fixed with guards:**
+
+| what broke | fix | guard |
+|---|---|---|
+| opening the full-screen filmstrip detached every grid video's stream: row-mates went silent, a row head shipped dark faces to its section | the filmstrip only hides the grid's paint; streams stay attached | `mu-door-ice.js` |
+| batched ICE frames (`candidates:[…]`, `end:true`) are unreadable to an older client pinned to a frozen release: a mixed-version room could not connect | batch only to a peer that advertises `ib:1` in its offer/answer; single-candidate frames otherwise | `mu-door-ice.js` |
+| the freeze self-heal required the monotonic clock to jump too, but it stands still while a phone sleeps, so a pocketed phone never recovered | the wall gap decides; the monotonic gap may only confirm | `mu-join-lifetime.js` |
+| a first-time Whisper user's model download timed out the first clip and paused Whisper for the whole meeting, with no way back | no stall counts before the provider's first answer; re-picking Whisper or turning CC on clears the pause | `mu-whisper-speech.js` |
+| a file two hops from its pinner stalled at "receiving…": the asker sent stop to its only source, and a reopened panel showed a stale transcript | keep asking a source with no bytes yet; a new want cancels an old stop; reopening paints the shown tab | `mu-chat-and-files.js` |
+
+**Follow-ups fixed in the same pass:** the worker source the guard could no longer parse (`worker-source-parses.js` was red), dialogs dismissable into a stranded page (the locked-room prompt, the name prompt, the left and closed screens), a one-row stadium padded to four dark rows, the room-wide scribe advert in a one-section room, a far scribe silencing your own speech, CC staying lit after the speech engine gave up, a former admin blocking the auto-close, status lines cut off on phones, the wake lock retaken after Leave, unpaced password copies over the relay, the hand queue's repeated "(stage full)", a late first camera grant thrown away, the deep-seat recording's black stager tile, the audio-only stage copy relayed up and across, the stage memo map that only grew, recordings left in browser storage, the relay's overflow reply that made an honest greeter requeue, and the local relay's parity with the Worker.
+
+**Decisions for Nathan (merged as the other agent wrote them, not changed):**
+- **Remembered blur level.** Your last blur choice now carries into the next meeting. `docs/meeting.md` says everyone joins Max-blurred; the room's consent rule still gates clear video.
+- **Blur hold after a big room's fold goes missing.** It dropped from about 300 s to about 120 s. It is a privacy hold, so it is your call.
+- **Stage composition.** A Section-1 seat now shows a sharer's raw screen with small face overlays, while deeper seats get the composite strip, so the two see different stages.
+
 ## Still in flight when this was written
 
 Fixers for `mesh.js` (unsigned YIELD/CONFIRM/LEAVE/MOVED/DRAIN acceptance; the ×5 beat re-fan; the per-link flood budget; the 30 s lost-FIND and 15 s fork-probe waits), stage flags and votes (ghost stage flag, up-and-down from one voter), and the media ghosts (a crashed peer's structural claims painting a frozen block; hops waiting on the 2 s sweep; recording held in RAM). Their worktrees are `/tmp/mu-wt/<package>`; a patch lands in `/home/nathan/mu-work/patches/` when done.
