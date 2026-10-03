@@ -5233,6 +5233,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       try { if (p.glareTimer) clearTimeout(p.glareTimer); } catch (e) {}
       p.glareTimer = null; p.glareOffer = null;
       p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = []; p.deadSince = 0; p.rebuiltAt = Date.now();
+      // A new pc gathers afresh: its first host candidate must leave at once,
+      // so the old pc's batch (sawHost, a pending flush) is dropped.
+      { const ib = iceBatch.get(p.id); if (ib && ib.t) clearTimeout(ib.t); iceBatch.delete(p.id); }
       // New receivers. The jitter skip is keyed by the old verdict, so a
       // rebuild used to leave the new audio receivers without a target.
       try { gridApplied.delete(p.id); } catch (e) {}
@@ -5423,7 +5426,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => { preferHwVideo(p.pc); return p.pc.createAnswer(); })
           .then((ans) => p.pc.setLocalDescription(ans))
-          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), ip: myIp,
+          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, ib: 1, name: myName(), ip: myIp,
                                       st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
           .catch((e) => {
             // Rollback failed. Rebuild and dial from this side too. Dialling
@@ -5454,7 +5457,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       preferHwVideo(p.pc);
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
-        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
+        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, ib: 1, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
         .catch((e) => { noteNegFail('offer', peerId, e); });
     }
 
@@ -5575,15 +5578,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // does not wait. The rest of a trickle, and the null end-of-candidates
     // mark, leave as one frame 50ms later. A candidate that beats makePeer
     // waits in preIce (16, 15s) and is drained into pendingIce on the offer.
+    // The batch and end frames are a newer wire shape: an older build (a pinned
+    // site/versions snapshot, a cached page) reads only msg.candidate. So they
+    // go only to a peer whose offer or answer carried ib:1 (p.iceBatchOk);
+    // every other peer gets one {candidate} frame per candidate and no end mark.
+    // preIce holds at most PRE_ICE_PEERS senders, oldest dropped first.
     const iceBatch = new Map();
     const preIce = new Map();
     const ICE_BATCH_MS = 50;
     const PRE_ICE_CAP = 16;
     const PRE_ICE_MS = 15000;
+    const PRE_ICE_PEERS = 64;
+    function iceBatchOk(pid) { const p = peers.get(pid); return !!(p && p.iceBatchOk); }
     function iceIsHost(c) {
       return !!(c && typeof c.candidate === 'string' && /(^|\s)typ host(\s|$)/.test(c.candidate));
     }
     function noteIce(pid, candidate) {
+      if (!iceBatchOk(pid)) { if (candidate) sendSig(pid, { kind: 'ice', candidate: candidate }); return; }
       let b = iceBatch.get(pid);
       if (iceIsHost(candidate) && !(b && b.sawHost)) {
         if (!b) { b = { list: [], end: false, sawHost: false, t: 0 }; iceBatch.set(pid, b); }
@@ -5603,14 +5614,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const end = cur.end;
         cur.end = false;
         if (!list.length && !end) iceBatch.delete(pid);
+        if (end) iceBatch.delete(pid);
+        if (!iceBatchOk(pid)) { for (const c of list) sendSig(pid, { kind: 'ice', candidate: c }); return; }
         if (list.length) sendSig(pid, { kind: 'ice', candidates: list });
-        if (end) { iceBatch.delete(pid); sendSig(pid, { kind: 'ice', end: true }); }
+        if (end) sendSig(pid, { kind: 'ice', end: true });
       }, ICE_BATCH_MS);
     }
     function parkPreIce(from, cands) {
       const now = Date.now();
+      for (const [k, old] of preIce) if (now - old.at > PRE_ICE_MS) preIce.delete(k);
       let e = preIce.get(from);
-      if (!e || now - e.at > PRE_ICE_MS) { e = { at: now, list: [] }; preIce.set(from, e); }
+      if (!e) {
+        while (preIce.size >= PRE_ICE_PEERS) preIce.delete(preIce.keys().next().value);
+        e = { at: now, list: [] }; preIce.set(from, e);
+      }
       for (const c of cands) { if (!c) continue; if (e.list.length >= PRE_ICE_CAP) break; e.list.push(c); }
     }
     function drainPreIce(from, p) {
@@ -5677,6 +5694,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // over (cert-sweep-2 03c: a stable member livelocked to p=1).
         if (sponsorReplyTo.delete(from)) p.altPath = true; // §FWD: answer rides the sponsor path the offer proved
         learn(from, msg, p, adm);
+        p.iceBatchOk = msg.ib === 1; // the sender reads batched ICE and the end mark (see noteIce)
         // Perfect negotiation (glare): both sides may offer when the lower-id
         // side recovers from a never-arriving remote offer (see sweeper). The
         // polite peer (lower id) rolls back its local offer and accepts; the
@@ -5685,7 +5703,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => { preferHwVideo(p.pc); return p.pc.createAnswer(); })
           .then((ans) => p.pc.setLocalDescription(ans))
-          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
+          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, ib: 1, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
           .catch((e) => { noteNegFail('accept', from, e); });
         if (p.pc.signalingState === 'have-local-offer') {
           if (myId && myId < from) {
@@ -5728,6 +5746,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const p = peers.get(from);
         if (!p) { rxStats.answerNoPeer++; return; }
         learn(from, msg, p, adm);
+        p.iceBatchOk = msg.ib === 1; // the sender reads batched ICE and the end mark (see noteIce)
         // A second copy of an answer we already applied is in 'stable'.
         // Setting it again throws and used to be swallowed as if it landed.
         if (!p.pc || p.pc.signalingState !== 'have-local-offer') { rxStats.answerStale++; return; }

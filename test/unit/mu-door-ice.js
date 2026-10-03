@@ -96,8 +96,11 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
   const src = between('    const iceBatch = new Map();', '    function onSignal(from, msg, adm)');
   check('the ICE helpers are contiguous before onSignal', src.includes('function noteIce') && src.includes('function drainPreIce') && src.includes('function ckReply'));
   const sent = [];
-  const api = new Function('sendSig', src + '\nreturn { noteIce, parkPreIce, drainPreIce, iceCandsOf, preIce };')(
-    (pid, msg) => { sent.push(JSON.parse(JSON.stringify(msg))); });
+  const oldSent = [];
+  // 'p' advertised ib:1 in its offer/answer; 'old' is an older build that did not.
+  const peers = new Map([['p', { iceBatchOk: true }], ['old', {}]]);
+  const api = new Function('sendSig', 'peers', src + '\nreturn { noteIce, parkPreIce, drainPreIce, iceCandsOf, preIce, PRE_ICE_PEERS: typeof PRE_ICE_PEERS === "undefined" ? undefined : PRE_ICE_PEERS };')(
+    (pid, msg) => { (pid === 'old' ? oldSent : sent).push(JSON.parse(JSON.stringify(msg))); }, peers);
   const host = { candidate: 'candidate:1 1 udp 2122252543 10.0.0.1 50000 typ host generation 0', sdpMid: '0', sdpMLineIndex: 0 };
   const sr1 = { candidate: 'candidate:2 1 udp 1686052607 1.2.3.4 50000 typ srflx', sdpMid: '0', sdpMLineIndex: 0 };
   const sr2 = { candidate: 'candidate:3 1 udp 1686052607 1.2.3.4 50001 typ srflx', sdpMid: '0', sdpMLineIndex: 0 };
@@ -124,6 +127,31 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
     const peer2 = { pendingIce: [] };
     api.drainPreIce('stale', peer2);
     check('a preIce bucket older than 15s is dropped', peer2.pendingIce.length === 0 && !api.preIce.has('stale'));
+    // Mixed-version room: an older build reads only msg.candidate.
+    api.noteIce('old', host);
+    api.noteIce('old', sr1);
+    api.noteIce('old', sr2);
+    api.noteIce('old', null);
+    await delay(120);
+    check('a peer without ib gets one candidate frame per candidate and no end frame',
+      oldSent.length === 3 && oldSent.every((m) => m.kind === 'ice' && m.candidate && typeof m.candidate.candidate === 'string' && !m.candidates && !m.end),
+      JSON.stringify(oldSent));
+    check('the offer and both answers advertise ib:1',
+      (html.match(/kind: 'offer', sdp: p\.pc\.localDescription, ib: 1,/g) || []).length === 1
+      && (html.match(/kind: 'answer', sdp: p\.pc\.localDescription, ib: 1,/g) || []).length === 2);
+    const offerH = between("      if (msg.kind === 'offer') {", "        const accept = () =>");
+    const ansH = between("} else if (msg.kind === 'answer') {", "} else if (msg.kind === 'ice') {");
+    check('an offer and an answer record the sender\'s ib',
+      offerH.includes('p.iceBatchOk = msg.ib === 1') && ansH.includes('p.iceBatchOk = msg.ib === 1'));
+    const npc = between('    function newPcFor(p) {', '    const GLARE_YIELD_MS');
+    check('newPcFor forgets the ICE batch for the pair', /iceBatch\.delete\(p\.id\)/.test(npc));
+    api.preIce.clear();
+    for (let i = 0; i < 200; i++) api.parkPreIce('x' + i, [{ candidate: 'c' }]);
+    check('preIce never holds more than its cap of senders', api.preIce.size <= api.PRE_ICE_PEERS && api.PRE_ICE_PEERS === 64, api.preIce.size);
+    check('preIce drops the oldest sender first', !api.preIce.has('x0') && api.preIce.has('x199'));
+    api.preIce.get('x199').at = Date.now() - 20000;
+    api.parkPreIce('fresh', [{ candidate: 'c' }]);
+    check('adding to preIce sweeps buckets older than 15s', !api.preIce.has('x199') && api.preIce.has('fresh'));
     check('a single candidate and a list are both accepted',
       api.iceCandsOf({ candidate: host }).length === 1 && api.iceCandsOf({ candidates: [sr1, null, sr2] }).length === 2 && api.iceCandsOf({ end: true }).length === 0);
     const ice = between("} else if (msg.kind === 'ice') {", "} else if (msg.kind === 'status') {");
