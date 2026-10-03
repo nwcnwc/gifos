@@ -37,7 +37,7 @@ item with its reason, so nobody re-derives it.
 | Meeting history without retention | By design: room-lifetime history, rate-limited. | `docs/meet-security.md` |
 | Subscriptions resend full collections | v1 API shape; delta coalescing already landed (SBX-06). Improvement. | — |
 | Reconnect queue without priority | Open, low. Fair point, not previously recorded. | — |
-| One relay object per room | Architecture as designed; capped at 30 sockets. | `docs/threat-model.md` |
+| One relay object per room | Architecture as designed. No per-session socket cap. A join reaches the greeters only. | `docs/threat-model.md` |
 | Decoration cache unbounded | Open, trivial. Bounded in practice by the apps on a desktop. | — |
 
 ## Security
@@ -294,13 +294,15 @@ knock/greeter state, and coalesce replaceable heartbeat/status frames.
 
 ### Medium — one relay object is an operational concentration point
 
-**Location:** `relay/src/relay.js:176-179`,
-`relay/src/relay.js:282-325`
+**Location:** `relay/src/relay.js` (no per-session socket cap; `doorsChanged`, `roster`)
 
-Each room's relay coordination maps to one Durable Object. Connected occupancy
-and roster work are intentionally capped at 30 sockets, so roster fan-out is
-bounded, but all door, greeter and relay-fallback activity for the room still
-shares one event loop and failure domain.
+Each room's relay coordination maps to one Durable Object. There is no
+per-session socket cap. An ordinary connect or close tells the greeters
+only. A greeter-set change resends the door list to every non-greeter, so
+that step sends one message per occupant and each message is the size of
+the greeter set. `roster()` still walks every socket, but only for a ban
+or a lock. Door, greeter, and relay-fallback work for the room still share
+one event loop and one failure domain.
 
 Keep deep participants off the relay as designed, measure reconnect storms
 against the object, and define a tested failover or sharding path before room
