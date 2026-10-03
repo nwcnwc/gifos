@@ -5056,6 +5056,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // tombstoned one. The excluded were disconnected before the change; no
     // one heals them, and the stale frame itself is never processed.
     const staleHealAt = new Map(); // pid -> last heal attempt (throttle)
+    // THE RE-KEY WINDOW (see rekeyHeld). take(held) re-runs a receive path;
+    // a frame is held at most once, so a replay that still cannot open goes
+    // on to healStaleFrom like any other.
+    function holdForRekey(take) {
+      const now = Date.now();
+      while (rekeyHeld.length && now - rekeyHeld[0].at > REKEY_HOLD_MS) rekeyHeld.shift();
+      if (!rekeysPending || rekeyHeld.length >= REKEY_HOLD_MAX) return false;
+      rekeyHeld.push({ at: now, take });
+      return true;
+    }
+    function replayRekeyHeld() {
+      if (rekeysPending) return; // a later derivation is still running; it replays when it lands
+      const now = Date.now();
+      for (const h of rekeyHeld.splice(0)) if (now - h.at <= REKEY_HOLD_MS) h.take(true);
+    }
     function healStaleFrom(pid, envPiece) {
       if (!prevRoomE2E || !retainedGrant || !pid) return;
       return net.open(prevRoomE2E, envPiece).then((old) => {
@@ -6384,6 +6399,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let pwEpoch = 0;          // generation counter, carried inside the signed grant
     let retainedGrant = null; // the admin's pwinfo, verbatim — replayable by any member
     let rekeyAt = 0;          // when the current key took over (heal eligibility: peers from before it)
+    // THE RE-KEY WINDOW (§LOCK). A member who adopts a new password derives
+    // its key with the slow password stretch: about half a second, seconds on
+    // a loaded phone. The setter moved to the new key the moment its grant
+    // left, so what it sends next (a pinned file's announcement, a chat line,
+    // a file chunk) opens under neither of my keys until mine lands, and was
+    // dropped. A one-shot frame lost there never came back: a file pinned
+    // right after a password change never reached the room (e2e-video's pin
+    // legs). Such a frame is now HELD while my re-key derives and opened again
+    // when the new key lands. It must still open under the room key; one that
+    // does not is handled exactly as before (healStaleFrom, else dropped).
+    // Nothing is held when no re-key is running. Bounded: REKEY_HOLD_MAX
+    // frames, each at most REKEY_HOLD_MS.
+    let rekeysPending = 0;
+    const rekeyHeld = [];
+    const REKEY_HOLD_MAX = 64, REKEY_HOLD_MS = 10000;
     // THE MESH NODE (mesh.js + mesh-wire.js): the ported sim brain that owns
     // my SEAT — entry (knock/greeters/newcomer dance), healing, and the one
     // relay socket. There is no walk and no per-section session anymore: one
@@ -6888,16 +6918,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // new key and the new proof one line later.
     function rekeyRoom(restarting) {
       pwLog('rekey ep=' + pwEpoch + ' pw=' + (roomPw ? 'set' : '') + (restarting ? ' (node being replaced)' : ''));
+      rekeysPending++; // frames that open under neither key wait for this derivation (rekeyHeld)
+      const landed = () => { rekeysPending = Math.max(0, rekeysPending - 1); replayRekeyHeld(); };
       return net.deriveMeetKey(room, av, roomPw).then((k) => {
-        if (k && roomE2E && k !== roomE2E) { prevRoomE2E = roomE2E; rekeyAt = Date.now(); } // keep ONE generation for stale-neighbour healing (§LOCK)
-        if (k) roomE2E = k;
-        // The WIRE seals with its own captured key (greeter registry blobs,
-        // sealed relay fallback) — hand it the new one, or a Section-1 greeter
-        // keeps registering blobs under the OLD key and every new-password
-        // newcomer reads R6 "wrong password" forever (see mesh-wire setKey).
-        if (!restarting && k && meshNode && meshNode.setKey) meshNode.setKey(k);
-        if (typeof clog === 'function') clog('rekey ' + (roomPw ? 'locked' : 'open'));
-      });
+        try {
+          if (k && roomE2E && k !== roomE2E) { prevRoomE2E = roomE2E; rekeyAt = Date.now(); } // keep ONE generation for stale-neighbour healing (§LOCK)
+          if (k) roomE2E = k;
+          // The WIRE seals with its own captured key (greeter registry blobs,
+          // sealed relay fallback) — hand it the new one, or a Section-1 greeter
+          // keeps registering blobs under the OLD key and every new-password
+          // newcomer reads R6 "wrong password" forever (see mesh-wire setKey).
+          if (!restarting && k && meshNode && meshNode.setKey) meshNode.setKey(k);
+          if (typeof clog === 'function') clog('rekey ' + (roomPw ? 'locked' : 'open'));
+        } finally { landed(); }
+      }, (err) => { landed(); throw err; });
     }
     // A per-tab, per-room peer id: a reload reconnects AS the same peer and
     // the relay's stale-close guard swaps the socket instead of duplicating us.
@@ -7254,11 +7288,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const from = m.from;
         const piece = meshDefrag(m.msg, from);
         if (!piece) return;
-        rxm(() => net.open(roomE2E, piece).then((inner) => {
+        const take = (held) => rxm(() => net.open(roomE2E, piece).then((inner) => {
+          if (!inner && !held && holdForRekey(take)) return; // sealed under the key my re-key is still deriving (rekeyHeld)
           if (!inner) return healStaleFrom(from, piece); // §LOCK: with the pair down, a stale member's frames arrive HERE — the relay path heals too
           if (inner.kind) onSignal(from, inner, m.adm);
           else if (inner.k) onRemote(from, inner);
         }));
+        take(false);
       }
       else if (m.t === 'ban') {
         // A ban is not just signaling: sever the banned device's live P2P links.
@@ -9049,10 +9085,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       dc.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         m = meshDefrag(m, 'dc|' + p.id); if (!m) return;
-        rxm(() => net.open(roomE2E, m).then((inner) => {
+        const take = (held) => rxm(() => net.open(roomE2E, m).then((inner) => {
           if (inner && inner.k) { onDc(p, dc, inner); return; }
+          if (!inner && !held && holdForRekey(take)) return; // sealed under the key my re-key is still deriving (rekeyHeld)
           return healStaleFrom(p.id, m); // §LOCK: a previous-key frame is the staleness signal — see healStaleFrom
         }));
+        take(false);
       };
     }
     // admOk is the OS's own flag for a pwinfo whose admin signature has just
