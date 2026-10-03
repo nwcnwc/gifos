@@ -218,7 +218,14 @@ function between(start, end) {
     && html.indexOf('aria-label="Ban this device"') > 0);
   check('updateTile keeps the moderation name in step with the text', html.indexOf("setAttribute('aria-label', muteLabel)") > 0 && html.indexOf("setAttribute('aria-label', appLabel)") > 0);
   check('a focused tile shows its menu', html.indexOf('.tile:focus-within .modbar') > 0);
-  check('filmstrip thumbs are buttons', html.indexOf("chip.setAttribute('role', 'button')") > 0 && html.indexOf('th.tabIndex = 0') > 0 && html.indexOf("e.key !== 'Enter' && e.key !== ' '") > 0);
+  // The filmstrip makes the Follow-speaker chip and every thumb a button
+  // through one helper (asButton): role, tab stop, Enter/Space.
+  check('filmstrip thumbs are buttons', (() => {
+    const a = html.indexOf('    function fsRefresh() {'), b = html.indexOf('    function fsRefreshIfOpen() {', a);
+    const fr = a > 0 && b > a ? html.slice(a, b) : '';
+    return fr.indexOf("el.setAttribute('role', 'button'); el.tabIndex = 0;") > 0 && fr.indexOf("e.key !== 'Enter' && e.key !== ' '") > 0
+      && fr.indexOf("asButton(auto, 'Follow speaker'") > 0 && fr.indexOf("asButton(th, s.label || 'Show this feed'") > 0;
+  })());
 }
 
 // ---- guards that already landed (do not redo) ----
