@@ -2443,9 +2443,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } catch (e) { hbFallback = setInterval(fn, ms); return null; }
     }
     function frozeThisBeat(wallDelta, monoDelta, peerCount) {
-      // Date.now() jumps when the clock is set forward. performance.now()
-      // does not. A frozen tab moves both. Reload only when both do.
-      return wallDelta > 150000 && monoDelta > 150000 && peerCount > 0;
+      // The wall gap decides. Chrome's performance.now() stands still while
+      // an Android or macOS device is suspended, so a woken phone shows a
+      // wall gap and no monotonic gap: the monotonic reading may confirm a
+      // freeze, never veto one. A forward clock step costs one reload.
+      return (wallDelta > 150000 || monoDelta > 150000) && peerCount > 0;
     }
     let hbTick = 0, hbLastAt = Date.now(), hbLastMono = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0, frozeGap = 0;
     if (bgClock(SCALE.HB, () => {

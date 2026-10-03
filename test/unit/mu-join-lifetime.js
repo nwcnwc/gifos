@@ -48,7 +48,9 @@ check('Android stays mobile',
 
 const frozeThisBeat = lift('frozeThisBeat');
 check('a real freeze gaps both clocks', frozeThisBeat(200000, 200000, 2) === true);
-check('a forward clock step is not a freeze', frozeThisBeat(200000, 4000, 2) === false);
+// Chrome's performance.now() stands still while an Android or macOS device is
+// suspended, so a pocketed phone shows a wall gap with no monotonic gap.
+check('a suspended device whose monotonic clock stood still is a freeze', frozeThisBeat(600000, 2000, 2) === true);
 check('an empty room does not reload', frozeThisBeat(200000, 200000, 0) === false);
 check('a short gap does not reload', frozeThisBeat(100000, 100000, 2) === false);
 
