@@ -5959,7 +5959,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     //            seat MOVE (promotion/scooch re-seats within a tick) never
     //            reads as a departure.
     //   'bye'  — the leaver's own farewell gossip (sendMeshLeave) — reaches
-    //            even non-neighbours the LEAVE never visits.
+    //            the section-mates the LEAVE never visits (room-wide for a
+    //            stager or without the digest; byeScope).
     // PROTECTED, scrupulously: an AWAY peer (locked phone, app-switched) keeps
     // an OPEN DataChannel, so 'left' refuses them; a transport BLIP keeps the
     // seat (the D5 probe travels the mesh and an alive peer answers), so no
@@ -7323,7 +7324,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     //  - absent + link down past grace → tile removed
     //  - present + link down → the initiator side re-offers with an ICE restart
     let lastRmSig = ''; // row-mate set signature — refreshOutbound on change (became/stopped-being a mate)
-    setInterval(() => {
+    // THE SWEEP RIDES A WORKER CLOCK (2026-10-03). It was a page setInterval,
+    // which Chrome throttles to once a minute after five minutes hidden; the
+    // reconcile it runs (reconcileMosaic, re-claims, renegotiation) then
+    // stalled for a hidden relay seat's whole branch. workerClock falls back
+    // to setInterval where no Worker can be made.
+    GifOS.meshMedia.workerClock(2000, () => {
       const now = Date.now();
       // §LOCK, the two verdicts only a POPULATED room can hand down:
       //  - the open-key probe got me in and there are other people here, so the
@@ -7519,7 +7525,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (lowerHandForStage()) broadcastStatus(); // an answered hand lowers itself (self-owned, idempotent)
       renderHandq();   // the room-wide hand queue, freshest fold wins
       updateStatus();
-    }, 2000);
+    });
     const handqEl = document.getElementById('handq');
     // The banner repaints ONLY when the derived line actually changed — the
     // 2s beat costs one string compare, never idle DOM churn.
@@ -8988,7 +8994,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the relay's peer routing for anyone we have no channel to — so chat,
     // transcripts, file METAS and tombstones reach even a fully P2P-blocked
     // participant. File BODIES never do this (P0/P1 only, by budget policy).
-    function sendAll(msg) {
+    function sendAll(msg, opts) { // opts: a gossip scope (captionScope) — chat, files and deletions stay room-wide
       // Chat-class frames span every directory I can see — my leaf AND the
       // parent space when I'm uplinked. Delegates re-send what's new on the
       // other side (forward-on-first-sight in the handlers), and dedupe-by-id
@@ -8996,7 +9002,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // usefully. In-reach pairs ride their DataChannel; everyone else gets
       // the sealed relay envelope — one gossip broadcast per session where
       // the relay supports it (fanOut), per-peer envelopes where it doesn't.
-      fanOut(msg, (p) => dcSend(p, msg));
+      fanOut(msg, (p) => dcSend(p, msg), opts);
     }
     // Chat-class frames that arrived over the RELAY (no DataChannel for this
     // pair). Same dispatch as the DC path; anything that needs a channel to
@@ -13844,13 +13850,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         : '<small style="color:#667">Tap CC in the bar and each phone writes down what its own person says — the lines gather here with names. Muted phones do not caption: unmute to be written down.</small>';
       paintLog(log, html);
     }
+    // CAPTIONS FOLLOW THE EAR (2026-10-03). A caption line was a room-wide
+    // flood, so with "Captions for everyone" every device received every
+    // device's lines: O(N) inbound per phone, and the per-writer limiter
+    // dropped real sentences without a trace. A listener hears its row
+    // first-hand and the Stage everywhere (the Stadium is a mix nobody
+    // captions), so a line goes to the speaker's SECTION — the status
+    // plane's scope, which holds the row — unless the speaker is on the
+    // Stage, whose ≤C voices reach the whole room and so do their lines.
+    function captionScope(byId) { return stageIds().includes(byId) ? undefined : { scope: 'section' }; }
     function addTranscriptLine(text, at, forId) { // forId: a scribe writing down THAT person
       text = String(text || '').trim();
       if (!text) return;
       const m = { id: uid('t'), byId: myId, by: myName(), at: at || Date.now(), text: text.slice(0, 400) };
       if (forId && forId !== myId) { m.byId = forId; m.by = String(rosterNames[forId] || (peers.get(forId) || {}).name || '…').slice(0, 40); m.scribe = myId; m.scribeBy = myName(); }
       if (!keepOwnTranscript(m)) return; // I only HEARD this — another device already wrote it down
-      sendAll({ k: 'tr', m });
+      sendAll({ k: 'tr', m }, captionScope(m.byId));
       renderTranscript();
       showCaption(m.byId, m.text);
     }
@@ -15994,15 +16009,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // LOCKS or app-switches fires visibilitychange, NOT pagehide — stepping
     // away keeps your seat (the away/absentSince machinery above handles it).
     let leftMesh = false;
+    // THE FAREWELL IS SECTION-SCOPED (2026-10-03). A room-wide 'bye' cost every
+    // seat one delivery per departure, O(churn × N) a minute for tiles almost
+    // nobody painted. Under the status plane a seat's roster is its section
+    // plus what the digest folds, so the bye goes where a tile of mine is
+    // drawn: every open channel directly, my links by the mesh LEAVE, my
+    // section by gossip. A stager is drawn room-wide, so its bye still floods.
+    // Without the digest (GIFOS_DIGEST=false) every seat holds every status,
+    // so the farewell floods as before.
+    function byeScope() { return digestMode() && !stageIds().includes(myId) ? { scope: 'section' } : undefined; }
     function sendMeshLeave() {
       if (leftMesh) return; leftMesh = true; leaving = true;
-      // Farewell FIRST (gossip floods the whole room — even seats the mesh
-      // LEAVE below never visits — and every open channel carries it directly,
-      // belt-and-braces for the unload window), then the seat's own LEAVE +
-      // socket close. Receivers confirmGone instantly: tile/count/roster drop
-      // in one beat.
+      // Farewell FIRST (every open channel carries it directly, gossip carries
+      // it across my section, belt-and-braces for the unload window), then the
+      // seat's own LEAVE + socket close. Receivers confirmGone instantly:
+      // tile/count/roster drop in one beat.
       try { for (const p of peers.values()) if (p.dc && p.dc.readyState === 'open') dcSend(p, { k: 'bye' }); } catch (e) {}
-      try { meshNode && meshNode.gossip({ a: 1, msg: { k: 'bye' } }); } catch (e) {}
+      try { meshNode && meshNode.gossip({ a: 1, msg: { k: 'bye' } }, byeScope()); } catch (e) {}
       try { meshNode && meshNode.leave(); } catch (e) {}
     }
     window.addEventListener('beforeunload', sendMeshLeave);

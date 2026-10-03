@@ -237,6 +237,88 @@
   // A tile is a leaf face ({n:1, cols:1} — center-square cropped) or a packed
   // block (n faces, cols wide — faces blitted through). Tiles draw in ord
   // order, so the layout is deterministic on every device.
+  // ---- THE BACKGROUND CLOCK (2026-10-03) ----------------------------------
+  // A hidden tab's page timers are throttled: Chrome aligns setInterval to
+  // 1 Hz at once and to once a minute after five minutes hidden. A relay
+  // seat's packers paint the composite its whole branch below receives, so a
+  // head that switched tab froze the Stadium/Stage for everyone under it.
+  // Painting stays on the main thread (a canvas paint needs the DOM); only
+  // the TICK moves, to a Worker timer, which the browser does not throttle
+  // like page timers (the heartbeat's bgClock and the blur pipe's metroSub
+  // in run.html already ride one for the same reason).
+  //
+  // workerClock(ms, fn) — a dedicated Worker posting every `ms`; plain
+  //   setInterval where a Worker cannot be made. Returns { via, stop() }.
+  // createBgClock() — clock(fn, ms) -> stop(). Each subscriber keeps its
+  //   plain setInterval (a VISIBLE tab paints exactly as before); while the
+  //   tab is hidden ONE shared Worker beat (BG_BEAT_MS) also ticks every
+  //   subscriber whose own period has run out. No Worker: the setIntervals
+  //   alone, i.e. the old behaviour. `env` injects Worker/URL/Blob/document/
+  //   timers/now for the Node test (test/unit/bg-clock.js).
+  const BG_BEAT_MS = 50; // the shared hidden-tab beat: 20 Hz covers the fastest packer (the Stage strip, 20 fps)
+  function clockEnv(env) {
+    env = env || {};
+    const pick = (k) => (k in env ? env[k] : root[k]);
+    return {
+      Worker: pick('Worker'), URL: pick('URL'), Blob: pick('Blob'), document: pick('document'),
+      setInterval: env.setInterval || ((f, ms) => setInterval(f, ms)), clearInterval: env.clearInterval || ((t) => clearInterval(t)),
+      now: env.now || (() => Date.now()),
+    };
+  }
+  function workerClock(ms, fn, env) {
+    const E = clockEnv(env);
+    ms = Math.max(1, ms | 0);
+    let w = null, url = null, iv = null;
+    try {
+      if (typeof E.Worker !== 'function' || !E.URL || typeof E.Blob !== 'function') throw new Error('no Worker');
+      url = E.URL.createObjectURL(new E.Blob(['setInterval(function(){postMessage(0)},' + ms + ')'], { type: 'text/javascript' }));
+      w = new E.Worker(url);
+      w.onmessage = () => fn(); // an error still surfaces as the page's own, as it did from setInterval
+    } catch (e) {
+      w = null;
+      if (url) { try { E.URL.revokeObjectURL(url); } catch (e2) {} url = null; }
+      iv = E.setInterval(fn, ms);
+    }
+    return {
+      via: w ? 'worker' : 'interval',
+      stop() {
+        if (w) { try { w.terminate(); } catch (e) {} w = null; }
+        if (url) { try { E.URL.revokeObjectURL(url); } catch (e) {} url = null; }
+        if (iv) { E.clearInterval(iv); iv = null; }
+      },
+    };
+  }
+  function createBgClock(env) {
+    const E = clockEnv(env);
+    const subs = new Set();
+    let bg = null, noWorker = false;
+    const hidden = () => !!(E.document && E.document.hidden);
+    const beat = () => {
+      const t = E.now();
+      for (const s of Array.from(subs)) if (subs.has(s) && t - s.last >= s.ms) { s.last = t; try { s.fn(); } catch (e) { setTimeout(() => { throw e; }); } } // one failing subscriber neither starves the rest nor hides its error
+    };
+    const sync = () => {
+      const want = hidden() && subs.size > 0 && !noWorker;
+      if (want && !bg) {
+        bg = workerClock(BG_BEAT_MS, beat, env);
+        if (bg.via !== 'worker') { bg.stop(); bg = null; noWorker = true; } // no Worker here: the per-subscriber setIntervals carry on alone
+      } else if (!want && bg) { bg.stop(); bg = null; }
+    };
+    if (E.document && typeof E.document.addEventListener === 'function') E.document.addEventListener('visibilitychange', sync);
+    function clock(fn, ms) {
+      ms = Math.max(1, ms | 0);
+      const s = { fn, ms, last: E.now() };
+      let iv = E.setInterval(() => { s.last = E.now(); fn(); }, ms);
+      subs.add(s); sync();
+      return () => { if (iv) { E.clearInterval(iv); iv = null; } subs.delete(s); sync(); };
+    }
+    clock.via = () => (bg ? 'worker' : 'interval');
+    clock.sync = sync;
+    return clock;
+  }
+  let sharedBg = null; // one shared hidden-tab beat per page, minted on first use
+  const bgClock = () => (sharedBg = sharedBg || createBgClock());
+
   function createPacker(opts) {
     opts = opts || {};
     const shape = opts.shape || 'grid';
@@ -452,7 +534,7 @@
         const q = Math.max(1, Math.min(60, n));
         if (q === fps) return;
         fps = q;
-        if (timer) { clearInterval(timer); timer = setInterval(paint, Math.max(20, 1000 / fps)); }
+        if (timer) { timer(); timer = (opts.clock || bgClock())(paint, Math.max(20, 1000 / fps)); }
       },
       clearTiles() { for (const id of [...tiles.keys()]) pk.delTile(id); },
       ids: () => [...tiles.keys()],
@@ -463,12 +545,12 @@
         const aTrack = fold && fold.track();
         pk.stream = new MediaStream(aTrack ? [vTrack, aTrack] : [vTrack]);
         pk.track = vTrack;
-        timer = setInterval(paint, Math.max(20, 1000 / fps));
+        timer = (opts.clock || bgClock())(paint, Math.max(20, 1000 / fps)); // a Worker-backed tick while hidden: a relay seat's branch must not freeze when its tab does
         paint();
         return pk;
       },
       stop() {
-        if (timer) { clearInterval(timer); timer = null; }
+        if (timer) { timer(); timer = null; }
         if (fold) fold.clear();
         tiles.clear();
         if (pk.track) { try { pk.track.stop(); } catch (e) {} }
@@ -670,5 +752,5 @@
     };
   }
 
-  GifOS.meshMedia = { bandRects, frameRects, coverBox, fitBox, createComposite, createAudioFold, packGrid, stadiumGrid, stadiumTiny, cellSize, faceSrcRect, createPacker, createBundle, cropView, sdnMirrorRoute };
+  GifOS.meshMedia = { workerClock, createBgClock, bandRects, frameRects, coverBox, fitBox, createComposite, createAudioFold, packGrid, stadiumGrid, stadiumTiny, cellSize, faceSrcRect, createPacker, createBundle, cropView, sdnMirrorRoute };
 })(typeof window !== 'undefined' ? window : globalThis);
