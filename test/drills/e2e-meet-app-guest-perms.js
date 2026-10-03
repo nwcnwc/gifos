@@ -9,13 +9,14 @@
 //
 //   On gifos.app the meeting rewrites its address to the pretty /meet/<room>
 //   form (history.replaceState), moving the document base URL. The guest's
-//   client mount (bootClientBus) loads the owner-authority verifier on demand;
-//   if that load uses a bare relative path it resolves to /meet/js/app-owner.js
-//   and 404s, so bootClientBus throws BEFORE mountApp runs — and mountApp is
-//   what both renders the iframe and fires __gifosPermissions (the challenge).
-//   Result the user saw: the guest gets a blank space and no challenge, while
-//   the host (whose base also moved but whose share still limped up) sees it.
-//   The fix anchors app-owner.js to runtime.js's own URL (see runtime.js).
+//   stage-data lane verifies an app frame by loading the owner-authority
+//   module on demand (run.html sgaAppOwner). bootClientBus does the same
+//   through runtime.js appOwnerLib, which is already anchored to that
+//   script's own URL. A bare relative 'js/app-owner.js' in the lane loader
+//   resolves to /meet/js/app-owner.js and 404s, so the verifier never builds
+//   and the lane does not retain the frame. mountApp is what both renders
+//   the iframe and fires __gifosPermissions (the challenge). The fix anchors
+//   sgaAppOwner to runtime.js's own URL, captured before the base moves.
 //   Local dev never rewrites to /meet/, so this only ever bit production —
 //   which is why this drill forces the pretty rewrite locally.
 //

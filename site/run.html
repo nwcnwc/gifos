@@ -11193,12 +11193,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the ad carries one, else the sid's own binding): a frame that fails it
     // is dropped and the chase goes on. My OWN broadcast is retained as is.
     const sgaAppVer = new Map(); // sid -> { pk, ver } (one pin per sid and ad key)
-    let sgaAOP = null;           // the app-owner module, loaded once (runtime.js loads it the same way)
+    // Anchor the lane's on-demand load to runtime.js, captured now — while this
+    // script is evaluating and the document base is still this page. runtime.js
+    // is always a sibling of app-owner.js. joinRoom() later rewrites the address
+    // to /meet/<room> or /join/… (history.replaceState) and moves the base; a
+    // bare 'js/app-owner.js' then resolves to /meet/js/app-owner.js (or
+    // /join/js/…) and 404s, the verifier never builds, and the lane does not
+    // retain the app frame. Reading the script's src inside sgaAppOwner is too
+    // late: the reflected URL re-resolves the relative attribute against the
+    // new base. appOwnerLib in runtime.js anchors the same way from its own
+    // currentScript, at static-load time.
+    const _runtimeSrc = (() => {
+      const nodes = document.getElementsByTagName('script');
+      for (let i = 0; i < nodes.length; i++) {
+        const raw = nodes[i].getAttribute('src') || '';
+        if (/(^|\/)runtime\.js(?:[?#]|$)/.test(raw)) return nodes[i].src || '';
+      }
+      return '';
+    })();
+    let sgaAOP = null;           // the app-owner module, loaded once, sibling of runtime.js
     function sgaAppOwner() {
       if (window.GifOS && GifOS.appOwner) return Promise.resolve(GifOS.appOwner);
       if (sgaAOP) return sgaAOP;
       sgaAOP = new Promise((resolve, reject) => {
-        const el = document.createElement('script'); el.src = 'js/app-owner.js';
+        const el = document.createElement('script');
+        el.src = _runtimeSrc ? new URL('app-owner.js', _runtimeSrc).href : 'js/app-owner.js';
         el.onload = () => (window.GifOS && GifOS.appOwner) ? resolve(GifOS.appOwner) : reject(new Error('app-owner.js empty'));
         el.onerror = () => { sgaAOP = null; reject(new Error('app-owner.js failed')); };
         document.head.appendChild(el);
