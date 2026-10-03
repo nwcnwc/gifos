@@ -210,7 +210,7 @@
   }
 
   /* ---- the screen ---------------------------------------------------------- */
-  var CSS = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;' +
+  var CSS = 'position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;' +
     'padding:1.25rem;background:#0a0a0f;color:#e0e0f0;overflow:auto;' +
     'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
 
@@ -592,6 +592,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
              zoom scales rem, the column count drops, tiles grow. (vw is zoom-
              immune — the old min(240px, 44vw) went inert once 44vw < 240px.)
              The 94vw guard only matters on true phone widths. */
+          grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
           grid-template-columns: repeat(auto-fit, minmax(min(15rem, 94vw), 1fr));
           grid-auto-rows: max-content; }
   #stagefeed { display: grid; gap: 8px; padding: 8px 8px 0; }
@@ -601,6 +602,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      grid. Empty (hidden) in a one-row room: today's meetings, by arithmetic. */
   #stadium { display: none; gap: 8px; padding: 0 8px 8px;
           /* composite tiles zoom like everything else — not a locked 2-up */
+          grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
           grid-template-columns: repeat(auto-fit, minmax(min(24rem, 94vw), 1fr)); }
   #stadium .rowtile { aspect-ratio: 1 / 1; } /* placeholder until the stream's real dims land (trackAspect) */
   #stadium .rowtile video { object-fit: contain; } /* the packed grid shows WHOLE, never cropped */
@@ -724,8 +726,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   #appbar .perms { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .55rem;
     border: 1px solid var(--border, #2a2a3f); border-radius: .5rem; background: transparent;
     color: inherit; font: inherit; font-size: .78rem; cursor: pointer; }
-  #appbar .perms.ok     { border-color: #4a9eff; color: color-mix(in srgb, #4a9eff 60%, var(--text, #e0e0f0)); }
-  #appbar .perms.unsafe { border-color: #ff8a3d; color: color-mix(in srgb, #ff8a3d 60%, var(--text, #e0e0f0)); box-shadow: 0 0 12px rgba(255,138,61,.3); }
+  #appbar .perms.ok     { border-color: #4a9eff; color: #4a9eff; color: color-mix(in srgb, #4a9eff 60%, var(--text, #e0e0f0)); }
+  #appbar .perms.unsafe { border-color: #ff8a3d; color: #ff8a3d; color: color-mix(in srgb, #ff8a3d 60%, var(--text, #e0e0f0)); box-shadow: 0 0 12px rgba(255,138,61,.3); }
   /* THE STAGE IS ALWAYS DARK, whatever the computer's theme.
      It is the backdrop an app is mounted on, and it is only ever VISIBLE in
      the moment before the app has painted. Following --bg meant that on a
@@ -763,7 +765,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   #appbar .fs-btn { padding: .2rem .4rem; line-height: 0; color: var(--muted, #8888aa); }
   #appbar .fs-btn:hover { color: var(--text, #e0e0f0); }
   #appbar .fs-btn.on { color: var(--accent, #7b5cff); border-color: var(--accent, #7b5cff); }
-  body.app-full #apppane { position: fixed; inset: 0; z-index: 29; background: var(--bg, #0a0a0f); }
+  body.app-full #apppane { position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; z-index: 29; background: var(--bg, #0a0a0f); }
   /* The chat panel hangs from the meeting bar's measured height — and that bar
      is under the app now, so the gap it leaves would be a strip of nothing. */
   body.app-full #chatpanel { top: 0; }
@@ -806,7 +808,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      big centered target — a green dot to vote someone ONTO the stage, a red ✕
      on stage panels to vote them OFF it, a red ✕ on floor panels to vote them
      out of the room. Your own standing vote glows. */
-  .tile .votedot { display: none; position: absolute; inset: 0; margin: auto; width: 3.4rem; height: 3.4rem;
+  .tile .votedot { display: none; position: absolute; top: 0; right: 0; bottom: 0; left: 0; inset: 0; margin: auto; width: 3.4rem; height: 3.4rem;
     border-radius: 50%; z-index: 6; border: 3px solid rgba(255,255,255,.9); cursor: pointer;
     align-items: center; justify-content: center; font: bold 1.7rem system-ui; color: #fff; padding: 0; }
   body.vm-up.canvote .tile:not(.me):not(.onstage) .votedot { display: flex; background: rgba(28,168,83,.92); }
@@ -817,7 +819,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   /* Stagers live in the composited Stage strip (one canvas), not in .tile
      panels — so vote-off-stage overlays one labeled ✕ per stager across the
      strip. The NAME is the target (authoritative), not pixel geometry. */
-  .stgvotes { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-evenly; z-index: 6; }
+  .stgvotes { position: absolute; top: 0; right: 0; bottom: 0; left: 0; inset: 0; display: flex; align-items: center; justify-content: space-evenly; z-index: 6; }
   .stgvotes button { display: flex; flex-direction: column; align-items: center; gap: .25rem;
     background: none; border: none; cursor: pointer; color: #fff; font: inherit; padding: .3rem .5rem; }
   .stgvotes button .x { width: 3rem; height: 3rem; border-radius: 50%; background: rgba(214,40,48,.92);
@@ -862,9 +864,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      needs BOTH halves changed — root fullscreen AND a z-index under the tier
      you want above it — and that second half is a decision about who gets
      interrupted, not a mechanism. Asked and answered: nobody. */
-  #fsview { display: none; position: fixed; inset: 0; background: #000; z-index: 60; }
+  #fsview { display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; background: #000; z-index: 60; }
   #fsview.on { display: block; }
-  #fsmain { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #fsmain { position: absolute; top: 0; right: 0; bottom: 0; left: 0; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
   #fsstrip { position: absolute; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; gap: .5rem;
     padding: .55rem; overflow-y: auto; overflow-x: hidden; z-index: 2;
     background: linear-gradient(to left, rgba(0,0,0,.55), transparent); }
@@ -878,13 +880,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   /* JOINING VEIL: until the seat is real, joining LOOKS like joining — never
      like an empty room. Sits UNDER the password/name modals (z 40): typing
      the password is part of joining. */
-  #joinveil { position: fixed; inset: 0; z-index: 35; background: rgba(10,10,15,.82);
+  #joinveil { position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; z-index: 35; background: rgba(10,10,15,.82);
     display: flex; align-items: center; justify-content: center; }
   /* The app-room arrival panel (#appwait) wears the join veil's clothes but
      sits UNDER it (z 30): the veil answers "am I even in the room?", this
      answers "I'm in — where is the app?". An empty app room used to answer
      with a blank page. */
-  #appwait { position: fixed; inset: 0; z-index: 30; background: var(--bg, #0a0a0f);
+  #appwait { position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; z-index: 30; background: var(--bg, #0a0a0f);
     display: flex; align-items: center; justify-content: center; }
   #appwait .jv-box { text-align: center; max-width: 340px; padding: 1.5rem; }
   #appwait h3 { color: var(--text, #e0e0f0); margin-bottom: .5rem; }
@@ -923,7 +925,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
                 padding: .15rem .55rem; border-radius: .4rem; font-size: .75rem; z-index: 2; }
   .tile .note { color: var(--muted, #8888aa); font-size: .8rem; padding: 1rem; text-align: center; }
   .tile.me { border-color: #5ca0ff; }
-  .tile .avatar { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  .tile .avatar { position: absolute; top: 0; right: 0; bottom: 0; left: 0; inset: 0; display: none; align-items: center; justify-content: center;
                   font-size: 3rem; font-weight: 800; color: #3a3a55; background: var(--surface, #14141f); }
   .tile.cam-off .avatar { display: flex; }
   .tile .chips { position: absolute; top: .4rem; left: .4rem; display: flex; flex-direction: column;
@@ -1052,7 +1054,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .85rem; }
   #callbanner button { padding: .25rem .7rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
     background: var(--accent, #3b6ef5); color: #fff; cursor: pointer; }
-  .name-modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
+  .name-modal { position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; z-index: 40; background: rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center; }
   .name-box { background: var(--surface, #14141f); border: 1px solid var(--border, #2a2a3f); border-radius: .8rem; padding: 1.6rem; max-width: 340px; text-align: center;
     max-height: calc(100vh - 2rem); max-height: calc(100dvh - 2rem); overflow-y: auto; }
@@ -1103,7 +1105,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   #adm-banned .brow button { padding: .15rem .5rem; font-size: .72rem; border-radius: .35rem;
                              border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b); color: var(--text, #e0e0f0); cursor: pointer; }
   /* ---- the front-door lobby (cold open only) ---- */
-  #lobby { position: fixed; inset: 0; z-index: 35; display: none; overflow-y: auto;
+  #lobby { position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; z-index: 35; display: none; overflow-y: auto;
            background: var(--bg, #0a0a0f); padding: 2rem 1rem; }
   #lobby.show { display: flex; align-items: flex-start; justify-content: center; }
   .lobby-card { width: 100%; max-width: 440px; margin: auto; }
@@ -1142,6 +1144,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .lob-empty { opacity: .5; font-size: .88rem; text-align: center; padding: .8rem 0; }
   .lob-namebar { text-align: center; margin-top: 1.1rem; font-size: .85rem; opacity: .78; }
   .lob-link { background: none; border: none; color: var(--accent, #6f9bff); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+
+  /* aspect-ratio is Chrome 88 / Firefox 89 / Safari 15. The JS floor is older.
+     This block is skipped wherever aspect-ratio exists, so a current browser
+     keeps the rules above. */
+  @supports not (aspect-ratio: 1 / 1) {
+    .tile, .rowtile, .fsthumb { position: relative; height: 0; }
+    .tile { padding-top: 56.25%; }
+    .rowtile { padding-top: 177.78%; }
+    #stadium .rowtile { padding-top: 100%; }
+    #stagefeed .rowtile, .tile.onstage, .fsthumb { padding-top: 56.25%; }
+    .tile video, .rowtile video, .fsthumb video, .tile .avatar {
+      position: absolute; top: 0; right: 0; bottom: 0; left: 0; height: 100%; }
+  }
 </style>
 <script src="js/gifos-themes.js"></script>
 </head>
@@ -1213,6 +1228,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <span class="status" id="status">Joining…</span>
     <div class="admcount" id="admcount" style="display:none"></div>
     <div class="barmore" id="barmore">
+    <button type="button" id="whobtn" title="Who is on this meeting — names and internet addresses">Who</button>
     <button id="invite" title="Friends join you live with one link">Invite</button>
     <button id="appbtn" title="Run an app inside this meeting — everyone here shares and interacts with it live">Run app</button>
     <button id="sharebtn" title="Show the whole room a window, a tab or your desktop. (To share a GifOS app, use Run app — everyone runs it themselves.)" style="display:none">Share screen</button>
@@ -1262,7 +1278,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <div id="grid"></div>
     <div id="stadium"></div>
   </div>
-  <div class="name-modal" id="set-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="set-modal" style="display:none">
     <div class="name-box" style="max-width:440px;text-align:left">
       <h3 style="text-align:center">Settings</h3>
       <div class="set-sec">
@@ -1320,7 +1336,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   <!-- The share sheet. The app-pin note is not decoration: pinning an app is
        the better answer whenever the thing being shown IS an app, and this is
        the last moment to say so before a picker opens. -->
-  <div class="name-modal" id="share-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="share-modal" style="display:none">
     <div class="name-box" style="max-width:430px;text-align:left">
       <h3>Share your screen</h3>
       <div id="share-appnote" class="share-note"></div>
@@ -1335,7 +1351,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     </div>
   </div>
 
-  <div class="name-modal" id="app-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="app-modal" style="display:none">
     <div class="name-box" style="max-width:420px;text-align:left">
       <h3>Run an app in this meeting</h3>
       <p>Pick one of your apps. It runs live for <b>everyone here</b> — same state, same moves — with the meeting's audio, video and recording around it. Anyone can interact.</p>
@@ -1373,7 +1389,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     </form>
   </div>
 
-  <div class="name-modal" id="inv-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="inv-modal" style="display:none">
     <div class="name-box" style="max-width:440px;text-align:left">
       <h3>Share this meeting</h3>
       <div id="inv-body"></div>
@@ -1381,7 +1397,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   </div>
 
   <!-- R5 / E5§2: two door clusters (multi-genesis OR same-key torn halves) — pick ONE. -->
-  <div class="name-modal" id="fork-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="fork-modal" style="display:none">
     <div class="name-box" style="max-width:26rem;text-align:left">
       <h3>Which meeting?</h3>
       <p style="font-size:.9rem;opacity:.85;margin:.4rem 0 1rem">This link reaches more than one live room. Pick the one you want to join — they are not merged, and you are not placed between both.</p>
@@ -1393,7 +1409,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   <!-- VOTE picker (open rooms): choose what you are voting on, then tap the
        targets on the tiles. One vote per person; majorities act; leaving the
        room withdraws your stage votes automatically. -->
-  <div class="name-modal" id="vote-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="vote-modal" style="display:none">
     <div class="name-box" style="max-width:24rem;text-align:left">
       <h3>Place a vote</h3>
       <p style="font-size:.85rem;opacity:.8;margin:.4rem 0 .9rem">One vote per person, counted while the voter is in the room. A majority of the room acts — nobody has special power here.</p>
@@ -1405,7 +1421,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   </div>
   <div id="votebanner" style="display:none"><span id="votebanner-text"></span><button id="vote-done">Done</button></div>
 
-  <div class="name-modal" id="pw-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="pw-modal" style="display:none">
     <div class="name-box">
       <h3 id="pw-title">Room password</h3>
       <p id="pw-hint">Anyone in the meeting can set or change it — it reaches everyone here instantly, and new joiners must enter it. Leave empty to remove the lock.</p>
@@ -1420,7 +1436,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     </div>
   </div>
 
-  <div class="name-modal" id="adm-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="adm-modal" style="display:none">
     <div class="name-box" style="max-width:420px">
       <h3>Room admin</h3>
       <p id="adm-hint"></p>
@@ -1436,7 +1452,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     </div>
   </div>
 
-  <div class="name-modal" id="who-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="who-modal" style="display:none">
     <div class="name-box" style="max-width:480px;text-align:left">
       <h3>Who is on this meeting</h3>
       <p style="color:#889;font-size:.85rem">Because phones connect straight to each other here, everyone in the meeting can see everyone's internet address — nobody is anonymous. If someone does something seriously wrong, download this list and include it when you report them.</p>
@@ -1448,7 +1464,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     </div>
   </div>
 
-  <div class="name-modal" id="help-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="help-modal" style="display:none">
     <div class="name-box help-box" style="max-width:600px;text-align:left">
       <h3 style="text-align:center">How this meeting works</h3>
       <div class="help-scroll">
@@ -1571,7 +1587,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         company's computer, and never anyone outside the room.)</p>
         <p>The one honest trade for having no middleman: because phones connect straight to
         each other, everyone on a call can see everyone's <b>internet address</b> — nobody
-        here is anonymous. Tap the status text to see the list.</p>
+        here is anonymous. Tap Who to see the list.</p>
       </div>
       <div style="display:flex;justify-content:center;margin-top:1rem">
         <button id="help-close" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Got it</button>
@@ -1579,7 +1595,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     </div>
   </div>
 
-  <div class="name-modal" id="apphelp-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="apphelp-modal" style="display:none">
     <div class="name-box help-box" style="max-width:600px;text-align:left">
       <h3 id="apphelp-title" style="text-align:center">Help</h3>
       <div class="help-scroll help-md" id="apphelp-body"></div>
@@ -1589,14 +1605,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     </div>
   </div>
 
-  <div class="name-modal" id="closed-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="closed-modal" style="display:none">
     <div class="closed-box">
       <h3>Room closed</h3>
       <p id="closed-msg">This room’s host wasn’t here, so it closed. Reopen the same link when the host is back.</p>
       <button id="closed-reload">Rejoin</button>
     </div>
   </div>
-  <div class="name-modal" id="left-modal" style="display:none">
+  <div class="name-modal" role="dialog" aria-modal="true" id="left-modal" style="display:none">
     <div class="closed-box">
       <h3>You left the meeting</h3>
       <p>Your camera and microphone are off and your seat is closed. The same link brings you back.</p>
@@ -1821,29 +1837,46 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const DEL_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 
     let myId = null, localStream = null, meTile = null, leaving = false;
+    // startMesh resolves this when myId is minted. inviteFromSolo awaits it
+    // instead of polling. A fresh socket arms a new promise only while myId
+    // is still unset.
+    let myIdReady = Promise.resolve();
+    let myIdReadyResolve = null;
     const peers = new Map(); // peerId -> { pc, tile, video, name, connected, absentSince, lastKick }
     const ABSENT_GRACE = 12000; // BACKSTOP ONLY: roster-absent AND link-down this long → tile drops. Announced (D2) and probe-confirmed (D5) departures remove the tile event-driven, within a beat (see departSweep/confirmGone).
 
     // ---- screen name (same identity the rest of GifOS uses) ----------------
+    // The knock does not wait on this picker. A stored name resolves at once.
+    // A first visit is seeded with Guest NNNN so joinRoom can run, and the
+    // picker stays up. Continue replaces that name and gossips it the same
+    // way Settings → Change does. Not now keeps the seed.
     function ensureName() {
-      return new Promise((resolve) => {
-        const me = GifOS.store.identity();
-        if (me.name) { resolve(me); return; }
-        const bg = document.createElement('div'); bg.className = 'name-modal';
-        bg.innerHTML = '<div class="name-box"><h3>Pick a screen name</h3>' +
-          '<p>The name people see on your tile. It is not a password — if the room has one, it is asked for separately. You can change it later under Settings.</p>' +
-          '<input id="nm" name="nickname" maxlength="40" placeholder="Your name" autocomplete="nickname">' +
-          '<button id="nmok">Continue</button></div>';
-        document.body.appendChild(bg);
-        const input = bg.querySelector('#nm'); input.focus();
-        const done = () => {
-          let v = input.value.trim();
-          if (!v) v = 'Guest ' + (1000 + Math.floor(Math.random() * 9000));
-          GifOS.store.setName(v); bg.remove(); resolve(GifOS.store.identity());
-        };
-        bg.querySelector('#nmok').onclick = done;
-        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); });
-      });
+      const me = GifOS.store.identity();
+      if (me.name) return Promise.resolve(me);
+      const seed = 'Guest ' + (1000 + Math.floor(Math.random() * 9000));
+      GifOS.store.setName(seed);
+      const bg = document.createElement('div'); bg.className = 'name-modal';
+      bg.setAttribute('role', 'dialog'); bg.setAttribute('aria-modal', 'true');
+      bg.innerHTML = '<div class="name-box"><h3>Pick a screen name</h3>' +
+        '<p>The name people see on your tile. It is not a password — if the room has one, it is asked for separately. You can change it later under Settings.</p>' +
+        '<input id="nm" name="nickname" maxlength="40" placeholder="Your name" autocomplete="nickname">' +
+        '<button id="nmcancel" type="button">Not now</button>' +
+        '<button id="nmok">Continue</button></div>';
+      document.body.appendChild(bg);
+      const input = bg.querySelector('#nm'); input.focus();
+      const done = (keep) => {
+        let v = keep ? seed : input.value.trim();
+        if (!v) v = seed;
+        const changed = v !== seed;
+        if (changed) GifOS.store.setName(v);
+        bg.remove();
+        if (!changed) return;
+        try { refreshAllTiles(); broadcastStatus(); pushLeaf(); } catch (e) {}
+      };
+      bg.querySelector('#nmok').onclick = () => done(false);
+      bg.querySelector('#nmcancel').onclick = () => done(true);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(false); });
+      return Promise.resolve(GifOS.store.identity());
     }
 
     // ---- everyone's live status + room moderation ------------------------------
@@ -5288,7 +5321,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const at = Math.min(+msg.at || Date.now(), Date.now() + 60000);
           const cur = appStops.get(sid);
           if (!cur || at > cur.at) appStops.set(sid, { at, by: String(msg.by || '').slice(0, 40) });
-          if (appKey === sid && !(myStatus.app && myStatus.app.s === sid)) setStatus('🧩 ' + esc(msg.by || 'Someone') + ' stopped the shared app.');
+          if (appKey === sid && !(myStatus.app && myStatus.app.s === sid)) setStatus('🧩 ' + (msg.by || 'Someone') + ' stopped the shared app.');
           reconcileApp();
         };
         if (!hasAdminRoom()) apply();
@@ -5867,6 +5900,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // data mints a new device — bans deter, they don't imprison).
     let av = null; // the room's admin verifier — set at join, immutable
     let admKey = null, amAdmin = false, admins = [], devOf = {}, roomBan = [], bannedOut = false, banSeeded = false, pwReasserted = false;
+    // hydrateRoomState writes a restored ban list and epoch into localStorage.
+    // The socket may open first. roomStateSettled is false only while that
+    // write is in flight. The roster's ban re-seed and door re-assert wait
+    // for it. meshBootGen drops a re-assert queued for a socket we already
+    // replaced.
+    let roomStateReady = Promise.resolve(false);
+    let roomStateSettled = true;
+    let meshBootGen = 0;
     let ipsOf = {};                          // peer -> network address, learned from SEALED gossip (never the relay roster)
     let myIp = '';                           // my own address — the relay tells me privately (whoami); I seal it to peers
     let myDevHash = '';                      // my device id, ROOM-SALTED before it ever reaches the relay
@@ -6270,8 +6311,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const relay = relayUrl();
       if (!relay) { setStatus('No connection service is set up, so nobody can be invited in.'); return; }
       if (meshNode) { try { meshNode.stop(); } catch (e) {} meshNode = null; }
+      meshBootGen++;
+      if (!myId) myIdReady = new Promise((res) => { myIdReadyResolve = res; });
       ensureIdentity().then((identity) => {
       myId = identity.peerId; // S4: peer id = H(pubkey), unforgeable
+      if (myIdReadyResolve) { const resolveId = myIdReadyResolve; myIdReadyResolve = null; resolveId(); }
       lastVoteSync = null;   // a fresh socket re-syncs my standing votes
       pwReasserted = false;  // a fresh socket re-asserts the admin's door lock once
       meshNode = GifOS.meshWire.createMeshNode({
@@ -6506,43 +6550,54 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           } else if (m.locked) pwLog('stored pw validated by the gated door');
         }
         if (hasAdminRoom() && amAdmin) {
-          if (roomBan.length) saveBans(roomBan);
-          else if (!banSeeded) {
-            // Fresh DO after eviction \u2014 re-seed the ban list from this device
-            // (SIGNED, \u00a79); the relay cuts any listed socket on re-seed.
-            const stored = loadBans();
-            if (stored.length) admSigned('banlist', { devs: stored }).then((w) => { if (w) relaySendObj({ t: 'banlist', devs: stored, w }); });
-          }
-          banSeeded = true;
-          // Re-assert the DOOR LOCK once per socket (\u00a79-signed) \u2014 after an
-          // eviction the waiting room may have reopened lockless.
-          if (roomPw && pwProof && !pwReasserted) {
-            const proof = pwProof;
-            admSigned('setpw', { pw: proof }).then((w) => { if (w) relaySendObj({ t: 'setpw', pw: proof, w }); });
-            // \u2026AND RE-GRANT THE KEY (2026-07-29): the door gate alone leaves
-            // the waiting room's occupants sealed apart from me \u2014 an evicted
-            // admin room re-seeds on the OPEN key (provisional-pw rule), so
-            // the \u00a7LOCK grant for a RE-assert seals under the open
-            // generation, not under my own. Signed like every admin pwinfo;
-            // occupants adopt and re-key; the epoch guard absorbs replays.
-            const ep = pwEpoch + 1;
-            admSigned('pwinfo', { pw: roomPw, ep }).then((wPeers) => {
-              if (!wPeers) return;
-              const grant = { k: 'pwinfo', pw: roomPw, by: myName(), w: wPeers, ep };
-              storePwEpoch(ep); retainedGrant = grant;
-              net.deriveMeetKey(room, av, '').then((openKey) => net.seal(openKey, grant)).then((env) => {
-                // relaySocketed, not gossipIds(): the whole point is reaching
-                // occupants I CANNOT yet read — the app roster is empty of
-                // them by construction; the relay's socket list is not. A
-                // non-greeter holds only the doors ('door' scope), so it PULLS
-                // the full list first and fans on its arrival.
-                const fan = () => { for (const pid of relaySocketed) { if (pid === myId) continue; net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece })); } };
-                if (relayRosterScope === 'full') fan();
-                else { pendingDoorGrant = fan; relaySendObj({ t: 'who' }); }
+          const bootGen = meshBootGen;
+          const applyAdminBoot = () => {
+            if (bootGen !== meshBootGen) return;
+            if (!(hasAdminRoom() && amAdmin)) return;
+            try {
+              const st = parseInt(localStorage.getItem(pwEpochKey()), 10);
+              if (pwEpInt(st) && st > pwEpoch) { pwEpoch = st; myStatus.pwEp = pwEpoch; }
+            } catch (e) {}
+            if (roomBan.length) saveBans(roomBan);
+            else if (!banSeeded) {
+              // Fresh DO after eviction \u2014 re-seed the ban list from this device
+              // (SIGNED, \u00a79); the relay cuts any listed socket on re-seed.
+              const stored = loadBans();
+              if (stored.length) admSigned('banlist', { devs: stored }).then((w) => { if (w) relaySendObj({ t: 'banlist', devs: stored, w }); });
+            }
+            banSeeded = true;
+            // Re-assert the DOOR LOCK once per socket (\u00a79-signed) \u2014 after an
+            // eviction the waiting room may have reopened lockless.
+            if (roomPw && pwProof && !pwReasserted) {
+              const proof = pwProof;
+              admSigned('setpw', { pw: proof }).then((w) => { if (w) relaySendObj({ t: 'setpw', pw: proof, w }); });
+              // \u2026AND RE-GRANT THE KEY (2026-07-29): the door gate alone leaves
+              // the waiting room's occupants sealed apart from me \u2014 an evicted
+              // admin room re-seeds on the OPEN key (provisional-pw rule), so
+              // the \u00a7LOCK grant for a RE-assert seals under the open
+              // generation, not under my own. Signed like every admin pwinfo;
+              // occupants adopt and re-key; the epoch guard absorbs replays.
+              const ep = pwEpoch + 1;
+              admSigned('pwinfo', { pw: roomPw, ep }).then((wPeers) => {
+                if (!wPeers) return;
+                const grant = { k: 'pwinfo', pw: roomPw, by: myName(), w: wPeers, ep };
+                storePwEpoch(ep); retainedGrant = grant;
+                net.deriveMeetKey(room, av, '').then((openKey) => net.seal(openKey, grant)).then((env) => {
+                  // relaySocketed, not gossipIds(): the whole point is reaching
+                  // occupants I CANNOT yet read — the app roster is empty of
+                  // them by construction; the relay's socket list is not. A
+                  // non-greeter holds only the doors ('door' scope), so it PULLS
+                  // the full list first and fans on its arrival.
+                  const fan = () => { for (const pid of relaySocketed) { if (pid === myId) continue; net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece })); } };
+                  if (relayRosterScope === 'full') fan();
+                  else { pendingDoorGrant = fan; relaySendObj({ t: 'who' }); }
+                });
               });
-            });
-          }
-          pwReasserted = true;
+            }
+            pwReasserted = true;
+          };
+          if (roomStateSettled) applyAdminBoot();
+          else roomStateReady.then(applyAdminBoot);
         }
         syncVotes(); // my standing vote-offs apply to whoever holds a socket now
         applyAdminUi();
@@ -7422,9 +7477,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     };
-    statusEl.style.cursor = 'pointer';
-    statusEl.title = 'Who is on this meeting — names and internet addresses';
-    statusEl.onclick = showWhoModal;
+    document.getElementById('whobtn').onclick = showWhoModal;
 
     function joinRoom() {
       room = params.get('v') || shortCode();
@@ -7675,12 +7728,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function renameFlow(after) {
       const cur = (GifOS.store.identity().name) || '';
       const bg = document.createElement('div'); bg.className = 'name-modal';
+      bg.setAttribute('role', 'dialog'); bg.setAttribute('aria-modal', 'true');
       bg.innerHTML = '<div class="name-box"><h3>Your screen name</h3><p>Other people in the meeting see this.</p>' +
-        '<input id="nm2" maxlength="40" autocomplete="off"><button id="nm2ok">Save</button></div>';
+        '<input id="nm2" maxlength="40" autocomplete="off"><button id="nm2cancel" type="button">Cancel</button><button id="nm2ok">Save</button></div>';
       document.body.appendChild(bg);
       const input = bg.querySelector('#nm2'); input.value = cur; input.focus();
       const done = () => { const v = input.value.trim(); if (v) GifOS.store.setName(v); bg.remove(); const ln = document.getElementById('lob-name'); if (ln) ln.textContent = myName(); if (after) after(); };
       bg.querySelector('#nm2ok').onclick = done;
+      bg.querySelector('#nm2cancel').onclick = () => bg.remove();
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); });
     }
     function wireLobby() {
@@ -7783,11 +7838,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // knock NOW, and media attaches whenever it lands, through the same
     // transceiver path lateMedia uses for a camera granted mid-call.
     function bootIntoRoom() {
-      return ensureName()
-        // The computer's record of this room (banlist, names, generation) lands
-        // in localStorage before joinRoom() reads it — bounded, never blocking.
-        .then(() => hydrateRoomState(params.get('v'), params.get('av')))
-        .then(() => {
+      // The mirror runs beside the socket. applyAdminBoot waits on
+      // roomStateReady. The name picker does not. ensureName seeds a
+      // guest name and resolves on this turn when none is stored.
+      roomStateSettled = false;
+      roomStateReady = hydrateRoomState(params.get('v'), params.get('av')).then((v) => {
+        roomStateSettled = true;
+        return v;
+      }, () => { roomStateSettled = true; return false; });
+      return ensureName().then(() => {
           meTile = makeTile('me', myName() + ' (you)', true);
           updateTile('me');
           joinRoom();
@@ -8057,8 +8116,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             document.getElementById('appinvite').style.display = 'none';
             // startMesh() mints the S4 identity ASYNC — myId lands a beat after
             // bootAppRoom resolves, and runApp refuses without it (canIRunApp).
-            const waitMyId = () => myId ? Promise.resolve()
-              : new Promise((res) => { const t = setInterval(() => { if (myId) { clearInterval(t); res(); } }, 100); });
+            const ID_WAIT_MS = 10000;
+            const waitMyId = () => {
+              if (myId) return Promise.resolve();
+              let timer = null;
+              const timeout = new Promise((res) => { timer = setTimeout(res, ID_WAIT_MS); });
+              return Promise.race([myIdReady, timeout]).then(() => {
+                if (timer) clearTimeout(timer);
+                if (myId) return;
+                throw new Error('no identity yet');
+              });
+            };
             return bootAppRoom().then(waitMyId).then(() => runApp(ROOM.fileId, nm)).then(() => { share.classList.add('show'); showInviteModal(); });
           }).catch((e) => setStatus('Could not share the app: ' + (e && e.message || e)));
         };
@@ -13488,7 +13556,98 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     for (const el of document.querySelectorAll('#vote-modal .voteopt')) {
       el.onclick = () => { document.getElementById('vote-modal').style.display = 'none'; setVoteMode(el.dataset.vm); };
     }
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && voteMode) setVoteMode(null); });
+    // One dismiss rule for every .name-modal. Escape and a backdrop tap run
+    // the cancel control when one is visible. A locked-room password join
+    // hides Close, so it stays until Join. A fork pick has no cancel.
+    // Focus returns to the control that opened the dialog.
+    function modalDismissBtn(el) {
+      if (!el) return null;
+      if (el.id === 'pw-modal' && el.dataset.mode === 'join') return null;
+      const buttons = el.querySelectorAll('button');
+      for (const b of buttons) {
+        if (b.style.display === 'none' || b.disabled) continue;
+        const id = b.id || '';
+        if (/-cancel$|-close$|-done$|-back$|-keep$/.test(id)) return b;
+      }
+      return null;
+    }
+    function topNameModal() {
+      let top = null;
+      for (const el of document.querySelectorAll('.name-modal')) {
+        if (!el.isConnected || el.style.display === 'none') continue;
+        top = el;
+      }
+      return top;
+    }
+    function modalFocusables(el) {
+      const out = [];
+      for (const n of el.querySelectorAll('button, a[href], input, select, textarea')) {
+        if (n.disabled || n.tabIndex < 0) continue;
+        if ((n.getAttribute('type') || '') === 'hidden') continue;
+        if (n.style.display === 'none') continue;
+        let hidden = false, p = n.parentElement;
+        while (p && p !== el) { if (p.style.display === 'none') { hidden = true; break; } p = p.parentElement; }
+        if (!hidden) out.push(n);
+      }
+      return out;
+    }
+    let modalTracked = null, modalOpener = null, modalOutside = null;
+    function syncModalFocus() {
+      const top = topNameModal();
+      if (top && top !== modalTracked) {
+        top.setAttribute('role', 'dialog');
+        top.setAttribute('aria-modal', 'true');
+        modalOpener = modalOutside;
+        modalTracked = top;
+        if (!top.contains(document.activeElement)) {
+          const f = modalFocusables(top)[0];
+          if (f) { try { f.focus(); } catch (e) {} }
+        }
+      } else if (!top && modalTracked) {
+        const back = modalOpener;
+        modalTracked = null; modalOpener = null;
+        if (back && back.isConnected) { try { back.focus(); } catch (e) {} }
+      }
+    }
+    document.addEventListener('focusin', (e) => {
+      const t = e.target;
+      if (t && t.closest && !t.closest('.name-modal')) modalOutside = t;
+    });
+    document.addEventListener('click', (e) => {
+      const top = topNameModal();
+      if (top && e.target === top) {
+        const b = modalDismissBtn(top);
+        if (b) b.click();
+      }
+      queueMicrotask(syncModalFocus);
+    }, true);
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' && e.key !== 'Tab') return;
+      syncModalFocus();
+      const top = topNameModal();
+      if (e.key === 'Escape') {
+        if (top) {
+          const b = modalDismissBtn(top);
+          if (b) { e.preventDefault(); b.click(); queueMicrotask(syncModalFocus); }
+          return;
+        }
+        if (voteMode) setVoteMode(null);
+        return;
+      }
+      if (!top) return;
+      const nodes = modalFocusables(top);
+      if (!nodes.length) return;
+      const first = nodes[0], last = nodes[nodes.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !top.contains(document.activeElement))) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      }
+    });
+    for (const el of document.querySelectorAll('.name-modal')) {
+      el.setAttribute('role', 'dialog');
+      el.setAttribute('aria-modal', 'true');
+    }
     paintControls();
     // ---- Invite: the one place every meeting link is made ----------------------
     // A meeting's room IS its URL and is host-less, so "sharing" is handing out
@@ -13506,7 +13665,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function showInviteModal() {
       const body = document.getElementById('inv-body');
-      const others = peers.size;
+      const others = Math.max(0, displayCount() - 1);
       const ppl = others > 1 ? 'people' : 'person';
       // Same copy modal everywhere you can mint a link. An APP room gets its own
       // copy: "mute/blur" and "create a room you control" are meeting concepts,
@@ -14297,8 +14456,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (appKey === mine.s) clearAppView(want ? 'my-ad-lost-race' : 'my-ad-stopped');
         broadcastStatus();
         const stop = appStops.get(mine.s);
-        setStatus(want ? '🧩 ' + esc(want.byName || 'Someone') + ' shared a newer app — yours left the stage.'
-          : (stop ? '🧩 ' + esc(stop.by || 'Someone') + ' stopped your shared app.' : '🧩 Your app left the stage.'));
+        setStatus(want ? '🧩 ' + (want.byName || 'Someone') + ' shared a newer app — yours left the stage.'
+          : (stop ? '🧩 ' + (stop.by || 'Someone') + ' stopped your shared app.' : '🧩 Your app left the stage.'));
       }
       if (want && want.s === appHiddenSid) { // personally hidden — stage stays clear for ME only
         if (appKey === want.s) clearAppView('hidden');
