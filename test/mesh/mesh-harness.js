@@ -35,7 +35,20 @@ function mintId(seed32) {
   return { priv, pub, peerId: sha40(pub) };
 }
 const idSign = (priv, str) => ncrypto.sign(null, Buffer.from(str), priv).toString('base64');
-const idVerify = (pubB64, sigB64, str) => { try { return ncrypto.verify(null, Buffer.from(str), ncrypto.createPublicKey({ key: Buffer.from(pubB64, 'base64'), format: 'der', type: 'spki' }), Buffer.from(sigB64, 'base64')); } catch (e) { return false; } };
+// One signed frame is checked at every hop. The bytes do not change, so the
+// crypto result is reused. The statement compare and the TOFU pin still run
+// on every delivery. A public-key import per hop dominated a room flood.
+const verifyCache = new Map();
+const idVerify = (pubB64, sigB64, str) => {
+  const k = String(pubB64) + '\n' + String(sigB64) + '\n' + str;
+  const hit = verifyCache.get(k);
+  if (hit !== undefined) return hit;
+  let ok = false;
+  try { ok = ncrypto.verify(null, Buffer.from(str), ncrypto.createPublicKey({ key: Buffer.from(pubB64, 'base64'), format: 'der', type: 'spki' }), Buffer.from(sigB64, 'base64')); } catch (e) { ok = false; }
+  if (verifyCache.size > 20000) verifyCache.clear();
+  verifyCache.set(k, ok);
+  return ok;
+};
 const fillKeyOf = (m) => m.hole ? 'h:' + ck(m.hole) : (m.coord ? 'c:' + ck(m.coord) : (m.ck ? 'k:' + m.ck : '-'));
 const H_GOSSIP = new Set(['GSP', 'GSPS']);
 const statement = (from, m) => (H_GOSSIP.has(m.t)

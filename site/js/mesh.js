@@ -2157,7 +2157,14 @@
       // app stamps its own fields onto what it takes (takeStatus: rx).
       let own = m.m; try { if (this.s4 && m.m && typeof m.m === 'object') own = JSON.parse(JSON.stringify(m.m)); } catch (e) {}
       if (this.onGossip) { let ok; try { ok = this.onGossip(m.src, own, ag, scoped); } catch (e) {} if (ok === false) { this.gspRefused = (this.gspRefused || 0) + 1; return; } } // the app REFUSED it: not remembered, not forwarded
-      const tx = new Map(); tx.set(m.src, 2); if (m.from != null) tx.set(m.from, 2); // the author and the link that handed it to me hold it already
+      // The link that handed me this frame already holds it (two copies would
+      // only echo). The named author gets one re-fan, not a full mark: the
+      // initial forward skips m.src, and when the frame was injected the
+      // author is often the only link out of this row. Marking the author
+      // full stranded that copy inside the sender's neighbourhood. An honest
+      // hop already has from === src, so the second write keeps the author
+      // quiet and the bound stays two copies per link.
+      const tx = new Map(); tx.set(m.src, 1); if (m.from != null) tx.set(m.from, 2);
       if (!m.eph) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined, ag, m.s4, tx);
       const e = { gid: m.gid, src: m.src, m: m.m, sc: scoped ? m.sc : undefined, eph: m.eph ? 1 : 0, ag0: ag, s4: m.s4 };
       for (const p of (scoped ? this.sectionPeers() : this.linkPeers())) if (p !== m.src) { this.emit(p, this._gspFrame(e)); tx.set(p, 1); }
