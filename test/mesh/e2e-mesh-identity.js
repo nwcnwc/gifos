@@ -67,10 +67,11 @@ async function waitConverged(nodes, N, ms) {
   // ---------- Property 1: mint identities, peer-id = H(pubkey), signed fills flow ----------
   const N = 6;
   const nodes = [];
+  const skewSeated = []; // a SEATED node must never blame its own clock for someone else's
   for (let i = 0; i < N; i++) {
     // NOTE: no `peer` passed ⇒ the wire MINTS a per-participant identity and
     // uses peer-id = H(pubkey). This is S4 ON.
-    const node = wire.createMeshNode({ relayUrl: RELAY, sid: 'ident-sid', tok: 'T', key, tickMs: 25, sendDC });
+    const node = wire.createMeshNode({ relayUrl: RELAY, sid: 'ident-sid', tok: 'T', key, tickMs: 25, sendDC, onClockSkew: (ms) => skewSeated.push(ms) });
     await node.whenReady;                 // identity minted, seat built, joining
     bus.set(node.peer, { node, dead: false });
     nodes.push(node);
@@ -156,6 +157,53 @@ async function waitConverged(nodes, N, ms) {
     movedImp.s4 = { sp: spMI, sig: await net.edSign(E.priv, spMI), pub: Vid.pubB64 };
     const rMI = await ident.verifyFill(pins, movedImp);
     check('3: impostor at V\'s new coord still REJECTED (identity, not location)', !rMI.ok);
+  }
+
+
+  // ---------- Property 4: a clock 15 minutes off is NAMED, never silent ----------
+  // verifyFill refuses a fill minted outside FILL_WINDOW_MS (10 min). Every
+  // seating frame (PLACE in, CLAIM/HELLO out) is such a fill, so a device whose
+  // clock is wrong can never be seated: the greeter's PLACE fails the window
+  // here, the retry loop runs forever, and after the TTL the user is told the
+  // NETWORK refused them. A refusal must say what it is: an authentic
+  // (signature-verified) fill outside the window reports reason 'skew' with
+  // the signed delta, and a JOINING wire node surfaces it once as onClockSkew.
+  // A forged frame reports nothing (skew is a verified fact, not a claim), and
+  // a seated node stays quiet (a skewed neighbour is that neighbour's problem).
+  if (V) {
+    const Vid = V.identity;
+    const AHEAD = 15 * 60 * 1000;
+    const place = { t: 'PLACE', coord: { pc: 0, r: 1, i: 2 }, owner: Vid.peerId, nbrs: [] };
+    const spS = ident.statement(Vid.peerId, place, Date.now() + AHEAD);
+    place.s4 = { sp: spS, sig: await net.edSign(Vid.priv, spS), pub: Vid.pubB64 };
+    const rS = await ident.verifyFill(nodes[0].seat.pins, place);
+    check('4: an authentic fill minted 15 min ahead is REFUSED and names the skew', !rS.ok && rS.reason === 'skew' && Math.abs(rS.skewMs - AHEAD) < 5000, rS);
+    const E2 = await ident.mint();
+    const forged = { t: 'PLACE', coord: { pc: 0, r: 1, i: 2 }, owner: Vid.peerId, nbrs: [] };
+    const spF = ident.statement(Vid.peerId, forged, Date.now() + AHEAD);
+    forged.s4 = { sp: spF, sig: await net.edSign(E2.priv, spF), pub: Vid.pubB64 };
+    const rF = await ident.verifyFill(nodes[0].seat.pins, forged);
+    check('4: a forged skewed fill reports NO skew (only a verified signature may say so)', !rF.ok && rF.reason !== 'skew', rF);
+    // A joining node (no relay answers on this port, so it never seats) is
+    // handed the skewed PLACE over its control path: onClockSkew fires once.
+    const skewSeen = [];
+    const joiner = wire.createMeshNode({ relayUrl: 'ws://127.0.0.1:1', sid: 'ident-sid', tok: 'T', key, tickMs: 25, onClockSkew: (ms) => skewSeen.push(ms) });
+    await joiner.whenReady;
+    const place2 = { t: 'PLACE', coord: { pc: 0, r: 1, i: 2 }, owner: Vid.peerId, nbrs: [] };
+    const sp2 = ident.statement(Vid.peerId, place2, Date.now() + AHEAD);
+    place2.s4 = { sp: sp2, sig: await net.edSign(Vid.priv, sp2), pub: Vid.pubB64 };
+    joiner.recvCtl(JSON.parse(JSON.stringify(place2)));
+    const place3 = { t: 'PLACE', coord: { pc: 0, r: 1, i: 3 }, owner: Vid.peerId, nbrs: [] };
+    const sp3 = ident.statement(Vid.peerId, place3, Date.now() + AHEAD);
+    place3.s4 = { sp: sp3, sig: await net.edSign(Vid.priv, sp3), pub: Vid.pubB64 };
+    joiner.recvCtl(JSON.parse(JSON.stringify(place3)));
+    await sleep(800);
+    check('4: a JOINING node surfaces onClockSkew once, with the signed delta', skewSeen.length === 1 && Math.abs(skewSeen[0] - AHEAD) < 5000 && joiner.stats().state !== 3, { skewSeen, state: joiner.stats().state });
+    joiner.stop();
+    // The same frame at a SEATED node: silence.
+    nodes[0].recvCtl(JSON.parse(JSON.stringify(place)));
+    await sleep(500);
+    check('4: a seated node does not blame its own clock for a skewed neighbour', skewSeated.length === 0, { skewSeated });
   }
 
   for (const n of nodes) n.stop();

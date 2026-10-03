@@ -90,6 +90,42 @@ async function waitConverged(nodes, N, ms) {
     const dupDeliv = [...heard.values()].filter((n) => n > 1).length;
     check('A: gossip reached all 19 peers exactly once', reached === 19 && dupDeliv === 0, { reached, dupDeliv });
 
+    // ---- GOSSIP: dedup BEFORE the signature check, and never ahead of a fill ----
+    // Every neighbour forwards every message, so one gossip frame reaches a
+    // seat up to degree (9) times inside the verify latency. gseen is written
+    // only after the verify resolves, so without an in-flight set every copy
+    // was verified (2 SHA-256 + 1 Ed25519 each); and gossip shared the one
+    // FIFO chain with HELLO/PLACE/CLAIM, so a chat burst delayed a newcomer's
+    // seating frames behind it. Both halves are asserted on a live, converged
+    // seat W (the counter is keyed on W's pin store: the module is shared by
+    // every node in this process): nine copies cost W one verification, and a
+    // signed HELLO handed in behind a 300-frame burst lands long before the
+    // burst drains.
+    {
+      const ident = globalThis.GifOS.meshIdentity;
+      const W = nodes[0], A = nodes[1];
+      const realVerify = ident.verifyGossip; let nVerify = 0;
+      ident.verifyGossip = function (pins, m) { if (pins === W.seat.pins) nVerify++; return realVerify.call(this, pins, m); };
+      const before = heard.get('a00') || 0;
+      const f = { t: 'GSP', gid: A.peer + ':nine', src: A.peer, m: { chat: 'nine copies' } };
+      f.s4 = await ident.signGossip(A.identity, f);
+      for (let k = 0; k < 9; k++) W.recvCtl(Object.assign({}, f, { from: 'link' + k }));
+      await sleep(600);
+      check('A: nine copies of one gossip frame in one tick cost W ONE verification', nVerify === 1, { nVerify });
+      check('A: and the frame is delivered once', (heard.get('a00') || 0) - before === 1, { delivered: (heard.get('a00') || 0) - before });
+      const order = []; const realRecv = W.seat.recv.bind(W.seat);
+      W.seat.recv = (m) => { order.push(m.t); return realRecv(m); };
+      const burst = [];
+      for (let k = 0; k < 300; k++) { const g = { t: 'GSP', gid: A.peer + ':burst' + k, src: A.peer, m: { chat: 'line ' + k }, eph: 1 }; g.s4 = await ident.signGossip(A.identity, g); burst.push(g); }
+      const hello = { t: 'HELLO', ck: net.topo.ckey(A.seat.coord), id: A.peer }; hello.s4 = await ident.signFill(A.identity, hello);
+      for (const g of burst) W.recvCtl(Object.assign({}, g, { from: A.peer }));
+      W.recvCtl(hello);
+      await sleep(3000);
+      const iHello = order.indexOf('HELLO'); const gspAhead = order.slice(0, Math.max(iHello, 0)).filter((t) => t === 'GSP').length;
+      check('A: a signed HELLO handed in behind 300 gossip frames is delivered before the burst drains (<50 gossip frames ahead of it)', iHello >= 0 && gspAhead < 50, { iHello, gspAhead, verifiedAtW: nVerify });
+      W.seat.recv = realRecv; ident.verifyGossip = realVerify;
+    }
+
     // CRASH 8 (no LEAVE, sockets die, DCs black-hole) → survivors heal.
     const dead = nodes.slice(12);
     for (const n of dead) { bus.get(n.peer).dead = true; n.stop(); }

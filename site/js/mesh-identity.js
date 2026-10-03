@@ -130,6 +130,7 @@
   //   - the recomputed canonical statement !== the signed sp (frame tampered)
   //   - the Ed25519 signature does not verify                (not the key holder)
   //   - TOFU conflict: pub != the key pinned for `from`      (key-swap / impostor)
+  //   - minted outside FILL_WINDOW_MS on a VERIFIED signature → { reason: 'skew', skewMs }
   async function verifyFill(pins, m) {
     const s = m && m.s4;
     if (!s || typeof s.sp !== 'string' || !s.sig || !s.pub) return { ok: false, from: null };
@@ -142,12 +143,17 @@
     // the signed statement must describe THIS frame (no cross-frame replay),
     // be minted inside the window, and not be one this seat already accepted
     if (statement(from, m, sp.ts) !== s.sp) return { ok: false, from: null };
-    if (Math.abs(Date.now() - (+sp.ts || 0)) > FILL_WINDOW_MS) return { ok: false, from: null };
     if (pins.seen && pins.seen(String(s.sig))) return { ok: false, from: null };
     // an occupant-bearing frame must be signed BY that occupant
     if (m.id != null && m.id !== from) return { ok: false, from: null };
     // (2) the signer actually holds the private key
     if (!(await net.edVerify(s.pub, s.sig, s.sp))) return { ok: false, from: null };
+    // Minted outside the window: still refused, but NAMED. Checked after the
+    // signature so only a key holder's frame can report a skew (a forgery
+    // says nothing). skewMs = the signer's clock minus mine; a joining node
+    // surfaces it (mesh-wire onClockSkew) instead of retrying in silence.
+    const skewMs = (+sp.ts || 0) - Date.now();
+    if (Math.abs(skewMs) > FILL_WINDOW_MS) return { ok: false, from: null, reason: 'skew', skewMs };
     // (3) TOFU: pin on first contact, reject a key that conflicts with the pin
     const p = pins.pin(from, s.pub);
     if (!p.ok) return { ok: false, from: null };

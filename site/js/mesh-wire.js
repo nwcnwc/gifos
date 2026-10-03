@@ -84,6 +84,7 @@
   //   onUpdate(node)  per-tick UI hook
   //   onLocked()      R6: greeters exist but none decrypt — wrong password
   //   onStranded()    R6: meeting is live but unreachable a full TTL
+  //   onClockSkew(ms, from) S4: while joining, a verified member's fill was minted outside the 10-min window; ms = its clock minus mine
   //   onFork(opts)    R5/E5§2: two+ door clusters — human pick-one
   //                   (multi-genesis OR same-key torn greeter halves).
   //                   opts = [{id, gkey, gateway, faces, tier, n}, …];
@@ -159,7 +160,10 @@
     const wantMint = !identity;             // ALWAYS mint when none is supplied
     let peer = identity ? identity.peerId : null;   // set post-mint
     const s4on = true;                      // unconditional — no off switch
-    const verifyChain = net.makeChain();
+    const verifyChain = net.makeChain();   // fills (HELLO/PLACE/CLAIM/...): FIFO so crypto never reorders a sender's frames
+    const gossipChain = net.makeChain();   // gossip has its own lane: a chat burst must never queue a newcomer's seating frame behind it
+    const gpending = new Set();            // gids whose verification is in flight — the copies that arrive meanwhile are not verified again
+    let skewFired = false;                 // onClockSkew fires once per node
     const gsig = new Map(); // gid -> Promise<s4> for gossip I authored (signed once, sent many times)
 
     let seat = null, timer = null;
@@ -341,6 +345,12 @@
         verifyChain(() => ident.verifyFill(seat.pins, m).then((v) => {
           if (stopped) return;
           if (v && v.ok) { m.s4ok = true; m.s4from = v.from; seat.recv(m); }
+          // A key holder's fill minted outside the window while I am still
+          // JOINING: my seating frames fail the same window at every peer, so
+          // the retry loop would run in silence until R6 strands me. Say it
+          // once. A seated node stays quiet — a skewed neighbour is its own
+          // problem, not my clock's.
+          else if (v && v.reason === 'skew' && seat.state !== 3 && !skewFired) { skewFired = true; if (opts.onClockSkew) { try { opts.onClockSkew(v.skewMs, v.from); } catch (e) {} } }
           // else: unsigned / forged / impostor / key-swapped fill — DROP it.
         }).catch(() => {}));
         return;
@@ -348,13 +358,20 @@
       if (ident.GOSSIP_T && ident.GOSSIP_T.has(m.t)) seat.gspInAll = (seat.gspInAll || 0) + 1; // every gossip frame that reached this seat, duplicates included (the traffic gauge)
       if (s4on && ident.GOSSIP_T && ident.GOSSIP_T.has(m.t)) {
         // Duplicates are the common case (every neighbour forwards every
-        // message): dedup BEFORE paying for a verification.
+        // message): dedup BEFORE paying for a verification. gseen is written
+        // only when the verify resolves, so the copies that arrive inside that
+        // latency (up to degree of them, within milliseconds) are held off by
+        // gpending; a copy of a frame that FAILED stays unseen, so a later
+        // honest copy still lands.
         if (seat.gseen && seat.gseen.has(m.gid)) return;
-        verifyChain(() => ident.verifyGossip(seat.pins, m).then((v) => {
+        if (gpending.has(m.gid)) return;
+        gpending.add(m.gid);
+        gossipChain(() => ident.verifyGossip(seat.pins, m).then((v) => {
+          gpending.delete(m.gid);
           if (stopped) return;
           if (v && v.ok) { m.s4ok = true; seat.recv(m); }
           else { seat.gspForged = (seat.gspForged || 0) + 1; }   // unsigned / forged / impostor gossip — DROP it, unforwarded
-        }).catch(() => {}));
+        }).catch(() => { gpending.delete(m.gid); }));
         return;
       }
       seat.recv(m);

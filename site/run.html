@@ -4323,15 +4323,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // a different greeter (or a peer that already held a DC to the target)
     // would have delivered. The sender never learned: nosock lands on the
     // greeter, not the newcomer, so retries hit the same dead door forever.
+    // Bounded work: sponsorSend reads at most 6 doors (nFan), so the list
+    // stops at DOOR_MAX and the claimant step reads the reverse index
+    // (claimantsOf) instead of scanning every socketed peer's links. A greeter
+    // holds the FULL socket list — thousands in a join wave — and this runs
+    // once per forwarded frame, before the per-target throttle.
     function doorPeers(to, tck) {
-      const s = meshSeat(), T = net.topo, out = [];
-      const add = (pid) => { if (pid != null && pid !== myId && pid !== to && relaySocketed.has(pid) && !out.includes(pid)) out.push(pid); };
+      const DOOR_MAX = 8;
+      const s = meshSeat(), T = net.topo, out = [], seen = new Set();
+      const add = (pid) => { if (out.length < DOOR_MAX && pid != null && pid !== myId && pid !== to && relaySocketed.has(pid) && !seen.has(pid)) { seen.add(pid); out.push(pid); } };
       // (1) evidence first — a socketed peer that already claims the target
       const claimed = [];
-      for (const pid of relaySocketed) {
-        if (pid === myId || pid === to) continue;
-        if ((connsOf.get(pid) || []).includes(to)) claimed.push(pid);
-      }
+      for (const pid of (claimantsOf.get(to) || [])) if (pid !== myId && relaySocketed.has(pid)) claimed.push(pid);
       claimed.sort();
       for (const pid of claimed) add(pid);
       // (2) structural neighbours of the target's seat
@@ -4344,7 +4347,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       // (3) the public front door
       if (s) { add(s.gateway); for (const g of (s.lastGreeters || [])) add(g); }
-      for (const pid of relaySocketed) add(pid);
+      for (const pid of relaySocketed) { if (out.length >= DOOR_MAX) break; add(pid); }
       return out;
     }
     // sponsorSend: carry envelope envl toward envl.to when the relay cannot
@@ -4836,7 +4839,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       peers.delete(peerId);
       meters.delete(peerId);
       statusOf.delete(peerId); // a stale status must not haunt the room's consensus
-      connsOf.delete(peerId);
+      forgetConns(peerId);
       if (typeof reconcileApp === 'function') reconcileApp(); // a departing host ends the shared app
       endRelayRolesFor(peerId);
       // Media plane: forget this peer's mosaic announces/demand and fail any feed
@@ -5029,7 +5032,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Group moderation: signature-verified in admin rooms (§9), open in
       // plain rooms — the transport no longer matters, only the proof.
       takeMod(from, msg);
-      if (msg.conns) connsOf.set(from, msg.conns);
+      if (msg.conns) setConns(from, msg.conns);
       if ('sid' in msg && p && p.ownSid !== msg.sid) { p.ownSid = msg.sid; claimOwnStream(p); }
       else if ('sid' in msg && p) claimOwnStream(p);
     }
@@ -5143,7 +5146,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         else p.pendingIce.push(msg.candidate);
       } else if (msg.kind === 'status') {
         const took = takeStatus(from, msg.s || {}); // null: the same pulse again (the DC copy and the section-gossip copy of one beat)
-        if (msg.conns) connsOf.set(from, msg.conns);
+        if (msg.conns) setConns(from, msg.conns);
         // heartbeat re-gossip: moderation + guest-blur re-converge every tick
         // (signature-verified in admin rooms — takeMod, §9)
         takeMod(from, msg);
@@ -5308,7 +5311,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!pid || pid === myId || meshGone.has(pid)) return;
       meshGone.set(pid, Date.now());
       occVanish.delete(pid);
-      statusOf.delete(pid); connsOf.delete(pid); delete rosterNames[pid]; delete ipsOf[pid]; delete devOf[pid];
+      statusOf.delete(pid); forgetConns(pid); delete rosterNames[pid]; delete ipsOf[pid]; delete devOf[pid];
       // A probe-confirmed departure is ABSENCE EVIDENCE (2026-07-29): without
       // this, a departed admin stayed "present" until the 30s admSeen decay,
       // so the host-absence grace could not even START for half a minute — a
@@ -6269,6 +6272,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           setStatus(code === 4007 ? '⛔ The people on this meeting voted you off.' : '⛔ You were banned from this room.');
         },
         onStranded: () => setStatus('\ud83d\udce1 The meeting is happening, but this network will not let you connect to it.'), // R6
+        // S4 CLOCK SKEW: every seating frame is a signed fill with a 10-minute
+        // window, so a device whose clock is wrong is never seated and, after
+        // the TTL, was told the NETWORK refused it. The wire reports the signed
+        // delta from a verified member's frame while I am still joining.
+        onClockSkew: (ms) => { const mins = Math.max(1, Math.round(Math.abs(ms) / 60000)); setStatus('\ud83d\udd50 This device\u2019s clock is ' + mins + ' minute' + (mins === 1 ? '' : 's') + (ms > 0 ? ' behind' : ' ahead of') + ' the meeting\u2019s, so the meeting cannot seat you. Set the clock, then reload.'); },
         // FRAGMENT SELF-RESCUE: the wire proved the door knows members my
         // solo room view doesn't. Same clean lever as the freeze self-heal \u2014
         // a full re-entry \u2014 throttled, and only while the app agrees we look
@@ -8681,6 +8689,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const relayJobs = new Map();    // target + '>' + requester -> { senders }   (as relayer)
     const relayRefusal = new Map(); // target -> { viaPid: refusedAt }
     const connsOf = new Map();      // pid -> [connected pids] (gossiped)
+    // claimantsOf: the reverse of connsOf (target -> peers that report a link
+    // to it). doorPeers reads it per forwarded frame; a greeter's socket list
+    // is thousands long in a join wave, so the forward map alone made every
+    // door lookup a scan of every socketed peer's links. Both maps change
+    // ONLY through these two helpers so they can never disagree.
+    const claimantsOf = new Map();
+    function setConns(pid, conns) {
+      for (const t of (connsOf.get(pid) || [])) { const c = claimantsOf.get(t); if (c) { c.delete(pid); if (!c.size) claimantsOf.delete(t); } }
+      connsOf.set(pid, conns);
+      for (const t of conns) { let c = claimantsOf.get(t); if (!c) claimantsOf.set(t, (c = new Set())); c.add(pid); }
+    }
+    function forgetConns(pid) {
+      for (const t of (connsOf.get(pid) || [])) { const c = claimantsOf.get(t); if (c) { c.delete(pid); if (!c.size) claimantsOf.delete(t); } }
+      connsOf.delete(pid);
+    }
     const MAX_RELAY_JOBS = 4;       // a phone volunteers only so much upload
     // Senders that carry OTHER people's media (relay jobs, composites, forwarded
     // folds) — refreshOutbound must never replaceTrack these with my camera.

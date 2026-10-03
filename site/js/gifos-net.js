@@ -236,31 +236,52 @@
       if (i < pieces.length) setTimeout(pump, 40); else resolve();
     })();
   });
+  // Byte ceiling on what one receiver holds in partial messages, all senders
+  // together: two full-size messages (two 25MB shared videos side by side).
+  // The count bound alone (8 partials x 512 pieces) let a room member park
+  // ~400MB of pieces in every receiver until the sweep; a phone kills the tab
+  // first. Measured in string chars (the pieces are base64 text).
+  const FRAG_BUDGET = 2 * FRAG_MAX_PARTS * FRAG_PART;
   // Stateful filter: feed every parsed inbound message with its sender key;
   // frag pieces buffer and return null until the last one completes the
-  // original message. Non-frag messages pass straight through.
+  // original message. Non-frag messages pass straight through. The returned
+  // function carries stats() -> { bytes, msgs } (what it holds right now).
   const makeDefrag = (onProgress) => {
-    const bufs = new Map(); // sender|fid -> { parts, got, n, at }
-    return (m, sender) => {
+    const bufs = new Map(); // sender|fid -> { parts, got, n, at, bytes }
+    let held = 0;           // chars held across every partial
+    const drop = (key, b) => { bufs.delete(key); held -= b.bytes; };
+    const sweep = () => { const now = Date.now(); for (const [k, v] of bufs) if (now - v.at > 30000) drop(k, v); }; // stale partials
+    const defrag = (m, sender) => {
       if (!m || m.t !== 'frag') return m;
       const n = m.n | 0, i = m.i | 0;
-      if (typeof m.p !== 'string' || typeof m.fid !== 'string' || n < 2 || n > FRAG_MAX_PARTS || i < 0 || i >= n) return null;
+      // an honest sender never cuts a piece longer than FRAG_PART: a longer one is refused before it is held
+      if (typeof m.p !== 'string' || m.p.length > FRAG_PART || typeof m.fid !== 'string' || n < 2 || n > FRAG_MAX_PARTS || i < 0 || i >= n) return null;
       const key = sender + '|' + m.fid;
       let b = bufs.get(key);
       if (!b) {
-        for (const [k, v] of bufs) if (Date.now() - v.at > 30000) bufs.delete(k); // sweep stale partials
-        if (bufs.size >= 8) return null; // bounded memory even from a hostile sender
-        b = { parts: new Array(n), got: 0, n, at: Date.now() };
+        sweep();
+        if (bufs.size >= 8) return null; // bounded count even from a hostile sender
+        b = { parts: new Array(n), got: 0, n, at: Date.now(), bytes: 0 };
         bufs.set(key, b);
       }
-      if (b.n !== n || b.parts[i] !== undefined) { bufs.delete(key); return null; } // inconsistent sender
-      b.parts[i] = m.p; b.got++;
+      if (b.n !== n) { drop(key, b); return null; } // inconsistent sender
+      if (b.parts[i] !== undefined) {
+        if (b.parts[i] === m.p) return null; // the same piece twice (a re-send, a second path): already held, nothing to do
+        drop(key, b); return null;           // a DIFFERENT payload at a held index: inconsistent sender
+      }
+      if (held + m.p.length > FRAG_BUDGET) {
+        sweep();
+        if (held + m.p.length > FRAG_BUDGET) { drop(key, b); return null; } // over budget: this partial can never complete, release it
+      }
+      b.parts[i] = m.p; b.got++; b.bytes += m.p.length; held += m.p.length;
       if (onProgress) { try { onProgress(m.fid, b.got, b.n); } catch (e) {} }
       if (root.__fragDebug) console.error('[defrag] ' + key + ' ' + b.got + '/' + b.n);
       if (b.got < b.n) return null;
-      bufs.delete(key);
+      drop(key, b);
       try { return JSON.parse(b.parts.join('')); } catch (e) { if (root.__fragDebug) console.error('[defrag] PARSE FAIL ' + key); return null; }
     };
+    defrag.stats = () => ({ bytes: held, msgs: bufs.size });
+    return defrag;
   };
 
   // ---- ids ------------------------------------------------------------------
@@ -599,7 +620,7 @@
   GifOS.net = {
     ICE_SERVERS, hasP2P, holdSessionLock,
     steadySocket,
-    FRAG_PART, sendChunked, chunk, pumpChannel, makeDefrag,
+    FRAG_PART, FRAG_BUDGET, sendChunked, chunk, pumpChannel, makeDefrag,
     shortCode, randHex, sha256hex, sha256hexOfBytes, keyId, keyVerifier,
     deriveMeet, deriveMeetKey, meetPwProof, mintGenesisKey,
     edKeysFromSeedHex, edSign, edVerify, edProven,
