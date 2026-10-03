@@ -801,9 +801,10 @@ is the bug.
   only by mesh-wire for a frame off the sender's own DataChannel, never for a
   relay `from` or a sponsor envelope), and every eviction frame is honoured
   only from its author (link or S4 signature) and only within a relation the
-  victim's own view grants: YIELD from its arbiter (phone target, or a rook
-  peer in Section 1), CONFIRM from the rival it challenged, LEAVE/MOVED about
-  the sender's own cell. Occupancy claims must name a cell related to the
+  victim's own view grants: YIELD from its arbiter (its phone target, or two
+  rook peers in Section 1), CONFIRM from the rival it challenged, LEAVE/MOVED
+  about the sender's own cell; and a claimant heard first-hand at one cell
+  never displaces a live occupant of another (a seat is in ONE place). Occupancy claims must name a cell related to the
   receiver, and a claim with no link behind it never displaces anyone. No
   signature rides a heartbeat. The table is docs/meet-security.md §AUTH; the
   attack suite is test/mesh/forged-frames.js.
