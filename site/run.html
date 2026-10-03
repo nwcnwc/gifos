@@ -9640,7 +9640,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // keep this asker as a wanter. Bytes landing send fc-stop to everyone
     // else who was asked.
     function askFile(f, p) {
-      if (!f || f.bytes || !p || !p.id || !p.dc) return;
+      if (!f || f.bytes || !p || !p.id) return;
+      // A want needs an OPEN channel. dcSend drops it silently otherwise, and
+      // the stall timer then re-asked that same unopened channel every 3 s
+      // for as long as nobody else announced the file (traced: a meta that
+      // arrived by gossip from a peer whose pair never connected). A source I
+      // cannot reach yet waits in nextAsk; armFileAsk asks it once its
+      // channel opens, or asks a reachable announcer first.
+      if (!p.dc || p.dc.readyState !== 'open') {
+        if (f.asking !== p.id) (f.nextAsk = f.nextAsk || new Set()).add(p.id);
+        if (!f.asking) armFileAsk(f);
+        return;
+      }
       f.asked = f.asked || new Set();
       if (f.asking && f.asking !== p.id) { (f.nextAsk = f.nextAsk || new Set()).add(p.id); return; }
       if (f.asking === p.id) return;
@@ -9660,11 +9671,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (f.bytes) return;
         const stalled = f.asking;
         const cur = stalled ? peers.get(stalled) : null;
+        const open = (q) => !!(q && q.dc && q.dc.readyState === 'open');
         let next = null;
-        if (f.nextAsk) { for (const id of f.nextAsk) { next = id; break; } }
+        if (f.nextAsk) {
+          for (const id of Array.from(f.nextAsk)) {
+            const q = peers.get(id);
+            if (!q) { f.nextAsk.delete(id); continue; } // gone from the room
+            if (open(q)) { next = id; break; }
+          }
+        }
         if (!next) {
-          if (cur && cur.dc) { dcSend(cur, { k: 'want', id: f.id }); armFileAsk(f); }
-          else f.asking = null;
+          if (open(cur)) { dcSend(cur, { k: 'want', id: f.id }); armFileAsk(f); }
+          else {
+            f.asking = null;
+            if (f.nextAsk && f.nextAsk.size) armFileAsk(f); // a queued source whose channel is not open yet
+          }
           return;
         }
         f.asking = null;

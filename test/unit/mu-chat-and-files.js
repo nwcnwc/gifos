@@ -129,7 +129,8 @@ check('askFile is the only want', /function askFile\(/.test(html) && /askFile\(k
 {
   const timers = [];
   const sent = [];
-  const peers = new Map([['mid', { id: 'mid', dc: {} }], ['alt', { id: 'alt', dc: {} }]]);
+  // A want needs an OPEN channel (askFile): these two sources have one.
+  const peers = new Map([['mid', { id: 'mid', dc: { readyState: 'open' } }], ['alt', { id: 'alt', dc: { readyState: 'open' } }]]);
   const env = {
     setTimeout: (fn, ms) => { timers.push(fn); return timers.length; },
     clearTimeout: () => {},
@@ -159,6 +160,45 @@ check('askFile is the only want', /function askFile\(/.test(html) && /askFile\(k
   delays.length = 0; f.gotChunk = true;
   fns.armFileAsk(f);
   check('once chunks flow, the stall wait is 8 s', delays.join() === '8000', delays.join());
+}
+// A want is only ever sent over an OPEN channel. A meta can arrive by gossip
+// from a peer whose pair never connected (its channel object exists but is
+// still 'connecting'); the old ask sent the want into that channel, dcSend
+// dropped it, and the stall timer re-asked the same channel every 3 s for as
+// long as nobody else announced the file (traced in e2e-video's island leg).
+{
+  const timers = [];
+  const sent = [];
+  const peers = new Map([['far', { id: 'far', dc: { readyState: 'connecting' } }], ['hub', { id: 'hub', dc: { readyState: 'open' } }]]);
+  const env = {
+    setTimeout: (fn) => { timers.push(fn); return timers.length; },
+    clearTimeout: () => {},
+    peers: peers,
+    dcSend: (q, m) => sent.push(q.id + ':' + m.k),
+  };
+  const fns = new Function(Object.keys(env).join(','), lift('askFile') + '\n' + lift('armFileAsk') + '\nreturn { askFile, armFileAsk };')
+    .apply(null, Object.keys(env).map((k) => env[k]));
+  const f = { id: 'fy', bytes: null };
+  fns.askFile(f, peers.get('far'));
+  check('a source whose channel is not open gets no want', sent.length === 0 && !f.asking, sent.join() + ' asking=' + f.asking);
+  check('…it waits in nextAsk and the stall timer is armed', !!(f.nextAsk && f.nextAsk.has('far')) && timers.length === 1);
+  timers.shift()();
+  check('while its channel stays closed, nothing is sent and the wait re-arms', sent.length === 0 && timers.length === 1, sent.join() + ' timers=' + timers.length);
+  fns.askFile(f, peers.get('hub'));
+  check('a reachable announcer is asked at once', sent.join() === 'hub:want' && f.asking === 'hub', sent.join());
+  sent.length = 0;
+  peers.get('far').dc.readyState = 'open';
+  timers.shift()(); // the stall tick armed while the hub was being asked
+  check('once the queued source\'s channel opens, a stall moves the ask to it', sent.join() === 'hub:fc-stop,far:want' && f.asking === 'far', sent.join());
+  const g = { id: 'fz', bytes: null };
+  const lone = new Map([['gone', { id: 'gone', dc: { readyState: 'closed' } }]]);
+  const sent2 = [], timers2 = [];
+  const fns2 = new Function('setTimeout,clearTimeout,peers,dcSend', lift('askFile') + '\n' + lift('armFileAsk') + '\nreturn { askFile, armFileAsk };')
+    ((fn) => { timers2.push(fn); return 1; }, () => {}, lone, (q, m) => sent2.push(q.id + ':' + m.k));
+  g.asking = 'gone';
+  fns2.armFileAsk(g);
+  timers2.shift()();
+  check('a current source whose channel closed is not re-asked into the closed channel', sent2.length === 0 && g.asking === null && timers2.length === 0, sent2.join() + ' asking=' + g.asking);
 }
 check('a chunk marks the file as flowing (gotChunk) before the stall timer re-arms',
   /if \(r === 'part' \|\| r === 'dup' \|\| r === 'done'\) f\.gotChunk = true;/.test(html));
