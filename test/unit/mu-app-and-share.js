@@ -255,7 +255,7 @@ function await0(fn) { global.__pending = (global.__pending || []).concat(fn()); 
   check('the separate 3s pause sweep is gone', html.indexOf('the pause sweep') < 0);
   check('one shared screen is chosen even beside other faces', /const stageScreenSid = \(\) =>/.test(html));
   check('stageDirect still refuses the self seat', /sid === myId \|\| !sharingScreen\(sid\)\) return null/.test(html));
-  check('other faces are painted on the direct screen', /const paintStageFaces = \(screenSid\) =>/.test(html) && /className = 'stageface'/.test(html));
+  check('other faces are painted on the direct screen', /const paintStageFaces = \(faces\) =>/.test(html) && /className = 'stageface'/.test(html));
   const sidSrc = sliceFrom('      const stageScreenSid = () => {', '      const myScreenBeside');
   const stageScreenSid = new Function('stagers', 'sharingScreen', sidSrc + '\nreturn stageScreenSid;')(
     ['ada', 'ben'], (id) => id === 'ada');

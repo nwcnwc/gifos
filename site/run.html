@@ -802,6 +802,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      the visible half of a two-sided guarantee. */
   .tile video.blur1, #fsmain.blur1, .fsthumb video.blur1 { filter: blur(11px) saturate(.9); transform: scale(1.07); }
   .tile video.blur2, #fsmain.blur2, .fsthumb video.blur2 { filter: blur(26px) saturate(.75); transform: scale(1.15); }
+  /* The face boxes on a shared screen (STAGE-FACES). No transform here: a
+     strip-cell face is positioned by left/top, and a scale would move it. */
+  .stagefacebox video.blur1 { filter: blur(11px) saturate(.9); }
+  .stagefacebox video.blur2 { filter: blur(26px) saturate(.75); }
   #blurall.on { border-color: #ffb86c; color: #ffd23c; background: #2a1f10; }
   #camall.on { border-color: #ff5c5c; color: #ff9c9c; background: #2a1010; }
   /* Admin-absence countdown: an admin room only lives while its host is here. */
@@ -3594,7 +3598,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // gossiped status every device holds, so the compositing seat at Section 1
     // letterboxes the cell exactly the way the sharer's own device does — the
     // packing must not depend on who happens to be doing the packing.
-    const sharingScreen = (pid) => !!((pid === myId ? myStatus : statusOf.get(pid)) || {}).scr;
+    //   PAST ONE SECTION a status reaches only its sender's section, so a
+    // sharer in another section is known by the fold alone (G9: the stage
+    // entry's f & 2, the same bit screenSharers reads). Reading statusOf alone
+    // split the room: Section 1 square-cropped a deeper sharer's screen into
+    // the strip, a deep relay shipped that sharer's feed down audio-only, and
+    // only the sharer's own section saw the screen itself. A fresh section
+    // status still wins over the fold. Every caller is a stage-media choice.
+    const sharingScreen = (pid) => {
+      if (pid === myId) return !!myStatus.scr;
+      const st = statusOf.get(pid);
+      if (st && st.scr) return true;
+      if (st && freshSt(pid)) return false;
+      const e = digStageEntry(pid);
+      return !!(e && (e.f & 2));
+    };
     const fitFor = (pid) => (sharingScreen(pid) ? 'contain' : null);
     const labelFor = (pid) => {
       const isMe = pid === myId;
@@ -9282,7 +9300,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const ak = p.id + '|' + m.key;
         const prevAnn = mosAnn.get(ak);
         const annNew = !prevAnn || prevAnn.streamId !== m.streamId;
-        mosAnn.set(ak, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, mt: m.mt, h: (typeof m.h === 'number' ? m.h : undefined), ao: (m.ao === 1 ? 1 : undefined), at: Date.now() });
+        mosAnn.set(ak, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, mt: m.mt, h: (typeof m.h === 'number' ? m.h : undefined), ao: (m.ao === 1 ? 1 : undefined), ids: mxIds(m.ids), at: Date.now() });
         if (annNew) schedReconcile(); else schedClaim();
       } else if (m.k === 'mx-end' && typeof m.key === 'string') {
         mosAnn.delete(p.id + '|' + m.key);
@@ -10899,6 +10917,87 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return sent === src ? meta : Object.assign({}, meta, { ao: 1 });
     }
     // END-STAGE-DOWN-SHIP
+    // STAGE-FACES
+    // ONE SHARED SCREEN BESIDE OTHER FACES. When the stage element shows the
+    // shared screen itself (stageDirect, myScreenBeside), the co-presenters'
+    // faces sit on it in small boxes, or they vanish. A face comes from what
+    // this seat already holds:
+    //   - for me, my own broadcast track (my blur is already in it);
+    //   - a stage feed that carries video. Every Section 1 seat holds them all
+    //     (the S1 flood), and a relay holds the ones it carries up;
+    //   - below Section 1 a co-presenter's stage feed arrives AUDIO-ONLY
+    //     (stgDownShip), so the face is cut out of the strip this seat already
+    //     receives. The strip is a packed row-major grid of square cells, cell
+    //     j holds the j-th id the compositing seat packed (meta.ids, or the
+    //     stage order when an older relay dropped them and the counts agree),
+    //     and a fixed box shows cell j of the strip's own <video>, scaled and
+    //     shifted (MM.cellCrop). Same decoded track, zero extra bandwidth.
+    // When a deep seat cannot place a face (no meta, order unknown, counts or
+    // frame disagree), it shows the strip itself: never a screen with people
+    // missing. Section 1 packs its strip from the same feeds it shows, so a
+    // face it lacks is missing from its strip as well, and it keeps the screen.
+    // MODERATION REACHES THESE SINKS like the grid tile (meet-moderation-sinks):
+    // an admin's video-off hides the face, a moderator's blur blurs it here.
+    const STAGE_FACE_PX = 96;
+    function stageStripOrder(meta, stagers) {
+      if (!meta || !(meta.n > 0)) return null;
+      if (Array.isArray(meta.ids)) return meta.ids.length === meta.n ? meta.ids.slice() : null;
+      return meta.n === stagers.length ? stagers.slice() : null;
+    }
+    // The receiver blur on a face box. My own track already carries my blur.
+    // A moderator's block is the hammer this sink must obey; a seat's own
+    // choice is baked in by its sender, the same pixels the strip shows.
+    function stageFaceBlur(id) {
+      if (id === myId || !modBlurOn(id)) return 0;
+      return Math.max(1, blurLevelFor(id));
+    }
+    // A face's own video track, or null. Never the MAIN link of a stager: its
+    // main senders are parked, so that track is frozen or black.
+    function stageRawFace(id) {
+      let st = null;
+      if (id === myId) st = meTile && meTile.video ? meTile.video.srcObject : null;
+      else {
+        const f = mosIn.get('stg:' + id);
+        if (!f || (f.meta && f.meta.ao)) return null;
+        st = f.stream;
+      }
+      const vt = st && typeof st.getVideoTracks === 'function' ? st.getVideoTracks()[0] : null;
+      return vt && vt.readyState !== 'ended' ? vt : null;
+    }
+    // The faces to put on screenSid's shared screen: [{ id, vt, crop, bl }].
+    // strip is the received 'sgs' claim at a deep seat, null at Section 1.
+    // null means this seat must show the strip instead of the screen.
+    function stageFaceSet(screenSid, stagers, strip) {
+      const faces = [];
+      let order, svt = null;
+      for (const id of stagers) {
+        if (id === screenSid || forcedCamOff(id)) continue;
+        const bl = stageFaceBlur(id);
+        const vt = stageRawFace(id);
+        if (vt) { faces.push({ id, vt, crop: null, bl }); continue; }
+        if (!strip) continue;
+        if (order === undefined) order = stageStripOrder(strip.meta, stagers);
+        if (!order) return null;
+        const j = order.indexOf(id);
+        if (j < 0) {
+          // The compositing seat packed no cell for them (meta.ids says so):
+          // its strip lacks them too, so the screen hides nobody it shows.
+          if (strip.meta && Array.isArray(strip.meta.ids)) continue;
+          return null;
+        }
+        if (!svt) {
+          const t = strip.stream && typeof strip.stream.getVideoTracks === 'function' ? strip.stream.getVideoTracks()[0] : null;
+          if (!t || t.readyState === 'ended') return null;
+          svt = t;
+        }
+        const el = strip.el;
+        const crop = MM.cellCrop(j, order.length, (strip.meta.cols | 0) || order.length, el ? el.videoWidth : 0, el ? el.videoHeight : 0, STAGE_FACE_PX);
+        if (!crop) return null;
+        faces.push({ id, vt: svt, crop, bl });
+      }
+      return faces;
+    }
+    // END-STAGE-FACES
     function dropMosIn(rk) {
       const c = mosIn.get(rk); if (!c) return;
       mosIn.delete(rk);
@@ -11011,7 +11110,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the row+column fabric, two link-disjoint paths. Structural relay slots
     // (sub/x1/x2) keep the plain single sticky claim.
     const isRedun = (rk) => rk === 'sdm' || rk === 'sdx' || rk === 'sdn' || rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
-    const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols, mt: ann.mt, h: ann.h, ao: ann.ao });
+    const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols, mt: ann.mt, h: ann.h, ids: ann.ids, ao: ann.ao });
+    // The strip's CELL ORDER (STAGE-FACES): who sits in cell 0..n-1, as the
+    // compositing seat packed it. At most C peer ids, each a short string;
+    // anything else is dropped, and a receiver without it falls back to the
+    // stage order or to the whole strip.
+    function mxIds(v) {
+      if (!Array.isArray(v) || !v.length || v.length > SCALE.C) return undefined;
+      for (let i = 0; i < v.length; i++) if (typeof v[i] !== 'string' || !v[i] || v[i].length > 64) return undefined;
+      return v.slice();
+    }
     // Hop count of a held stg copy for re-flooding: my copy's announced h + 1.
     // A copy with NO h (an old client's announce) re-floods as far (998+1) —
     // claimable when it is the only path, always outranked by a counted chain.
@@ -11699,6 +11807,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // outbound one ("your self-view shows EXACTLY the track you broadcast"), so
     // this shows the BROADCAST — blur baked in — never a private clear copy.
     let selfStageSt = null, stageDirectSt = null;
+    let stageViewNow = null; // what the stage element shows: 'self' | 'screen' | 'strip' (stageFacesForTest)
     function selfStageStream() {
       const st = meTile && meTile.video && meTile.video.srcObject;
       const vt = st && st.getVideoTracks()[0];
@@ -11714,6 +11823,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       let el = stagefeedEl.querySelector('[data-row="sgs"]');
       if (!stream) {
         if (el) { for (const v of el.querySelectorAll('video')) { try { v.pause(); v.srcObject = null; } catch (e) {} releaseAudio(v); } el.remove(); }
+        stageViewNow = null;
         compOf.delete('sgs'); recSrcDirty = true; return;
       }
       if (!el) {
@@ -11870,6 +11980,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // My own screen is selfStageStream's job; a FACE stays on the strip,
         // whose square crop is a deliberate choice about what a face is.
         if (sid === myId || !sharingScreen(sid)) return null;
+        // An admin turned this sharer's video off. An honest sharer has already
+        // stopped (enforceForcedCam); a defiant one is shown by nobody honest.
+        // The strip stands, and its compositor paints that cell dark.
+        if (forcedCamOff(sid)) return null;
         const sc = srcFor(sid, 'stg:' + sid);
         if (!sc || !sc.el || !sc.stream || !sc.el.videoWidth) return null; // no pixels yet — the strip stands, the next sweep switches
         const vt = sc.stream.getVideoTracks ? sc.stream.getVideoTracks()[0] : null;
@@ -11878,13 +11992,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return stageDirectSt;
       };
       // Grid tiles of stagers are hidden. When the stage element is the raw
-      // screen, the other faces have to sit on it or they vanish. Video only:
-      // their audio is already in the stage ear.
-      const paintStageFaces = (screenSid) => {
+      // screen, the other faces have to sit on it or they vanish. faces comes
+      // from stageFaceSet (STAGE-FACES): a raw face fills its box; a strip
+      // cell is the strip's own track, scaled and shifted inside the box. Video
+      // only: their audio is already in the stage ear.
+      const paintStageFaces = (faces) => {
         const host = stagefeedEl.querySelector('[data-row="sgs"]');
         if (!host) return;
         let box = host.querySelector('.stagefaces');
-        if (!screenSid) { if (box) box.remove(); return; }
+        if (!faces || !faces.length) { if (box) box.remove(); return; }
         if (!box) {
           box = document.createElement('div');
           box.className = 'stagefaces';
@@ -11892,33 +12008,44 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           host.appendChild(box);
         }
         const keep = new Set();
-        for (const id of stagers) {
-          if (id === screenSid) continue;
-          const sc = srcFor(id, id === myId ? null : ('stg:' + id));
-          const stream = sc && sc.stream;
-          const vt = stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
-          let face = null;
-          for (const ch of box.children) if (ch.dataset.face === id) face = ch;
-          if (!vt || vt.readyState === 'ended') { if (face) face.remove(); continue; }
-          keep.add(id);
-          if (!face) {
-            face = document.createElement('video');
-            face.className = 'stageface';
-            face.muted = true;
-            face.autoplay = true;
-            face.playsInline = true;
-            face.setAttribute('playsinline', '');
-            face.dataset.face = id;
-            face.style.cssText = 'width:96px;height:96px;object-fit:cover;border-radius:8px;background:#000';
-            box.appendChild(face);
+        for (const fc of faces) {
+          keep.add(fc.id);
+          let wrap = null;
+          for (const ch of box.children) if (ch.dataset.face === fc.id) wrap = ch;
+          if (!wrap) {
+            wrap = document.createElement('div');
+            wrap.className = 'stagefacebox';
+            wrap.dataset.face = fc.id;
+            wrap.style.cssText = 'position:relative;flex:none;width:' + STAGE_FACE_PX + 'px;height:' + STAGE_FACE_PX + 'px;overflow:hidden;border-radius:8px;background:#000';
+            const v = document.createElement('video');
+            v.className = 'stageface';
+            v.muted = true;
+            v.autoplay = true;
+            v.playsInline = true;
+            v.setAttribute('playsinline', '');
+            wrap.appendChild(v);
+            box.appendChild(wrap);
           }
-          if (face._vt !== vt) {
-            face._vt = vt;
-            face.srcObject = new MediaStream([vt]);
+          const face = wrap.querySelector('video');
+          if (face._vt !== fc.vt) {
+            face._vt = fc.vt;
+            face.srcObject = new MediaStream([fc.vt]);
             const pr = face.play(); if (pr && pr.catch) pr.catch(() => {});
           }
+          const c = fc.crop;
+          const css = c
+            ? 'position:absolute;left:' + c.x.toFixed(1) + 'px;top:' + c.y.toFixed(1) + 'px;width:' + c.w.toFixed(1) + 'px;height:' + c.h.toFixed(1) + 'px;max-width:none;max-height:none;object-fit:fill;background:#000'
+            : 'position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;background:#000';
+          if (face._css !== css) { face._css = css; face.style.cssText = css; }
+          face.dataset.cell = c ? '1' : '';
+          face.classList.remove('blur1', 'blur2');
+          if (fc.bl) face.classList.add('blur' + fc.bl);
         }
-        for (const ch of [...box.children]) if (!keep.has(ch.dataset.face)) ch.remove();
+        for (const ch of [...box.children]) {
+          if (keep.has(ch.dataset.face)) continue;
+          const v = ch.querySelector('video'); if (v) { try { v.srcObject = null; } catch (e) {} }
+          ch.remove();
+        }
         if (!box.children.length) box.remove();
       };
       // ---- GAPLESS PACKING (approach A — docs/media-plane.md) ----------------
@@ -11932,6 +12059,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return { n: k, cols: k }; // legacy bar self-describes via aspect (5 − max/min = free)
       };
       const setBlock = (pk, id, ord, f) => { const m = blockMeta(f); pk.setTile(id, ord, f.el, f.stream, m); };
+      // The strip's meta, relayed: {n, cols} plus the cell order (STAGE-FACES)
+      // when it came with one, so every seat down the tree can cut faces out.
+      const stripMeta = (f) => {
+        const m = blockMeta(f);
+        if (f && f.meta && Array.isArray(f.meta.ids) && f.meta.ids.length === m.n) m.ids = f.meta.ids.slice();
+        return m;
+      };
       if (iAmHead) {
         // PRODUCT = my row's live faces + my row's sub-blocks, PACKED near-square
         // (no fixed C+1 slots — the tall-product blowup is gone).
@@ -12285,17 +12419,32 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // everyone). Both dials, every sweep — setCell/setFps no-op unchanged.
         stripPack.setCell(stageCell()); stripPack.setFps(stageFps());
         const stgKeep = new Set();
+        // MODERATION REACHES THE STRIP. This seat's pixels are what every seat
+        // below sees, so the room's moderation table is applied here, the same
+        // on every Section 1 seat: an admin's video-off paints the cell dark
+        // (name kept, place kept), and a moderator's blur is baked into a
+        // camera cell. A shared screen is never blurred (sentVideoTrack: the
+        // ladder for a share is video-off). My own cell already carries my blur.
         stagers.forEach((sid, j) => {
           const sc = srcFor(sid, 'stg:' + sid);
-          if (sc && sc.el) { stripPack.setTile(sid, j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(sid), fit: fitFor(sid) }); stgKeep.add(sid); }
+          if (sc && sc.el) {
+            const dark = forcedCamOff(sid) ? 1 : 0;
+            const blur = (!dark && sid !== myId && modBlurOn(sid) && !sharingScreen(sid)) ? Math.max(1, blurLevelFor(sid)) : 0;
+            stripPack.setTile(sid, j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(sid), fit: fitFor(sid), dark, blur });
+            stgKeep.add(sid);
+          }
         });
         for (const id of stripPack.ids()) if (!stgKeep.has(id)) stripPack.delTile(id);
-        paintStageStrip(selfSt || myScreenBeside() || stageDirect() || stripPack.stream);
-        paintStageFaces(selfSt ? null : ((myScreenBeside() || stageDirect()) ? stageScreenSid() : null));
+        const stripIds = stagers.filter((sid) => stgKeep.has(sid)); // the cell order, as packed (ord = stage index)
+        const scrSt = selfSt ? null : (myScreenBeside() || stageDirect());
+        const s1Faces = scrSt ? stageFaceSet(stageScreenSid(), stagers, null) : null;
+        stageViewNow = selfSt ? 'self' : (s1Faces ? 'screen' : 'strip');
+        paintStageStrip(selfSt || (s1Faces ? scrSt : null) || stripPack.stream);
+        paintStageFaces(s1Faces);
         // Fan the strip DOWN only: every S1 seat composites its OWN strip from
         // the flooded stg feeds, so sideways sgs ships between S1 seats were
         // dead weight (receivers own stripPack and never paint them) — gone.
-        const jgs = shipMos('sgs', occPid(T.down(c)), stripPack.stream, { n: stripPack.count(), cols: stripPack.cols() }); if (jgs) wanted.add(jgs);
+        const jgs = shipMos('sgs', occPid(T.down(c)), stripPack.stream, { n: stripPack.count(), cols: stripPack.cols(), ids: stripIds }); if (jgs) wanted.add(jgs);
         }
       }
       // Every seat: render the received strip and fan it down (heads -> row-mates),
@@ -12307,12 +12456,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Relay it regardless (my subtree needs it) — but if the only face in
         // it is mine, look at the local track instead of at my own pixels
         // after a round trip up to Section 1 and back down.
-        paintStageStrip((soloSelf && selfStageStream()) || myScreenBeside() || stageDirect() || sgs.stream);
-        paintStageFaces((soloSelf && selfStageStream()) ? null : ((myScreenBeside() || stageDirect()) ? stageScreenSid() : null));
-        const dj = shipMos('sgs', occPid(T.down(c)), sgs.stream, blockMeta(sgs)); if (dj) wanted.add(dj);
-        if (iAmHead) for (let j = 1; j < C; j++) { const jk = shipMos('sgs', occPid({ pc: c.pc, r: c.r, i: j }), sgs.stream, blockMeta(sgs)); if (jk) wanted.add(jk); }
+        // A shared screen is shown only with every co-presenter on it; the
+        // faces are cut out of this very strip (stageFaceSet), else the strip.
+        const deepSelf = soloSelf && selfStageStream();
+        const scrSt = deepSelf ? null : (myScreenBeside() || stageDirect());
+        const deepFaces = scrSt ? stageFaceSet(stageScreenSid(), stagers, sgs) : null;
+        stageViewNow = deepSelf ? 'self' : (deepFaces ? 'screen' : 'strip');
+        paintStageStrip((soloSelf && selfStageStream()) || (deepFaces ? scrSt : null) || sgs.stream);
+        paintStageFaces(deepFaces);
+        const dj = shipMos('sgs', occPid(T.down(c)), sgs.stream, stripMeta(sgs)); if (dj) wanted.add(dj);
+        if (iAmHead) for (let j = 1; j < C; j++) { const jk = shipMos('sgs', occPid({ pc: c.pc, r: c.r, i: j }), sgs.stream, stripMeta(sgs)); if (jk) wanted.add(jk); }
         const xg = T.crossLink(c); const xgPid = xg ? occPid(xg) : null;
-        if (xgPid && xgPid !== sgs.via) { const xj = shipMos('sgs', xgPid, sgs.stream, blockMeta(sgs)); if (xj) wanted.add(xj); }
+        if (xgPid && xgPid !== sgs.via) { const xj = shipMos('sgs', xgPid, sgs.stream, stripMeta(sgs)); if (xj) wanted.add(xj); }
       } else if (c.pc !== 0 && stagers.length === 0) {
         // THE STAGE IS MEMBERSHIP, NOT A PIPE. A deep seat used to paint (and
         // re-fan) the composited strip for as long as its inbound 'sgs' pipe
@@ -17185,6 +17340,39 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // composited canvas — cannot tell a letterbox from a dark room, and the
       // sizing law itself is already proven in test/unit/mesh-media.js.
       fitForTest: (pid) => fitFor(pid),
+      // STAGE-FACES, as painted: what the stage element shows ('self' |
+      // 'screen' | 'strip'), and each face box on a shown screen. cell=true is
+      // a face cut out of the received strip; luma is the mean brightness of
+      // the pixels that box shows (sampled from its own <video>), so a guard
+      // can tell a live face from an empty box.
+      stageFacesForTest: () => {
+        const host = stagefeedEl && stagefeedEl.querySelector('[data-row="sgs"]');
+        const out = { view: stageViewNow, stagers: stageIds().slice(), screenSid: null, faces: [] };
+        for (const id of out.stagers) if (sharingScreen(id)) { out.screenSid = out.screenSid ? 'many' : id; }
+        const box = host && host.querySelector('.stagefaces');
+        if (!box) return out;
+        for (const w of box.children) {
+          const v = w.querySelector('video');
+          if (!v) continue;
+          let luma = null;
+          try {
+            if (v.videoWidth) {
+              const cv = document.createElement('canvas'); cv.width = 24; cv.height = 24;
+              const x = cv.getContext('2d');
+              const k = v.videoWidth / (parseFloat(v.style.width) || STAGE_FACE_PX);
+              const sx = v.dataset.cell ? -(parseFloat(v.style.left) || 0) * k : 0, sy = v.dataset.cell ? -(parseFloat(v.style.top) || 0) * k : 0;
+              const sw = v.dataset.cell ? STAGE_FACE_PX * k : v.videoWidth, sh = v.dataset.cell ? STAGE_FACE_PX * k : v.videoHeight;
+              x.drawImage(v, sx, sy, sw, sh, 0, 0, 24, 24);
+              const d = x.getImageData(0, 0, 24, 24).data; let sum = 0;
+              for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
+              luma = +(sum / (d.length / 4) / 765).toFixed(4);
+            }
+          } catch (e) {}
+          out.faces.push({ id: w.dataset.face, cell: !!v.dataset.cell, live: v.videoWidth > 0, w: v.videoWidth, h: v.videoHeight,
+            bl: v.classList.contains('blur2') ? 2 : v.classList.contains('blur1') ? 1 : 0, luma });
+        }
+        return out;
+      },
       startScreenShareForTest: () => { startScreenShare(); return true; },
       stopScreenShareForTest: () => { stopScreenShare(); return true; },
       // The sheet's copy, as rendered — the app-pin preference is a PROMISE the

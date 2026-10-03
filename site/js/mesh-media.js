@@ -230,6 +230,25 @@
     const ch = Math.min(cw, sh / rows);
     return { sx: (j % cols) * cw, sy: Math.floor(j / cols) * ch, sw: cw, sh: ch };
   }
+  // cellCrop(j, n, cols, vw, vh, box): faceSrcRect for a RECEIVER that shows
+  // face j of a packed block without copying a pixel. The block's own <video>
+  // is sized w x h and shifted by (x, y) inside an overflow-hidden box x box
+  // window, so cell j fills the window: the same decoded track, no canvas, no
+  // extra bandwidth. The frame must agree with the announced grid: square
+  // cells within 8% (a stale cols, or a frame painted before a join, fails
+  // here), j inside n, a decoded frame. Otherwise null, and the caller shows
+  // the whole block, never a guessed crop.
+  function cellCrop(j, n, cols, vw, vh, box) {
+    if (!Number.isInteger(n) || !Number.isInteger(cols) || !Number.isInteger(j)) return null;
+    if (n < 1 || cols < 1 || j < 0 || j >= n) return null;
+    if (!(vw > 0) || !(vh > 0) || !(box > 0)) return null;
+    const rows = Math.ceil(n / cols);
+    const cw = vw / cols, ch = vh / rows;
+    if (Math.abs(cw - ch) > 0.08 * cw) return null;
+    const s = faceSrcRect(j, n, cols, vw, vh);
+    const k = box / s.sw;
+    return { w: vw * k, h: vh * k, x: -s.sx * k, y: -s.sy * k };
+  }
 
   // createPacker({ shape:'bar'|'grid', cell, maxW, fps, ac, gain }) →
   //   { canvas, stream, setTile(id, ord, el, stream, {n, cols}), delTile(id),
@@ -337,10 +356,25 @@
         if (el && typeof el.currentTime === 'number') s += id + ':' + el.currentTime.toFixed(3) + ';';
         else return null;
         s += t.n + 'x' + t.cols + ';';
+        if (t.dark) s += 'D|';
+        if (t.blur) s += 'B' + t.blur + '|';
         if (t.lbl) s += (t.lbl.talking ? 'T' : '') + (t.lbl.hand ? 'H' : '') + (t.lbl.name || '') + '|';
         if (t.fit) s += t.fit + '|'; // a cover→contain flip changes the frame with the source untouched
       }
       return s;
+    }
+    // A MODERATOR'S BLUR, BAKED. The face is drawn into a tiny canvas and
+    // stretched back, so its detail is gone before it reaches the composite.
+    // This works on every canvas; ctx.filter does not exist everywhere.
+    let blurCv = null, blurCx = null;
+    function blurBlit(el, b, dx, dy, cell, level) {
+      const q = Math.max(3, Math.round(cell / (level >= 2 ? 40 : 16)));
+      if (!blurCv) { blurCv = document.createElement('canvas'); blurCx = blurCv && blurCv.getContext('2d'); }
+      if (!blurCx) { ctx.fillStyle = '#07090c'; ctx.fillRect(dx, dy, cell, cell); return; } // no scratch canvas: no face, never a clear one
+      if (blurCv.width !== q) { blurCv.width = q; blurCv.height = q; }
+      blurCx.drawImage(el, b.sx, b.sy, b.sw, b.sh, 0, 0, q, q);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(blurCv, 0, 0, q, q, dx, dy, cell, cell);
     }
     function paint() {
       if (!ctx || active === false) return;                                    // demand-gated: a composite nobody ships or shows isn't painted (static canvas ⇒ ~0 encode too)
@@ -381,6 +415,14 @@
         const sh = el ? (el.videoHeight || el.height || 0) : 0;
         for (let j = 0; j < t.n; j++, f++) {
           const dx = (f % G) * cell, dy = Math.floor(f / G) * cell;
+          // VIDEO OFF BY AN ADMIN. The cell keeps its place, because a receiver
+          // cuts faces out by position, and it keeps the name. No pixel of the
+          // source is drawn, whatever the source still sends.
+          if (t.dark && t.n === 1) {
+            ctx.fillStyle = '#07090c'; ctx.fillRect(dx, dy, cell, cell);
+            drawOverlay(dx, dy, cell, t.lbl);
+            continue;
+          }
           if (!sw || !sh) { continue; } // source not ready — leave dark, next paint fills
           try {
             if (t.n === 1 && t.cols === 1) {
@@ -394,7 +436,8 @@
                 ctx.drawImage(el, 0, 0, sw, sh, dx + f.dx, dy + f.dy, f.dw, f.dh);
               } else {
                 const b = coverBox(sw, sh, { w: cell, h: cell });    // leaf camera → centered square
-                ctx.drawImage(el, b.sx, b.sy, b.sw, b.sh, dx, dy, cell, cell);
+                if (t.blur) blurBlit(el, b, dx, dy, cell, t.blur);
+                else ctx.drawImage(el, b.sx, b.sy, b.sw, b.sh, dx, dy, cell, cell);
               }
               drawOverlay(dx, dy, cell, t.lbl);                       // BURN IN name/hand/talking (approach A: baked once at the leaf, rides pixels up the tree)
             } else {
@@ -421,7 +464,11 @@
         }
         const n = Math.max(1, (meta && meta.n) | 0 || 1);
         const cols = Math.max(1, (meta && meta.cols) | 0 || n); // a bar's cols = n
-        tiles.set(id, { ord, el, streamId: sid, n, cols, lbl: (meta && meta.lbl) || null, fit: (meta && meta.fit) || null });
+        // dark: an admin turned this face's video off. blur: a moderator blurred
+        // it (1 or 2). Both apply to a leaf face only; run.html decides them
+        // from the room's moderation table, the same on every compositing seat.
+        tiles.set(id, { ord, el, streamId: sid, n, cols, lbl: (meta && meta.lbl) || null, fit: (meta && meta.fit) || null,
+          dark: !!(meta && meta.dark), blur: Math.max(0, Math.min(2, (meta && meta.blur) | 0)) });
       },
       // Update just the overlay (name/hand/talking) without touching the source
       // — called every tick from status/audio so the frame tracks speech live.
@@ -670,5 +717,5 @@
     };
   }
 
-  GifOS.meshMedia = { bandRects, frameRects, coverBox, fitBox, createComposite, createAudioFold, packGrid, stadiumGrid, stadiumTiny, cellSize, faceSrcRect, createPacker, createBundle, cropView, sdnMirrorRoute };
+  GifOS.meshMedia = { bandRects, frameRects, coverBox, fitBox, createComposite, createAudioFold, packGrid, stadiumGrid, stadiumTiny, cellSize, faceSrcRect, cellCrop, createPacker, createBundle, cropView, sdnMirrorRoute };
 })(typeof window !== 'undefined' ? window : globalThis);
