@@ -23,6 +23,10 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   });
   const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
   await ctx.addInitScript({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','Ada');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });
+  // Record streams to a file the person picks (showSaveFilePicker). Headless
+  // Chromium cannot show that picker, so the ask never settles; without it the
+  // recorder takes the browser-storage path and still hands over a .webm.
+  await ctx.addInitScript({ content: 'try{delete window.showSaveFilePicker;window.showSaveFilePicker=undefined;}catch(e){}' });
   // Stub getDisplayMedia so "Record with the app" starts deterministically.
   await ctx.addInitScript(() => {
     const md = navigator.mediaDevices;

@@ -28,6 +28,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const newUser = async (name) => {
     const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
     await ctx.addInitScript(setup(name));
+    // Record streams to a file the person picks (showSaveFilePicker). Headless
+    // Chromium cannot show that picker, so the ask never settles; without it the
+    // recorder takes the browser-storage path and still hands over a .webm.
+    await ctx.addInitScript({ content: 'try{delete window.showSaveFilePicker;window.showSaveFilePicker=undefined;}catch(e){}' });
     return ctx;
   };
 
@@ -229,7 +233,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('a lost status splits the room (the pre-heartbeat disease, simulated)',
     (await aPage.evaluate((pid) => { window.__gifosVideo._corruptStatus(pid); return window.__gifosVideo.consensus(); }, bobPidOnAda)) === false);
   await aPage.waitForFunction(() => window.__gifosVideo.consensus() === true, null, { timeout: 12000 });
-  check('…and the status heartbeat heals the split within seconds, hands-free', (await allClearEverywhere()) === null);
+  // Consensus returns first; the tiles follow on the next coalesced repaint
+  // pass (one per 250 ms window), so the room is judged over a few seconds.
+  let healed = await allClearEverywhere();
+  for (let i = 0; healed !== null && i < 20; i++) { await sleep(250); healed = await allClearEverywhere(); }
+  check('…and the status heartbeat heals the split within seconds, hands-free', healed === null, healed);
 
   // ========== STREAM IDENTITY: every tile provably shows its OWN person ======
   // (The live bug: a tile showed a DIFFERENT participant's camera.) A tile's

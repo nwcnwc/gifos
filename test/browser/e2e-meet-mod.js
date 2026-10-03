@@ -206,8 +206,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await d.waitForFunction((id) => window.__gifosVideo.blurClassOf(id) >= 1, eId, { timeout: 15000 }).catch(() => {});
   await d.evaluate((id) => window.__gifosVideo.openFsForTest('peer:' + id), eId);
   const fsBlur = await d.evaluate((id) => ({ main: window.__gifosVideo.fsMain(), thumb: window.__gifosVideo.fsThumbBlur('peer:' + id) }), eId);
-  check('the filmstrip shows a BLURRED guest blurred (fsmain and her thumb carry the blur class)',
-    fsBlur.main.key === 'peer:' + eId && fsBlur.main.bl >= 1 && fsBlur.thumb >= 1);
+  // The big feed is never also a thumb (one live sink per feed), so with her on
+  // the big view she has no thumb: every sink that shows her must be blurred.
+  check('the filmstrip shows a BLURRED guest blurred (the big view carries the blur class, and no thumb shows her clear)',
+    fsBlur.main.key === 'peer:' + eId && fsBlur.main.bl >= 1 && (fsBlur.thumb === null || fsBlur.thumb >= 1), fsBlur);
   await d.evaluate(() => window.__gifosVideo.closeFsForTest());
   await d.locator('#blurall').click(); // now reads "Unblur guests"
   await e.waitForFunction(() => !window.__gifosVideo.modOn('me', 'blur'), null, { timeout: 15000 });
