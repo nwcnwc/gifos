@@ -900,6 +900,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await pg.waitForFunction(() => window.__gifosVideo.liveDataLinks() >= 2, null, { timeout: 30000 });
   }
   check('three phones fully meshed (before the mid-call failure)', true);
+  // CAMERAS ON — all three, as in the islands leg above and for the same
+  // reason. GifOS joins quiet (camera off), and 20 s after camera-off the page
+  // stops the camera track outright (reactCamIdle in run.html). The takeover
+  // below asserts FRAMES of Tia's forwarded stream, so with every camera off
+  // it passed only when the hand-over beat Tia's 20 s stop. When it did not
+  // (a slower mesh, or the takeover's second ask at about 18 s), the relayed
+  // tile was mapped correctly and its video track never carried a frame: Tia
+  // had no camera track left to send (forensics, 3 Oct 2026). Rex's camera on
+  // also gives the "never the hub's camera" proof a camera that sends. The
+  // checks and budgets below are unchanged.
+  await camOn(rexPage); await camOn(samPage); await camOn(tiaPage);
+  await tiaPage.waitForFunction(() => window.__gifosVideo.camOff() === false && window.__gifosVideo.camTrackLive(), null, { timeout: 15000 });
   const samPid = await samPage.evaluate(() => window.__gifosVideo.debugDump().me.peer);
   const tiaPid = await tiaPage.evaluate(() => window.__gifosVideo.debugDump().me.peer);
   // the network breaks between Sam and Tia, permanently, mid-call
