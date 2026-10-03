@@ -13852,7 +13852,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const wspCaps = new Map(); // 'me' | pid -> capture
     const wspQ = { items: [], busy: false, sent: 0, dropped: 0 };
     let wsp = null; // my own capture, by the name the older call sites use
-    let wspPaused = false; // two stalled provider calls: stop Whisper for this meeting
+    let wspPaused = false; // two stalled provider calls after a first answer: stop Whisper until re-picked or CC is turned on
     // The worklet posts 4096-sample chunks off the main thread. A ScriptProcessor
     // is the fallback when this context has no AudioWorklet yet, or the module failed.
     const WSP_WORKLET_JS = [
@@ -14033,21 +14033,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     // A missing app stays missing: drop the stale stt assignment and the engine
     // choice once, then let the browser engine carry the meeting.
+    // The cleanup is one-shot; the fallback runs every time, so a later call
+    // that finds the app gone still hands captions to the browser engine.
     function wspProviderGone() {
-      if (wspQ.providerGone) return;
-      wspQ.providerGone = true;
-      try {
-        const cfg = JSON.parse(localStorage.getItem('gifos_ai_config') || '{}') || {};
-        if (cfg && typeof cfg === 'object' && cfg.stt) {
-          delete cfg.stt;
-          localStorage.setItem('gifos_ai_config', JSON.stringify(cfg));
-        }
-      } catch (e) {}
-      try { lsSet(CC_ENGINE_KEY, ''); } catch (e) {}
+      if (!wspQ.providerGone) {
+        wspQ.providerGone = true;
+        try {
+          const cfg = JSON.parse(localStorage.getItem('gifos_ai_config') || '{}') || {};
+          if (cfg && typeof cfg === 'object' && cfg.stt) {
+            delete cfg.stt;
+            localStorage.setItem('gifos_ai_config', JSON.stringify(cfg));
+          }
+        } catch (e) {}
+        try { lsSet(CC_ENGINE_KEY, ''); } catch (e) {}
+        setStatus('Whisper app missing — browser captions on', 10000);
+      }
       try { stopWhisper(); } catch (e) {}
       try { syncSpeech(); } catch (e) {}
       try { paintCcState(); } catch (e) {}
-      setStatus('Whisper app missing — browser captions on', 10000);
     }
     function wspStallGiveUp() {
       if (wspPaused) return;
@@ -14075,13 +14078,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         wspDrain();
       };
       const clipMs = pcm.length / 16; // 16 kHz samples → milliseconds
+      // Until the provider first answers, a call can carry the one-time model
+      // download (tens of MB) and calls run one at a time: allow 180 s, and a
+      // stall then does not count toward giving up.
+      const warm = !!wspQ.answered;
       let timer = setTimeout(() => {
         timer = null;
-        wspQ.stalls = (wspQ.stalls || 0) + 1;
-        if (wspQ.stalls >= 2) wspStallGiveUp();
+        if (warm) {
+          wspQ.stalls = (wspQ.stalls || 0) + 1;
+          if (wspQ.stalls >= 2) wspStallGiveUp();
+        }
         finish();
-      }, clipMs * 4 + 10000);
+      }, warm ? clipMs * 4 + 10000 : Math.max(clipMs * 4 + 10000, 180000));
       GifOS.providers.call('stt', req).then((r) => {
+        wspQ.answered = true; // even a late answer proves the model is loaded
         if (settled) return;
         wspQ.stalls = 0;
         const text = r && r.text ? String(r.text).trim() : '';
@@ -14313,6 +14323,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!r.checked) return;
         lsSet(CC_ENGINE_KEY, r.value === 'whisper' ? 'whisper' : '');
         if (r.value !== 'whisper') speechGaveUp = false;
+        if (r.value === 'whisper') { wspPaused = false; wspQ.stalls = 0; } // a deliberate re-pick retries a stalled Whisper
         if (r.value === 'whisper' && IS_MOBILE) setStatus('On a phone, Whisper runs on the processor: a sentence can take 5 to 10 seconds to appear, and it uses battery. Browser captions stay instant.', 12000);
         if (r.value !== 'whisper' && myStatus.scribe) { myStatus.scribe = false; broadcastStatus(); }
         paintCcState();
@@ -14423,7 +14434,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     document.getElementById('ccbtn').onclick = () => {
       myStatus.cc = !myStatus.cc;
-      if (myStatus.cc) speechGaveUp = false;
+      if (myStatus.cc) { speechGaveUp = false; wspPaused = false; wspQ.stalls = 0; } // turning CC on retries both engines
       ccByOrder = false;
       if (!myStatus.cc && ccAllInfo()) ccOptOutAt = Date.now(); // opting out of a room-wide order holds until the next order
       document.getElementById('ccbtn').classList.toggle('on', myStatus.cc);

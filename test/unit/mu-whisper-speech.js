@@ -2,7 +2,9 @@
 // open on this branch. Each one lifts the page's own functions and runs them.
 //
 //   wspDrain times out a provider call that never returns, and a second stall
-//   stops Whisper for the meeting.
+//   stops Whisper for the meeting. Before the provider first answers, a call
+//   may take 180 s (the model download) and a stall does not count. Re-picking
+//   Whisper or turning CC on clears the pause.
 //   wspProviderGone clears a stale stt assignment once, so the next sentence
 //   does not call the missing app again.
 //   speech.onerror backs off on network, audio-capture and aborted, and stops
@@ -33,61 +35,133 @@ function flush(n) {
 }
 
 // ---- hung provider call: timeout, then one stall fallback -------------------
-{
+// One page scope: the whisper queue, the engine radios and the CC button, on a
+// fake clock, so a re-pick acts on the same wspPaused the stall set.
+function makeWsp() {
   const src = slice('    const wspCaps = new Map();', '    const scribeSeen = new Set();');
-  const statuses = [], syncs = [], timers = [];
-  const ac = { sampleRate: 48000, destination: {},
-    createScriptProcessor() { scriptMade++; return { onaudioprocess: null, connect() {}, disconnect() {} }; },
+  const engineSrc = slice('    (function wireCcEngine() {', '    let speech = null');
+  const ccSrc = slice("    document.getElementById('ccbtn').onclick = () => {", '    // CAPTIONS FOR EVERYONE.');
+  const w = { statuses: [], syncs: [], timers: [], calls: [], lines: [], now: 0, scriptMade: 0 };
+  w.ac = { sampleRate: 48000, destination: {},
+    createScriptProcessor() { w.scriptMade++; return { onaudioprocess: null, connect() {}, disconnect() {} }; },
     createMediaStreamSource() { return { connect() {}, disconnect() {} }; } };
-  let scriptMade = 0;
   const meters = new Map();
-  const srcNode = { outs: [], connect(n) { this.outs.push(n); }, disconnect(n) { this.outs = n ? this.outs.filter((x) => x !== n) : []; } };
-  meters.set('me', { src: srcNode });
-  const api = new Function('setInterval', 'setTimeout', 'clearTimeout', 'ccLang', 'lsGet', 'lsSet', 'CC_ENGINE_KEY', 'CC_TRANSLATE_KEY', 'CC_WORDS_KEY',
+  w.srcNode = { outs: [], connect(n) { this.outs.push(n); }, disconnect(n) { this.outs = n ? this.outs.filter((x) => x !== n) : []; } };
+  meters.set('me', { src: w.srcNode });
+  w.radios = [{ value: 'browser', checked: false }, { value: 'whisper', checked: true }];
+  const els = {};
+  const el = (id) => els[id] || (els[id] = { id, checked: false, value: '', addEventListener() {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false } });
+  const document = { querySelectorAll: () => w.radios, getElementById: el, body: { classList: { contains: () => false } } };
+  w.myStatus = { cc: true, muted: false, scribe: false };
+  w.advance = (ms) => {
+    const end = w.now + ms;
+    for (;;) {
+      const due = w.timers.filter((t) => !t.cleared && !t.fired && t.at <= end).sort((a, b) => a.at - b.at)[0];
+      if (!due) break;
+      w.now = due.at; due.fired = true; due.fn();
+    }
+    w.now = end;
+  };
+  w.api = new Function('setInterval', 'setTimeout', 'clearTimeout', 'ccLang', 'lsGet', 'lsSet', 'CC_ENGINE_KEY', 'CC_TRANSLATE_KEY', 'CC_WORDS_KEY',
     'IS_MOBILE', 'GifOS', 'setStatus', 'myStatus', 'addTranscriptLine', 'peers', 'syncSpeech', 'paintCcState', 'localStorage',
     'ensureAc', 'ac', 'meters', 'MediaStream', 'whisperReady', 'localStream', 'speakingOf', 'myVoiceAt',
     'WSP_PRE_MS', 'WSP_GAP_MS', 'WSP_MAX_S', 'WSP_MIN_S', 'WSP_BACKLOG', 'WSP_SCRIBE_MAX',
-    src + '\nreturn { wspStart, wspEnqueue, caps: wspCaps, q: wspQ, paused: () => wspPaused };')(
+    'document', 'broadcastStatus', 'paintCcSource', 'ccAllInfo',
+    'let speechGaveUp = false, ccByOrder = false, ccOptOutAt = 0;\n' + src + engineSrc + ccSrc
+    + '\nreturn { wspStart, wspEnqueue, caps: wspCaps, q: wspQ, paused: () => wspPaused };')(
     () => 0,
-    (fn, ms) => { const t = { fn, ms, cleared: false }; timers.push(t); return t; },
+    (fn, ms) => { const t = { fn, ms, at: w.now + ms, cleared: false }; w.timers.push(t); return t; },
     (t) => { if (t) t.cleared = true; },
     () => 'en-US', () => '', () => {}, 'gifos_cc_engine', 'gifos_cc_translate', 'gifos_cc_words',
     false,
-    { providers: { call: () => new Promise(() => {}) } },
-    (s) => statuses.push(s),
-    { cc: true, muted: false, scribe: false },
-    () => {},
+    { providers: { call: () => new Promise((resolve, reject) => { w.calls.push({ resolve, reject }); }) } },
+    (s) => w.statuses.push(s),
+    w.myStatus,
+    (text) => w.lines.push(text),
     new Map(),
-    () => syncs.push('sync'),
+    () => w.syncs.push('sync'),
     () => {},
     { getItem: () => null, setItem() {}, removeItem() {} },
-    () => ac, ac, meters, class MediaStream {}, () => true, null, new Map(), 0,
-    400, 700, 15, 0.4, 3, 8);
-  api.caps.set('me', { id: 'me', rate: 16000 });
-  const clip = [new Float32Array(160)];
+    () => w.ac, w.ac, meters, class MediaStream {}, () => true, null, new Map(), 0,
+    400, 700, 15, 0.4, 3, 8,
+    document, () => {}, () => {}, () => null);
+  w.els = els;
+  w.timers.length = 0; // the wiring's 20 s quiet-seed timer is not under test
+  w.syncs.length = 0;
+  w.api.caps.set('me', { id: 'me', rate: 16000 });
+  return w;
+}
+const clip = [new Float32Array(160)];
+const stallDone = (() => {
+  // A first-time user: the first call carries the model download and runs 60 s.
+  const w = makeWsp(), api = w.api;
   api.wspEnqueue({ id: 'me', rate: 16000 }, clip, 1);
-  check('a hung call arms a timeout of four clip-lengths plus 10 s', timers.length === 1 && timers[0].ms === 10040, timers[0] && timers[0].ms);
+  check('before the first answer, a call may take 180 s (the model download)', w.timers.length === 1 && w.timers[0].ms === 180000, w.timers[0] && w.timers[0].ms);
   check('the call is in flight', api.q.busy === true && api.q.sent === 1);
   api.wspEnqueue({ id: 'me', rate: 16000 }, clip, 2);
-  timers[0].fn();
-  check('the first stall hands the queue to the next clip and does not give up', api.q.busy === true && api.paused() === false && syncs.length === 0, { busy: api.q.busy, paused: api.paused(), syncs: syncs.length });
-  check('…and does not announce a stall yet', !statuses.some((s) => /stall/i.test(s)), statuses.join('|'));
-  check('the next clip is sent', timers.length === 2 && api.q.sent === 2);
-  timers[1].fn();
-  check('the second stall leaves the queue idle', api.q.busy === false && api.q.items.length === 0);
-  check('…stops Whisper for this meeting, once', api.paused() === true && syncs.length === 1, syncs);
-  check('…and the status names the stall once', statuses.filter((s) => /stall/i.test(s)).length === 1, statuses.join('|'));
-  api.wspEnqueue({ id: 'me', rate: 16000 }, clip, 3);
-  check('a later clip is not sent after the give-up', api.q.sent === 2, api.q.sent);
-  // Worklet when the module is already loaded; ScriptProcessor only before that.
-  api.caps.delete('me');
-  check('with no worklet module, capture uses a ScriptProcessor', api.wspStart('me') === true && scriptMade === 1, scriptMade);
-  check('that processor is connected to the meter source', srcNode.outs.length === 1);
-  api.caps.delete('me');
-  ac._wspWorkletOk = true;
+  w.advance(60000);
+  w.calls[0].resolve({ text: 'hello' });
+  return flush().then(() => {
+    check('a 60 s first call that then answers does not pause Whisper', api.paused() === false && w.syncs.length === 0, { paused: api.paused(), syncs: w.syncs.length });
+    check('…its line is written', w.lines.join('|') === 'hello', w.lines.join('|'));
+    check('…and nothing announces a stall', !w.statuses.some((s) => /stall/i.test(s)), w.statuses.join('|'));
+    check('after the first answer the next clip gets four clip-lengths plus 10 s', w.timers.length === 2 && w.timers[1].ms === 10040 && api.q.sent === 2, w.timers[1] && w.timers[1].ms);
+    api.wspEnqueue({ id: 'me', rate: 16000 }, clip, 3);
+    w.advance(10040);
+    check('the first stall hands the queue to the next clip and does not give up', api.q.busy === true && api.paused() === false && w.syncs.length === 0, { busy: api.q.busy, paused: api.paused(), syncs: w.syncs.length });
+    check('…and does not announce a stall yet', !w.statuses.some((s) => /stall/i.test(s)), w.statuses.join('|'));
+    check('the next clip is sent', w.timers.length === 3 && api.q.sent === 3);
+    w.advance(10040);
+    check('the second stall leaves the queue idle', api.q.busy === false && api.q.items.length === 0);
+    check('…stops Whisper for this meeting, once', api.paused() === true && w.syncs.length === 1, w.syncs);
+    check('…and the status names the stall once', w.statuses.filter((s) => /stall/i.test(s)).length === 1, w.statuses.join('|'));
+    api.wspEnqueue({ id: 'me', rate: 16000 }, clip, 4);
+    check('a later clip is not sent after the give-up', api.q.sent === 3, api.q.sent);
+    // Re-picking Whisper in Settings is a deliberate act: it clears the pause.
+    w.radios[0].checked = false; w.radios[1].checked = true;
+    w.radios[1].onchange();
+    check('re-picking Whisper clears the pause', api.paused() === false && (api.q.stalls || 0) === 0, { paused: api.paused(), stalls: api.q.stalls });
+    api.caps.set('me', { id: 'me', rate: 16000 }); // the sync restarts the capture
+    api.wspEnqueue({ id: 'me', rate: 16000 }, clip, 5);
+    check('…and the next clip is sent again', api.q.sent === 4, api.q.sent);
+    if (w.calls[3]) w.calls[3].resolve({ text: '' });
+    return flush();
+  }).then(() => {
+    // Turning captions back on with CC clears the pause too.
+    const w = makeWsp(), api = w.api;
+    w.calls.length = 0;
+    api.wspEnqueue({ id: 'me', rate: 16000 }, clip, 1);
+    w.calls[0].resolve({ text: 'one' });
+    return flush().then(() => {
+      api.wspEnqueue({ id: 'me', rate: 16000 }, clip, 2);
+      api.wspEnqueue({ id: 'me', rate: 16000 }, clip, 3);
+      w.advance(20080);
+      check('two stalls after an answer pause Whisper', api.paused() === true);
+      const cc = document_cc(w);
+      cc.onclick(); // off
+      check('turning CC off leaves the pause', api.paused() === true);
+      cc.onclick(); // on
+      check('turning CC on clears the pause', api.paused() === false && (api.q.stalls || 0) === 0, { paused: api.paused(), stalls: api.q.stalls });
+    });
+  }).then(() => {
+    // Stalls before the first answer do not count: the model may still be coming.
+    const w = makeWsp(), api = w.api;
+    for (let i = 1; i <= 3; i++) api.wspEnqueue({ id: 'me', rate: 16000 }, clip, i);
+    w.advance(180000 * 3);
+    check('three stalls before any answer do not pause Whisper', api.paused() === false && api.q.sent === 3 && w.syncs.length === 0, { paused: api.paused(), sent: api.q.sent });
+  });
+  function document_cc(w) { return w.els.ccbtn; }
+})();
+{
+  const w = makeWsp();
+  w.api.caps.delete('me');
+  check('with no worklet module, capture uses a ScriptProcessor', w.api.wspStart('me') === true && w.scriptMade === 1, w.scriptMade);
+  check('that processor is connected to the meter source', w.srcNode.outs.length === 1);
+  w.api.caps.delete('me');
+  w.ac._wspWorkletOk = true;
   let workletMade = 0;
   global.AudioWorkletNode = function () { workletMade++; this.port = {}; this.connect = function () {}; this.disconnect = function () {}; };
-  check('a loaded worklet is used instead of another ScriptProcessor', api.wspStart('me') === true && workletMade === 1 && scriptMade === 1, { workletMade, scriptMade });
+  check('a loaded worklet is used instead of another ScriptProcessor', w.api.wspStart('me') === true && workletMade === 1 && w.scriptMade === 1, { workletMade, scriptMade: w.scriptMade });
   delete global.AudioWorkletNode;
 }
 check('AudioWorklet is preferred and createScriptProcessor is the later fallback',
@@ -158,7 +232,7 @@ check('AudioWorklet is preferred and createScriptProcessor is the later fallback
   api.caps.set('me', { id: 'me', rate: 16000 });
   api.wspEnqueue({ id: 'me', rate: 16000 }, [new Float32Array(160)], 1);
   rejects[0](new Error('PROVIDER_MISSING: the file is gone'));
-  flush().then(() => {
+  stallDone.then(() => flush()).then(() => {
     const cfg = JSON.parse(mem.gifos_ai_config || '{}');
     check('one failure clears the stale stt assignment', !cfg.stt, mem.gifos_ai_config);
     check('…and the saved engine is no longer whisper', mem.gifos_cc_engine === undefined, mem.gifos_cc_engine);
@@ -226,7 +300,7 @@ function runSpeech() {
   check('the third failure stops the engine', api.speechRunning() === false && api.gaveUp() === true);
   check('…and says so once', statuses.filter((s) => s === 'Captions cannot reach the speech service').length === 1, statuses.join('|'));
   check('a later sync does not start it again', api.startSpeech() === false && rec.started === 3);
-  check('turning captions on clears the give-up', /if \(myStatus\.cc\) speechGaveUp = false;/.test(html));
+  check('turning captions on clears the give-up', /if \(myStatus\.cc\) \{ speechGaveUp = false;/.test(html));
 
   // ---- quiet seed ----------------------------------------------------------
   const seedSrc = (html.match(/function whisperSeedBlocked\(\) \{[\s\S]*?\n    \}/) || [])[0];
