@@ -2166,9 +2166,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const rowMates = () => myRowIds().filter((id) => id !== myId);
     const modTable = {};         // targetPeerId -> { mute:{on,by,at}, blur:{on,by,at} }
     const blurLevel = (v) => (v === true ? 2 : Math.max(0, Math.min(2, v | 0))); // coerce (bool-compat)
-    // (There is NO room-wide guest-blur level: the admin "Blur guests" button
-    // is a per-tile mod-table shortcut — see blurAllBtn — and the ≥Min-blur
-    // floor comes from THE BLUR RULE below, identical in every room.)
+    // (There is NO room-wide guest-blur LEVEL: the admin "Blur guests" button
+    // is one room-wide signed order, modTable['*'].blur — see modOf and
+    // blurAllBtn — and the ≥Min-blur floor comes from THE BLUR RULE below,
+    // identical in every room.)
     // Vote-off-the-island (non-admin rooms): every user carries ONE personal,
     // GLOBAL vote-off list (device ids) across all meetings, in their own
     // browser. The here-relevant slice syncs to the relay, which boots any
@@ -2934,7 +2935,33 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       modFlood();
       refreshAllTiles();
     }
-    function modOf(id) { return modTable[id === 'me' ? myId : id] || {}; }
+    // EVERY GUEST MEANS EVERY GUEST. The admin's "Blur guests" / "Video off"
+    // is ONE room-wide order under the pseudo-target '*' (modTable['*'].blur /
+    // .cam), signed and carried exactly like a per-tile order, so it costs one
+    // entry whatever the room's size and covers people who arrive while it is
+    // on. (It used to write one entry per DIRECTLY linked peer: in a room
+    // bigger than the admin's own links most guests were never touched.) It
+    // binds every non-admin, never an admin, and only in an admin room: an
+    // open room's table is unsigned, and one forged '*' would hammer everyone.
+    // Between the room-wide order and a per-tile one the LATER wins, so an
+    // admin can still lift one guest by hand, and lifting the room-wide order
+    // clears the per-tile orders it came after.
+    function modOf(id) {
+      const pid = id === 'me' ? myId : id;
+      const own = modTable[pid] || {};
+      const all = modTable['*'];
+      if (!all || pid === '*' || !hasAdminRoom()) return own;
+      if (id === 'me' ? amAdmin || admins.includes(myId) : admins.includes(pid)) return own;
+      let out = own;
+      for (const f of ['blur', 'cam']) { // the two room-wide hammers; mute and app stay per-target
+        const w = all[f];
+        if (w && typeof w === 'object' && (!own[f] || (+w.at || 0) > (+own[f].at || 0))) {
+          if (out === own) out = Object.assign({}, own);
+          out[f] = w;
+        }
+      }
+      return out;
+    }
     // A moderation CHANGE reaches the whole room. Past one section that is one
     // room-wide flood (G6: on change, never a per-member unicast); a section
     // status still carries the table, so a late joiner learns it from its
@@ -14792,7 +14819,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const st = statusOf.get(pid) || {};
       src.blur = blurLevelFor(pid);
       src.mute = !!(modOf(pid).mute && modOf(pid).mute.on);
-      src.camOff = seatDark(st);
+      src.camOff = seatDark(st) || !!(modOf(pid).cam && modOf(pid).cam.on); // an admin's video-off holds in the recording too, whatever the sender claims
       if (p) {
         src.label = p.name || '…';
         src.video = p.video;
@@ -15574,17 +15601,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     for (const seg of blurSegs) {
       seg.onclick = () => setPersonalBlur(+seg.dataset.blur);
     }
-    // "Blur guests" (admin) — a SHORTCUT for the per-tile moderator block:
-    // toggling it blocks (or unblocks) every non-admin at once, using exactly
-    // the same modTable.blur the Blur-for-everyone tile button uses. One-shot,
-    // not a standing rule: new joiners aren't auto-blocked (they arrive blurred
-    // by default until they consent anyway).
+    // "Blur guests" (admin) — ONE room-wide order, modTable['*'].blur, on the
+    // same signed table as the per-tile block (see modOf). It binds every
+    // non-admin in the room, linked to me or not, and everyone who joins while
+    // it stands; turning it off lifts it for all of them at once.
     const blurAllBtn = document.getElementById('blurall');
-    function guestPeers() { return Array.from(peers.keys()).filter((pid) => !admins.includes(pid)); }
-    function allGuestsBlocked() {
-      const g = guestPeers();
-      return g.length > 0 && g.every((pid) => modOf(pid).blur && modOf(pid).blur.on);
-    }
+    const modAllOn = (f) => { const m = modTable['*'] && modTable['*'][f]; return !!(m && m.on); };
+    function allGuestsBlocked() { return modAllOn('blur'); }
     function updateBlurAllBtn() {
       blurAllBtn.style.display = amAdmin ? '' : 'none';
       if (!amAdmin) return;
@@ -15595,24 +15618,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     blurAllBtn.onclick = () => {
       if (!amAdmin) return;
       const on = !allGuestsBlocked(); // flip: block all, or unblock all
-      const now = Date.now();
-      let changed = false;
-      for (const pid of guestPeers()) {
-        const mine = modTable[pid] = modTable[pid] || {};
-        mine.blur = { on, by: myName(), byId: myId, at: now };
-        changed = true;
-      }
-      if (changed) modFlood();
-      refreshAllTiles(); updateBlurAllBtn();
+      setMod('*', 'blur', on);       // one entry, one flood, whatever the room's size
+      updateBlurAllBtn();
       setStatus(on ? 'Blurred every guest.' : 'Unblurred every guest.');
     };
     // "Video off" (admin) — the harder hammer: kills every guest's camera
-    // room-wide, not just blurs it. Same per-tile mod mechanism (mod.cam).
+    // room-wide, not just blurs it. The same one room-wide order, modTable['*'].cam.
     const camAllBtn = document.getElementById('camall');
-    function allGuestsCamOff() {
-      const g = guestPeers();
-      return g.length > 0 && g.every((pid) => modOf(pid).cam && modOf(pid).cam.on);
-    }
+    function allGuestsCamOff() { return modAllOn('cam'); }
     function updateCamAllBtn() {
       camAllBtn.style.display = amAdmin ? '' : 'none';
       if (!amAdmin) return;
@@ -15623,13 +15636,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     camAllBtn.onclick = () => {
       if (!amAdmin) return;
       const on = !allGuestsCamOff(); // flip: video off for all, or allow all
-      const now = Date.now();
-      for (const pid of guestPeers()) {
-        const mine = modTable[pid] = modTable[pid] || {};
-        mine.cam = { on, by: myName(), byId: myId, at: now };
-      }
-      modFlood();
-      refreshAllTiles(); updateCamAllBtn();
+      setMod('*', 'cam', on);        // one entry, one flood, whatever the room's size
+      updateCamAllBtn();
       setStatus(on ? 'Turned every guest\'s video off.' : 'Guests may turn their video back on.');
     };
     function toggleVote(id) {
