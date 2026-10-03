@@ -946,6 +946,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .tile .maxbtn { position: absolute; right: .4rem; bottom: .4rem; z-index: 4; padding: .15rem .5rem;
                   border-radius: .4rem; border: 1px solid rgba(255,255,255,.16); background: rgba(10,10,15,.85);
                   color: #eceef8; cursor: pointer; font-size: .75rem; }
+  .tile.cam-off .maxbtn { display: none; }
   .tile.focus { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
   /* chat + pinned files panel (pure P2P — DataChannels, no server anywhere) */
   /* THE CHAT PANEL MUST NOT COVER THE MEETING BAR. It is a fixed full-height
@@ -2888,7 +2889,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // BOTH the pixels a sender broadcasts and the CSS every receiver applies —
     // so a given tile looks the same on every phone, always.
     //
-    //   consent(tile)  = tile owner's camera is ON and their blur is No blur
+    //   consent(tile)  = No blur, AND (camera on OR a screen is being shared).
+    //                    A deck with the camera off is the normal share
+    //                    (sentVideoTrack). That seat still consents, or the
+    //                    plain room drops to max blur for the whole presentation.
+    //                    pushLeaf feeds this same predicate to setRefuses.
     //   clear(tile)    = room password is set
     //                    AND no moderator block on the tile
     //                    AND ( admin ROOM ? an admin is present AND consent(tile)
@@ -2899,7 +2904,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // where that promise is enforced).
     //
     // Nothing else. No room-wide guest blur, no floors, no pinning.
-    const consents = (st) => !!st && !st.camOff && blurLevel(st.blur) === 0;
+    const consents = (st) => !!st && blurLevel(st.blur) === 0 && (!st.camOff || !!st.scr);
     const adminPresent = () => hasAdminRoom() && admins.length > 0;
     // Clear video is a ROOM-WIDE unanimity, so it MUST be tallied over shared
     // state (rosterIds = occ ∪ fresh status gossip), NOT over `peers` — my
@@ -3092,6 +3097,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return (fsAutoPid && src.find((s) => s.key === 'peer:' + fsAutoPid))
         || src.find((s) => s.key.indexOf('stage:') === 0) || src[0] || null;
     }
+    // fsSources omits a dark seat. The full-screen button used to open the
+    // view anyway, and fsRefresh then pinned whoever was first.
+    function fsSkipDark(el) { return !!(el && el.classList && el.classList.contains('cam-off')); }
     function fsSources() {
       const out = [];
       for (const v of stagefeedEl.querySelectorAll('.rowtile video')) {
@@ -3198,6 +3206,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       maxbtn.className = 'maxbtn'; maxbtn.textContent = '⛶'; maxbtn.title = 'Full screen';
       maxbtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (fsSkipDark(tile)) return;
         // iOS Safari can only fullscreen a <video> natively — no overlay there.
         // The native player paints the RAW frames: no CSS blur, no cam-off
         // hide. So a remote feed that is blurred or video-off never takes
@@ -7063,6 +7072,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the senders that carry OUR old mic track (never the fold-mix aux tracks),
     // and mutate the SAME localStream so our announced stream id never changes.
     let micMode = 'voice', micGrabbing = false, micWant = null;
+    // devicechange also fires for a camera plug and for the label refresh
+    // after the first grant. Neither is a new audio route. The mic restarts
+    // only when an audioinput or audiooutput id appears or disappears, so
+    // that refresh cannot drop a sing-mode request that lands during the grab.
+    let audioDevKey = null;
+    function audioDevKeyOf(list) {
+      const ids = [];
+      for (const d of list || []) {
+        if (!d || (d.kind !== 'audioinput' && d.kind !== 'audiooutput')) continue;
+        ids.push(d.kind + ':' + String(d.deviceId || ''));
+      }
+      ids.sort();
+      return ids.join('\n');
+    }
+    function noteAudioDevices() {
+      const md = navigator.mediaDevices;
+      if (!md || typeof md.enumerateDevices !== 'function') return Promise.resolve();
+      return md.enumerateDevices().then((list) => { audioDevKey = audioDevKeyOf(list); }, () => {});
+    }
     function setMicMode(mode, force) {
       if (!localStream) return;
       // A request that lands while a grab is in flight is KEPT, never dropped:
@@ -7100,6 +7128,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (old) { try { old.stop(); } catch (e) {} localStream.removeTrack(old); }
         localStream.addTrack(na);
         meterFor('me', localStream);
+        noteAudioDevices();
       }).catch(() => { /* mic re-grab refused — keep the current mode */ })
         .finally(() => {
           micGrabbing = false;
@@ -7111,23 +7140,39 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Headphones plugged in (or pulled out) MID-MEETING: with an active mic,
     // mobile browsers run a phone-call-style audio session whose output route
     // is chosen when the capture STARTS — plugging in earbuds later does
-    // nothing until the mic restarts. So restart it: re-grab in the CURRENT
-    // mode on every device change, which makes the browser re-open the audio
-    // session and route both your mic and the room's sound to the headset.
+    // nothing until the mic restarts. So restart it when the audio route
+    // changed: re-grab in the CURRENT mode, which makes the browser re-open
+    // the audio session and route both your mic and the room's sound to the
+    // headset. A camera plug, or a label refresh with the same device ids,
+    // is not a route change and does not restart the mic.
     // (This is exactly the moment sing mode tells people to plug in earbuds.)
-    if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
-      let devT = 0;
-      navigator.mediaDevices.addEventListener('devicechange', () => {
-        if (!localStream) return;
-        clearTimeout(devT);
-        devT = setTimeout(() => {
-          setMicMode(micMode, true); // same mode, fresh session → fresh route
+    let devT = 0;
+    function onMeetDeviceChange() {
+      if (!localStream) return;
+      clearTimeout(devT);
+      devT = setTimeout(() => {
+        const kick = () => {
           // A route change can pause background audio elements — re-kick them.
           for (const el of document.querySelectorAll('.tile video, .rowtile video')) {
             if (el._aud && el._aud.srcObject) el._aud.play().catch((e) => audioBlocked(el._aud, e));
           }
-        }, 400); // devices settle in a burst — act once
-      });
+        };
+        const md = navigator.mediaDevices;
+        if (!md || typeof md.enumerateDevices !== 'function') { setMicMode(micMode, true); kick(); return; }
+        md.enumerateDevices().then((list) => {
+          const key = audioDevKeyOf(list);
+          // First reading is the baseline. A later one re-grabs only when an
+          // audio id was added or removed. The key moves on the quiet path.
+          // A re-grab stores it from noteAudioDevices after the capture
+          // succeeds, so a failed grab is tried on the next change.
+          if (audioDevKey !== null && key !== audioDevKey) setMicMode(micMode, true);
+          else audioDevKey = key;
+          kick();
+        }, () => { setMicMode(micMode, true); kick(); });
+      }, 400); // devices settle in a burst — act once
+    }
+    if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+      navigator.mediaDevices.addEventListener('devicechange', onMeetDeviceChange);
     }
 
     // Join (or create) the room. The room id lives in the URL from the very
@@ -7920,6 +7965,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             attachLocalTracks();
             refreshOutbound();
             broadcastStatus();
+            noteAudioDevices();
           }, (e) => {
             localStream = null;
             // Breadcrumb for the harness: WHY did boot capture fail? (A failed
@@ -13362,6 +13408,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // prompt (DuckDuckGo, links opened inside other apps), or a hasty "Deny".
     // View-only must be an antechamber, not a sentence.
     let lateAsk = false;
+    let lateGen = 0;
+    const LATE_ASK_MS = 15000; // a permission prompt may never settle; the buttons must not stay dead
     let bootGumPending = null; // knock-first: the boot's own getUserMedia while it is in flight — THE one ask; lateMedia must join it, never race it
     // NO CAMERA IS NOT NO MICROPHONE. A combined camera+mic ask rejects as a
     // whole when the camera is missing, disabled by policy or held by another
@@ -13404,7 +13452,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
     }
     function lateMedia(kind) {
-      if (lateAsk) return;
+      if (lateAsk) { setStatus('Still asking for the camera and microphone\u2026'); return; }
       // THE BOOT ASK IS THE ONLY ASK (knock-first, 2026-08-05): the knock no
       // longer waits on getUserMedia, so "page live, localStream still null"
       // is a NORMAL window on every boot — and a cam/mic tap in that window
@@ -13442,8 +13490,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // held mic is never re-taken, and a missing camera then fails on its own.
       const haveMic = !!(localStream && localStream.getAudioTracks()[0]);
       const ask = appRoom ? { audio: true } : (kind === 'cam' && haveMic) ? { video: camVideoConstraints() } : { video: camVideoConstraints(), audio: true };
+      const gen = ++lateGen;
+      const lateTimer = setTimeout(() => {
+        if (gen !== lateGen || !lateAsk) return;
+        lateAsk = false;
+        setStatus('The browser has not answered the camera and microphone ask. Check this site\u2019s permissions in the browser settings \u2014 or open this meeting link in Safari or Chrome.');
+      }, LATE_ASK_MS);
       gumWithMicFallback(md, ask)
         .then(({ stream: s, camErr }) => {
+          if (gen !== lateGen) {
+            try { for (const tr of s.getTracks()) tr.stop(); } catch (e) {}
+            return;
+          }
+          clearTimeout(lateTimer);
           lateAsk = false;
           // Quiet-join discipline still holds: only the tapped control goes on.
           for (const tr of s.getTracks()) tr.enabled = tr.kind === (kind === 'cam' ? 'video' : 'audio');
@@ -13476,8 +13535,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           setStatus(kind === 'cam'
             ? (gotCam ? 'Camera on.' : 'No camera on this device (' + ((camErr && camErr.name) || 'error') + '). Your microphone is ready — tap the mic button to talk.')
             : 'Mic on.');
+          if (typeof noteAudioDevices === 'function') noteAudioDevices();
         })
         .catch((err) => {
+          if (gen !== lateGen) return;
+          clearTimeout(lateTimer);
           lateAsk = false;
           const name = (err && err.name) || 'error';
           const what = ask.audio ? (ask.video ? 'camera or microphone' : 'microphone') : 'camera'; // name only what was asked for
