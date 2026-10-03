@@ -141,11 +141,23 @@ The controls worth knowing:
   somewhere else. A room that already has an app pinned says so before it lets
   you share, and an **app room** — where the app *is* the room — doesn't offer
   screen sharing at all. The button appears only where the browser can actually
-  do it (feature detection, never a browser name — some phone browsers have no
-  screen capture at all), so it is never a control that fails when pressed.
+  do it — where the browser cannot (some phone browsers have no screen capture
+  at all) the button stays, greyed, and pressing it says why. A guest who may
+  not share reads the refusal inside the share sheet itself, with the admin's
+  remedy named ("Allow apps & sharing" on their tile).
 - **Record / CC** — record a composite to *your own device* (blurred feeds stay
-  blurred), or turn on live captions your phone writes from your own voice; lines
-  gossip P2P into one attributed transcript.
+  blurred), or turn on live captions your device writes from your own voice;
+  lines gossip P2P into one attributed transcript. Two engines, chosen under
+  **Settings → Captions**: the **browser's own** (instant; one fixed language,
+  picked there; it hears the raw microphone, so a laptop on speakers would
+  write down the room — the transcript drops a sentence another device already
+  wrote within 8 s, and a device only keeps a line if its own echo-cancelled
+  mic carried voice) and **Whisper on this device** (the *Offline Captions*
+  provider app: 99 languages found by themselves, real sentences, a word list,
+  write-everything-in-English; fed the echo-cancelled call track; a few
+  seconds behind, slower on a phone). An admin can turn captions on for every
+  unmuted device at once (a room-wide order on the signed mod table; anyone
+  can tap CC to opt out).
 - **Admin** — appears only inside an admin room, to sign in and moderate.
 
 A **front door, not a cold plunge:** opening Meeting lands you in a **lobby**
