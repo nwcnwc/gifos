@@ -179,6 +179,7 @@ const REFILL_BYTES_PER_SEC = 48 * 1024; // ~384 Kbps sustained — below even lo
 // The roster is now scoped to the doors (see roster()), so a connect or close
 // costs O(greeters) sends, and the per-IP caps below bound abuse.
 const MAX_SOCKETS_PER_IP = 8;       // several devices behind one NAT are fine
+const RECOUNT_MIN_MS = 10 * 1000;   // an address already at that cap is recounted at most this often
 const WHO_MIN_MS = 5000;            // one full-roster pull per socket per 5s
 const WHO_CACHE_MS = 1000;          // the pulled list is rebuilt at most this often (see fullRosterForPull)
 const MAX_JOINS_PER_IP_MIN = 120;   // several flapping devices behind one NAT stay fine
@@ -268,7 +269,12 @@ function overBudget(meter, len, door) {
   meter.last = now;
   if (len > cap) return true;
   if (door) { if (meter.tokens >= len) { meter.tokens -= len; return false; } return true; } // bytes only
-  if (meter.tokens >= len && meter.frames >= 1) { meter.tokens -= len; meter.frames -= 1; meter.warned = false; return false; }
+  if (meter.tokens >= len && meter.frames >= 1) {
+    // Strikes count a sustained overrun. A frame bucket that has refilled to
+    // FRAME_BURST has been inside the budget, so the count starts over.
+    if (meter.frames >= FRAME_BURST) meter.strikes = 0;
+    meter.tokens -= len; meter.frames -= 1; meter.warned = false; return false;
+  }
   return true;
 }
 
@@ -372,7 +378,9 @@ export class Session {
   // Everyone else needs only the doors: scope 'door', sent on connect and again
   // only when the greeter set changes. Anyone may PULL the full list with
   // {t:'who'} (the admin re-grant after an eviction, fork observers).
-  isGreeter(a) { return !!a.gblob; }
+  // A live registration only. The blob stays after gexp so genesisHash can
+  // honour the re-register grace, but greeterList does not serve it.
+  isGreeter(a) { return !!a.gblob && (a.gexp || 0) > Date.now(); }
   toGreeters(obj) {
     const s = JSON.stringify(obj);
     for (const ws of this.doorSocks()) if (this.isGreeter(this.att(ws))) this.send(ws, s);
@@ -587,7 +595,13 @@ export class Session {
       a.gblob = String(gblob).slice(0, GBLOB_CAP);
       a.gexp = Date.now() + GREETER_TTL_MS;
     }
-    saveAtt(ws, a)
+    if (!saveAtt(ws, a)) {
+      // Nothing was written. Do not index the copy in hand, and do not tell
+      // the client the registration landed. Both would publish a door the
+      // attachment does not hold.
+      this.send(ws, { t: 'greeters', list: this.greeterList(ws), founded: false, admitted: false, error: 'registration too large' });
+      return;
+    }
     this.ixAdd(ws, a); // a blob or a founder's mint puts this socket in the door set
     this.send(ws, { t: 'greeters', list: this.greeterList(ws), founded, admitted });
     const nowGreeter = this.isGreeter(this.att(ws));
@@ -684,13 +698,22 @@ export class Session {
     // 1013 = RFC 6455 "Try Again Later" (the client backs off + retries).
     const trusted = isTrusted(ip, this.env); // operator load-test IPs skip the per-IP caps
     const iph = await ipTag(ip, this.env);   // salted tag; the raw IP is never stored
+    const now = Date.now();
     let mine = this.ix().iph.get(iph) || 0;
-    if (mine >= MAX_SOCKETS_PER_IP && !trusted) { // at the cap by the index: recount before refusing (a missed close must not lock a network out)
-      mine = 0; for (const ws of this.members()) if (this.att(ws).iph === iph) mine++;
-      this.ix().iph.set(iph, mine);
+    if (mine >= MAX_SOCKETS_PER_IP && !trusted) {
+      // Recount before refusing, so a missed close cannot lock a network out.
+      // An address already at the cap retries this path on every upgrade, and
+      // the join-rate log is not written until the cap allows the join.
+      let recAt = this.recountAt;
+      if (!recAt || recAt.size > 2000) this.recountAt = recAt = new Map();
+      const last = recAt.get(iph) || 0;
+      if (now - last >= RECOUNT_MIN_MS) {
+        mine = 0; for (const ws of this.members()) if (this.att(ws).iph === iph) mine++;
+        this.ix().iph.set(iph, mine);
+        recAt.set(iph, now);
+      }
     }
     if (mine >= MAX_SOCKETS_PER_IP && !trusted) return reject('too many connections from your network', 1013);
-    const now = Date.now();
     // Same salted tag as the attachment (iph). ipKey() is only the network
     // prefix inside that hash; storing the prefix would keep a raw IPv4 or an
     // IPv6 /64 in this object until the map is cleared.
