@@ -125,7 +125,15 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // STARTS; a devicechange must re-grab the mic (same mode) so the route is
   // re-evaluated. Simulate the plug event and watch the track swap.
   const beforePlug = await a.evaluate(() => window.__gifosVideo.grid());
-  await a.evaluate(() => navigator.mediaDevices.dispatchEvent(new Event('devicechange')));
+  // A real plug changes the audio device list; the page re-grabs only on an
+  // added or removed audio id (a camera plug or a label refresh must not
+  // restart the mic), so the simulated plug adds a headphone output first.
+  await a.evaluate(() => {
+    const md = navigator.mediaDevices;
+    const real = md.enumerateDevices.bind(md);
+    md.enumerateDevices = async () => (await real()).concat([{ kind: 'audiooutput', deviceId: 'plugged-headphones', label: 'Headphones', groupId: 'plugged' }]);
+    md.dispatchEvent(new Event('devicechange'));
+  });
   await a.waitForFunction((prev) => { const g = window.__gifosVideo.grid(); return g.micTrack && g.micTrack !== prev; }, beforePlug.micTrack, { timeout: 8000 });
   const afterPlug = await a.evaluate(() => window.__gifosVideo.grid());
   check('plugging headphones restarts the mic session (fresh track, fresh route)', afterPlug.micTrack !== beforePlug.micTrack, 'track changed');
