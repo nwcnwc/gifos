@@ -26,7 +26,7 @@ const pairKey = (a, b) => (String(a) < String(b) ? a + '#' + b : b + '#' + a);
 // statement binding exactly, but synchronous + deterministic (keys derived from
 // the seeded RNG, so scenarios stay reproducible).
 const ncrypto = require('crypto');
-const H_SIGNED = new Set(['FINDLEAF', 'PLACE', 'CLAIM', 'HELLO', 'SITPONG', 'SITXFER', 'DRAIN', 'LEAVE', 'MOVED', 'CONFIRM', 'YIELD', 'PHONE', 'PONG']);   // V4: SITPONG re-CLAIMs, SITXFER grants a row ledger — signed like the fills they stand in for; DRAIN (E1) vacates a subtree and is honoured only from the anchor it names in `id` (mirrors mesh-wire SIGNED). LEAVE, MOVED, CONFIRM, YIELD, PHONE and PONG are signed the same way. YIELD carries no id
+const H_SIGNED = new Set(['FINDLEAF', 'PLACE', 'CLAIM', 'HELLO', 'SITPONG', 'SITXFER', 'DRAIN']);   // V4: SITPONG re-CLAIMs, SITXFER grants a row ledger — signed like the fills they stand in for; DRAIN (E1) vacates a subtree and is honoured only from the anchor it names in `id` (mirrors mesh-wire SIGNED)
 const ED_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
 const sha40 = (s) => 'k_' + ncrypto.createHash('sha256').update(String(s)).digest('hex').slice(0, 40);
 function mintId(seed32) {

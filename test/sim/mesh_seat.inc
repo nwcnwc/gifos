@@ -759,21 +759,7 @@ void Seat::doMove(Coord hole, int owner, vector<KV>& nbrs){
 }
 // A frame that evidences my NEW neighbourhood (someone accepted me there).
 bool Seat::moveEvidence(const Msg& m){
-  if(m.t==PONG){
-    // A PONG already in flight from the OLD seat used to confirm the new
-    // claim. Accept one only from the new seat's phone target or from one
-    // of its owned links. The JS twin also requires a verified signature;
-    // the sim has no s4ok stamp.
-    if(!hasCoord) return false;
-    uint64_t pc=ckey(m.coord);
-    uint64_t phone=0; bool havePhone=false;
-    if(coord.i!=0){ phone=ckey({coord.pc,coord.r,0}); havePhone=true; }
-    else { Coord o; if(ownerCoord(o)){ phone=ckey(o); havePhone=true; } }
-    if(havePhone && pc==phone) return true;
-    Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol);
-    for(int k=0;k<n;k++) if(ckey(ol[k])==pc) return true;
-    return false;
-  }
+  if(m.t==PONG) return true;                                   // my new phone answered
   if(m.t==PHONE) return m.tock==ckey(coord);                   // a call TO my new cell
   if(m.t==HELLO||m.t==CLAIM){ Coord c=unck(m.ck); Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol);
     for(int k=0;k<n;k++) if(ckey(ol[k])==ckey(c)) return true; }
@@ -807,7 +793,7 @@ void Seat::rollbackMove(){
   announce(); wake(id);
 }
 void Seat::attack(){ if(!hasCoord) return; Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id){ Msg m;m.t=HELLO;m.ck=ckey(ol[k]);m.id=id; emit(x,m);} } }
-void Seat::requeue(const char* why){ {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d REQUEUE why=%s coord=%u/%d.%d hasCoord=%d state=%d\n",(long long)TICK,id,(why&&*why)?why:"?",(unsigned)coord.pc,(int)coord.r,(int)coord.i,(int)hasCoord,state);} if(!evil) bumpEvict(); bumpMoves(); moving=false; oldNbrIds.clear(); holdOcc.clear(); holdSeen.clear(); holdCous.clear(); leaseCk=0; leaseUntil=-1; if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} Coord o; if(ownerCoord(o)){ int oid=occGet(ckey(o)); if(oid>=0&&oid!=id&&!seen.count(oid)){ Msg lm;lm.t=LEAVE;lm.ck=ckey(coord);lm.id=id; emit(oid,lm);} } }
+void Seat::requeue(const char* why){ {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d REQUEUE why=%s coord=%u/%d.%d hasCoord=%d state=%d\n",(long long)TICK,id,(why&&*why)?why:"?",(unsigned)coord.pc,(int)coord.r,(int)coord.i,(int)hasCoord,state);} if(!evil) bumpEvict(); bumpMoves(); moving=false; oldNbrIds.clear(); holdOcc.clear(); holdSeen.clear(); holdCous.clear(); leaseCk=0; leaseUntil=-1; if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
   hasCoord=false; occ.clear(); s1seen.clear(); tlClear(); drainAt=0; join(); }
 
 void Seat::drainOrReenter(){
@@ -831,7 +817,7 @@ void Seat::drainOrReenter(){
 // covers moves WITHIN a live neighbourhood; a drain is the opposite case — its
 // whole neighbourhood is confirmed dead, and E1 deliberately dissolves it.
 void Seat::reseatViaRoster(){ bumpMoves();
-  if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} Coord o; if(ownerCoord(o)){ int oid=occGet(ckey(o)); if(oid>=0&&oid!=id&&!seen.count(oid)){ Msg lm;lm.t=LEAVE;lm.ck=ckey(coord);lm.id=id; emit(oid,lm);} } }
+  if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
   hasCoord=false; occ.clear(); s1seen.clear(); tlClear(); drainAt=0; seatTries=0;
   int t=(haveRoster&&!roster.empty())?pickRoster():-1; if(t>=0) askSeat(t); else join(); }
 
@@ -970,16 +956,7 @@ void Seat::onPhone(Msg& m){
   // V7: my down-child head phoned me its ROW LEDGER. Install what I lack (a
   // cell I already hold first-hand keeps my entry — two claimants are the
   // head's E2 yield to settle, not mine to overwrite) and stamp the beat.
-  if(ck==ckey(down(coord))){
-    // Install cells the head names that I do not already hold. Do not drop
-    // a cell the list omits. phoneHome sends only mates the head has already
-    // heard, so the first beat from a new head is an empty list. Treating
-    // that omission as death cleared live row-mates from this occ, and the
-    // shrink gate then failed (seed 2 maxDepth 7 against an allowance of 6).
-    // The beat still stamps rowLedgerAt. A key outside this head's row is ignored.
-    Coord head=unck(ck);
-    for(auto&e:m.row){ Coord c=unck(e.k); if(c.pc!=head.pc||c.r!=head.r||c.i<1||c.i>=C) continue; if(!occ.count(e.k)){ setOcc(e.k,e.v); noteS1(e.k); } }
-    rowLedgerAt=(int)TICK; }
+  if(ck==ckey(down(coord))){ for(auto&e:m.row){ if(!occ.count(e.k)){ setOcc(e.k,e.v); noteS1(e.k); } } rowLedgerAt=(int)TICK; }
   int owner=-1; uint64_t oCk=0; Coord myoc; if(ownerCoord(myoc)){ oCk=ckey(myoc); owner=occGet(oCk); }
   vector<Ent> row;
   if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){ row.push_back({ckey(coord),id, occGet(ckey(down(coord)))}); for(int c=1;c<C;c++){ Coord rc={coord.pc,coord.r,(uint8_t)c}; int x=occGet(ckey(rc)); if(x>=0&&x!=m.id) row.push_back({ckey(rc),x, childOf.count(ckey(rc))?childOf[ckey(rc)]:-1}); } }
@@ -1179,9 +1156,7 @@ bool Seat::ringConfirmDead(Coord h){
   // translostConfirmed — no eviction, E2 stands.)
   if(translostConfirmed(hk)) return true;
   if(firstHandLive(hk)){ holeSince.erase(hk); return false; }
-  // First probe now, then at most every 6 ticks. A separate stamp from
-  // tlProbeAt, so the D5 probe and this one do not suppress each other.
-  { auto it=ringProbeAt.find(hk); if(it==ringProbeAt.end() || TICK-it->second>=6){ ringProbeAt[hk]=(int)TICK; routeTo(h,1); } }
+  routeTo(h,1);                                             // probe across the rook
   int since = live.count(hk)? live[hk] : (holeSince.count(hk)? holeSince[hk] : (holeSince[hk]=(int)TICK));
   return TICK-since>RING_HOLD;
 }
