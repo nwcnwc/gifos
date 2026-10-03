@@ -1964,13 +1964,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const memoPass = (k, f) => { if (!passMemo) return f(); if (!(k in passMemo)) passMemo[k] = f(); return passMemo[k]; };
     const stageIds = () => memoPass('stg', stageIdsNow);
     const stageIdsNow = () => {
-      // A stage seat needs a FRESH status (same 15s rule as consent/roster):
-      // a departed stager's lingering stg flag must not hold a seat — everyone
-      // would keep painting a strip whose feed is gone (a big black tile).
+      // A stage seat needs a LIVE status — the same stHold rule as consent and
+      // the roster: fresh within 15s, or held for HOLDOVER_MS while the peer
+      // honestly said away or transport still vouches for it. A departed
+      // stager's lingering stg flag must not hold a seat (everyone would keep
+      // painting a strip whose feed is gone — a big black tile); a stager
+      // whose hidden-tab beat merely landed late must not be torn out of
+      // every phone's strip and rebuilt on the next beat.
       const stgOf = (id) => {
         if (id === myId) return myStatus.stg || 0;
         const st = statusOf.get(id);
-        if (!st || Date.now() - stSeen(st) > 15000) return 0;
+        if (!st || !stHold(id)) return 0;
         return st.stg || 0;
       };
       const out = [];
@@ -1994,7 +1998,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (dg) {
         const have = new Set(out.map((x) => x[0]));
         for (const e of dg.stage) {
-          if (!e.id || have.has(e.id) || e.id === myId || freshSt(e.id) || !notTomb(e.id) || !canStage(e.id)) continue;
+          if (!e.id || have.has(e.id) || e.id === myId || stHold(e.id) || !notTomb(e.id) || !canStage(e.id)) continue;
           if (vt) { const dv = e.dv || devFor(e.id); if (dv && (vt.down[dv] || 0) >= vt.need) continue; }
           out.push([e.id, e.k]);
         }
@@ -2150,7 +2154,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       else if (myDevHash) awayDevs.add(myDevHash);
       for (const [pid, st] of statusOf) {
         if (st.away) { if (devOf[pid]) awayDevs.add(devOf[pid]); continue; }
-        if (now - stSeen(st) > 15000) continue; // stale voter = no vote
+        if (!stHold(pid)) continue; // a voter needs a LIVE status (15s fresh, or the away/transport holdover) — stale = no vote
         add(bagUp, devOf[pid], st.vup); add(bagDn, devOf[pid], st.vdn);
         if (devOf[pid]) engagedDevs.add(devOf[pid]);
       }
@@ -2190,12 +2194,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function reactStageVotes() {
       if (hasAdminRoom() || !myDevHash) return;
       const vt = stageVoteTallies();
-      if (myStatus.stg && (vt.down[myDevHash] || 0) >= vt.need) {
+      const votedDown = (vt.down[myDevHash] || 0) >= vt.need;
+      if (myStatus.stg && votedDown) {
+        // A vote-off dismisses the standing up-tally exactly as declining
+        // does: the same up-voters cannot bounce me straight back (a new
+        // voter re-arms). Without this, up and down both passing flipped me
+        // on and off on every status receipt.
+        vupDismissedSig = myUpVoteSig();
         setStage(false);
         setStatus('The room voted you off the stage.');
         return;
       }
-      if (!myStatus.stg && (vt.up[myDevHash] || 0) >= vt.need
+      // Down is the standing verdict: while a down-majority holds, an up-
+      // majority steps nobody up (every receiver excludes me anyway).
+      if (!myStatus.stg && !votedDown && (vt.up[myDevHash] || 0) >= vt.need
           && canStage(myId) && stageIds().length < SCALE.C
           && myUpVoteSig() !== vupDismissedSig) {
         setStage(true);
@@ -5084,19 +5096,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const pid of rosterIds) {
         if (pid === myId) continue;
         const st = statusOf.get(pid) || {};
-        // FRESHNESS: a hand needs a status heard within 15s — the same one
-        // rule stageIds/consent/roster use. A vanished peer's raised hand
-        // must not linger in the banner until the roster machinery drops
-        // them; a briefly-quiet live peer re-beats well inside 15s (hidden
-        // tabs pulse every 12s), so an honest hand never flickers.
-        if (st.hand && Date.now() - stSeen(st) <= 15000) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…' });
+        // LIVENESS: a hand needs a status the stHold rule accepts — the same
+        // one stageIds/consent/roster use (15s fresh, or the away/transport
+        // holdover). A vanished peer's raised hand must not linger in the
+        // banner until the roster machinery drops them; a hidden tab whose
+        // 12s beat was lost once must not drop out of the line and re-enter
+        // at the back.
+        if (st.hand && stHold(pid)) q.set(pid, { i: pid, t: st.hand, n: (peers.get(pid) || {}).name || rosterNames[pid] || '…' });
       }
       if (myStatus.hand) q.set(myId, { i: myId, t: myStatus.hand, n: myName() });
       // Beyond my section the room's hands arrive folded — the K earliest (G9).
       // A section-mate's own fresh status wins over a fold about it.
       const dg = digLists();
       if (dg) for (const e of dg.hands) {
-        if (!e.id || e.id === myId || q.has(e.id) || freshSt(e.id) || !notTomb(e.id)) continue;
+        if (!e.id || e.id === myId || q.has(e.id) || stHold(e.id) || !notTomb(e.id)) continue;
         q.set(e.id, { i: e.id, t: e.k, n: (peers.get(e.id) || {}).name || rosterNames[e.id] || e.nm || '…' });
       }
       return Array.from(q.values()).sort((a, b) => (a.t - b.t) || (a.i < b.i ? -1 : 1));
@@ -6788,6 +6801,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (hasAdminRoom()) { admins = adminsNow(); refreshModSig(); adminWatch(); }
       reactStageSelf(); // staged (gossiped stageIds) ⇒ my MAIN senders park; step-down restores them
       reactStageVotes(); // room majorities move ME (self-owned): voted up ⇒ step up, voted down ⇒ step down
+      reactStageLost();  // a step-up the room's arithmetic excludes (cap, grant) disarms instead of lurking
       if (voteMode === 'down') paintStageVoteTargets(); // the strip's ✕ targets follow stage membership
       reconcileGrid();  // stager tiles hide/return as the gossiped stage set changes
       // Row-mate set changed (heal, teleport, newcomer): re-derive my MAIN
@@ -11497,8 +11511,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // grants them the stage, when the controls they now need grow back.
       document.body.classList.toggle('stage-granted', canStage(myId));
     }
+    // THE CAP IS DECIDED BY ARITHMETIC, NOT BY MY TAP. stageIds() keeps the C
+    // earliest claims on every phone, so a step-up that lost a same-moment
+    // race (or whose admin grant was withdrawn) is set here yet painted
+    // nowhere — and the button's own "stage is full" check is local and racy.
+    // An armed-but-excluded flag must not lurk: it would walk onto the stage
+    // unbidden the moment a stager steps down, and the next tap would step
+    // DOWN instead of up. Two beats of steady exclusion (a claim or tally in
+    // flight may exclude me for one) and the flag disarms itself.
+    let stgLostSince = 0;
+    function reactStageLost() {
+      if (!myStatus.stg || stageIds().includes(myId)) { stgLostSince = 0; return; }
+      if (!stgLostSince) { stgLostSince = Date.now(); return; }
+      if (Date.now() - stgLostSince < 2 * SCALE.HB) return;
+      stgLostSince = 0;
+      setStage(false);
+      setStatus(canStage(myId) ? 'The stage was full (' + SCALE.C + ' seats) — your step-up did not take.'
+        : 'The stage is admin-granted here — your step-up did not take.');
+    }
+    let stgFlips = 0; // every step-up/down (test hook: a vote storm shows as a rising count)
     function setStage(on) {
       myStatus.stg = on ? Date.now() : 0;
+      stgFlips++;
       if (on) lowerHandForStage(); // an answered hand lowers itself — the broadcast below carries both
       paintStage();
       broadcastStatus();
@@ -13412,6 +13446,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (set.has(dev)) set.delete(dev);
       else {
         if (set.size >= STAGE_VOTE_CAP) { setStatus('You can only vote for ' + STAGE_VOTE_CAP + ' people at a time — take one of your votes back first.'); return; }
+        // ONE VERDICT PER VOTER PER TARGET: voting someone down retracts my
+        // standing up-vote for them (and vice versa). With both on the pulse
+        // the target's tallies could pass in both directions at once.
+        myStageVotes[voteMode === 'up' ? 'down' : 'up'].delete(dev);
         set.add(dev);
       }
       stgTallyCache.at = 0;  // my own vote shows instantly
@@ -15146,6 +15184,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // stage + buses
       stageIds: () => stageIds(),
       onStage: () => stageIds().includes(myId),
+      stageFlagForTest: () => myStatus.stg || 0,   // my raw step-up claim, painted or not
+      stageFlipsForTest: () => stgFlips,          // how many times setStage ran
       setStageForTest: (on) => setStage(!!on),
       canStageNow: () => canStage(myId),
       mix: () => Object.assign({}, mix),

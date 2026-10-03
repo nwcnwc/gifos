@@ -204,14 +204,17 @@ list to keep and nobody keeps it — like the Stage and the rows, the queue is
   shows the same line in the same order. A same-millisecond tie breaks on the
   id, deterministically; nothing is elected and nothing is synced.
 - **Freshness — a hand needs a live pulse.** A hand only counts while its
-  owner's status has been heard within **15 s** — the one freshness rule the
-  Stage (`stageIds`), consent, and the roster already use. A vanished peer's
-  raised hand therefore clears from the banner as soon as their pulse stops
-  (and instantly when their departure is confirmed — the D2/D5 event-driven
-  removal drops them from `rosterIds`, which the queue derives over), instead
-  of lingering until roster machinery buried them. An honest, briefly-quiet
-  peer never flickers: even a hidden tab re-beats every 12 s, inside the
-  window.
+  owner's status passes the one liveness rule the Stage (`stageIds`), the
+  vote tallies, consent and the roster share (`stHold`): heard within
+  **15 s**, or held for the 60 s holdover while the peer honestly said away
+  or its transport still vouches for it. A vanished peer's raised hand
+  therefore clears from the banner once their pulse stops (and instantly
+  when their departure is confirmed — the D2/D5 event-driven removal drops
+  them from `rosterIds`, which the queue derives over), instead of lingering
+  until roster machinery buried them. An honest, briefly-quiet peer never
+  flickers: a hidden tab re-beats every 12 s, and one lost or late beat
+  lands inside the holdover instead of dropping the hand (or the stage
+  seat) for a beat.
 - **The banner.** One line above the feed (`#handq`): `✋ N waiting:` plus the
   first **8** names in queue order (the head of the line in bold), then a
   `+K` overflow count. It repaints only when the derived line actually
