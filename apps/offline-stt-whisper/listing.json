@@ -1,0 +1,23 @@
+{
+  "tagline": "Captions and speech-to-text for every app, in 99 languages, entirely on your device.",
+  "description": "This is an ear other apps can use. Install it, keep it in your Providers folder, and assign it to Speech → text in Settings → AI models. From then on every app that asks GifOS to write down speech — the meeting's live captions first — is answered by this app, on your own device, with nothing sent anywhere.\n\nIt is OpenAI's Whisper (MIT), the model behind most of the captioning you have seen lately. It hears 99 languages and works out which one is being spoken; it writes whole sentences with punctuation instead of two-word fragments; it takes a short list of your own names and product words so they come out right; and it can write everything down in English no matter what language was spoken.\n\nWHAT IT COSTS, PLAINLY. The engine rides inside the app. The model arrives on first use as a download checked against a fingerprint baked into the app, and is kept on your device: tiny is 41 MB and is what a phone uses; base is 77 MB and is what a computer uses. It runs on the processor, so it thinks before it writes: a sentence appears a few seconds after it was said on a computer, and longer on a phone, where it also costs battery. Meetings warn you about that when you turn it on.\n\nOnce a model is on your device the app does not ask the network again. The app itself cannot reach the network, so nothing you say near it can leave this device.",
+  "author": "GifOS",
+  "releaseDate": "2026-10-02",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "provider",
+    "stt",
+    "speech-to-text",
+    "captions",
+    "whisper",
+    "transcription",
+    "translation",
+    "offline",
+    "accessibility",
+    "ai"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/offline-stt-whisper"
+}

@@ -95,7 +95,11 @@ check('a Leave button sits on the always-visible row, before the collapsible par
   html.indexOf('<button id="leavebtn"') > 0 && html.indexOf('<button id="leavebtn"') < html.indexOf('<div class="barmore" id="barmore">'));
 check('leaving shows a card with the way back', /id="left-modal"[\s\S]*id="left-rejoin"/.test(html));
 check('Settings offers a captions-language picker', /<select id="cclang"/.test(html));
-check('the engine listens in the chosen language, not the device default', /speech\.lang = ccLang\(\);/.test(html) && !/speech\.lang = navigator\.language/.test(html));
+check('the engine listens in the chosen language, not the device default', /speech\.lang = ccLang\(\) === 'auto' \? \(navigator\.language \|\| 'en-US'\) : ccLang\(\);/.test(html) && !/speech\.lang = navigator\.language \|\| 'en-US';/.test(html));
+check('a Whisper engine can be chosen, fed from the echo-cancelled track, with a backlog cap', /name="ccengine" value="whisper"/.test(html) && /createMediaStreamSource\(new MediaStream\(\[localStream\.getAudioTracks\(\)\[0\]\]\)\)/.test(html) && /WSP_BACKLOG = 3/.test(html));
+check('Whisper requests ride the OS provider surface as raw 16 kHz PCM', /GifOS\.providers\.call\('stt'/.test(html) && /audio\/pcm;rate=16000;bits=32/.test(html));
+check('a phone is warned that Whisper is slow there', /On a phone, Whisper runs on the processor/.test(html));
+check('choosing Whisper without the app falls back to browser captions, never silence', /if \(wsp \|\| startWhisper\(\)\) return;/.test(html));
 check('Settings offers a rename', /id="set-rename"/.test(html) && /function renameFlow\(after\)/.test(html));
 check('admins get a captions-for-everyone switch that rides the signed mod table',
   /id="ccall"/.test(html) && /\['mute', 'blur', 'cam', 'app', 'chat', 'cc'\]/.test(html));

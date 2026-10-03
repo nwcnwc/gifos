@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline Captions (Whisper)</title>
+<style>
+  :root { --bg:#070b12; --surface:#111a28; --border:#223249; --text:#eef4ff; --muted:#9fb3d1; --accent:#5cc8ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,sans-serif; min-height:100vh; }
+  .wrap { max-width: 620px; margin: 0 auto; padding: 1.4rem 1.2rem 3rem; }
+  h1 { font-size: 1.5rem; margin: .4rem 0 .2rem; }
+  h1 .chip { font-size:.62rem; vertical-align:.35em; margin-left:.5rem; background:var(--accent); color:#06121c; border-radius:.35rem; padding:.2rem .45rem; letter-spacing:.08em; font-weight:800; }
+  .lead { color: var(--muted); margin: 0 0 1.1rem; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:.8rem; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+  .card h2 { font-size:.95rem; margin:0 0 .5rem; }
+  .card p { margin:.35rem 0; font-size:.88rem; color:var(--muted); }
+  .card p b { color: var(--text); }
+  ol, ul { margin:.4rem 0 .2rem; padding-left:1.2rem; font-size:.88rem; color:var(--muted); }
+  ol b, ul b { color: var(--text); }
+  .row { display:flex; gap:.5rem; margin-top:.6rem; align-items:center; flex-wrap:wrap; }
+  select, input[type=text] { background:var(--bg); border:1px solid var(--border); border-radius:.5rem; color:var(--text); font:inherit; padding:.45rem .55rem; }
+  input[type=text] { flex:1; min-width: 12rem; }
+  label.file { background:var(--accent); border-radius:.55rem; color:#06121c; font-weight:700; padding:.5rem 1.3rem; cursor:pointer; display:inline-block; }
+  label.file input { display:none; }
+  #status { font-size:.82rem; color:var(--muted); margin-top:.5rem; min-height:1.2em; }
+  #out { font-size:1.05rem; line-height:1.45; margin:.5rem 0 .2rem; white-space:pre-wrap; word-break:break-word; min-height:1.4em; }
+  .foot { font-size:.75rem; color:var(--muted); opacity:.8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎧 Offline Captions — Whisper<span class="chip">PROVIDER</span></h1>
+  <p class="lead">Speech to text for your whole computer, in 99 languages, entirely on this device. No account, no key, nothing sent anywhere.</p>
+
+  <div class="card">
+    <h2>This app serves your OS</h2>
+    <p>It is a <b>Provider app</b>: instead of doing a job on its own screen, it gives GifOS an ability — the <b>Speech → text</b> AI type. The <b>meeting's live captions</b> use it first; any app that asks the computer to listen gets the same ear.</p>
+    <ol>
+      <li>Keep its icon in the <b>Providers</b> folder on your Home Screen — a provider only works from there.</li>
+      <li>Open <b>Settings → AI models</b> and set <b>Speech → text</b> to <b>📦 Offline Captions (Whisper)</b>. A meeting's <b>Settings → Captions</b> can do this for you.</li>
+      <li>In a meeting, choose <b>Whisper on this device</b> under Captions.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>What it does that the browser's captions cannot</h2>
+    <ul>
+      <li><b>Any language, found by itself.</b> 99 of them; it picks the one being spoken.</li>
+      <li><b>Real sentences</b>, with punctuation and capitals.</li>
+      <li><b>Your own words.</b> A short list of names and product words, spelled your way.</li>
+      <li><b>Write English</b> from any language spoken.</li>
+    </ul>
+    <p>It runs on the processor and <b>thinks before it writes</b>: a sentence appears a few seconds after it was said on a computer, longer on a phone. The model downloads once: <b>tiny, 41 MB</b> on a phone; <b>base, 77 MB</b> on a computer.</p>
+  </div>
+
+  <div class="card">
+    <h2>Try it on a recording</h2>
+    <p>Pick an audio file — a voice note, a recording. It is transcribed here and never leaves this device.</p>
+    <div class="row">
+      <select id="model" title="Model size"><option value="tiny">tiny (41 MB)</option><option value="base">base (77 MB)</option></select>
+      <select id="task" title="Task"><option value="transcribe">Write what was said</option><option value="translate">Write it in English</option></select>
+      <input id="lang" type="text" value="auto" title="Language code, or auto" style="max-width:6rem;flex:0 1 6rem">
+    </div>
+    <div class="row">
+      <input id="prompt" type="text" placeholder="Names and words to prefer, comma-separated (optional)">
+    </div>
+    <div class="row">
+      <label class="file">🎧 Choose an audio file <input id="file" type="file" accept="audio/*,video/webm,video/mp4"></label>
+    </div>
+    <div id="status"></div>
+    <div id="out"></div>
+  </div>
+
+  <p class="foot">Model: <b>Whisper</b> by OpenAI (MIT), the int8 ONNX exports from onnx-community, downloaded once and checked against SHA-256 fingerprints pinned in this app. Engine: <b>ONNX Runtime Web</b> (MIT), packed <b>inside this GIF</b> and sealed in the app sandbox with no network access.</p>
+</div>
+<script src="ort.js"></script>
+<script src="ort-wasm.js"></script>
+<script src="whisper-core.js"></script>
+<script src="tokenizer-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

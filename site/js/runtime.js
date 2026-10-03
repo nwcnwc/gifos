@@ -1982,6 +1982,46 @@
       });
     });
   }
+  // ---- the OS's OWN provider surface -------------------------------------------
+  // A consumer app reaches a provider through gifos.ai.* and its manifest's
+  // capabilities.ai. The OS page itself (the meeting's captions, run.html)
+  // has no manifest and no sandbox: it asks here. Same guard, same hidden
+  // mount, same busy pill — providerCall is the one path to a provider.
+  //   scan()            -> [{ fileId, appId, name, roles }] from the Providers folder
+  //   assigned(role)    -> the stored assignment for a role, or null
+  //   assign(role, p)   -> store it (what Settings → AI models writes)
+  //   call(role, req)   -> the provider's answer ({ text } for stt)
+  function scanProviders() {
+    return store.allItems().then((items) => {
+      const out = [];
+      let p = Promise.resolve();
+      for (const it of items || []) {
+        if ((it.parent || null) !== 'sys_providers' || it.kind !== 'file' || !it.fileId) continue;
+        p = p.then(() => providerArchive(it.fileId)).then((arc) => {
+          const m = arc && arc.manifest; if (!m) return;
+          const roles = providesRoles(m); if (!roles.length || providerNetworky(m)) return;
+          out.push({ fileId: it.fileId, appId: String(m.appId || ''), name: String(m.name || it.name || 'Provider app').replace(/\.gif$/i, ''), roles });
+        }).catch(() => {});
+      }
+      return p.then(() => out);
+    });
+  }
+  function assignProvider(role, p) {
+    const cfg = aiConfig();
+    cfg[role] = { app: p.fileId, appId: p.appId || '', appName: p.name || 'Provider app' };
+    try { root.localStorage.setItem(AI_KEY, JSON.stringify(cfg)); } catch (e) {}
+    return cfg[role];
+  }
+  GifOS.providers = {
+    scan: scanProviders,
+    assign: assignProvider,
+    assigned: (role) => { const c = aiConfig()[role]; return (c && c.app) ? c : null; },
+    call: (role, req) => {
+      const c = aiConfig()[role];
+      if (!c || !c.app) return Promise.reject(new Error('NOT_CONFIGURED:ai:' + role));
+      return providerCall(c, role, Object.assign({ op: role, role }, req || {}), null);
+    },
+  };
   // gifos.assets(path) — hand an app the bytes for a hash-pinned path
   // (gifos-assets.js). Serves a hand-sealed .assets/ file from the packed
   // filesystem first, else the computer's asset store IF that row is still

@@ -1,0 +1,53 @@
+{
+  "gifos": "1.0",
+  "appId": "offline-stt-whisper",
+  "name": "Offline Captions (Whisper)",
+  "shortName": "Whisper",
+  "version": "1.0",
+  "minBuild": 2349,
+  "description": "Speech → text for your whole computer, running entirely on your device. A Provider app: put it in your Providers folder, assign it to Speech → text in Settings → AI models, and every app that listens — the meeting's captions first — is answered here. It is OpenAI's Whisper: it hears 99 languages and picks the one being spoken, writes real sentences with punctuation, takes a list of your own names and product words, and can write everything down in English whatever language was spoken. Two sizes arrive on first use as hash-pinned downloads: tiny (41 MB, the default on phones) and base (77 MB, the default on computers). It runs on the processor, so a sentence takes a few seconds to appear — longer on a phone.",
+  "entry": "index.html",
+  "accent": [
+    92,
+    200,
+    255
+  ],
+  "capabilities": {
+    "wasm": true
+  },
+  "provides": {
+    "ai": [
+      "stt"
+    ]
+  },
+  "assets": [
+    {
+      "url": "https://huggingface.co/onnx-community/whisper-tiny/resolve/main/onnx/encoder_model_quantized.onnx",
+      "sha256": "2af4a414ca47aa30f61246017e5fe82b0a8d229281d1255ba666a2a7f6b84d19",
+      "path": "whisper-tiny-encoder.onnx",
+      "bytes": 10124990,
+      "optional": true
+    },
+    {
+      "url": "https://huggingface.co/onnx-community/whisper-tiny/resolve/main/onnx/decoder_model_merged_quantized.onnx",
+      "sha256": "25e807a962b6349356d0ea5d0dfe530b7e5bf0e2a484aeca0359d03143faddd3",
+      "path": "whisper-tiny-decoder.onnx",
+      "bytes": 30719241,
+      "optional": true
+    },
+    {
+      "url": "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/encoder_model_quantized.onnx",
+      "sha256": "5862993336bf33acd23736071aae2b32261d3b1b2f37780194460d4ef974dd46",
+      "path": "whisper-base-encoder.onnx",
+      "bytes": 23201314,
+      "optional": true
+    },
+    {
+      "url": "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/decoder_model_merged_quantized.onnx",
+      "sha256": "fa3ef9902734ce5ae6f9ef2bdb2ba9a6c4b5785b09f4f420ce036573dc9d090b",
+      "path": "whisper-base-decoder.onnx",
+      "bytes": 53693315,
+      "optional": true
+    }
+  ]
+}

@@ -1282,6 +1282,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         <b>Captions language</b>
         <p class="set-help">What <b>your own device</b> listens for when CC is on. It cannot guess: a phone set to Russian writes English down as nonsense, so pick the language you will speak.</p>
         <select id="cclang" style="padding:.35rem .5rem;border-radius:.4rem;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);max-width:100%"></select>
+        <div id="ccengine-row" style="margin-top:.6rem">
+          <label class="rec-opt"><input type="radio" name="ccengine" value="browser"><span><b>Browser captions</b><small>Instant. One fixed language, picked above; two-word lines without punctuation on some devices.</small></span></label>
+          <label class="rec-opt"><input type="radio" name="ccengine" value="whisper"><span><b>Whisper on this device</b><small>Any language, found by itself. Real sentences with punctuation. Your own names and words. Can write everything in English. A sentence appears a few seconds after it is said; on a phone it is slower and uses battery. Nothing leaves the device.</small></span></label>
+          <div id="ccwhisper" style="display:none;margin:.2rem 0 0 1.6rem">
+            <div id="ccwhisper-state" class="set-help" style="margin-bottom:.4rem"></div>
+            <label class="rec-opt inline"><input type="checkbox" id="cctranslate"><span>Write everything in English</span></label>
+            <textarea id="ccwords" rows="2" placeholder="Names and words to recognise: Nano AG, Boreal, Lima, Plant Defender…" style="width:100%;margin-top:.4rem;padding:.4rem .5rem;border-radius:.4rem;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);font:inherit;font-size:.85rem"></textarea>
+          </div>
+        </div>
         <p class="set-help" id="ccall-row" style="display:none;margin-top:.5rem"><button id="ccall" class="seg" style="border:1px solid var(--border,#2a2a3f);border-radius:.4rem">Captions for everyone: off</button> <span>Admins only — every unmuted device starts writing down its own person. Anyone can tap CC to opt out.</span></p>
       </div>
       <div id="mixpanel">
@@ -11928,10 +11937,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         : '<small style="color:#667">Tap CC in the bar and each phone writes down what its own person says — the lines gather here with names. Muted phones do not caption: unmute to be written down.</small>';
       log.scrollTop = log.scrollHeight;
     }
-    function addTranscriptLine(text) {
+    function addTranscriptLine(text, at) {
       text = String(text || '').trim();
       if (!text) return;
-      const m = { id: uid('t'), byId: myId, by: myName(), at: Date.now(), text: text.slice(0, 400) };
+      const m = { id: uid('t'), byId: myId, by: myName(), at: at || Date.now(), text: text.slice(0, 400) };
       if (trEcho(m) === true) return; // I only HEARD this — another device already wrote it down
       trs.set(m.id, m);
       sendAll({ k: 'tr', m });
@@ -11943,7 +11952,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // default, so a phone set to Russian wrote English down as Cyrillic
     // nonsense and nobody could see why. Settings → Captions language, kept
     // on this device; the device language stays the default.
-    const CC_LANGS = [['', 'Same as this device'], ['en-US', 'English (US)'], ['en-GB', 'English (UK)'], ['ru-RU', 'Русский'], ['uk-UA', 'Українська'],
+    const CC_LANGS = [['', 'Same as this device'], ['auto', 'Let Whisper detect it (Whisper only)'], ['en-US', 'English (US)'], ['en-GB', 'English (UK)'], ['ru-RU', 'Русский'], ['uk-UA', 'Українська'],
       ['es-ES', 'Español'], ['pt-BR', 'Português (BR)'], ['fr-FR', 'Français'], ['de-DE', 'Deutsch'], ['it-IT', 'Italiano'], ['pl-PL', 'Polski'],
       ['tr-TR', 'Türkçe'], ['zh-CN', '中文 (普通话)'], ['ja-JP', '日本語'], ['ko-KR', '한국어'], ['hi-IN', 'हिन्दी'], ['ar-SA', 'العربية']];
     const CC_LANG_KEY = 'gifos_cc_lang';
@@ -11962,6 +11971,144 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         setStatus('Captions now listen for ' + ccLangLabel() + '.');
       };
     })();
+    // ---- WHISPER CAPTIONS: the OS's speech-to-text provider, fed my own mic ----
+    // (2026-10-02, the first customer meeting.) The browser engine listens in
+    // ONE fixed language and cannot detect it, writes two-word fragments,
+    // cannot learn a company's names and cannot translate. Whisper — the
+    // Offline Captions provider app, through GifOS.providers — does all four,
+    // and it is fed the ECHO-CANCELLED track the call already sends, so a
+    // laptop on speakers no longer writes down the room (the browser engine
+    // hears the raw microphone; see trEcho).
+    // Utterances are cut by the same meter that paints the talking ring:
+    // voice → open (with 400 ms of pre-roll); 700 ms of silence → close and
+    // hand the clip to the provider; 15 s → close and reopen at once. One
+    // clip is in the provider at a time; a backlog past three drops the
+    // oldest and says so.
+    const CC_ENGINE_KEY = 'gifos_cc_engine', CC_TRANSLATE_KEY = 'gifos_cc_translate', CC_WORDS_KEY = 'gifos_cc_words';
+    const lsGet = (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
+    const lsSet = (k, v) => { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} };
+    const ccEngine = () => (lsGet(CC_ENGINE_KEY) === 'whisper' ? 'whisper' : 'browser');
+    const WHISPER_APP_ID = 'offline-stt-whisper';
+    const whisperReady = () => !!(window.GifOS && GifOS.providers && GifOS.providers.assigned('stt'));
+    const WSP_PRE_MS = 400, WSP_GAP_MS = 700, WSP_MAX_S = 15, WSP_MIN_S = 0.4, WSP_BACKLOG = 3;
+    let wsp = null; // the live capture
+    function startWhisper() {
+      if (wsp) return true;
+      if (!localStream || !localStream.getAudioTracks()[0]) return false;
+      if (!whisperReady()) { setStatus('Whisper captions need the Offline Captions app — open Settings → Captions to install it. Browser captions are on meanwhile.', 10000); return false; }
+      if (!ensureAc()) return false;
+      let src, node;
+      try {
+        src = ac.createMediaStreamSource(new MediaStream([localStream.getAudioTracks()[0]]));
+        node = ac.createScriptProcessor(4096, 1, 1);
+      } catch (e) { return false; }
+      const rate = ac.sampleRate;
+      const w = { src, node, rate, pre: [], preMs: 0, utt: null, uttStart: 0, lastVoice: 0, queue: [], busy: false, dropped: 0, sent: 0 };
+      node.onaudioprocess = (e) => {
+        if (wsp !== w) return;
+        const chunk = new Float32Array(e.inputBuffer.getChannelData(0)); // the browser reuses its buffer
+        const ms = chunk.length / rate * 1000, now = Date.now();
+        const talking = !!speakingOf.get('me') || (now - myVoiceAt < 250);
+        if (w.utt) {
+          w.utt.push(chunk);
+          if (talking) w.lastVoice = now;
+          const secs = (now - w.uttStart) / 1000;
+          if ((!talking && now - w.lastVoice > WSP_GAP_MS) || secs >= WSP_MAX_S) {
+            const done = w.utt, at = w.uttStart; w.utt = null;
+            if (secs >= WSP_MIN_S) wspEnqueue(w, done, at);
+            if (secs >= WSP_MAX_S && talking) { w.utt = []; w.uttStart = now; w.lastVoice = now; }
+          }
+        } else if (talking) {
+          w.utt = w.pre; w.pre = [];
+          w.utt.push(chunk); w.uttStart = now - w.preMs; w.lastVoice = now; w.preMs = 0;
+        } else {
+          w.pre.push(chunk); w.preMs += ms;
+          while (w.preMs > WSP_PRE_MS && w.pre.length > 1) { w.preMs -= w.pre[0].length / rate * 1000; w.pre.shift(); }
+        }
+      };
+      src.connect(node); node.connect(ac.destination); // a ScriptProcessor only ticks on the way to the destination; it outputs silence
+      wsp = w;
+      return true;
+    }
+    function stopWhisper() {
+      const w = wsp; wsp = null;
+      if (!w) return;
+      w.node.onaudioprocess = null;
+      try { w.node.disconnect(); } catch (e) {}
+      try { w.src.disconnect(); } catch (e) {}
+    }
+    function wspPcm16k(chunks, rate) { // concatenate, then a box-filter resample to 16 kHz
+      let n = 0; for (const c of chunks) n += c.length;
+      const all = new Float32Array(n); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+      if (rate === 16000) return all;
+      const ratio = rate / 16000, outN = Math.floor(n / ratio), out = new Float32Array(outN);
+      for (let i = 0; i < outN; i++) { const a = Math.floor(i * ratio), b = Math.max(a + 1, Math.floor((i + 1) * ratio)); let sum = 0; for (let j = a; j < b; j++) sum += all[j]; out[i] = sum / (b - a); }
+      return out;
+    }
+    function wspEnqueue(w, chunks, at) {
+      if (w.queue.length >= WSP_BACKLOG) { w.queue.shift(); w.dropped++; setStatus('Captions are behind — this device cannot keep up, so a sentence was skipped.', 6000); }
+      w.queue.push({ chunks, at });
+      wspDrain(w);
+    }
+    function wspDrain(w) {
+      if (w.busy || !w.queue.length || wsp !== w) return;
+      w.busy = true;
+      const job = w.queue.shift();
+      const pcm = wspPcm16k(job.chunks, w.rate);
+      const lang = ccLang();
+      const req = { bytes: pcm.buffer, mime: 'audio/pcm;rate=16000;bits=32', language: lang === 'auto' ? 'auto' : lang,
+        task: lsGet(CC_TRANSLATE_KEY) === '1' ? 'translate' : 'transcribe', prompt: lsGet(CC_WORDS_KEY).slice(0, 400), model: IS_MOBILE ? 'tiny' : 'base' };
+      w.sent++;
+      GifOS.providers.call('stt', req).then((r) => {
+        const text = r && r.text ? String(r.text).trim() : '';
+        if (text && wsp === w && myStatus.cc) addTranscriptLine(text, job.at);
+      }).catch((e) => {
+        const msg = (e && e.message) || String(e);
+        setStatus('Whisper captions failed: ' + msg.slice(0, 160), 10000);
+        if (/NOT_CONFIGURED|PROVIDER_MISSING|PROVIDER_NOT_IN_FOLDER/.test(msg)) { stopWhisper(); syncSpeech(); }
+      }).then(() => { w.busy = false; wspDrain(w); });
+    }
+    (function wireCcEngine() {
+      const radios = Array.from(document.querySelectorAll('input[name="ccengine"]')); if (!radios.length) return;
+      const box = document.getElementById('ccwhisper'), state = document.getElementById('ccwhisper-state');
+      const tr = document.getElementById('cctranslate'), words = document.getElementById('ccwords');
+      tr.checked = lsGet(CC_TRANSLATE_KEY) === '1'; words.value = lsGet(CC_WORDS_KEY);
+      tr.onchange = () => lsSet(CC_TRANSLATE_KEY, tr.checked ? '1' : '');
+      words.onchange = () => lsSet(CC_WORDS_KEY, words.value.replace(/\s+/g, ' ').trim().slice(0, 400));
+      const paintState = () => {
+        const on = ccEngine() === 'whisper';
+        for (const r of radios) r.checked = (r.value === 'whisper') === on;
+        box.style.display = on ? '' : 'none';
+        if (!on) return;
+        const a = whisperReady() ? GifOS.providers.assigned('stt') : null;
+        if (a) {
+          state.innerHTML = '✅ Ready: <b>' + esc(a.appName || 'your speech-to-text app') + '</b> answers on this device.'
+            + (IS_MOBILE ? ' <span style="color:#ffd23c">On a phone a sentence can take 5 to 10 seconds to appear, and it uses battery.</span>' : '');
+          return;
+        }
+        state.innerHTML = 'Needs the <b>Offline Captions (Whisper)</b> app. <a href="store.html#app=' + WHISPER_APP_ID + '" target="_blank" rel="noopener" style="color:var(--accent2,#ff5caa)">Install it from the App Store</a> (13 MB; the model downloads on first use), then '
+          + '<button id="ccwhisper-use" class="seg" style="border:1px solid var(--border,#2a2a3f);border-radius:.4rem">I installed it — use it</button>';
+        document.getElementById('ccwhisper-use').onclick = () => {
+          state.textContent = 'Looking in your Providers folder…';
+          GifOS.providers.scan().then((list) => {
+            const hit = list.find((p) => p.roles.indexOf('stt') >= 0 && p.appId === WHISPER_APP_ID) || list.find((p) => p.roles.indexOf('stt') >= 0);
+            if (!hit) { state.innerHTML = 'Not found yet. Install it from the App Store, keep its icon in the <b>Providers</b> folder on your Home Screen, then try again.'; return; }
+            GifOS.providers.assign('stt', hit);
+            paintState();
+            syncSpeech();
+          }).catch(() => { state.textContent = 'Could not read your Providers folder.'; });
+        };
+      };
+      for (const r of radios) r.onchange = () => {
+        if (!r.checked) return;
+        lsSet(CC_ENGINE_KEY, r.value === 'whisper' ? 'whisper' : '');
+        if (r.value === 'whisper' && IS_MOBILE) setStatus('On a phone, Whisper runs on the processor: a sentence can take 5 to 10 seconds to appear, and it uses battery. Browser captions stay instant.', 12000);
+        paintState();
+        syncSpeech();
+      };
+      paintState();
+      document.getElementById('setbtn').addEventListener('click', paintState);
+    })();
     let speech = null;
     function speechRunning() { return !!speech; }
     function startSpeech() {
@@ -11971,7 +12118,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         speech = new SR();
         speech.continuous = true;
         speech.interimResults = false;
-        speech.lang = ccLang();
+        speech.lang = ccLang() === 'auto' ? (navigator.language || 'en-US') : ccLang();
         speech.onresult = (e) => {
           // THE GATE (see trEcho): no voice on my own echo-cancelled mic in
           // the last 3s means I only heard this through the speakers. No
@@ -12004,6 +12151,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function syncSpeech() { // CC follows the mic: muted people aren't transcribed
       const want = myStatus.cc && !myStatus.muted;
+      if (want && ccEngine() === 'whisper') {
+        if (speechRunning()) stopSpeech();
+        if (wsp || startWhisper()) return;
+        // Whisper is chosen but cannot run here (no provider yet, no mic
+        // track): the browser engine carries on so captions are never silently off.
+      }
+      if (wsp) stopWhisper();
       if (want && !speechRunning()) startSpeech();
       if (!want && speechRunning()) stopSpeech();
     }
@@ -14498,6 +14652,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       transcriptTexts: () => Array.from(trs.values()).sort((a, b) => a.at - b.at).map((l) => l.by + ': ' + l.text),
       transcriptBlocks: () => trBlocks().map((l) => l.by + ': ' + l.text),
       transcriptDrops: () => trDrops,
+      whisperForTest: () => ({ engine: ccEngine(), live: !!wsp, ready: whisperReady(), queue: wsp ? wsp.queue.length : 0, sent: wsp ? wsp.sent : 0, dropped: wsp ? wsp.dropped : 0, rate: wsp ? wsp.rate : 0 }),
+      whisperFeedForTest: (f32, rate) => { if (!wsp) return false; wspEnqueue(wsp, [f32], Date.now()); return true; },
+      whisperEngineForTest: (eng) => { lsSet(CC_ENGINE_KEY, eng === 'whisper' ? 'whisper' : ''); syncSpeech(); },
       audioBlockedForTest: () => blockedAudio.size,
       audioBlockForTest: (el, name) => audioBlocked(el, { name }),
       takeTrForTest: (m) => takeTr(m),
