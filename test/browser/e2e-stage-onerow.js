@@ -133,6 +133,51 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('decoded frames advance steadily across the window (>10 in 30 s)',
     advanced, { first: firstF && firstF.frames, last: lastF && lastF.frames });
 
+  // ---- THE EAR IS MEMBERSHIP, NOT A PIPE ----------------------------------
+  // A second seat steps up, then down. Its stg claim lingers at every
+  // receiver through the pipe grace (MOS_GRACE 5 s, then claimRedun) while
+  // its MAIN senders are already back on the row — so an ear gated on the
+  // claim played that voice twice, direct tile + ear, for ~5 s. The bar: the
+  // observer's ear drops the key within 3 s of the stage set dropping it,
+  // while the claim is still held (otherwise the window was never open and
+  // the leg says so).
+  const stager2 = 2, earObs = 3;
+  await pages[stager2].evaluate(() => { const m = document.getElementById('mic'); if (m && m.classList.contains('off')) m.click(); }).catch(() => {});
+  const stepped2 = await pages[stager2].evaluate(() => window.__gifosVideo.stageForTest(true));
+  check('a second row seat steps onto the stage', stepped2 === true);
+  const pid2 = await pages[stager2].evaluate(() => (window.__gifosVideo.debugDump().me || {}).peer);
+  let agree2 = 0;
+  for (let i = 0; i < N; i++) {
+    const ok = await pages[i].waitForFunction(() => window.__gifosVideo.stageIds().length === 2, null, { timeout: 25000 }).then(() => true).catch(() => false);
+    if (ok) agree2++;
+  }
+  check('every seat agrees on the two-seat stage', agree2 === N, { agree2 });
+  const earHeld = await pages[earObs].waitForFunction((pid) => {
+    const mi = window.__gifosVideo.monInfo();
+    return mi.ear.some((k) => k.indexOf('stg:' + pid) === 0) && mi.claims.some((c) => c.rk.indexOf('stg:' + pid) === 0);
+  }, pid2, { timeout: 40000 }).then(() => true).catch(() => false);
+  check('the observer\'s ear folds the second stager (claim held)', earHeld);
+  await pages[stager2].evaluate(() => window.__gifosVideo.stageForTest(false));
+  const earGate = await pages[earObs].evaluate(async (pid) => {
+    const zz = (ms) => new Promise((r) => setTimeout(r, ms));
+    const t0 = Date.now(); let dropAt = 0;
+    while (Date.now() - t0 < 30000) {
+      const mi = window.__gifosVideo.monInfo();
+      const onStage = window.__gifosVideo.stageIds().includes(pid);
+      const inEar = mi.ear.some((k) => k.indexOf('stg:' + pid) === 0);
+      const held = mi.claims.some((c) => c.rk.indexOf('stg:' + pid) === 0);
+      if (!onStage) {
+        if (!dropAt) dropAt = Date.now();
+        if (!inEar) return { ok: true, afterMs: Date.now() - dropAt, heldAtClear: held };
+        if (Date.now() - dropAt > 3000) return { ok: false, afterMs: Date.now() - dropAt, inEar, held, ear: mi.ear };
+      }
+      await zz(100);
+    }
+    return { ok: false, timeout: true, dropAt };
+  }, pid2);
+  check('the ear drops a stepped-down stager within 3 s of the stage set (never the pipe grace)', earGate.ok, earGate);
+  if (earGate.ok && !earGate.heldAtClear) console.log('   NOTE the claim was already gone when the ear cleared — this run did not open the double-audio window (VACUOUS)');
+
   // ---- TEARDOWN LEAVES NO PAINTED RESIDUE ---------------------------------
   // In a ONE-ROW room beyondRow is false, so the Stage alone keeps the mosaic
   // alive: stepping down drives exactly the teardown branch that stranded a

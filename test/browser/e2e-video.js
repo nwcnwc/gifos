@@ -1443,14 +1443,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // ================= nobody is anonymous (IP transparency) ====================
   // P2P means everyone can already learn everyone's address — GifOS shows it:
-  // the status pill opens the room's who-is-here list, downloadable as a
+  // the Who button opens the room's who-is-here list, downloadable as a
   // record you can hand to the authorities if someone truly crosses the line.
   // The address now reaches the panel SEALED (each peer seals the IP the relay
   // told it privately via whoami) — the relay never authored this list.
-  await pat2.locator('#status').click();
+  // The list opens from the Who button (#whobtn), not the status line. It sits
+  // in .barmore, which a collapsed bar hides: expand the bar first if needed.
+  if (!(await pat2.locator('#whobtn').isVisible())) await pat2.locator('#bartoggle').click();
+  await pat2.locator('#whobtn').click();
   await pat2.waitForSelector('#who-modal', { state: 'visible', timeout: 6000 });
   const whoText = await pat2.locator('#who-list').textContent();
-  check('the status pill opens "who is on this meeting" — names with network addresses',
+  check('the Who button opens "who is on this meeting" — names with network addresses',
     /Pat \(you\)/.test(whoText) && /127\.0\.0\.1|address unknown/.test(whoText));
   check('my own address is present via whoami (sealed, not the relay roster)', /127\.0\.0\.1/.test(whoText));
   const [dl] = await Promise.all([

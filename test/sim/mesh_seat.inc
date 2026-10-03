@@ -446,13 +446,35 @@ void Seat::serveFind(Msg& mm){
   FINDLOG("NOROOM deep-dead-end");
   Msg m;m.t=NOROOM;m.id=id;m.nd=(uint8_t)(hasCoord?pcDepth(coord.pc):0); NOROOM_BYDEPTH[m.nd<16?m.nd:15]++; emit(mm.nc,m);
 }
+// Column j of this head's row is a densify slot the mover can still leave.
+// Free, and not an internal hole (its down-child heals that, C1). A column
+// with an occupant to its right is not the trailing edge: compactEligible
+// lets only the rightmost occupant leave. Sitting left of a row-mate who has
+// a down-child pins the mover there, because that row-mate is not a leaf and
+// never compacts. Sitting left of any occupant in a row at depth >= 3 pins
+// the same way: the probe stops in that deep row instead of climbing to a
+// depth-1 or depth-2 row that can still densify, and the right-hand occupant
+// does not clear the gap. A trailing cell (nobody to its right) is still
+// taken at any depth.
+static bool compactDensifyCol(Seat& s, int j){
+  Coord cell={s.coord.pc,s.coord.r,(uint8_t)j};
+  if(s.occ.count(ckey(cell))) return false;
+  if(s.occGet(ckey(down(cell)))>=0) return false;
+  for(int k=j+1;k<C;k++){
+    Coord rk={s.coord.pc,s.coord.r,(uint8_t)k};
+    if(!s.occ.count(ckey(rk))) continue;
+    if(pcDepth(s.coord.pc)>=3 || s.occGet(ckey(down(rk)))>=0) return false;
+  }
+  return true;
+}
 // Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1) climbs
 // the seeker's OWN up-chain — every hop an ALIVE link (row → head → owner) — and
-// joins the NEAREST strictly-shallower OCCUPIED row (densify). Reliable (no long
-// route over a fragmented mesh, no reliance on stale S1 knowledge of deep rows),
-// monotone (the seeker's depth strictly decreases), and it empties lone-row deep
-// sections into their ancestors' rows — the media-plane payoff. The seeker's
-// coord rides in mm.coord; sd = its depth.
+// joins the NEAREST strictly-shallower OCCUPIED row that has a densify slot the
+// mover can still leave. Reliable (no long route over a fragmented mesh, no
+// reliance on stale S1 knowledge of deep rows), monotone (the seeker's depth
+// strictly decreases), and it empties lone-row deep sections into their
+// ancestors' rows — the media-plane payoff. The seeker's coord rides in
+// mm.coord; sd = its depth.
 void Seat::serveCompact(Msg& mm){
   if(!hasCoord||state!=3||mm.ttl<=0) return;
   int sd = pcDepth(mm.coord.pc);
@@ -462,17 +484,17 @@ void Seat::serveCompact(Msg& mm){
   // deep row). A non-head hands the probe to its own row head (a direct link).
   if(coord.i!=0){ int h=occGet(ckey({coord.pc,coord.r,0})); if(h>=0&&h!=id){ Msg m=mm; m.ttl=mm.ttl-1; emit(h,m); } return; }
   // I am a row head. If my row is a DEEP row STRICTLY shallower than the seeker,
-  // offer the first free DENSIFYING slot in it (a trailing frontier: free +
-  // down-child empty, so the seeker lands a childless leaf and never displaces a
-  // healer). NEVER Section 1 (coord.pc==0): the home is filled only under H1-S1
+  // offer the first densify slot the mover can still leave (compactDensifyCol:
+  // free, down-child empty, not pinned left of a row-mate who will not move).
+  // A row whose only free cells would pin the mover is climbed past. NEVER
+  // Section 1 (coord.pc==0): the home is filled only under H1-S1
   // ring-conservatism — compaction filling an S1 cell whose occupant is merely
   // unreachable (not confirmed dead) could mint a divergent home. So the chain
   // climbs THROUGH S1 but never seats a compactor there.
   if(coord.pc!=0 && pcDepth(coord.pc) < sd){
-    for(int j=1;j<C;j++){ Coord cell={coord.pc,coord.r,(uint8_t)j};
-      if(occ.count(ckey(cell))) continue;                 // occupied (I know my row first-hand)
-      if(occGet(ckey(down(cell)))>=0) continue;           // internal hole — its down-child heals it (C1)
-      ADMIT_SITE="compact-densify"; admit(cell,mm); return; // densify: seat the seeker beside me, PLACE routed back (tag==1)
+    for(int j=1;j<C;j++){
+      if(!compactDensifyCol(*this,j)) continue;
+      ADMIT_SITE="compact-densify"; admit({coord.pc,coord.r,(uint8_t)j},mm); return; // densify: seat the seeker beside me, PLACE routed back (tag==1)
     }
   }
   // My row is full or not shallower than the seeker — climb one level toward the
@@ -556,14 +578,11 @@ void Seat::tryOffer(){
   // Same quiescence as the probe: never stir a region a heal is still settling.
   if(TICK-seatedAt<COMPACT_SETTLE || TICK-healAt<COMPACT_SETTLE || TICK-lastChurn<COMPACT_SETTLE) return;
   offerAt=TICK+COMPACT_PERIOD+(long long)(rng()*COMPACT_PERIOD);
-  // A free DENSIFYING slot in my row, known first-hand — the exact scan
-  // serveCompact serves from (free + down-child empty, so the mover lands a
-  // childless leaf and never displaces a healer).
+  // A densify slot in my row, known first-hand — the exact scan serveCompact
+  // serves from (compactDensifyCol), so an offer never names a cell the admit
+  // will refuse.
   bool slot=false;
-  for(int j=1;j<C;j++){ Coord cell={coord.pc,coord.r,(uint8_t)j};
-    if(occ.count(ckey(cell))) continue;
-    if(occGet(ckey(down(cell)))>=0) continue;
-    slot=true; break; }
+  for(int j=1;j<C;j++){ if(compactDensifyCol(*this,j)){ slot=true; break; } }
   if(!slot) return;
   // Send it DOWN: to a random live down-child head under my row. The walk
   // (serveOffer) descends until it finds an eligible mover.
@@ -740,7 +759,21 @@ void Seat::doMove(Coord hole, int owner, vector<KV>& nbrs){
 }
 // A frame that evidences my NEW neighbourhood (someone accepted me there).
 bool Seat::moveEvidence(const Msg& m){
-  if(m.t==PONG) return true;                                   // my new phone answered
+  if(m.t==PONG){
+    // A PONG already in flight from the OLD seat used to confirm the new
+    // claim. Accept one only from the new seat's phone target or from one
+    // of its owned links. The JS twin also requires a verified signature;
+    // the sim has no s4ok stamp.
+    if(!hasCoord) return false;
+    uint64_t pc=ckey(m.coord);
+    uint64_t phone=0; bool havePhone=false;
+    if(coord.i!=0){ phone=ckey({coord.pc,coord.r,0}); havePhone=true; }
+    else { Coord o; if(ownerCoord(o)){ phone=ckey(o); havePhone=true; } }
+    if(havePhone && pc==phone) return true;
+    Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol);
+    for(int k=0;k<n;k++) if(ckey(ol[k])==pc) return true;
+    return false;
+  }
   if(m.t==PHONE) return m.tock==ckey(coord);                   // a call TO my new cell
   if(m.t==HELLO||m.t==CLAIM){ Coord c=unck(m.ck); Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol);
     for(int k=0;k<n;k++) if(ckey(ol[k])==ckey(c)) return true; }
@@ -774,7 +807,7 @@ void Seat::rollbackMove(){
   announce(); wake(id);
 }
 void Seat::attack(){ if(!hasCoord) return; Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); for(int k=0;k<n;k++){ int x=occGet(ckey(ol[k])); if(x>=0&&x!=id){ Msg m;m.t=HELLO;m.ck=ckey(ol[k]);m.id=id; emit(x,m);} } }
-void Seat::requeue(const char* why){ {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d REQUEUE why=%s coord=%u/%d.%d hasCoord=%d state=%d\n",(long long)TICK,id,(why&&*why)?why:"?",(unsigned)coord.pc,(int)coord.r,(int)coord.i,(int)hasCoord,state);} if(!evil) bumpEvict(); bumpMoves(); moving=false; oldNbrIds.clear(); holdOcc.clear(); holdSeen.clear(); holdCous.clear(); leaseCk=0; leaseUntil=-1; if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
+void Seat::requeue(const char* why){ {const char* _t=getenv("MESH_TRACE"); if(_t&&atoi(_t)==id) fprintf(stderr,"TRACE t=%lld #%d REQUEUE why=%s coord=%u/%d.%d hasCoord=%d state=%d\n",(long long)TICK,id,(why&&*why)?why:"?",(unsigned)coord.pc,(int)coord.r,(int)coord.i,(int)hasCoord,state);} if(!evil) bumpEvict(); bumpMoves(); moving=false; oldNbrIds.clear(); holdOcc.clear(); holdSeen.clear(); holdCous.clear(); leaseCk=0; leaseUntil=-1; if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} Coord o; if(ownerCoord(o)){ int oid=occGet(ckey(o)); if(oid>=0&&oid!=id&&!seen.count(oid)){ Msg lm;lm.t=LEAVE;lm.ck=ckey(coord);lm.id=id; emit(oid,lm);} } }
   hasCoord=false; occ.clear(); s1seen.clear(); tlClear(); drainAt=0; join(); }
 
 void Seat::drainOrReenter(){
@@ -784,7 +817,7 @@ void Seat::drainOrReenter(){
   // 1 returned every tick), stranding it forever phoning a ghost owner. Drop the
   // dead roster and requeue → join() re-knocks the relay for fresh greeters.
   if(TICK-lastAck>220){ haveRoster=false; roster.clear(); drainAt=0; requeue("E1-stale-roster"); return; }
-  if(haveRoster && !roster.empty()){ if(!drainAt){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id){ Msg m;m.t=DRAIN;m.roster=roster; emit(x,m);} } drainAt=(int)TICK+25+(int)(rng()*10);} return; }
+  if(haveRoster && !roster.empty()){ if(!drainAt){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id){ Msg m;m.t=DRAIN;m.roster=roster;m.id=id; emit(x,m);} } drainAt=(int)TICK+25+(int)(rng()*10);} return; }   // id: a DRAIN is honoured only from the receiver's anchor (JS twin: signed, id bound to the signer)
   if(TICK-rosterAskAt>40){ rosterAskAt=(int)TICK; Coord x; int xid=-1; if(crossLink(coord,x)) xid=occGet(ckey(x)); if(xid>=0&&xid!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(xid,m);} else { Coord rm[C-1]; rowMates(coord,rm); vector<int> ri={0,1,2,3}; for(int k=3;k>0;k--){int j=(int)(rng()*(k+1));swap(ri[k],ri[j]);} for(int q:ri){int rr=occGet(ckey(rm[q])); if(rr>=0&&rr!=id){ Msg m;m.t=WHOHOME;m.from=id;m.via=id;m.ttl=60; emit(rr,m); break;}} } }
 }
 // NOTE (law T5 — REJECTED, kept vacate-first ON PURPOSE): a keep-old drain
@@ -798,7 +831,7 @@ void Seat::drainOrReenter(){
 // covers moves WITHIN a live neighbourhood; a drain is the opposite case — its
 // whole neighbourhood is confirmed dead, and E1 deliberately dissolves it.
 void Seat::reseatViaRoster(){ bumpMoves();
-  if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} }
+  if(hasCoord){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); unordered_set<int> seen; for(int k=0;k<n;k++){int x=occGet(ckey(ol[k])); if(x>=0&&x!=id&&!seen.count(x)){seen.insert(x); Msg m;m.t=LEAVE;m.ck=ckey(coord);m.id=id; emit(x,m);}} Coord o; if(ownerCoord(o)){ int oid=occGet(ckey(o)); if(oid>=0&&oid!=id&&!seen.count(oid)){ Msg lm;lm.t=LEAVE;lm.ck=ckey(coord);lm.id=id; emit(oid,lm);} } }
   hasCoord=false; occ.clear(); s1seen.clear(); tlClear(); drainAt=0; seatTries=0;
   int t=(haveRoster&&!roster.empty())?pickRoster():-1; if(t>=0) askSeat(t); else join(); }
 
@@ -937,7 +970,16 @@ void Seat::onPhone(Msg& m){
   // V7: my down-child head phoned me its ROW LEDGER. Install what I lack (a
   // cell I already hold first-hand keeps my entry — two claimants are the
   // head's E2 yield to settle, not mine to overwrite) and stamp the beat.
-  if(ck==ckey(down(coord))){ for(auto&e:m.row){ if(!occ.count(e.k)){ setOcc(e.k,e.v); noteS1(e.k); } } rowLedgerAt=(int)TICK; }
+  if(ck==ckey(down(coord))){
+    // Install cells the head names that I do not already hold. Do not drop
+    // a cell the list omits. phoneHome sends only mates the head has already
+    // heard, so the first beat from a new head is an empty list. Treating
+    // that omission as death cleared live row-mates from this occ, and the
+    // shrink gate then failed (seed 2 maxDepth 7 against an allowance of 6).
+    // The beat still stamps rowLedgerAt. A key outside this head's row is ignored.
+    Coord head=unck(ck);
+    for(auto&e:m.row){ Coord c=unck(e.k); if(c.pc!=head.pc||c.r!=head.r||c.i<1||c.i>=C) continue; if(!occ.count(e.k)){ setOcc(e.k,e.v); noteS1(e.k); } }
+    rowLedgerAt=(int)TICK; }
   int owner=-1; uint64_t oCk=0; Coord myoc; if(ownerCoord(myoc)){ oCk=ckey(myoc); owner=occGet(oCk); }
   vector<Ent> row;
   if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){ row.push_back({ckey(coord),id, occGet(ckey(down(coord)))}); for(int c=1;c<C;c++){ Coord rc={coord.pc,coord.r,(uint8_t)c}; int x=occGet(ckey(rc)); if(x>=0&&x!=m.id) row.push_back({ckey(rc),x, childOf.count(ckey(rc))?childOf[ckey(rc)]:-1}); } }
@@ -1137,7 +1179,9 @@ bool Seat::ringConfirmDead(Coord h){
   // translostConfirmed — no eviction, E2 stands.)
   if(translostConfirmed(hk)) return true;
   if(firstHandLive(hk)){ holeSince.erase(hk); return false; }
-  routeTo(h,1);                                             // probe across the rook
+  // First probe now, then at most every 6 ticks. A separate stamp from
+  // tlProbeAt, so the D5 probe and this one do not suppress each other.
+  { auto it=ringProbeAt.find(hk); if(it==ringProbeAt.end() || TICK-it->second>=6){ ringProbeAt[hk]=(int)TICK; routeTo(h,1); } }
   int since = live.count(hk)? live[hk] : (holeSince.count(hk)? holeSince[hk] : (holeSince[hk]=(int)TICK));
   return TICK-since>RING_HOLD;
 }
@@ -1421,6 +1465,7 @@ void Seat::recv(Msg& m){
       Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ Coord cx; if(crossLink(rm[q],cx)&&fwd(occGet(ckey(cx)))) return; }
       return; }
     case HOME: {
+      if(state==3&&(int)TICK-rosterAskAt>120) return;   // a SEATED seat hears HOME only as the answer to its own WHOHOME (drainOrReenter): unsolicited, it must not re-key or re-roster the seat
       if(m.gkey) genKey=m.gkey;   // learn THIS meeting's genesis key from the greeter (the newcomer dance)
       if(state==1){ if(m.roster.empty()){ retryAt=(int)TICK-10; return; } roster=m.roster; haveRoster=true; lastReach=(int)TICK; seatTries=0; resumeTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }   // reached a greeter (HOME roster came back): note it for R6; a landed HOME re-arms the resume budget. genesis is ONLY via an empty greeter LIST.
       else if(state==3&&m.roster.size()){ roster=m.roster; haveRoster=true; }   // E3 stripped: store the roster (a draining DEEP seat re-seats against it via E1) but do NO Section-1 self-audit
@@ -1577,7 +1622,9 @@ void Seat::recv(Msg& m){
       } return; }
     case DRAIN: {
       if(!hasCoord||state!=3||coord.pc==0||drainAt) return;
-      roster=m.roster; haveRoster=true; Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id){ Msg d;d.t=DRAIN;d.roster=m.roster; emit(x,d);} } drainAt=(int)TICK+6+(int)(rng()*12); wake(id); return; }
+      { Coord oc; if(!ownerCoord(oc)||m.id<0||occGet(ckey(oc))!=m.id) return; }   // E1: only my ANCHOR (owner-cell occupant) may dissolve my subtree
+      if(m.roster.empty()) return;
+      roster=m.roster; haveRoster=true; Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id){ Msg d;d.t=DRAIN;d.roster=m.roster;d.id=id; emit(x,d);} } drainAt=(int)TICK+6+(int)(rng()*12); wake(id); return; }
     case CHALLENGE: if(evil){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c); return;} if(hasCoord&&state==3&&ckey(coord)==m.ck){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c);} return;
     case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id){ if(moving) rollbackMove(); else requeue("CONFIRM-lower-id"); } return;
     case MOVED: {   // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now

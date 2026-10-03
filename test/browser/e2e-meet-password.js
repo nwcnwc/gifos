@@ -118,6 +118,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     if (!three) await sleep(500);
   }
   check('all three converge in the re-keyed room', three);
+
+  // A POISONED GENERATION (2026-10-03). The status pulse carries the room's
+  // epoch as a FLOOR for fresh pages (§LOCK). It is any member's word: Ben
+  // pulses pwEp = 1e20. Before the floor was bounded every listener adopted
+  // it, persisted it, and Ada's next grant minted ep = 1e20 + 1 === 1e20 —
+  // dead on arrival at every seat that had heard Ben, for the room's life.
+  const epochs = () => Promise.all([a, b, c].map((pg) => pg.evaluate(() => window.__gifosVideo.pwState().epoch)));
+  const ep0 = await epochs();
+  await b.evaluate(() => window.__gifosVideo.poisonEpochForTest(1e20));
+  await sleep(7000); // past one heartbeat on every seat
+  const ep1 = await epochs();
+  check('a member pulsing pwEp=1e20 raises nobody\'s generation (' + JSON.stringify(ep0) + ' → ' + JSON.stringify(ep1) + ')', ep1.every((e, i) => e === ep0[i]));
+  await a.locator('#pwbtn').click();
+  await a.locator('#pw-new').fill('pw-three');
+  await a.locator('#pw-save').click();
+  let rotated = false;
+  const tRot = Date.now();
+  while (Date.now() - tRot < 25000 && !rotated) {
+    rotated = (await Promise.all([b, c].map((pg) => pg.evaluate(() => window.__gifosVideo.roomPw())))).every((pw) => pw === 'pw-three');
+    if (!rotated) await sleep(500);
+  }
+  check('…and the next password change still lands on every member', rotated);
   await a.close(); await b.close(); await c.close();
 
   // ================ THE SILENT SPLIT (bug ledger #1) ==================

@@ -26,6 +26,8 @@
 //   Two of the ten pages run with clocks a minute wrong (one slow, one fast).
 //   7. statusOf is bounded by the plane (section + DataChannel pairs), not by
 //      the room (scale-audit V2).
+//   8. history rides the pair, not the room: an 11th seat joining a room with
+//      30 chat lines by one author holds all 30 and originates no room flood.
 //
 // Run: site on 8099 + relay on 8790 (test/servers/dev.sh), then
 //   node test/browser/e2e-status-plane.js
@@ -183,16 +185,29 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   // ---- 5c. a hostile heartbeat flood dies at its first honest neighbours ---------------
   // RULE 1: a status is heard from my section or my own link, never off the
   // room-wide flood — and what a seat refuses it does not forward.
+  // The attacker's flood goes to its MESH LINKS (gossip rides a link over its
+  // DataChannel when one is open, else over the relay), so the seats that may
+  // refuse it are its link peers — read before and after the flood, since a
+  // heal mid-flood can swap one. Counting open DataChannels instead read 1
+  // against two honest refusers once (the 2026-10-03 flake), which was the
+  // bound's error, not a leak: refused is REFUSED.
   const refused = () => Promise.all(pages.map((pg) => pg.evaluate(() => window.__gifosVideo.rxStats().statusRefused || 0).catch(() => -1)));
+  const linkSeats = async () => (await pages[deepIdx].evaluate(() => window.__gifosVideo.meshLinks())).map((id) => 'P' + pids.indexOf(id));
   const r0 = await refused();
+  const links0 = await linkSeats();
   const pushed = await pages[deepIdx].evaluate(() => window.__gifosVideo.floodForTest(300, 'status'));
   await sleep(8000);
   const r1 = await refused();
+  const links1 = await linkSeats();
+  const linksOfBad = Array.from(new Set(links0.concat(links1)));
   const hit = r1.map((x, i) => x - r0[i]);
   const hitSeats = hit.map((x, i) => (i !== deepIdx && x > 0 ? 'P' + i : null)).filter(Boolean);
-  const dcOfBad = await pages[deepIdx].evaluate(() => window.__gifosVideo.liveDataLinks());
-  check('the attacker pushed ' + pushed + ' room-wide statuses; its direct neighbours refused them', hitSeats.length > 0 && hitSeats.length <= dcOfBad, { hit, dcOfBad });
+  check('the attacker pushed ' + pushed + ' room-wide statuses; its direct neighbours refused them', hitSeats.length > 0 && hitSeats.length <= linksOfBad.length && hitSeats.every((s) => linksOfBad.includes(s)), { hit, links: linksOfBad });
   check('…and NO seat beyond them ever saw one (refused means not forwarded)', hit.filter((x, i) => i !== deepIdx && x === 0).length === N - 1 - hitSeats.length && hitSeats.length < N - 1, { hitSeats });
+  // Refused means NOT TAKEN either: a flood frame names its sender 'flood', and
+  // a taken status would have taught that name to the seat (learn → rosterNames).
+  const calledFlood = (await Promise.all(pages.map((pg, i) => (i === deepIdx ? '' : pg.evaluate((id) => window.__gifosVideo.nameOf(id), pids[deepIdx]).catch(() => '?'))))).map((n, i) => (n === 'flood' ? 'P' + i : null)).filter(Boolean);
+  check('no seat took a flood status as the attacker\'s word (none calls it \'flood\')', calledFlood.length === 0, { calledFlood });
   const calm = await Promise.all(pages.map(sp));
   check('the room is unharmed: every seat still counts ' + N, calm.every((x) => x && x.display === N), calm.map((x) => x && x.display));
 
@@ -215,15 +230,27 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   // gossip frames than its section and links can send it. A future shortcut
   // that puts anything periodic back on the room-wide path trips the first
   // line; one that widens the heartbeat's scope trips the second.
-  const q0 = await gs();
+  const rs = () => Promise.all(pages.map((pg) => pg.evaluate(() => window.__gifosVideo.reactStatsForTest()).catch(() => null)));
+  const q0 = await gs(); const rs0 = await rs();
   await sleep(20000);
-  const q1 = await gs();
+  const q1 = await gs(); const rs1 = await rs();
   const originated = q1.map((x, i) => (x && q0[i]) ? x.roomFlood - q0[i].roomFlood : -1);
   const received = q1.map((x, i) => (x && q0[i]) ? x.inAll - q0[i].inAll : -1);
   const C = 2, beats = 20000 / 4000;
   const rxBound = Math.ceil(beats * (C * C - 1) * (2 * C - 1) * 1.5) + 20; // the harness bound per beat (C²-1)(2C-1), re-fans included, plus slack for the two DC-pulse copies and the admin-less room's own churn
   check('QUIET ROOM, 20 s: no seat originated a room-wide flood', originated.every((x) => x === 0), { originated });
   check('QUIET ROOM, 20 s: gossip frames received per seat stay under the section bound (' + rxBound + ')', received.every((x) => x >= 0 && x <= rxBound), { received, rxBound });
+  // THE REPAINT CASCADE (the cost BEHIND each frame). Every frame received
+  // above used to run the whole tile/outbound/adapt re-derivation at once:
+  // layout() once per tile per frame, and every tile's chips rewritten through
+  // innerHTML whether or not they changed. In a quiet room nothing on a tile
+  // changes, so no chip may be written at all; and a pass lays the grid out
+  // once, so layouts track passes (plus my own heartbeat's self-tile repaint,
+  // one per beat), never passes x tiles.
+  const dr = (k) => rs1.map((x, i) => (x && rs0[i]) ? x[k] - rs0[i][k] : -1);
+  const passes = dr('passes'), layouts = dr('layouts'), chipWrites = dr('chipWrites'), tiles = dr('tiles');
+  check('QUIET ROOM, 20 s: no seat rewrote a tile\'s chips (' + chipWrites.reduce((a, b) => a + b, 0) + ' writes; chips are written only on change)', chipWrites.every((x) => x >= 0 && x <= 2), { chipWrites, passes, tiles });
+  check('QUIET ROOM, 20 s: one layout per repaint pass, not one per tile', layouts.every((x, i) => x >= 0 && x <= passes[i] + beats + 6), { layouts, passes });
 
   // ---- 6. consent needs everyone -------------------------------------------------
   for (const pg of pages) { await pg.locator('#cam').click().catch(() => {}); await pg.evaluate(() => window.__gifosVideo.setBlur(0)).catch(() => {}); await sleep(300); }
@@ -266,6 +293,37 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   const fin = await Promise.all(pages.map(sp));
   const over = fin.map((x, i) => (x && x.statusN > 2 * 2 - 1 + x.dcLinks ? 'P' + i + ':' + x.statusN + '>' + (3 + x.dcLinks) : null)).filter(Boolean);
   check('every seat\'s statusOf <= C*C-1 + its open DataChannels (the V2 bound)', over.length === 0, { over, sizes: fin.map((x) => x && x.statusN) });
+
+  // ---- 8. HISTORY RIDES THE PAIR, NOT THE ROOM --------------------------------
+  // A newcomer learns the chat over its channels' 'hi' replay. That replay once
+  // (a) re-flooded every learned line room-wide — a join cost O(history × N)
+  // frames, 30 floods here — and (b) ran through the live per-author limiter,
+  // so of 30 lines by one author the newcomer kept 20 and never saw the rest.
+  // Paced under the LIVE per-author limiter (20 per 10 s, by design — a burst
+  // from one member is slowed, not relayed): 30 lines over ~18 s reach every
+  // seat live; the replay to a newcomer then carries all 30 in one frame.
+  const hist = [];
+  for (let i = 0; i < 30; i++) { hist.push(await pages[0].evaluate((t) => window.__gifosVideo.sayForTest(t), 'history line ' + i)); await sleep(600); }
+  const heldAll = await eventually(() => Promise.all(pages.map((pg) => pg.evaluate((ids) => ids.every((id) => window.__gifosVideo.chatHas(id)), hist).catch(() => false))), (v) => v.every(Boolean), 30000);
+  check('30 lines by one author reach every seated member (the author\'s own floods)', heldAll.ok, heldAll.v);
+  const h0 = await floods();
+  const late = await mk(N);
+  pages.push(late);
+  const lateT0 = Date.now(); let lateSeated = false;
+  while (Date.now() - lateT0 < 120000) {
+    if (await pwModalShown(late)) { try { await late.locator('#pw-new').fill(PW); await late.locator('#pw-save').click(); } catch (e) {} }
+    const s = await sp(late);
+    if (s && s.coord) { lateSeated = true; break; }
+    await sleep(1000);
+  }
+  check('an 11th seat joins the room with history', lateSeated);
+  const lateHeld = await eventually(() => late.evaluate((ids) => ids.filter((id) => window.__gifosVideo.chatHas(id)).length, hist).catch(() => -1), (n) => n === 30, 45000);
+  check('the newcomer holds ALL 30 lines of the history, not 20 (the replay is backfill, past the live limiter)', lateHeld.ok, { held: lateHeld.v });
+  await sleep(6000); // long enough for any re-flood of the replay to have happened
+  const h1 = await floods();
+  const joinFloods = h1.map((x, i) => x - (h0[i] || 0));
+  check('the newcomer originated NO room-wide flood for the history it learned', joinFloods[N] === 0, { joinFloods });
+  check('…and no seated member re-flooded anything for the join', joinFloods.slice(0, N).every((x) => x === 0), { joinFloods });
 
   check('no page errors', errs.length === 0, errs.slice(0, 5));
   await browser.close();

@@ -103,6 +103,16 @@ drops away exactly when they take on the fan-up cost. Track swaps mid-stage
 senders — the fresh track reaches the room through the `stg:` ship, which
 re-ships exactly when a track actually changes.
 
+**The ear is membership, not a pipe** (the strip's law, applied to sound). The
+ear folds a held `stg:` claim only while its owner is in the gossiped stage
+set. On step-down the owner's MAIN senders return to the row at once, while
+the claim lingers through the pipe grace (MOS_GRACE, then claimRedun); an ear
+gated on the claim played that voice twice for ~5 s. And "Mute for everyone"
+is enforced at the ear exactly as on the direct tiles — at the receiver, a
+muted owner's feed stays held at gain 0 — so the stage lane gives a client
+that ignores the moderator no second mouth. Silence anywhere is `muted`, never
+`volume = 0` alone: iOS Safari ignores the volume setter.
+
 **A stage feed is whatever the stager is broadcasting, and that is often a
 VOICE ALONE.** `mySelfStream()` ships video+audio, audio-only or video-only;
 only "nothing at all" ships nothing. This is not a nicety: join-quiet is the

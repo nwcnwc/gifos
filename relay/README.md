@@ -24,7 +24,7 @@ wrangler deploy
 # Without this secret the salt is a public constant from the source, so a
 # state or log dump is brute-forceable back to IPv4 addresses. The Worker
 # logs "ABUSE_SALT unset" once per isolate while it is missing.
-# ./deploy-all.sh does this for you (ensure_secret); by hand it is:
+# ../deploy-all.sh does this for you (ensure_secret); the script lives at the repo root. By hand it is:
 openssl rand -hex 32 | wrangler secret put ABUSE_SALT
 ```
 
@@ -48,11 +48,14 @@ All frames are JSON text. See `src/relay.js` for the full contract. In short:
 
 | From → To | Message | Meaning |
 |-----------|---------|---------|
-| mesh → relay | `{t:'knock', gk, gblob}` | (re)register as a greeter → answered with `{t:'greeters', list, founded, admitted}` (the sealed registry; founding is by arrival order) |
-| mesh → relay | `{t:'peer', to, msg}` | sealed first-contact signaling, routed to one peer as `{t:'peer', from, msg}`; a target with no socket bounces `{t:'nosock', to}` to the sender |
+| mesh → relay | `{t:'knock', gk, gblob}` | (re)register as a greeter. Answered with `{t:'greeters', list, founded, admitted}` (the sealed registry; founding is by arrival order) |
+| mesh → relay | `{t:'peer', to, msg}` | sealed first-contact signaling, delivered as `{t:'peer', from, msg}`; a target with no socket bounces `{t:'nosock', to}` to the sender |
+| mesh → relay | `{t:'who'}` | one full-roster pull per socket per 5 s |
 | mesh → relay | `setpw` / `ban` / `unban` / `votekick` / `banlist` | the door verbs; in admin rooms each order carries `{sp, sig, pub}` — an Ed25519 signature the relay verifies exactly as any peer would (docs/meet-security.md §SIG) |
-| relay → all | `{t:'roster', peers:[…]}` / `{t:'peer-leave', peer}` | membership (opaque ids only) |
-| relay → one | `{t:'joined'}` / `{t:'whoami', ip}` / `{t:'pw', …}` / `{t:'error'}` | lifecycle |
+| relay → greeters | `{t:'peer-join', peer, dev}` / `{t:'peer-leave', peer}` | door deltas, so a greeter's full list stays exact |
+| relay → one | `{t:'roster', scope:'door' or 'full', peers}` | `door` on connect and when the greeter set changes; `full` to a greeter and to a `{t:'who'}` pull |
+| relay → all | `{t:'ban', dev, by}` / `{t:'unban', dev, by}` / `{t:'votes', tally, need}` / `{t:'pw', pw, by}` | room-wide door state |
+| relay → one | `{t:'joined'}` / `{t:'whoami', ip}` / `{t:'greeters', list, founded, admitted}` / `{t:'error'}` | lifecycle |
 
 A brand-new joiner still needs only the share link: they knock, decrypt a
 greeter's sealed address, and everything after that — including the App GIF,
@@ -70,7 +73,7 @@ it just knows strictly less.
 ## Session identity & the door
 
 The session id in the URL (`/s/<sid>`) carries its own ownership rule, read by
-one helper — `verifierOf(sid)`: the `[a-f0-9]{16,64}` tail after the **last dot**,
+one helper — `verifierOf(sid)`: the `[a-f0-9]{24,64}` tail after the **last dot**,
 or empty if there is none. Apps and meetings use it identically, so there is no
 `?av=` (or any other) authority parameter — the verifier only ever travels inside
 the id.

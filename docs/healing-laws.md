@@ -495,7 +495,11 @@ confirmation rides frames the seating already produces.)*
   and stays unhealed does NOT stampede the relay. It fetches the home roster over the
   mesh sideways (cross-links walk around the dead chain), then acts as the
   greeter for its own subtree: DRAIN fans down, every member re-seats as a
-  newcomer, and the initiator re-seats last. Only if NO mesh route to
+  newcomer, and the initiator re-seats last. A DRAIN is S4-signed by its
+  sender (`id` bound to the signer) and a seat honours it only from its
+  ANCHOR — the occupant of its owner cell — with a well-formed roster; from
+  anyone else it is refused (a row-mate or a sponsor-forwarded stranger could
+  otherwise dissolve a subtree with one frame). Only if NO mesh route to
   Section 1 exists at all (>220 ticks) does it fall back to re-entering
   through the relay. **Section-1 seats never DRAIN — you ARE the
   home** (three narrow requeue paths do exist: the E3-SELF split-off rescue,

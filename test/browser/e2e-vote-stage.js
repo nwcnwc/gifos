@@ -13,6 +13,8 @@
 //   1. one up-vote does nothing but show the tally chip
 //   2. a second up-vote puts the target on stage EVERYWHERE (self-owned step-up)
 //   3. down-votes take them off stage everywhere
+//   3b. a down-vote RETRACTS the same voter's up-vote, and the vote-off is
+//       final: the target's flag does not bounce (no up/down oscillation)
 //   4. a voted-down flag is enforced receiver-side (hacked stg flag stays out)
 const { chromium, CHROME } = require('../lib/pw');
 
@@ -82,6 +84,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await stripX(C).click();
   await B.waitForFunction(() => window.__gifosVideo.stageIds().length === 0, null, { timeout: 15000 });
   check('a majority down-vote steps them off the stage', true);
+
+  // ---- 3b: no oscillation -----------------------------------------------------
+  // Ann and Cyd never took their up-votes back. One voter holds ONE verdict
+  // per target: the down-vote must have retracted the up-vote, so the up
+  // tally reads 0 — and the target's own flag, once voted off, stays off.
+  // Before the fix both tallies stood at 2 and every status receipt flipped
+  // Ben on, off, on (setStage + toast each time) for as long as the votes stood.
+  const upTally = (pg) => pg.evaluate(() => Object.values(window.__gifosVideo.stageVotes().up).reduce((a, b) => a + b, 0));
+  // the other voter's retraction rides their next pulse — settle before reading
+  const upZero = (pg) => pg.waitForFunction(() => Object.values(window.__gifosVideo.stageVotes().up).reduce((a, b) => a + b, 0) === 0, null, { timeout: 12000 }).then(() => true).catch(() => false);
+  check('a down-vote retracts the same voter\'s standing up-vote (up tally reads 0)',
+    (await upZero(A)) && (await upZero(C)), { a: await upTally(A), c: await upTally(C) });
+  // the vote-off itself (one setStage) runs on Ben's next reaction — wait for the flag to drop, THEN count
+  await B.waitForFunction(() => window.__gifosVideo.stageFlagForTest() === 0, null, { timeout: 12000 });
+  const flips0 = await B.evaluate(() => window.__gifosVideo.stageFlipsForTest());
+  await sleep(9000); // > two heartbeats of status receipts from both voters
+  const flips1 = await B.evaluate(() => window.__gifosVideo.stageFlipsForTest());
+  const flagNow = await B.evaluate(() => window.__gifosVideo.stageFlagForTest());
+  check('the voted-off target does not bounce (zero setStage calls over 9s, flag stays 0)',
+    flips1 === flips0 && flagNow === 0, { flips0, flips1, flagNow });
 
   // ---- 4: receiver-side enforcement beats a hacked client -------------------
   // Ben forces his own stg flag back on (the DOM-hacker move). With the

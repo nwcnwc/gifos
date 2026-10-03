@@ -130,11 +130,14 @@
       setCell(i, el, stream) {
         const sid = stream ? stream.id : null;
         const prev = cells[i];
+        if (!el) { if (fold && prev) fold.remove('c' + i); cells[i] = null; return; }
         if (fold) {
           if (prev && prev.streamId !== sid) fold.remove('c' + i);
-          if (sid && (!prev || prev.streamId !== sid)) fold.add('c' + i, stream, opts.gain == null ? 1 : opts.gain);
+          // A matching stream id can still be unfolded: the first add records
+          // nothing when the audio track has not arrived yet.
+          if (sid && !fold.has('c' + i)) fold.add('c' + i, stream, opts.gain == null ? 1 : opts.gain);
         }
-        cells[i] = el ? { el, streamId: sid } : (fold && prev ? (fold.remove('c' + i), null) : null);
+        cells[i] = { el, streamId: sid };
       },
       start() {
         if (timer || !canvas) return comp;
@@ -149,6 +152,7 @@
       stop() {
         if (timer) { clearInterval(timer); timer = null; }
         if (fold) fold.clear();
+        cells.fill(null);
         if (comp.track) { try { comp.track.stop(); } catch (e) {} }
         comp.stream = null; comp.track = null;
       },
@@ -220,7 +224,10 @@
   // (row-major). Cells are square by construction; derive size from the block.
   function faceSrcRect(j, n, cols, sw, sh) {
     const rows = Math.max(1, Math.ceil(n / cols));
-    const cw = sw / cols, ch = sh / rows;
+    const cw = sw / cols;
+    // Cells are square. Extra height under rows*cw is the stad row-step tail,
+    // not a taller face. Dividing sh by rows would smear that tail into every face.
+    const ch = Math.min(cw, sh / rows);
     return { sx: (j % cols) * cw, sy: Math.floor(j / cols) * ch, sw: cw, sh: ch };
   }
 
@@ -248,6 +255,24 @@
     const fold = (opts.ac && createAudioFold(opts.ac)) || null;
     let timer = null, last = 0, cost = 0, drawn = 0, dropped = 0, active = true;
     let G = 1, R = 1, lastNonEmpty = 0; // lastNonEmpty: empty-packer linger (see paint)
+    // Stad canvas height is in ROW steps, not raw rows. A join that only
+    // crosses a row boundary must not change the capture height (that opens
+    // a keyframe on every hop). Shrink waits until one smaller step has held.
+    let heldRows = 0, pendingRows = 0, pendingSince = 0;
+    const ROW_STEP = 4, ROW_HOLD_MS = 5000;
+    function stadRows(natural, now) {
+      // Small stadiums keep their own height (1, 2, then 4 rows): padding one
+      // row of faces to a 4-row step painted three dark rows and encoded four
+      // times the area. Past 4 rows the step holds the height across joins.
+      const want = natural <= 2 ? Math.max(1, natural) : natural <= ROW_STEP ? ROW_STEP : Math.ceil(natural / ROW_STEP) * ROW_STEP;
+      if (heldRows === 0 || want >= heldRows) {
+        heldRows = want; pendingRows = 0; pendingSince = 0;
+        return heldRows;
+      }
+      if (want !== pendingRows) { pendingRows = want; pendingSince = now; return heldRows; }
+      if (now - pendingSince >= ROW_HOLD_MS) { heldRows = want; pendingRows = 0; pendingSince = 0; }
+      return heldRows;
+    }
 
     const total = () => { let t = 0; for (const v of tiles.values()) t += v.n; return t; };
 
@@ -311,6 +336,7 @@
         // videos report currentTime; canvases cannot, so force a redraw
         if (el && typeof el.currentTime === 'number') s += id + ':' + el.currentTime.toFixed(3) + ';';
         else return null;
+        s += t.n + 'x' + t.cols + ';';
         if (t.lbl) s += (t.lbl.talking ? 'T' : '') + (t.lbl.hand ? 'H' : '') + (t.lbl.name || '') + '|';
         if (t.fit) s += t.fit + '|'; // a cover→contain flip changes the frame with the source untouched
       }
@@ -328,20 +354,22 @@
         // flash), then re-negotiate the size back up. Freeze the last frame +
         // dims for a few seconds; only a packer EMPTY for that long collapses.
         if (lastNonEmpty && now - lastNonEmpty < 5000) { last = now; return; }
-        if (canvas.width !== 2) { canvas.width = 2; canvas.height = 2; } last = now; return; // long-empty packer — don't paint a grid of nothing
+        if (canvas.width !== 2) { canvas.width = 2; canvas.height = 2; } heldRows = 0; pendingRows = 0; pendingSince = 0; last = now; return; // long-empty packer — don't paint a grid of nothing
       }
       lastNonEmpty = now;
       // Nothing moved and nothing was relabelled ⇒ the frame would be byte-identical.
-      const sig = frameSig();
-      if (sig !== null && sig === lastSig && now - lastRealPaint < STILL_MAX_MS) { still++; last = now; return; }
-      lastSig = sig === null ? '' : sig; lastRealPaint = now;
       const g = packGrid(T, shape); G = g.cols; R = g.rows;
-      // STADIUM: size the square against a FIXED footprint width (STAD_COLS·cellPref)
-      // so ≤STAD_COLS columns render at full cellPref and a denser grid shrinks the
-      // square (footprint fixed, pixels/person fall — the cap/densify rule). Other
-      // shapes keep the plain maxW cap.
       const cell = cellSize(shape, cellPref, maxW, G);
-      const W = Math.max(1, G * cell), H = Math.max(1, R * cell);
+      // Stad squares use the fixed footprint width. Other shapes use the maxW cap.
+      // The stad canvas then rounds UP to a 4-row step. The dark rows under the
+      // real grid are not faces; faceSrcRect sizes a face from the block width.
+      const rowsDrawn = shape === 'stad' ? stadRows(R, now) : R;
+      const W = Math.max(1, G * cell), H = Math.max(1, rowsDrawn * cell);
+      const sig = frameSig();
+      // A due resize is a different frame even when every source currentTime is frozen.
+      const sizeDue = canvas.width !== W || canvas.height !== H;
+      if (!sizeDue && sig !== null && sig === lastSig && now - lastRealPaint < STILL_MAX_MS) { still++; last = now; return; }
+      lastSig = sig === null ? '' : sig; lastRealPaint = now;
       if (canvas.width !== W) canvas.width = W;
       if (canvas.height !== H) canvas.height = H;
       ctx.fillStyle = '#101418'; ctx.fillRect(0, 0, W, H);
@@ -384,11 +412,13 @@
       setTile(id, ord, el, stream, meta) {
         const sid = stream ? stream.id : null;
         const prev = tiles.get(id);
+        if (!el) { if (fold && prev) fold.remove('t' + id); tiles.delete(id); return; }
         if (fold) {
           if (prev && prev.streamId !== sid) fold.remove('t' + id);
-          if (sid && (!prev || prev.streamId !== sid)) fold.add('t' + id, stream, opts.gain == null ? 1 : opts.gain);
+          // A matching stream id can still be unfolded: the first add records
+          // nothing when the audio track has not arrived yet.
+          if (sid && !fold.has('t' + id)) fold.add('t' + id, stream, opts.gain == null ? 1 : opts.gain);
         }
-        if (!el) { if (fold && prev) fold.remove('t' + id); tiles.delete(id); return; }
         const n = Math.max(1, (meta && meta.n) | 0 || 1);
         const cols = Math.max(1, (meta && meta.cols) | 0 || n); // a bar's cols = n
         tiles.set(id, { ord, el, streamId: sid, n, cols, lbl: (meta && meta.lbl) || null, fit: (meta && meta.fit) || null });
@@ -440,6 +470,7 @@
       stop() {
         if (timer) { clearInterval(timer); timer = null; }
         if (fold) fold.clear();
+        tiles.clear();
         if (pk.track) { try { pk.track.stop(); } catch (e) {} }
         pk.stream = null; pk.track = null;
       },
@@ -496,9 +527,13 @@
       canvas, stream: null, track: null,
       setPart(key, ord, el, stream, meta) {
         const prev = parts.get(key);
-        if (fold) { if (prev && prev.sid !== (stream && stream.id)) fold.remove('p' + key); if (stream && (!prev || prev.sid !== stream.id)) fold.add('p' + key, stream, 1); }
+        const sid = stream && stream.id;
         if (!el) { if (fold && prev) fold.remove('p' + key); parts.delete(key); return; }
-        parts.set(key, { el, ord, sid: stream && stream.id, n: (meta && meta.n) || 1, cols: (meta && meta.cols) || 1 });
+        if (fold) {
+          if (prev && prev.sid !== sid) fold.remove('p' + key);
+          if (sid && !fold.has('p' + key)) fold.add('p' + key, stream, 1);
+        }
+        parts.set(key, { el, ord, sid, n: (meta && meta.n) || 1, cols: (meta && meta.cols) || 1 });
       },
       has: (key) => parts.has(key), keys: () => [...parts.keys()], count: () => parts.size,
       // The manifest that rides the announce: normalised rects + per-part meta.
@@ -516,7 +551,9 @@
     const c = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
     if (!c) return { el: null, stop() {} };
     const ctx = c.getContext('2d'); let timer = null;
-    const draw = () => { const vw = bundleVideo.videoWidth || 0, vh = bundleVideo.videoHeight || 0; if (!vw || !vh) return;
+    const draw = () => {
+      if (bundleVideo.paused || bundleVideo.ended) return;
+      const vw = bundleVideo.videoWidth || 0, vh = bundleVideo.videoHeight || 0; if (!vw || !vh) return;
       const sy = Math.round(band.y * vh), sh = Math.max(1, Math.round(band.h * vh));
       if (c.width !== vw) c.width = vw; if (c.height !== sh) c.height = sh;
       try { ctx.drawImage(bundleVideo, 0, sy, vw, sh, 0, 0, vw, sh); } catch (e) {} };
@@ -579,20 +616,56 @@
   function createAudioFold(ac) {
     const dest = ac.createMediaStreamDestination();
     const srcs = new Map(); // key -> { src, gain }
+    const waiting = new Map(); // key -> { stream, fn } until an audio track exists
+    function dropWait(key) {
+      const w = waiting.get(key);
+      if (!w) return;
+      waiting.delete(key);
+      try { w.stream.removeEventListener('addtrack', w.fn); } catch (e) {}
+    }
+    function attach(key, stream, gain) {
+      if (srcs.has(key)) return true;
+      const t = stream.getAudioTracks()[0];
+      if (!t) return false;
+      try {
+        const src = ac.createMediaStreamSource(new MediaStream([t]));
+        const g = ac.createGain(); g.gain.value = gain == null ? 1 : gain;
+        src.connect(g); g.connect(dest);
+        srcs.set(key, { src, gain: g });
+        return true;
+      } catch (e) { return false; }
+    }
     return {
       dest, track: () => dest.stream.getAudioTracks()[0] || null,
+      has: (key) => srcs.has(key),
       add(key, stream, gain) {
         if (srcs.has(key) || !stream) return;
-        const t = stream.getAudioTracks()[0]; if (!t) return;
+        if (attach(key, stream, gain)) { dropWait(key); return; }
+        if (stream.getAudioTracks()[0]) return; // the track is there; the graph refused it
+        dropWait(key);
+        const fn = (ev) => {
+          const tr = ev && ev.track;
+          if (tr && tr.kind && tr.kind !== 'audio') return;
+          if (attach(key, stream, gain)) dropWait(key);
+        };
         try {
-          const src = ac.createMediaStreamSource(new MediaStream([t]));
-          const g = ac.createGain(); g.gain.value = gain == null ? 1 : gain;
-          src.connect(g); g.connect(dest);
-          srcs.set(key, { src, gain: g });
+          stream.addEventListener('addtrack', fn);
+          waiting.set(key, { stream, fn });
+          // The track can land between the empty check and the listener.
+          if (attach(key, stream, gain)) dropWait(key);
         } catch (e) {}
       },
-      remove(key) { const s = srcs.get(key); if (s) { try { s.src.disconnect(); s.gain.disconnect(); } catch (e) {} srcs.delete(key); } },
-      clear() { for (const k of [...srcs.keys()]) this.remove(k); },
+      remove(key) {
+        dropWait(key);
+        const s = srcs.get(key);
+        if (!s) return;
+        try { s.src.disconnect(); s.gain.disconnect(); } catch (e) {}
+        srcs.delete(key);
+      },
+      // Drive a folded source's gain in place. 0 silences it and the node stays.
+      // An unknown key is a no-op.
+      setGain(key, v) { const s = srcs.get(key); if (s && s.gain.gain.value !== v) s.gain.gain.value = v; },
+      clear() { for (const k of new Set([...srcs.keys(), ...waiting.keys()])) this.remove(k); },
       keys: () => [...srcs.keys()],
     };
   }

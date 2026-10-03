@@ -85,6 +85,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('guest is NOT the host of the app (it is a client mount)', await bMeet.evaluate(() => !window.__gifosVideo.appIsHost()));
   check('both stages layout switched to has-app', await bMeet.evaluate(() => document.body.classList.contains('has-app')));
 
+  // ---- a pull-through for an app NOBODY advertises must end ----
+  // A neighbour's sga-appreq registers it as a waiter and starts a chase; the
+  // chase used to run until a frame landed or the waiter was served — so an
+  // ask for a dead or departed app (its owner left before the bytes spread,
+  // or the asker itself left) chased every open channel every 5 s for the rest
+  // of the meeting, and every receiver chased in turn. Interest without a
+  // live ad is no interest.
+  const ghost = 'ghost-' + Math.random().toString(36).slice(2);
+  const bPeer = await bMeet.evaluate(() => window.__gifosVideo.peerIds()[0]);
+  await bMeet.evaluate(([sid, pid]) => window.__gifosVideo.sgaAskForTest(sid, pid), [ghost, bPeer]);
+  await sleep(7000);
+  const ghostState = await bMeet.evaluate((sid) => Object.assign({}, window.__gifosVideo.sgaChaseState(sid), window.__gifosVideo.sgaPullState(sid)), ghost);
+  console.log('  ghost chase after 7 s: ' + JSON.stringify(ghostState));
+  check('an ask for an app nobody advertises starts no chase that never ends (no timer, no waiter, at most one ask)',
+    !ghostState.appTimer && ghostState.appWant === 0 && ghostState.appTries <= 1);
+
   // ---- A late joiner picks the app up from the heartbeat ----
   const cCtx = await newUser('Cyd');
   const cMeet = await cCtx.newPage();
@@ -124,6 +140,59 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log('  isolated joiner: iframe after ' + (Date.now() - eT0) + ' ms; trace: ' + (eTrace || '(none)'));
   check('a joiner with NO structural neighbours still gets the app (the pull widens to any open channel)', eState.active && /mounted@/.test(eTrace));
   await eCtx.close();
+
+  // ---- a FORGED app frame from a room member must not poison a latecomer ----
+  // The lane retains the first 'app' frame for a sid as immutable and serves
+  // it onward. Any room member holds the room key, so any member can hand a
+  // joiner who has no bytes yet a frame with kind:'app' and the live sid —
+  // signed with a key of their own, which the lane never checked. Unverified,
+  // that fake was retained, the owner's copy refused forever, and the app
+  // never mounted for the joiner. The lane must verify the OWNER's signature
+  // before retaining. Two deliveries: Fay's own page feeds the forged frame in
+  // through the wire's receive path the instant her meeting object exists
+  // (deterministic: it lands before she learns the ad), and Ben pushes the
+  // same kind of fake at her over a real channel while she wires.
+  const sid = await aMeet.evaluate(() => window.__gifosVideo.appSid());
+  const forged = { k: 'sga-app', m: { k: 'sga', sid, seq: 'forge:' + Date.now(), kind: 'app',
+    d: { p: { sid, kind: 'app', n: 1, body: { app: 'R0lGODlhAQABAAAAACw=', name: 'Forged' } }, pk: '11'.repeat(32), sig: '22'.repeat(64) }, at: Date.now() } };
+  const bBefore = await bMeet.evaluate(() => window.__gifosVideo.peerIds());
+  const fCtx = await newUser('Fay');
+  const fMeet = await fCtx.newPage();
+  fMeet.on('pageerror', (e) => console.log('  [f meet pageerror]', e.message));
+  await fMeet.addInitScript((sid) => {
+    window.__forged = { state: 'armed' };
+    const arm = () => {
+      const v = window.__gifosVideo;
+      if (!v || !v.sgaInjectForTest || !v.sgaIsolateForTest) { setTimeout(arm, 20); return; }
+      v.sgaIsolateForTest(true); // no structural neighbours: the pull widens only after a few tries
+      const lib = () => (window.GifOS && GifOS.appOwner) ? Promise.resolve(GifOS.appOwner) : new Promise((res, rej) => {
+        const el = document.createElement('script'); el.src = 'js/app-owner.js';
+        el.onload = () => res(window.GifOS && GifOS.appOwner); el.onerror = () => rej(new Error('app-owner.js'));
+        document.head.appendChild(el);
+      });
+      lib().then((AO) => AO.createSigner()).then((signer) => signer.sign(sid, 'app', { app: 'R0lGODlhAQABAAAAACw=', name: 'Forged' })).then((f) => {
+        const ok = v.sgaInjectForTest({ k: 'sga-app', m: { k: 'sga', sid, seq: 'forge:self', kind: 'app', d: f, at: Date.now() } });
+        window.__forged = { state: ok ? 'injected' : 'refused', pk: f.pk, atMs: Date.now() };
+      }).catch((e) => { window.__forged = { state: 'error', err: String(e) }; });
+    };
+    arm();
+  }, sid);
+  await fMeet.goto(link);
+  let fId = null;
+  try { fId = await (await bMeet.waitForFunction((before) => window.__gifosVideo.peerIds().find((id) => !before.includes(id)) || null, bBefore, { timeout: 45000 })).jsonValue(); } catch (e) {}
+  let pushes = 0;
+  for (let i = 0; fId && i < 30; i++) {
+    if (await bMeet.evaluate(([pid, msg]) => window.__gifosVideo.sgaSendForTest(pid, msg), [fId, forged])) pushes++;
+    await sleep(500);
+  }
+  await fMeet.waitForSelector('#appmount iframe', { timeout: 45000 }).catch(() => {});
+  const fState = await fMeet.evaluate((sid) => ({ active: window.__gifosVideo.appActive(), forged: window.__forged, pull: window.__gifosVideo.sgaPullState(sid) }), sid);
+  const fTrace = await fMeet.evaluate(() => (window.__appJoinTrace || []).map((e) => e.ev + '@' + e.ms + 'ms').join(' '));
+  console.log('  poisoned joiner: seat=' + (fId ? 'seen' : 'MISSING') + ' pushes=' + pushes + ' ' + JSON.stringify(fState) + ' trace: ' + (fTrace || '(none)'));
+  check('precondition: the forged, self-signed app frame reached the joiner\'s lane before the real bytes', fState.forged && fState.forged.state === 'injected');
+  check('a forged app frame does not poison a latecomer: she still mounts the real app  ' + JSON.stringify({ active: fState.active, forged: fState.forged && fState.forged.state, pushes, held: fState.pull.app }),
+    fState.forged && fState.forged.state === 'injected' && fState.active);
+  await fCtx.close();
 
   // ---- Stopping the app tears the pane down for everyone ----
   await aMeet.evaluate(() => window.__gifosVideo.stopAppForTest());

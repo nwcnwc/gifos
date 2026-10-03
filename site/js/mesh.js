@@ -54,6 +54,7 @@
   // ---- constants (mirror test/sim/mesh.cpp — SWEPT values, tuned for C=5 and the
   // lastPhone>=8 heartbeat cadence; re-sweep in the sim before changing) ----
   const RELAY_TTL = 500;     // greeter entry lifetime (ticks)
+  const FORK_GRACE = 8;      // R5 probe: ticks after the latest HOME before a still-silent greeter counts as dark (4 s at the production tick; the harness's first-contact delay spreads HOMEs by up to 5)
   const RELAY_CAP = 72;      // max greeter entries the relay holds
   const E3_PERIOD = 200;     // Section-1 re-knock cadence (< RELAY_TTL so live seats stay listed)
   const STRAND_TTL = 500;    // R6: unreachable-for-this-long ⇒ take over (empty) or stranded (recoverable — retry after backoff)
@@ -260,6 +261,33 @@
 
   // A Section-1 key has pc==0 — its string ckey starts "0_".
   const isS1key = (k) => k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95;
+  // A wire cell key is ckey()'s three decimal fields and nothing else. A
+  // peer-named string used to land in occ, live, born and fhEver and get
+  // walked on every beat. r and i are columns of this C. A path deeper than
+  // the depth wall is not a cell either twin will seat.
+  const cellKeyOk = (k) => {
+    if (typeof k !== 'string') return null;
+    const parts = k.split('_');
+    if (parts.length !== 3 || parts[0] === '' || parts[1] === '' || parts[2] === '') return null;
+    if (String(+parts[0]) !== parts[0] || String(+parts[1]) !== parts[1] || String(+parts[2]) !== parts[2]) return null;
+    const pc = +parts[0], r = +parts[1], i = +parts[2];
+    if (!Number.isInteger(pc) || !Number.isInteger(r) || !Number.isInteger(i)) return null;
+    if (pc < 0 || r < 0 || i < 0 || r >= C() || i >= C()) return null;
+    if (topo.pcDepth(pc) > 12) return null;
+    return { pc, r, i };
+  };
+  const coordOk = (c) => {
+    if (!c || typeof c !== 'object') return false;
+    if (!Number.isInteger(c.pc) || c.pc < 0 || !Number.isInteger(c.r) || c.r < 0 || c.r >= C()) return false;
+    if (!Number.isInteger(c.i) || c.i < 0 || c.i >= C()) return false;
+    if (topo.pcDepth(c.pc) > 12) return false;
+    return true;
+  };
+  // A roster is what a seat re-seats AGAINST (HOME in the dance, DRAIN's
+  // fan-down): a non-empty list of {k: cell key, v: peer id}. It arrives off
+  // the wire, so its shape is checked before it is stored — a roster-less or
+  // junk DRAIN used to leave tick() throwing on `roster.length` every tick.
+  const rosterOk = (r) => Array.isArray(r) && r.length > 0 && r.every((e) => e && typeof e.k === 'string' && (typeof e.v === 'string' || typeof e.v === 'number'));
   // ownerCoordOf(c): the coord that owns cell c (its head's up), or null for Section 1.
   const ownerCoordOf = (c) => (c.pc === 0 ? null : topo.up({ pc: c.pc, r: c.r, i: 0 }));
   // A tiny non-crypto key hash for the modelled relay / genesis identity. In
@@ -339,7 +367,7 @@
       // genesis key AND by roster overlap (same-key torn home = two greeter
       // halves the newcomer alone can see). Two+ clusters ⇒ human pick-one.
       // Faces for the UI: Stage first, else Stadium (app fills via HOME fields).
-      this.forkProbe = false; this.forkAt = -1;
+      this.forkProbe = false; this.forkAt = -1; this.forkLastAt = -1; // forkLastAt: the tick the latest HOME sample landed
       this.forkSamples = []; // raw HOME samples before clustering
       this.forkOpts = new Map(); // optionId -> { id, gkey, gateway, roster, stage, stadium, faces }
       this.forkPending = 0; this.forkPaused = false;
@@ -452,8 +480,8 @@
     occGet(k) { const v = this.occ.get(k); return v === undefined ? null : v; }
     // a seat can be in exactly ONE place: never store MYSELF at a coord I do not
     // hold (stale self-claims circulating back made invisible zombies)
-    setOcc(k, v) { if (v === this.id && (!this.hasCoord || k !== ck(this.coord))) return; if (this.occ.get(k) !== v) { this.tlForget(k, 'occ-change→' + (v == null ? 'null' : String(v).slice(0, 6))); this.born.set(k, this.LT()); } this.occ.set(k, v); }
-    noteS1(k) { if (isS1key(k)) this.s1seen.set(k, this.TICK); }
+    setOcc(k, v) { if (!cellKeyOk(k)) return; if (v === this.id && (!this.hasCoord || k !== ck(this.coord))) return; if (this.occ.get(k) !== v) { this.tlForget(k, 'occ-change→' + (v == null ? 'null' : String(v).slice(0, 6))); this.born.set(k, this.LT()); } this.occ.set(k, v); }
+    noteS1(k) { const c = cellKeyOk(k); if (c && c.pc === 0) this.s1seen.set(k, this.TICK); }
     s1Fresh(k) { const it = this.s1seen.get(k); return it !== undefined && this.TICK - it < 120 && this.occ.has(k); }
     // A three-state helpers (empty / sitting-down / seated)
     softSitting(k) {
@@ -480,7 +508,9 @@
       //  (2) moved-elsewhere: x is first-hand-live at a DIFFERENT cell, so
       //      the entry at k is its pre-move/pre-requeue echo. First-hand
       //      only — gossip never evicts (E2).
-      for (const [k2, v2] of this.occ) if (v2 === x && k2 !== k && this.firstHandLive(k2)) return true;
+      const ix = this._liveAt;
+      if (ix) { const a = ix.get(x); if (a) for (const k2 of a) if (k2 !== k && this.firstHandLive(k2) && this.occGet(k2) === x) return true; }
+      else { for (const [k2, v2] of this.occ) if (v2 === x && k2 !== k && this.firstHandLive(k2)) return true; }
       const st = this.env.peek ? this.env.peek(x) : null;
       if (!st) return false; // unknown: keep reserved
       if (!st.alive) return false; // dead without LEAVE: ring-hold reserved
@@ -583,7 +613,7 @@
     // signal that may evict/tie-break: a phantom (a stale gossip echo of a seat
     // that has moved) is NOT first-hand live, so it can never yield a live
     // healer out of a hole. Echo-immune — gossip informs routing, never liveness.
-    liveMark(k) { this.live.set(k, this.TICK); this.fhEver.add(k); }
+    liveMark(k) { if (!cellKeyOk(k)) return; this.live.set(k, this.TICK); this.fhEver.add(k); }
     firstHandLive(k) { const it = this.live.get(k); return it !== undefined && this.TICK - it <= 60; }
     // ---- D5 EARLY-PROBE intake (transport loss is FIRST-HAND evidence) ------
     // transportLost(pid): MY DataChannel / peer connection to `pid` just died —
@@ -810,6 +840,33 @@
     // onto the corpse, and the void FIND cost the full state-2 window.
     s1Roster() { const out = []; if (this.hasCoord && this.coord.pc === 0) out.push({ k: ck(this.coord), v: this.id }); for (const [k, v] of this.occ) if (isS1key(k) && v !== this.id && this.s1Fresh(k) && !this.translost.has(k)) out.push({ k, v }); return out; }
 
+    // Occupancy from a HELLO or CLAIM is first-hand only for a cell this seat
+    // can already name: its own cell, an owned link, its owner, its row, or a
+    // vouch whose joiner is the signer.
+    mayHearOcc(k, id) {
+      if (!this.hasCoord || !cellKeyOk(k)) return false;
+      if (k === ck(this.coord)) return true;
+      for (const olc of topo.ownedLinks(this.coord)) if (ck(olc) === k) return true;
+      const oc = this.ownerCoord(); if (oc && ck(oc) === k) return true;
+      for (const rc of this.rosterCells()) if (ck(rc) === k) return true;
+      const sit = this.sitting.get(k); if (sit && sit.joiner === id) return true;
+      return false;
+    }
+    noteBad() { this.badFrames = (this.badFrames || 0) + 1; }
+    noteAppErr(kind, e) {
+      this.appErr = (this.appErr || 0) + 1;
+      const n = this.appErrLog || 0;
+      if (n < 8) { this.appErrLog = n + 1; try { console.error('[mesh] ' + kind + ' threw', e); } catch (e2) {} }
+    }
+    kvRows(a, n) {
+      if (!Array.isArray(a) || a.length > n) return false;
+      for (const e of a) {
+        if (!e || typeof e !== 'object' || !cellKeyOk(e.k)) return false;
+        if (typeof e.v !== 'string' && typeof e.v !== 'number') return false;
+      }
+      return true;
+    }
+
     // ---- S4 identity hook (seam) --------------------------------------------
     // verifyFill(msg): is this occupancy-changing frame (PLACE / CLAIM /
     // FINDLEAF) from a source authorized to author it? The C3 STRUCTURE (one
@@ -987,10 +1044,15 @@
     maybeResolveFork() {
       if (!this.forkProbe || this.forkPaused || this.state !== 1) return;
       const TICK = this.TICK;
-      const ready = this.forkPending <= 0 || (this.forkAt >= 0 && TICK - this.forkAt >= 30);
+      // Ready when every probed greeter answered, or FORK_GRACE ticks after the
+      // latest HOME with some still silent (the honest doors answer within a
+      // round trip of each other; a door still silent after the grace is dark,
+      // not slow — it used to hold the newcomer at the 30-tick ceiling), or at
+      // the ceiling with nothing at all.
+      const ready = this.forkPending <= 0 || (this.forkAt >= 0 && TICK - this.forkAt >= 30) || (this.forkSamples.length > 0 && this.forkLastAt >= 0 && TICK - this.forkLastAt >= FORK_GRACE);
       if (!ready && this.forkSamples.length < 2) return;
       if (this.forkSamples.length === 0) {
-        if (ready) { this.forkProbe = false; this.retryAt = TICK - 10; }
+        if (ready) { this.forkProbe = false; this.retryAt = TICK - 21; } // every door dark for the whole ceiling: the state-1 retry (TICK - retryAt > 20) fires this tick, not 11 ticks later
         return;
       }
       const opts = this.clusterForkSamples(this.forkSamples);
@@ -1099,10 +1161,22 @@
         this.route(f.coord, null, m);
       } else {
         this.markSitting(k, nc);
-        this.emit(nc, m); this._gspReplay(nc);
+        this.emit(nc, m); this._gspReplay(nc, c.pc);
       }
     }
     serveFind(mm) {
+      // One index for this scan. occIsPhantom's "live at another cell" walk
+      // scanned all of occ, and serveFind calls that once per Section-1 cell.
+      const liveAt = new Map();
+      for (const [k2, v2] of this.occ) {
+        if (!this.firstHandLive(k2)) continue;
+        let a = liveAt.get(v2); if (!a) liveAt.set(v2, a = []); a.push(k2);
+      }
+      this._liveAt = liveAt;
+      try { return this._serveFind(mm); }
+      finally { this._liveAt = null; }
+    }
+    _serveFind(mm) {
       const TICK = this.TICK;
       if (!this.hasCoord || mm.ttl <= 0) { this.emit(mm.nc, { t: 'NOROOM', nd: this.hasCoord ? topo.pcDepth(this.coord.pc) : 0 }); return; }
       if (this.coord.pc === 0) {
@@ -1345,13 +1419,34 @@
         }
       this.emit(mm.nc, { t: 'NOROOM', nd: this.hasCoord ? topo.pcDepth(this.coord.pc) : 0 });
     }
+    // Column j of this head's row is a densify slot the mover can still leave.
+    // Free, and not an internal hole (its down-child heals that, C1). A column
+    // with an occupant to its right is not the trailing edge: compactEligible
+    // lets only the rightmost occupant leave. Sitting left of a row-mate who has
+    // a down-child pins the mover, because that row-mate is not a leaf and never
+    // compacts. Sitting left of any occupant in a row at depth >= 3 pins the
+    // same way: the probe stops in that deep row instead of climbing to a
+    // depth-1 or depth-2 row that can still densify. A trailing cell is still
+    // taken at any depth. Twin of compactDensifyCol in test/sim/mesh_seat.inc.
+    compactDensifyCol(j) {
+      const cell = { pc: this.coord.pc, r: this.coord.r, i: j };
+      if (this.occ.has(ck(cell))) return false;
+      if (this.occGet(ck(topo.down(cell))) != null) return false;
+      for (let k = j + 1; k < C(); k++) {
+        const rk = { pc: this.coord.pc, r: this.coord.r, i: k };
+        if (!this.occ.has(ck(rk))) continue;
+        if (topo.pcDepth(this.coord.pc) >= 3 || this.occGet(ck(topo.down(rk))) != null) return false;
+      }
+      return true;
+    }
     // Q2 — COMPACTION service (the UP-CHAIN walk). A compaction FIND (tag==1)
     // climbs the seeker's OWN up-chain — every hop an ALIVE link (row → head →
-    // owner) — and joins the NEAREST strictly-shallower OCCUPIED row (densify).
-    // Reliable (no long route over a fragmented mesh, no reliance on a shallow
-    // seat's stale view of a deep row), monotone (the seeker's depth strictly
-    // decreases), and it empties lone-row deep sections into their ancestors'
-    // rows — the media-plane payoff. The seeker's coord rides in mm.coord.
+    // owner) — and joins the NEAREST strictly-shallower OCCUPIED row that has a
+    // densify slot the mover can still leave. Reliable (no long route over a
+    // fragmented mesh, no reliance on a shallow seat's stale view of a deep
+    // row), monotone (the seeker's depth strictly decreases), and it empties
+    // lone-row deep sections into their ancestors' rows — the media-plane
+    // payoff. The seeker's coord rides in mm.coord.
     serveCompact(mm) {
       if (!this.hasCoord || this.state !== 3 || mm.ttl <= 0) return;
       const sd = topo.pcDepth(mm.coord.pc);
@@ -1360,17 +1455,16 @@
       // a deep row). A non-head hands the probe to its own row head (direct link).
       if (this.coord.i !== 0) { const h = this.occGet(ck({ pc: this.coord.pc, r: this.coord.r, i: 0 })); if (h != null && h !== this.id) this.emit(h, { t: 'FIND', nc: mm.nc, tag: 1, coord: mm.coord, ttl: mm.ttl - 1 }); return; }
       // I am a row head. If my row is a DEEP row STRICTLY shallower than the
-      // seeker, offer the first free DENSIFYING slot in it (a trailing frontier:
-      // free + down-child empty, so the seeker lands a childless leaf and never
-      // displaces a healer). NEVER Section 1 (pc==0): the home is filled only
-      // under H1-S1 ring-conservatism — compaction seating a leaf in an S1 cell
-      // whose occupant is merely unreachable (not confirmed dead) could mint a
+      // seeker, offer the first densify slot the mover can still leave
+      // (compactDensifyCol). A row whose only free cells would pin the mover is
+      // climbed past. NEVER Section 1 (pc==0): the home is filled only under
+      // H1-S1 ring-conservatism — compaction seating a leaf in an S1 cell whose
+      // occupant is merely unreachable (not confirmed dead) could mint a
       // divergent home. The chain climbs THROUGH S1 but never seats there.
       if (this.coord.pc !== 0 && topo.pcDepth(this.coord.pc) < sd) {
-        for (let j = 1; j < C(); j++) { const cell = { pc: this.coord.pc, r: this.coord.r, i: j };
-          if (this.occ.has(ck(cell))) continue;                    // occupied (I know my row first-hand)
-          if (this.occGet(ck(topo.down(cell))) != null) continue;  // internal hole — its down-child heals it (C1)
-          this.admit(cell, mm); return;                            // densify: seat the seeker beside me, PLACE routed back (tag==1)
+        for (let j = 1; j < C(); j++) {
+          if (!this.compactDensifyCol(j)) continue;
+          this.admit({ pc: this.coord.pc, r: this.coord.r, i: j }, mm); return; // densify: seat the seeker beside me, PLACE routed back (tag==1)
         }
       }
       // My row is full or not shallower — climb one level toward the home.
@@ -1503,8 +1597,23 @@
     }
     // A frame that evidences my NEW neighbourhood (someone accepted me there).
     moveEvidence(m) {
-      if (m.t === 'PONG') return true;                          // my new phone answered
-      if (m.t === 'PHONE') return m.tock === ck(this.coord);    // a call TO my new cell
+      if (m.t === 'PONG') {
+        // A PONG already in flight for the PHONE sent from the OLD seat used
+        // to confirm the new claim. confirmMove then vacated, and a later
+        // YIELD at the new cell requeued instead of rolling back. Accept a
+        // PONG only from the new seat's phone target or from one of its
+        // owned links. The case below also drops an unsigned PONG; this
+        // check is first, so the signature has to hold here too.
+        if (!this.verifyFill(m) || !m.coord || !this.hasCoord) return false;
+        const pc = ck(m.coord);
+        let phone = null;
+        if (this.coord.i !== 0) phone = ck({ pc: this.coord.pc, r: this.coord.r, i: 0 });
+        else { const o = this.ownerCoord(); if (o) phone = ck(o); }
+        if (phone && pc === phone) return true;
+        for (const olc of topo.ownedLinks(this.coord)) if (ck(olc) === pc) return true;
+        return false;
+      }
+      if (m.t === 'PHONE') return this.verifyFill(m) && m.tock === ck(this.coord);    // a call TO my new cell
       if (m.t === 'HELLO' || (m.t === 'CLAIM' && this.verifyFill(m))) {
         for (const olc of topo.ownedLinks(this.coord)) if (ck(olc) === m.ck) return true;
       }
@@ -1536,7 +1645,7 @@
       this.announce(); this.wake();
     }
     attack() { if (!this.hasCoord) return; for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id) this.emit(x, { t: 'HELLO', ck: ck(olc), id: this.id }); } }
-    requeue() { if (!this.evil && this.env.bumpEvict) this.env.bumpEvict(); if (this.env.bumpMoves) this.env.bumpMoves(); this.moving = false; this.oldNbrIds = []; this.holdOcc = null; this.holdSeen = null; this.holdCous = null; this.leaseCk = null; this.leaseUntil = -1; if (this.hasCoord) { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } } this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.tlClear(); this.drainAt = 0; this.join(); }
+    requeue() { if (!this.evil && this.env.bumpEvict) this.env.bumpEvict(); if (this.env.bumpMoves) this.env.bumpMoves(); this.moving = false; this.oldNbrIds = []; this.holdOcc = null; this.holdSeen = null; this.holdCous = null; this.leaseCk = null; this.leaseUntil = -1; if (this.hasCoord) { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } const o = this.ownerCoord(); if (o) { const oid = this.occGet(ck(o)); if (oid != null && oid !== this.id && !seen.has(oid)) this.emit(oid, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.tlClear(); this.drainAt = 0; this.join(); }
 
     drainOrReenter() {
       const TICK = this.TICK;
@@ -1544,7 +1653,7 @@
       // mesh route → drop the dead roster and re-enter the front door. Below
       // the drain branch it was unreachable for a seat holding a STALE roster.
       if (TICK - this.lastAck > 220) { this.haveRoster = false; this.roster = []; this.drainAt = 0; this.requeue(); return; }
-      if (this.haveRoster && this.roster.length) { if (!this.drainAt) { const rc = this.rosterCells(); for (let c = 0; c < C(); c++) { const x = this.occGet(ck(rc[c])); if (x != null && x !== this.id) this.emit(x, { t: 'DRAIN', roster: this.roster }); } this.drainAt = TICK + 25 + (this.rng() * 10 | 0); } return; }
+      if (this.haveRoster && this.roster.length) { if (!this.drainAt) { const rc = this.rosterCells(); for (let c = 0; c < C(); c++) { const x = this.occGet(ck(rc[c])); if (x != null && x !== this.id) this.emit(x, { t: 'DRAIN', roster: this.roster, id: this.id }); } this.drainAt = TICK + 25 + (this.rng() * 10 | 0); } return; } // `id`: a DRAIN is signed and honoured only from the receiver's anchor
       if (TICK - this.rosterAskAt > 40) {
         this.rosterAskAt = TICK; const x = topo.crossLink(this.coord); let xid = x ? this.occGet(ck(x)) : null;
         if (xid != null && xid !== this.id) { this.emit(xid, { t: 'WHOHOME', from: this.id, via: this.id, ttl: 60 }); }
@@ -1561,7 +1670,7 @@
     // reach). The atomic transit (T1-T4) covers moves WITHIN a live
     // neighbourhood; a drain is the opposite case — its whole neighbourhood
     // is confirmed dead, and E1 deliberately dissolves it.
-    reseatViaRoster() { if (this.env.bumpMoves) this.env.bumpMoves(); if (this.hasCoord) { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } } this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.tlClear(); this.drainAt = 0; this.seatTries = 0; const t = (this.haveRoster && this.roster.length) ? this.pickRoster() : null; if (t != null) this.askSeat(t); else this.join(); }
+    reseatViaRoster() { if (this.env.bumpMoves) this.env.bumpMoves(); if (this.hasCoord) { const seen = new Set(); for (const olc of topo.ownedLinks(this.coord)) { const x = this.occGet(ck(olc)); if (x != null && x !== this.id && !seen.has(x)) { seen.add(x); this.emit(x, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } const o = this.ownerCoord(); if (o) { const oid = this.occGet(ck(o)); if (oid != null && oid !== this.id && !seen.has(oid)) this.emit(oid, { t: 'LEAVE', ck: ck(this.coord), id: this.id }); } } this.hasCoord = false; this.occ.clear(); this.s1seen.clear(); this.tlClear(); this.drainAt = 0; this.seatTries = 0; const t = (this.haveRoster && this.roster.length) ? this.pickRoster() : null; if (t != null) this.askSeat(t); else this.join(); }
 
     // ---- routing (rook-aware next hops + Option A strict mesh routing) ----
     nextHopCoord(t) {
@@ -1859,7 +1968,22 @@
       // cell I already hold keeps my entry — two claimants are the head's E2
       // yield to settle, not mine to overwrite) and stamp the beat.
       if (kk === ck(topo.down(this.coord))) {
-        if (Array.isArray(m.row)) for (const e of m.row) { if (e && e.k != null && e.v != null && !this.occ.has(e.k)) { this.setOcc(e.k, e.v); this.noteS1(e.k); } }
+        // Install cells the head names that I do not already hold. Do not
+        // drop a cell the list omits. phoneHome sends only mates the head
+        // has already heard, so the first beat from a new head is an empty
+        // list. Treating that omission as death cleared live row-mates from
+        // this occ, and the shrink gate then failed (seed 2 maxDepth 7
+        // against an allowance of 6). The beat still stamps rowLedgerAt.
+        // A key outside this head's row is ignored. A missing row array
+        // installs nothing.
+        const head = unck(kk);
+        if (Array.isArray(m.row)) {
+          for (const e of m.row) {
+            const c = e && cellKeyOk(e.k);
+            if (!c || e.v == null || c.pc !== head.pc || c.r !== head.r || c.i < 1) continue;
+            if (!this.occ.has(e.k)) { this.setOcc(e.k, e.v); this.noteS1(e.k); }
+          }
+        }
         this.rowLedgerAt = this.TICK;
       }
       const myoc = this.ownerCoord(); let owner = null, oCk = null; if (myoc) { oCk = ck(myoc); owner = this.occGet(oCk); }
@@ -1897,7 +2021,7 @@
         else if (this.coord.pc !== 0 && this.coord.i === 0) { const it = this.rowUsed.get(kk); if (it !== undefined) pong.dgEcho = this.pubDig(it); }
       }
       this.emit(m.id, pong);
-      if (prev !== m.id) this._gspReplay(m.id); // NEW occupant learned ⇒ hand over the recent gossip backlog
+      if (prev !== m.id) this._gspReplay(m.id, m.coord.pc); // NEW occupant: replay the backlog scoped to that peer's section
       if (prev != null && prev !== m.id) this.emit(prev, { t: 'YIELD', ck: kk });
     }
     phoneHome() {
@@ -2053,7 +2177,13 @@
       // the observation inside translostConfirmed — no eviction, E2 stands.)
       if (this.translostConfirmed(hk)) return true;
       if (this.firstHandLive(hk)) { this.holeSince.delete(hk); return false; }
-      this.routeTo(h, 1); // probe across the rook
+      // The first probe goes now. A lost one is retried every 6 ticks, the
+      // same pace as the D5 probe. Probing on every call sent a ROUTE every
+      // tick for the whole RING_HOLD window. A separate stamp: tlProbeAt
+      // paces the D5 probe and must not suppress this one, or the reverse.
+      const rp = this.ringProbeAt = this.ringProbeAt || new Map();
+      const pAt = rp.get(hk);
+      if (pAt === undefined || this.TICK - pAt >= 6) { rp.set(hk, this.TICK); this.routeTo(h, 1); }
       let since;
       if (this.live.has(hk)) since = this.live.get(hk);
       else if (this.holeSince.has(hk)) since = this.holeSince.get(hk);
@@ -2103,15 +2233,23 @@
       const eph = !!(opts && opts.ephemeral);
       this.gseq = (this.gseq || 0) + 1; const gid = this.id + ':' + this.gseq;
       (this.gseen = this.gseen || new Map()).set(gid, this.TICK);
-      if (!eph) this._gspRemember(gid, this.id, payload, sc);
+      const tx = new Map(); // link -> copies handed (the re-fan's ledger, see _gspRefan)
+      if (!eph) this._gspRemember(gid, this.id, payload, sc, 0, undefined, tx);
       // A FRESH frame per emit: transports stamp to/from onto the object they
       // are handed, so one shared frame would reach only its last recipient.
-      for (const p of (sc !== undefined ? this.sectionPeers() : this.linkPeers())) this.emit(p, this._gspFrame({ gid, src: this.id, m: payload, sc, eph }));
+      for (const p of (sc !== undefined ? this.sectionPeers() : this.linkPeers())) { this.emit(p, this._gspFrame({ gid, src: this.id, m: payload, sc, eph })); tx.set(p, 1); }
     }
     _gspRecv(m) {
       if (this.s4 && !m.s4ok) return; // under S4 every gossip frame is verified before it gets here; an unverified one is nobody's
       const scoped = m.t === 'GSPS'; // the TYPE decides: a field on a 'GSP' frame scopes nothing
       if (scoped && (!Number.isInteger(m.sc) || !this.hasCoord || this.coord.pc !== m.sc)) return; // outside the section it was scoped to (a replay or a stale link), or no scope at all
+      // A gid NAMES ITS AUTHOR (`<src>:<seq>`, minted in gossip()). The seen
+      // set is keyed by gid alone, so a frame whose gid names another seat is
+      // refused before it can be marked seen: otherwise a member could sign
+      // frames (as itself) carrying a neighbour's next gids and every seat
+      // would drop that neighbour's next messages as duplicates. The identity
+      // layer refuses the same frame at verification; this holds without S4.
+      if (typeof m.gid !== 'string' || typeof m.src !== 'string' || !m.gid.startsWith(m.src + ':')) { this.gspForged = (this.gspForged || 0) + 1; return; }
       const g = this.gseen = this.gseen || new Map();
       if (g.has(m.gid)) return;
       // THE FLOOD GUARD. Each LINK may hand me GSP_RATE new messages a tick
@@ -2125,17 +2263,36 @@
       // over a calmer link still lands.
       if (!this._gspBudget(m.from, m.src)) { this.gspDropped = (this.gspDropped || 0) + 1; return; }
       g.set(m.gid, this.TICK);
-      if (g.size > 4096) { for (const [k, at] of g) if (this.TICK - at > 600) g.delete(k); } // horizon GC
+      // Horizon GC from the OLDEST entry, stopping at the first fresh one: the
+      // Map keeps insertion order and every entry is stamped with the tick it
+      // arrived, so the expired entries are a prefix. A receipt costs
+      // O(expired + 1) steps; a walk of the whole set per receipt was a
+      // 4,000-entry scan per frame in any room gossiping more than ~7 a tick.
+      if (g.size > 4096) { for (const [k, at] of g) { if (this.TICK - at > 600) g.delete(k); else break; } }
       if (g.size > 65536) { let n = g.size - 32768; for (const k of g.keys()) { if (n-- <= 0) break; g.delete(k); } } // hard cap: oldest first (a Map keeps insertion order)
       const ag = Number.isInteger(m.ag) && m.ag > 0 ? Math.min(m.ag, 1 << 20) : 0;
       // The app gets a COPY: what I forward (and remember for re-fan) must be
       // the author's bytes exactly — the signature commits to them — and the
       // app stamps its own fields onto what it takes (takeStatus: rx).
       let own = m.m; try { if (this.s4 && m.m && typeof m.m === 'object') own = JSON.parse(JSON.stringify(m.m)); } catch (e) {}
-      if (this.onGossip) { let ok; try { ok = this.onGossip(m.src, own, ag, scoped); } catch (e) {} if (ok === false) { this.gspRefused = (this.gspRefused || 0) + 1; return; } } // the app REFUSED it: not remembered, not forwarded
-      if (!m.eph) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined, ag, m.s4);
+      if (this.onGossip) { let ok; try { ok = this.onGossip(m.src, own, ag, scoped); } catch (e) { this.noteAppErr('onGossip', e); } if (ok === false) { this.gspRefused = (this.gspRefused || 0) + 1; return; } } // the app REFUSED it: not remembered, not forwarded
+      // The link that handed me this frame already holds it (two copies would
+      // only echo). The named author gets one re-fan, not a full mark: the
+      // initial forward skips m.src, and when the frame was injected the
+      // author is often the only link out of this row. Marking the author
+      // full stranded that copy inside the sender's neighbourhood. An honest
+      // hop already has from === src, so the second write keeps the author
+      // quiet and the bound stays two copies per link.
+      const tx = new Map(); tx.set(m.src, 1); if (m.from != null) tx.set(m.from, 2);
+      if (!m.eph) this._gspRemember(m.gid, m.src, m.m, scoped ? m.sc : undefined, ag, m.s4, tx);
       const e = { gid: m.gid, src: m.src, m: m.m, sc: scoped ? m.sc : undefined, eph: m.eph ? 1 : 0, ag0: ag, s4: m.s4 };
-      for (const p of (scoped ? this.sectionPeers() : this.linkPeers())) if (p !== m.src) this.emit(p, this._gspFrame(e));
+      for (const p of (scoped ? this.sectionPeers() : this.linkPeers())) {
+        // The author stays at 1 so one re-fan can still leave. The arrival
+        // link stays at 2. Emitting to it, then tx.set(p, 1), used to erase
+        // that mark and hand the same frame back.
+        if (p === m.src || p === m.from) continue;
+        this.emit(p, this._gspFrame(e)); tx.set(p, 1);
+      }
     }
     // ANTI-ENTROPY, two repairs (dedup makes both idempotent):
     // 1. BEAT RE-FAN — a one-shot flood races topology convergence: a seat whose
@@ -2167,7 +2324,7 @@
       take(sk, GSP_SRC_RATE, GSP_SRC_BURST); take(lk, GSP_RATE, GSP_BURST);
       return true;
     }
-    _gspRemember(gid, src, m, sc, ag0, s4) { const g = this.grecent = this.grecent || []; const e = { gid, src, m, at: this.TICK }; if (sc !== undefined) e.sc = sc; if (ag0) e.ag0 = ag0; if (s4) e.s4 = s4; g.push(e); if (g.length > 64) g.shift(); }
+    _gspRemember(gid, src, m, sc, ag0, s4, tx) { const g = this.grecent = this.grecent || []; const e = { gid, src, m, at: this.TICK, tx: tx || new Map() }; if (sc !== undefined) e.sc = sc; if (ag0) e.ag0 = ag0; if (s4) e.s4 = s4; g.push(e); if (g.length > 64) g.shift(); }
     // A SCOPED message rides its OWN frame type, 'GSPS'. A client from before
     // the status plane knows only 'GSP' and drops an unknown type at recv()'s
     // default — so it can never strip the scope and re-flood a heartbeat to
@@ -2175,15 +2332,29 @@
     // N=400 leaked section heartbeats to 385 seats). It still hears its
     // row-mates' statuses over run.html's own DataChannel pulse.
     _gspFrame(e) { const f = { t: e.sc !== undefined ? 'GSPS' : 'GSP', gid: e.gid, src: e.src, m: e.m }; if (e.sc !== undefined) f.sc = e.sc; if (e.eph) f.eph = 1; if (e.s4) f.s4 = e.s4; /* the AUTHOR's signature travels with the message */ const ag = (e.ag0 || 0) + (e.at != null ? Math.max(0, this.TICK - e.at) : 0); if (ag > 0) f.ag = ag; return f; }
+    // Each entry keeps a ledger (e.tx: link -> copies handed). A link is handed
+    // a message at most TWICE — the fan and one re-fan at the next beat — and a
+    // link that appears later (a heal, a new neighbour) gets its two then. The
+    // receiver dedups, so a third copy bought nothing and cost a signed, sealed
+    // frame: re-fanning every link at +8, +16, +24 and +32 sent five copies of
+    // every chat line and caption out of every seat.
     _gspRefan() {
       const g = this.grecent; if (!g || !g.length) return;
       this.grecent = g.filter((e) => this.TICK - e.at <= 256); // replay horizon (memory-bounded with the 64 cap)
       for (const e of this.grecent) {
         if (this.TICK - e.at > 32) continue; // beat re-fan only while fresh
-        for (const p of (e.sc !== undefined ? this.sectionPeers() : this.linkPeers())) this.emit(p, this._gspFrame(e));
+        const tx = e.tx || (e.tx = new Map());
+        for (const p of (e.sc !== undefined ? this.sectionPeers() : this.linkPeers())) { const n = tx.get(p) || 0; if (n >= 2) continue; tx.set(p, n + 1); this.emit(p, this._gspFrame(e)); }
       }
     }
-    _gspReplay(to) { if (this.grecent) for (const e of this.grecent) this.emit(to, this._gspFrame(e)); } // a scoped entry reaching a seat outside its section is dropped there
+    _gspReplay(to, section) {
+      if (!this.grecent) return;
+      for (const e of this.grecent) {
+        if (e.sc !== undefined && section !== undefined && e.sc !== section) continue; // the peer drops a scoped frame from another section; do not spend it
+        this.emit(to, this._gspFrame(e));
+        const tx = e.tx || (e.tx = new Map()); tx.set(to, (tx.get(to) || 0) + 1);
+      }
+    }
 
     // ---- message dispatch ----
     recv(m) {
@@ -2196,13 +2367,17 @@
       for (const k of ['coord', 'target', 'hole']) {
         const c = m[k];
         if (c == null) continue;
-        if (typeof c !== 'object' || !Number.isInteger(c.pc) || c.pc < 0 || !Number.isInteger(c.r) || c.r < 0 || !Number.isInteger(c.i) || c.i < 0) return;
+        if (!coordOk(c)) { this.noteBad(); return; }
       }
-      if (m.routing && !this.routeStep(m)) return; // Option A: in-transit routing frame — forward (or drop); fall through only when FOR me
+      if (m.routing) {
+        if (!coordOk(m.rdst)) { this.noteBad(); return; } // a null rdst skips the coord loop above; routeStep calls ck(rdst)
+        if (!this.routeStep(m)) return; // in transit: forward or drop; fall through only when the frame is for me
+      }
       if (this.moving && this.state === 3 && this.moveEvidence(m)) this.confirmMove(); // T1: a new-neighbourhood frame is the claim's CONFIRMATION — vacate the old seat now
       const TICK = this.TICK, HEALING = this.env.HEALING;
       switch (m.t) {
         case 'GREETERS': {
+          if (!Array.isArray(m.list) || m.list.length > 256) { this.noteBad(); return; }
           if (!m.list.length) { if (this.state === 0) { this.genKey = this.myKey; this.take({ pc: 0, r: 0, i: 0 }, null, []); } return; } // R3 mint / R6 take-over
           // R6: greeters exist (meeting alive) but I've REACHED none (no HOME
           // roster came back) for a full TTL ⇒ voted off / unreachable subnet.
@@ -2224,7 +2399,7 @@
               this.state = 1; this.retryAt = TICK;
               return;
             }
-            this.forkProbe = true; this.forkAt = TICK; this.forkSamples = [];
+            this.forkProbe = true; this.forkAt = TICK; this.forkLastAt = -1; this.forkSamples = [];
             this.forkOpts = new Map(); this.forkPending = 0;
             const order = pool.slice();
             for (let i = order.length - 1; i > 0; i--) { const j = (this.rng() * (i + 1)) | 0; const t = order[i]; order[i] = order[j]; order[j] = t; }
@@ -2304,7 +2479,7 @@
                 stage = (f.stage || []).map(String);
                 stadium = (f.stadium || []).map(String);
               }
-            } catch (e) {}
+            } catch (e) { this.noteAppErr('homeFaces', e); }
             this.emit(m.from, {
               t: 'HOME', roster: this.s1Roster(), id: this.id, gkey: this.genKey,
               stage, stadium,
@@ -2326,6 +2501,7 @@
             const gk = m.gkey != null ? String(m.gkey) : '';
             if (gk && m.roster && m.roster.length) {
               const faces = (m.roster || []).map((e) => (e && (e.v != null ? e.v : e))).filter(Boolean).map((v) => String(v).slice(0, 12));
+              this.forkLastAt = TICK;
               this.forkSamples.push({
                 gkey: gk,
                 gateway: m.id != null ? m.id : this.gateway,
@@ -2338,9 +2514,15 @@
             this.maybeResolveFork();
             return;
           }
+          // A SEATED seat hears HOME only as the answer to a WHOHOME it sent
+          // (drainOrReenter, E1 — re-asked every 40 ticks while it needs one).
+          // Unsolicited, the frame is unsigned and names no sender, and it
+          // used to re-key the seat (a greeter presenting a wrong genesis key
+          // is sealed out of its own door, R3a) and replace its roster.
+          if (this.state === 3 && TICK - this.rosterAskAt > 120) return;
           if (m.gkey != null) this.genKey = m.gkey; // learn this meeting's genesis key (the dance)
-          if (this.state === 1) { if (!m.roster || !m.roster.length) { this.retryAt = TICK - 10; return; } this.roster = m.roster; this.haveRoster = true; this.lastReach = TICK; this.seatTries = 0; this.resumeTries = 0; const t = this.pickRoster(); if (t != null) this.askSeat(t); else this.retryAt = TICK - 10; } // reached a greeter: note it for R6; a landed HOME re-arms the resume budget
-          else if (this.state === 3 && m.roster && m.roster.length) { this.roster = m.roster; this.haveRoster = true; }
+          if (this.state === 1) { if (!rosterOk(m.roster)) { this.retryAt = TICK - 10; return; } this.roster = m.roster; this.haveRoster = true; this.lastReach = TICK; this.seatTries = 0; this.resumeTries = 0; const t = this.pickRoster(); if (t != null) this.askSeat(t); else this.retryAt = TICK - 10; } // reached a greeter: note it for R6; a landed HOME re-arms the resume budget
+          else if (this.state === 3 && rosterOk(m.roster)) { this.roster = m.roster; this.haveRoster = true; }
           return;
         }
         case 'FIND': if (m.tag === 1) this.serveCompact(m); else { this.findNc = m.nc; try { this.serveFind(m); } finally { this.findNc = null; } } return; // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission. Untagged: the seeker is at the door for the whole scan (knock-is-evidence phantom scope — 03c)
@@ -2372,6 +2554,7 @@
         case 'HELLO': {
           // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it
           // holds to me, claiming coord m.ck — it sets first-hand liveness.
+          if (!this.mayHearOcc(m.ck, m.id)) return; // own cell, owned link, owner, row, or a vouch for this joiner
           if (this.hasCoord && this.state === 3 && m.ck === ck(this.coord) && m.id !== this.id && m.id < this.id) { if (TICK - this.challAt > 20) { this.challAt = TICK; this.emit(m.id, { t: 'CHALLENGE', ck: m.ck, from: this.id }); } return; }
           const prev = this.occGet(m.ck);
           // E2: yield only between FIRST-HAND-LIVE claimants. A prev that is
@@ -2380,7 +2563,7 @@
           // ends my first-hand hearing of prev, so it no longer counts fresh.
           const prevFresh = (prev != null) && this.firstHandLive(m.ck) && !this.translost.has(m.ck);
           if (prev != null && prev !== m.id && prevFresh) this.emit(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck }); // two live seats at one coord: lower id wins, higher yields
-          if (prev !== m.id) { this.setOcc(m.ck, m.id); if (this.hasCoord) this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); this._gspReplay(m.id); }
+          if (prev !== m.id) { this.setOcc(m.ck, m.id); if (this.hasCoord) this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); const helloC = cellKeyOk(m.ck); this._gspReplay(m.id, helloC ? helloC.pc : undefined); }
           this.liveMark(m.ck); // first-hand: I just heard m.id directly at m.ck
           this.noteS1(m.ck);
           // A, ATTRIBUTABLE (V4): only THE SOFT-SIT JOINER's own HELLO
@@ -2390,13 +2573,16 @@
           { const sit = this.sitting.get(m.ck); if (sit && sit.joiner === m.id) this.clearSoft(m.ck); }
           return;
         }
-        case 'YIELD': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) { if (this.moving) this.rollbackMove(); else this.requeue(); } return; // T1: a mover contradicted at its NEW cell goes home, not homeless
+        case 'YIELD': if (!this.verifyFill(m)) return; if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) { if (this.moving) this.rollbackMove(); else this.requeue(); } return; // T1: a mover contradicted at its NEW cell goes home, not homeless. Unsigned YIELD is dropped. A member-signed YIELD carries no rival id, which is also the honest witness, so the cell match stays
         case 'CLAIM':
           if (!this.verifyFill(m)) return;
           // A: joiner self-confirm — upgrade sitting-down → seated.
+          if (!this.mayHearOcc(m.ck, m.id)) return;
           this.confirmSeated(m.ck, m.id);
           return;
         case 'LEAVE': {
+          if (!cellKeyOk(m.ck) || (m.mvd != null && !cellKeyOk(m.mvd))) { this.noteBad(); return; }
+          if (!this.verifyFill(m)) return;
           this.lastChurn = TICK; // Q2 hysteresis: a departure near me — hold off compaction until quiescent
           if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck, 'leave'); this.healTry.delete(m.ck); } // freed ⇒ admissible now
           // A, ATTRIBUTABLE (V4): only the LEAVER'S OWN vouch clears — a soft
@@ -2448,13 +2634,15 @@
         }
         case 'GREETWALK': return; // H6 retired
         case 'S1SYNC': {
+          if (!Array.isArray(m.ent) || m.ent.length > 64 || m.ent.some((e) => !e || typeof e !== 'object' || !cellKeyOk(e.k))) { this.noteBad(); return; }
+          if (m.digs != null && (!Array.isArray(m.digs) || m.digs.length > 64 || m.digs.some((e) => !e || typeof e !== 'object' || typeof e.k !== 'string'))) { this.noteBad(); return; }
           if (m.dw) this._dwTake(m.from, m.dw);
           // § G root fold: merge the relayed section table, the FRESHEST ON MY
           // CLOCK wins (G0b relative ages). Purely additive display state — it
           // touches nothing below this block.
           if (this.digOn() && this.hasCoord && this.coord.pc === 0 && m.digs) {
             for (const e of m.digs) {
-              if (!isS1key(e.k)) continue;
+              const dk = cellKeyOk(e.k); if (!dk || dk.pc !== 0) continue;
               if (this.hasCoord && e.k === ck(this.coord)) continue; // never take a relayed claim about MY OWN section — I fold that first-hand
               if (!e.d) continue;
               const ed = e.d.stub === 1 ? this.stubTake(Object.assign({}, e.d, { from_: m.from, slot_: 's1:' + e.k }), this.s1tab.get(e.k)) : digSane(e.d); if (!ed || ed.at < 0) continue;
@@ -2469,6 +2657,7 @@
           // first-hand only. The old gossip-requeue and gossip-YIELD were
           // phantom weapons — a stale echo could evict a live seat. Bug #1.)
           for (const e of m.ent) {
+            const entC = cellKeyOk(e.k); if (!entC || entC.pc !== 0) continue; // Section-1 sync names Section-1 cells only
             const kk = e.k, eid = e.v, age = e.age;
             if (e.ch != null) this.childOf.set(kk, e.ch); // learn this cell's heir — feeds cousins-in-PONG
             if (this.hasCoord && kk === ck(this.coord) && eid !== this.id) continue; // gossip claims MY seat: IGNORE — a genuine duplicate is settled by a first-hand witness, never an echo
@@ -2501,13 +2690,23 @@
           return;
         }
         case 'DRAIN': {
+          // E1: a DRAIN dissolves my whole subtree, so it is honoured from ONE
+          // author — my ANCHOR (the occupant of my owner cell), the only seat
+          // the law lets fan it down. The frame is S4-signed and `id` is bound
+          // to the signer (verifyFill), so a row-mate or a sponsor-forwarded
+          // stranger cannot wear the anchor's name.
+          if (!this.verifyFill(m)) return;
           if (!this.hasCoord || this.state !== 3 || this.coord.pc === 0 || this.drainAt) return;
-          this.roster = m.roster; this.haveRoster = true; const rc = this.rosterCells(); for (let c = 0; c < C(); c++) { const x = this.occGet(ck(rc[c])); if (x != null && x !== this.id) this.emit(x, { t: 'DRAIN', roster: m.roster }); } this.drainAt = TICK + 6 + (this.rng() * 12 | 0); this.wake(); return;
+          const oc = this.ownerCoord(); if (!oc || m.id == null || this.occGet(ck(oc)) !== m.id) return;
+          if (!rosterOk(m.roster)) return;
+          this.roster = m.roster; this.haveRoster = true; const rc = this.rosterCells(); for (let c = 0; c < C(); c++) { const x = this.occGet(ck(rc[c])); if (x != null && x !== this.id) this.emit(x, { t: 'DRAIN', roster: m.roster, id: this.id }); } this.drainAt = TICK + 6 + (this.rng() * 12 | 0); this.wake(); return;
         }
         case 'CHALLENGE': if (this.evil) { this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return; } if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return;
-        case 'CONFIRM': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck && m.id !== this.id && m.id < this.id) { if (this.moving) this.rollbackMove(); else this.requeue(); } return;
+        case 'CONFIRM': if (!this.verifyFill(m)) return; if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck && m.id !== this.id && m.id < this.id) { if (this.moving) this.rollbackMove(); else this.requeue(); } return;
         case 'GSP': case 'GSPS': this._gspRecv(m); return;
         case 'MOVED': { // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
+          if (!cellKeyOk(m.ck) || (m.mvd != null && !cellKeyOk(m.mvd))) { this.noteBad(); return; }
+          if (!this.verifyFill(m)) return;
           if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.healTry.delete(m.ck); } // freed ⇒ admissible now
           if (m.mvd) { this.setOcc(m.mvd, m.id); this.liveMark(m.mvd); this.noteS1(m.mvd); }
           this.wake(); return;
@@ -2517,8 +2716,8 @@
           // and its confirmed row occ. I am now the row's admitter, and these
           // cells are already promised or held.
           if (this.hasCoord && this.coord.pc === 0 && this.coord.i === 0 && ck(this.coord) === m.ck) {
-            for (const kv of (m.vouches || [])) if (!this.occ.has(kv.k) && !this.sitting.has(kv.k)) this.sitting.set(kv.k, { joiner: kv.v, assigner: this.id, at: this.TICK, pingAt: -1 });
-            for (const e of (m.rowOcc || [])) if (!this.occ.has(e.k)) { this.setOcc(e.k, e.v); this.noteS1(e.k); }
+            for (const kv of (m.vouches || [])) { const c = cellKeyOk(kv.k); if (c && c.pc === 0 && c.r === this.coord.r && !this.occ.has(kv.k) && !this.sitting.has(kv.k)) this.sitting.set(kv.k, { joiner: kv.v, assigner: this.id, at: this.TICK, pingAt: -1 }); }
+            for (const e of (m.rowOcc || [])) { const c = cellKeyOk(e.k); if (c && c.pc === 0 && c.r === this.coord.r && !this.occ.has(e.k)) { this.setOcc(e.k, e.v); this.noteS1(e.k); } }
             this.rowLedger = true;
           }
           return;
@@ -2543,15 +2742,21 @@
           }
           return;
         }
-        case 'PHONE': this.onPhone(m); return;
+        case 'PHONE': {
+          if (!coordOk(m.coord) || (m.tock != null && !cellKeyOk(m.tock)) || (m.row != null && !this.kvRows(m.row, C()))) { this.noteBad(); return; }
+          if (!this.verifyFill(m)) return;
+          this.onPhone(m); return;
+        }
         case 'PONG': {
+          if (!this.kvRows(m.row, C()) || !this.kvRows(m.nbrs, 64) || (m.oCk != null && !cellKeyOk(m.oCk)) || (m.coord != null && !coordOk(m.coord))) { this.noteBad(); return; }
+          if (!this.verifyFill(m)) return;
           this.lastAck = TICK;
           // FIRST-HAND: the responder spoke to me directly on our rook link.
           const pid = (m.id != null) ? m.id : m.from;
           if (this.hasCoord && m.coord && m.coord.pc === 0 && pid != null) { this.setOcc(ck(m.coord), pid); this.liveMark(ck(m.coord)); this.noteS1(ck(m.coord)); }
           if (m.owner != null && this.occGet(m.oCk) !== m.owner) { this.setOcc(m.oCk, m.owner); this.noteS1(m.oCk); }
-          for (const e of m.row) { if (this.occGet(e.k) !== e.v) this.setOcc(e.k, e.v); this.noteS1(e.k); if (e.age != null) this.childOf.set(e.k, e.age); }
-          for (const kv of m.nbrs) this.cousins.set(kv.k, kv.v); // W: learn the heirs at my future owned-links for relay-free promote-up
+          for (const e of (m.row || [])) { const c = cellKeyOk(e.k); if (!c || !m.coord || c.pc !== m.coord.pc || c.r !== m.coord.r) continue; if (this.occGet(e.k) !== e.v) this.setOcc(e.k, e.v); this.noteS1(e.k); if (e.age != null) this.childOf.set(e.k, e.age); }
+          for (const kv of (m.nbrs || [])) { if (!cellKeyOk(kv.k)) continue; if (!this.cousins.has(kv.k) && this.cousins.size >= 4 * C()) continue; this.cousins.set(kv.k, kv.v); } // heirs at future owned-links; a peer-named list cannot grow the map without bound
           // ---- § G DOWN-LEG + the AUTHOR'S REFUTATION --------------------
           // G4: I check ONE thing — that the fold my aggregator published
           // still contains the contribution I authored. An owner's subtree is
@@ -2577,7 +2782,7 @@
                   const echo = (m.dgEcho && m.dgEcho.at != null) ? (digSane(m.dgEcho) || dig0()) : dig0();
                   if (this.upRefuted(pubD, echo, isOwner ? 1 : 0)) {
                     this.digMismatch++;
-                    if (this.onDigMismatch) { try { this.onDigMismatch({ arm: this.digArm, tick: TICK, meId: this.id, me: { pc: this.coord.pc, r: this.coord.r, i: this.coord.i }, aggId: pid, agg: { pc: m.coord.pc, r: m.coord.r, i: m.coord.i }, pub: m.dgPub, echo }); } catch (e) {} }
+                    if (this.onDigMismatch) { try { this.onDigMismatch({ arm: this.digArm, tick: TICK, meId: this.id, me: { pc: this.coord.pc, r: this.coord.r, i: this.coord.i }, aggId: pid, agg: { pc: m.coord.pc, r: m.coord.r, i: m.coord.i }, pub: m.dgPub, echo }); } catch (e) { this.noteAppErr('onDigMismatch', e); } }
                   }
                 }
               }

@@ -73,9 +73,10 @@
   // facade so callers wire handlers exactly once. makeUrl() is re-evaluated on
   // every (re)connect, so rotated credentials (a new password proof, an admin
   // key) ride the next attempt automatically.
-  function steadySocket(makeUrl) {
+  function steadySocket(makeUrl, sockOpts) {
+    const duty = sockOpts && typeof sockOpts.onDuty === 'function' ? sockOpts.onDuty : null;
     const s = { onmessage: null, onstate: null, onopen: null, state: 'connecting', downSince: Date.now(), rejected: 0 };
-    let ws = null, closed = false, attempt = 0, timer = null, slow = false, stableTimer = null;
+    let ws = null, closed = false, attempt = 0, timer = null, slow = false, stableTimer = null, bornTimer = null, slowTimer = null;
     const queue = [];
     const STABLE_MS = 5000; // how long a socket must stay open before the backoff resets
     // Close-code policy — the relay is BILLED for every wake, so reconnects are
@@ -101,19 +102,26 @@
       let sock;
       try { sock = new WebSocket(makeUrl()); } catch (e) { schedule(); return; }
       ws = sock;
-      // Connect watchdog: some stacks never follow a failed CONNECT with a
-      // close event — the attempt would wedge in CONNECTING forever and pin
-      // the in-flight guard. If the socket isn't OPEN by the deadline, abandon
-      // it and let backoff govern.
-      const born = setTimeout(() => {
+      // A CONNECT that never completes has no close event. The first
+      // attempt aborts at 3s. Later attempts grow to the 8s ceiling.
+      // At 3s, while the socket is still CONNECTING, the state becomes
+      // 'connecting-slow' so the caller can say the door is slow.
+      clearTimeout(slowTimer);
+      clearTimeout(bornTimer);
+      const connectDeadline = Math.min(8000, 3000 * Math.pow(2, attempt));
+      slowTimer = setTimeout(() => {
+        if (ws !== sock || sock.readyState === 1) return;
+        setState('connecting-slow');
+      }, 3000);
+      bornTimer = setTimeout(() => {
         if (ws !== sock || sock.readyState === 1) return;
         ws = null;
         try { sock.onerror = null; sock.close(); } catch (e) { /* already dead */ }
         setState('down');
         schedule();
-      }, 8000);
+      }, connectDeadline);
       sock.onopen = () => {
-        clearTimeout(born);
+        clearTimeout(bornTimer); clearTimeout(slowTimer);
         if (closed || ws !== sock) return;
         // OPEN is not yet GOOD. The relay turns a crowd away by ACCEPTING the
         // upgrade and closing with 1013 straight after (a Durable Object cannot
@@ -129,7 +137,7 @@
       };
       sock.onmessage = (ev) => { if (ws === sock && s.onmessage) s.onmessage(ev); };
       sock.onclose = (ev) => {
-        clearTimeout(born);
+        clearTimeout(bornTimer); clearTimeout(slowTimer);
         if (ws !== sock) return;
         clearTimeout(stableTimer);
         ws = null;
@@ -152,7 +160,12 @@
       // the tab is hidden (an overnight background tab must not knock every
       // few seconds), extra patient when the relay itself said "not now".
       const hidden = typeof document !== 'undefined' && document.hidden;
-      const cap = hidden ? 60000 : slow ? 15000 : 5000;
+      // A hidden tab waits up to 60s between reconnects. An on-duty
+      // greeter is the door, so it keeps the visible cap while onDuty()
+      // is true. No onDuty keeps the hidden cap.
+      let onDuty = false;
+      try { onDuty = !!(duty && duty()); } catch (e) { onDuty = false; }
+      const cap = (hidden && !onDuty) ? 60000 : slow ? 15000 : 5000;
       const delay = Math.min(cap, 500 * Math.pow(2, attempt++)) * (0.7 + Math.random() * 0.6);
       timer = setTimeout(() => { timer = null; connect(); }, delay);
     }
@@ -165,9 +178,10 @@
       connect();
     };
     const wake = () => kick(false);
+    const onVis = () => { if (!document.hidden) wake(); };
     if (root.addEventListener) { root.addEventListener('online', wake); root.addEventListener('pageshow', wake); }
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      document.addEventListener('visibilitychange', onVis);
       document.addEventListener('resume', wake); // Page Lifecycle: tab just unfroze
     }
     s.send = (data) => {
@@ -182,7 +196,21 @@
       if (!timer) kick(false);
     };
     s.kick = () => kick(true); // app-layer re-arm after a credential/intent change
-    s.close = () => { closed = true; clearTimeout(stableTimer); if (timer) { clearTimeout(timer); timer = null; } try { if (ws) ws.close(); } catch (e) { /* fine */ } };
+    s.close = () => {
+      closed = true;
+      clearTimeout(stableTimer);
+      clearTimeout(bornTimer);
+      clearTimeout(slowTimer);
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (root.removeEventListener) { root.removeEventListener('online', wake); root.removeEventListener('pageshow', wake); }
+      if (typeof document !== 'undefined' && document.removeEventListener) {
+        document.removeEventListener('visibilitychange', onVis);
+        document.removeEventListener('resume', wake);
+      }
+      const conns = root.__gifosConns;
+      if (conns) { const i = conns.indexOf(s); if (i >= 0) conns.splice(i, 1); }
+      try { if (ws) ws.close(); } catch (e) { /* fine */ }
+    };
     s._raw = () => ws; // test hook: lets the e2e suite yank the live socket
     connect();
     (root.__gifosConns = root.__gifosConns || []).push(s);
@@ -236,31 +264,52 @@
       if (i < pieces.length) setTimeout(pump, 40); else resolve();
     })();
   });
+  // Byte ceiling on what one receiver holds in partial messages, all senders
+  // together: two full-size messages (two 25MB shared videos side by side).
+  // The count bound alone (8 partials x 512 pieces) let a room member park
+  // ~400MB of pieces in every receiver until the sweep; a phone kills the tab
+  // first. Measured in string chars (the pieces are base64 text).
+  const FRAG_BUDGET = 2 * FRAG_MAX_PARTS * FRAG_PART;
   // Stateful filter: feed every parsed inbound message with its sender key;
   // frag pieces buffer and return null until the last one completes the
-  // original message. Non-frag messages pass straight through.
+  // original message. Non-frag messages pass straight through. The returned
+  // function carries stats() -> { bytes, msgs } (what it holds right now).
   const makeDefrag = (onProgress) => {
-    const bufs = new Map(); // sender|fid -> { parts, got, n, at }
-    return (m, sender) => {
+    const bufs = new Map(); // sender|fid -> { parts, got, n, at, bytes }
+    let held = 0;           // chars held across every partial
+    const drop = (key, b) => { bufs.delete(key); held -= b.bytes; };
+    const sweep = () => { const now = Date.now(); for (const [k, v] of bufs) if (now - v.at > 30000) drop(k, v); }; // stale partials
+    const defrag = (m, sender) => {
       if (!m || m.t !== 'frag') return m;
       const n = m.n | 0, i = m.i | 0;
-      if (typeof m.p !== 'string' || typeof m.fid !== 'string' || n < 2 || n > FRAG_MAX_PARTS || i < 0 || i >= n) return null;
+      // an honest sender never cuts a piece longer than FRAG_PART: a longer one is refused before it is held
+      if (typeof m.p !== 'string' || m.p.length > FRAG_PART || typeof m.fid !== 'string' || n < 2 || n > FRAG_MAX_PARTS || i < 0 || i >= n) return null;
       const key = sender + '|' + m.fid;
       let b = bufs.get(key);
       if (!b) {
-        for (const [k, v] of bufs) if (Date.now() - v.at > 30000) bufs.delete(k); // sweep stale partials
-        if (bufs.size >= 8) return null; // bounded memory even from a hostile sender
-        b = { parts: new Array(n), got: 0, n, at: Date.now() };
+        sweep();
+        if (bufs.size >= 8) return null; // bounded count even from a hostile sender
+        b = { parts: new Array(n), got: 0, n, at: Date.now(), bytes: 0 };
         bufs.set(key, b);
       }
-      if (b.n !== n || b.parts[i] !== undefined) { bufs.delete(key); return null; } // inconsistent sender
-      b.parts[i] = m.p; b.got++;
+      if (b.n !== n) { drop(key, b); return null; } // inconsistent sender
+      if (b.parts[i] !== undefined) {
+        if (b.parts[i] === m.p) return null; // the same piece twice (a re-send, a second path): already held, nothing to do
+        drop(key, b); return null;           // a DIFFERENT payload at a held index: inconsistent sender
+      }
+      if (held + m.p.length > FRAG_BUDGET) {
+        sweep();
+        if (held + m.p.length > FRAG_BUDGET) { drop(key, b); return null; } // over budget: this partial can never complete, release it
+      }
+      b.parts[i] = m.p; b.got++; b.bytes += m.p.length; held += m.p.length;
       if (onProgress) { try { onProgress(m.fid, b.got, b.n); } catch (e) {} }
       if (root.__fragDebug) console.error('[defrag] ' + key + ' ' + b.got + '/' + b.n);
       if (b.got < b.n) return null;
-      bufs.delete(key);
+      drop(key, b);
       try { return JSON.parse(b.parts.join('')); } catch (e) { if (root.__fragDebug) console.error('[defrag] PARSE FAIL ' + key); return null; }
     };
+    defrag.stats = () => ({ bytes: held, msgs: bufs.size });
+    return defrag;
   };
 
   // ---- ids ------------------------------------------------------------------
@@ -599,7 +648,7 @@
   GifOS.net = {
     ICE_SERVERS, hasP2P, holdSessionLock,
     steadySocket,
-    FRAG_PART, sendChunked, chunk, pumpChannel, makeDefrag,
+    FRAG_PART, FRAG_BUDGET, sendChunked, chunk, pumpChannel, makeDefrag,
     shortCode, randHex, sha256hex, sha256hexOfBytes, keyId, keyVerifier,
     deriveMeet, deriveMeetKey, meetPwProof, mintGenesisKey,
     edKeysFromSeedHex, edSign, edVerify, edProven,

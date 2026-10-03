@@ -33,8 +33,14 @@
 //   3. The absorbing state is GONE — the newcomer is not left founded:false
 //      with an empty list, which was the actual user-visible symptom.
 //
-// Windows are collapsed via RELAY_GREETER_TTL_MS / RELAY_CLAIM_GRACE_MS —
-// 250s + 60s per assertion is not a test.
+//   5. A RE-MINT IS VISIBLE. A lapsed greeter that knocks bloblessly past the
+//      grace founds again (the ghost-genesis rule) — and that mint must HOLD
+//      the room for MINT_GRACE_MS. It did not: the stale blob left from the
+//      earlier registration satisfied none of genesisHash's clauses, so the
+//      re-founder was invisible and the next knocker founded too (a fork).
+//
+// Windows are collapsed via RELAY_GREETER_TTL_MS / RELAY_CLAIM_GRACE_MS /
+// RELAY_MINT_GRACE_MS — 250s + 60s per assertion is not a test.
 const { spawn } = require('child_process');
 const path = require('path');
 
@@ -42,6 +48,7 @@ const PORT = 8797;
 const RELAY = 'ws://127.0.0.1:' + PORT;
 const TTL = 1200;      // greeter registration lifetime
 const GRACE = 1200;    // how long a lapsed claim survives past EXPIRY
+const MINT = 1200;     // how long an unregistered founder's mint holds the room
 let fails = 0;
 const check = (name, cond, extra) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (extra ? '  ' + JSON.stringify(extra) : '')); if (!cond) fails++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -59,7 +66,7 @@ function open(sid, peer, gk) {
 
 (async () => {
   const relay = spawn('node', [path.join(__dirname, '..', 'servers', 'relay-local.js')],
-    { env: { ...process.env, RELAY_PORT: String(PORT), RELAY_GREETER_TTL_MS: String(TTL), RELAY_CLAIM_GRACE_MS: String(GRACE) },
+    { env: { ...process.env, RELAY_PORT: String(PORT), RELAY_GREETER_TTL_MS: String(TTL), RELAY_CLAIM_GRACE_MS: String(GRACE), RELAY_MINT_GRACE_MS: String(MINT) },
       stdio: ['ignore', 'pipe', 'pipe'] });
   relay.stderr.on('data', (d) => process.stderr.write('[relay] ' + d));
   await sleep(700);
@@ -100,10 +107,13 @@ function open(sid, peer, gk) {
     // {founded:false, admitted:true}. Reading last() here was my own bug.
     check('A founds and registers a greeter', A.greets.some((g) => g.founded === true), A.greets);
 
-    // Knock blobless throughout — the pre-fix rule refreshed gseen every time
-    // and the room stayed A's for as long as A kept breathing.
-    const deadline = Date.now() + TTL + GRACE + 700;
+    // Knock blobless up to the end of the grace — the pre-fix rule refreshed
+    // gseen every time and the room stayed A's for as long as A kept
+    // breathing. The knocking stops INSIDE the grace: a knock past it would
+    // re-mint (leg 5), which is the room reopening, not the claim holding.
+    const deadline = Date.now() + TTL + GRACE - 300;
     while (Date.now() < deadline) { A.knock(KEYA, undefined); await sleep(150); }
+    await sleep(500); // past the grace; A's last knock was 800 ms ago — inside the old TTL-from-knock window
 
     const X = open(sid, 'X', KEYX); await X.ready; await sleep(200);
     check('past the grace, blobless knocking does NOT hold the room — a newcomer FOUNDS',
@@ -127,6 +137,29 @@ function open(sid, peer, gk) {
     check('a LIVE registered greeter holds its room, and its blob is served',
       X.last() && X.last().founded === false && X.last().list.includes('SEALED(addrA)'), X.last());
     A.close(); X.close(); await sleep(150);
+  }
+
+  // ---- 5. a re-mint by a lapsed greeter is VISIBLE: no second founder -------
+  // A registers, lapses past the grace, then knocks bloblessly: the room has
+  // reopened, so A founds again. That mint must hold the room like any other —
+  // X, knocking inside MINT_GRACE_MS, is NOT a founder. Once the mint lapses
+  // unconverted (A never registers), the room reopens and X2 founds.
+  {
+    const sid = 'gc-remint-' + Math.random().toString(36).slice(2, 8);
+    const A = open(sid, 'A', KEYA); await A.ready; await sleep(120);
+    A.knock(KEYA, 'SEALED(addrA)'); await sleep(120);
+    check('A founds and registers a greeter', A.greets.some((g) => g.founded === true), A.greets);
+    await sleep(TTL + GRACE + 300);               // the registration and its grace are gone
+    const n = A.greets.length;
+    A.knock(KEYA, undefined); await sleep(150);   // blobless, like a requeued seat
+    check('past the grace a lapsed greeter\'s blobless knock RE-MINTS (founded:true)', A.greets.length > n && A.last().founded === true, A.last());
+    const X = open(sid, 'X', KEYX); await X.ready; await sleep(150);
+    check('inside the mint grace a newcomer does NOT found: the re-mint holds the room (no fork)',
+      X.last() && X.last().founded === false && X.last().admitted === false, X.last());
+    await sleep(MINT);                            // the mint lapses unconverted
+    const X2 = open(sid, 'X2', KEYX); await X2.ready; await sleep(150);
+    check('an unconverted re-mint lapses after MINT_GRACE_MS and the room reopens', X2.last() && X2.last().founded === true, X2.last());
+    A.close(); X.close(); X2.close(); await sleep(150);
   }
 
   relay.kill();

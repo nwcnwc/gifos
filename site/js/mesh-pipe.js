@@ -76,7 +76,31 @@
   // Roles: 'tap' (receiver-side: early-copy each frame, fan to routed pipes,
   // pass the frame through untouched so local painting never notices) and
   // 'pipe' (sender-side: template-paced, type-matched payload swap).
+  function codecMismatch(mime, tmplMime, tmplN, seen) {
+    if (mime && tmplMime) return mime !== tmplMime;
+    return (tmplN | 0) >= 8 && (seen | 0) > 0;
+  }
+  function releaseTap(taps, tapTs, skrLast, srcId, pipeId) {
+    const s = taps.get(srcId);
+    if (!s) return;
+    s.delete(pipeId);
+    if (!s.size) { taps.delete(srcId); tapTs.delete(srcId); skrLast.delete(srcId); }
+  }
+  // The worker cannot see the page's functions, so it carries its own copy of
+  // the two helpers above, as plain source inside the literal (worker-source-
+  // parses.js parses that literal; a concatenated string would hide it).
+  // mu-mesh-wire-pipe.js asserts the two copies are the same code.
   const WORKER_SRC = `
+function codecMismatch(mime, tmplMime, tmplN, seen) {
+  if (mime && tmplMime) return mime !== tmplMime;
+  return (tmplN | 0) >= 8 && (seen | 0) > 0;
+}
+function releaseTap(taps, tapTs, skrLast, srcId, pipeId) {
+  const s = taps.get(srcId);
+  if (!s) return;
+  s.delete(pipeId);
+  if (!s.size) { taps.delete(srcId); tapTs.delete(srcId); skrLast.delete(srcId); }
+}
 const taps = new Map();   // srcId -> Set(pipeId)
 const tapTs = new Map();  // srcId -> the tap's transformer (the SKR handle)
 const skrLast = new Map();// srcId -> last sendKeyFrameRequest ms (rate limit)
@@ -175,17 +199,17 @@ onmessage = (e) => {
     // the route; the sender, carrier and downstream m-line never move. The
     // pipe restarts clean at the next key (needKey), never mid-GOP; a codec
     // change surfaces as the ordinary mismatch and the page re-lanes.
-    const s0 = taps.get(m.oldSrcId); if (s0) { s0.delete(m.pipeId); if (!s0.size) { taps.delete(m.oldSrcId); tapTs.delete(m.oldSrcId); } }
+    releaseTap(taps, tapTs, skrLast, m.oldSrcId, m.pipeId);
     let s = taps.get(m.srcId); if (!s) { s = new Set(); taps.set(m.srcId, s); } s.add(m.pipeId);
     const p = pipeFor(m.pipeId);
     p.srcId = m.srcId; p.q.length = 0; p.needKey = true; p.nkDrop = 0; p.mime = null;
     askKey(m.srcId, m.pipeId);
   }
-  else if (m.op === 'unroute') { const s = taps.get(m.srcId); if (s) { s.delete(m.pipeId); if (!s.size) { taps.delete(m.srcId); tapTs.delete(m.srcId); } } pipes.delete(m.pipeId); }
+  else if (m.op === 'unroute') { releaseTap(taps, tapTs, skrLast, m.srcId, m.pipeId); pipes.delete(m.pipeId); }
   else if (m.op === 'stats') {
     const out = {};
     for (const [id, p] of pipes) out[id] = { q: p.q.length, wrote: p.wrote, seen: p.seen || 0, tmpl: p.tmpl || 0, primed: p.primed || 0, dropped: p.dropped, swapErr: p.swapErr, kfAsk: p.kfAsk, kdrop: p.kdrop || 0, nkDrop: p.nkDrop || 0, skr: p.skr || 0, paused: !!p.paused, needKey: !!p.needKey, lastWriteAt: p.lastWriteAt, mime: p.mime, tmplMime: p.tmplMime, detached: p.detached || 0, lastBytes: p.lastBytes || 0 };
-    postMessage({ op: 'stats', stats: out });
+    postMessage({ op: 'stats', seq: m.seq, stats: out });
   }
 };
 onrtctransform = (e) => {
@@ -275,8 +299,12 @@ onrtctransform = (e) => {
         p.tmpl = (p.tmpl || 0) + 1;
         p.writer = p.writer || writer;
         try { const md = frame.getMetadata(); p.tmplMime = md.mimeType || null; } catch (err) {}
-        if (p.mime && p.tmplMime && p.mime !== p.tmplMime) { // codec mismatch — this pipe can never work
-          if (!p.misreported) { p.misreported = true; postMessage({ op: 'codec-mismatch', pipeId: o.pipeId, mime: p.mime, tmplMime: p.tmplMime }); }
+        // Known codecs must match (p.mime !== p.tmplMime). A missing mimeType
+        // used to skip the guard, so a wrong-codec pipe shipped garbage.
+        // After 8 templates, once content has been seen, an unknown mime
+        // is a mismatch too and the page falls back to transcode.
+        if ((p.mime && p.tmplMime && p.mime !== p.tmplMime) || codecMismatch(p.mime, p.tmplMime, p.tmpl, p.seen || 0)) {
+          if (!p.misreported) { p.misreported = true; postMessage({ op: 'codec-mismatch', pipeId: o.pipeId, mime: p.mime || null, tmplMime: p.tmplMime || null }); }
           continue; // drop templates; page falls back to transcode
         }
         if (!p.q.length) {
@@ -340,7 +368,7 @@ onrtctransform = (e) => {
 `;
 
   let worker = null, statsSeq = 0;
-  const statsWaiters = [];
+  const statsWaiters = new Map(); // seq -> resolve. A late reply must not satisfy the next caller.
   const carriers = new Map(); // pipeId -> carrier (the demand mint 'want' resolves against)
   const wantN = new Map();    // pipeId -> want messages received (chain forensics)
   const lastWant = new Map(); // pipeId -> { q, at } — the worker-reported backlog (drainer input)
@@ -364,20 +392,36 @@ onrtctransform = (e) => {
   // disables it so that can be measured as an interleaved A/B rather than
   // argued. Default is unchanged (on).
   const drainOn = () => { try { return localStorage.getItem('gifos_pipe_drain') !== 'off'; } catch (e) { return true; } };
-  setInterval(() => {
+  let drainTimer = null;
+  // 33ms catch-up mints only while a carrier is registered. The flag is
+  // read when the timer starts, not 30 times a second. A mid-meeting
+  // toggle of gifos_pipe_drain takes effect on the next pipe, after the
+  // last carrier is released.
+  function startDrain() {
+    if (drainTimer) return;
     if (!drainOn()) return;
-    const now = Date.now();
-    for (const [pid, w] of lastWant) {
-      if (w.q > 2 && now - w.at < 1000) { const cr = carriers.get(pid); if (cr) { cr.mint(false); w.q--; } }
-    }
-  }, 33);
+    drainTimer = setInterval(() => {
+      const now = Date.now();
+      for (const [pid, w] of lastWant) {
+        if (w.q > 2 && now - w.at < 1000) { const cr = carriers.get(pid); if (cr) { cr.mint(false); w.q--; } }
+      }
+    }, 33);
+  }
+  function stopDrain() {
+    if (!drainTimer || carriers.size) return;
+    clearInterval(drainTimer);
+    drainTimer = null;
+  }
   const listeners = { 'kf-need': [], 'codec-mismatch': [] };
   function ensureWorker() {
     if (worker) return worker;
     worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: 'application/javascript' })));
     worker.onmessage = (e) => {
       const m = e.data;
-      if (m.op === 'stats') { const w = statsWaiters.shift(); if (w) w(m.stats); }
+      if (m.op === 'stats') {
+        const w = m.seq != null ? statsWaiters.get(m.seq) : undefined;
+        if (w) { statsWaiters.delete(m.seq); w(m.stats); }
+      }
       else if (m.op === 'want') {
         const cr = carriers.get(m.pipeId);
         if (cr) cr.mint(m.key);
@@ -455,7 +499,7 @@ onrtctransform = (e) => {
     if (!supported() || !sender) return false;
     try {
       sender.transform = new RTCRtpScriptTransform(ensureWorker(), { role: 'pipe', pipeId, srcId });
-      if (carrier) carriers.set(pipeId, carrier);
+      if (carrier) { carriers.set(pipeId, carrier); startDrain(); }
       ensureWorker().postMessage({ op: 'route', srcId, pipeId });
       return true;
     } catch (e) { return false; }
@@ -478,16 +522,22 @@ onrtctransform = (e) => {
     const cr = carriers.get(pipeId);
     if (cr) { carriers.delete(pipeId); try { cr.stop(); } catch (e) {} }
     lastWant.delete(pipeId);
+    wantN.delete(pipeId);
     if (worker) worker.postMessage({ op: 'unroute', srcId, pipeId });
+    stopDrain();
   }
   function chain(pipeId) { const cr = carriers.get(pipeId); return { wants: wantN.get(pipeId) || 0, mints: cr ? (cr.mints || 0) : -1 }; }
   function stats() {
     return new Promise((res) => {
       if (!worker) { res({}); return; }
-      statsWaiters.push(res); worker.postMessage({ op: 'stats' });
-      setTimeout(() => { const i = statsWaiters.indexOf(res); if (i >= 0) { statsWaiters.splice(i, 1); res({}); } }, 1000);
+      const seq = ++statsSeq;
+      statsWaiters.set(seq, res);
+      worker.postMessage({ op: 'stats', seq });
+      setTimeout(() => { if (statsWaiters.get(seq) === res) { statsWaiters.delete(seq); res({}); } }, 1000);
     });
   }
+  function _debugSizes() { return { wantN: wantN.size, lastWant: lastWant.size, carriers: carriers.size }; }
+  function _workerSrc() { return WORKER_SRC; }
   function on(ev, fn) { if (listeners[ev]) listeners[ev].push(fn); }
 
   // Find the RTCRtpReceiver that owns a remote track — the tap point. The
@@ -501,5 +551,5 @@ onrtctransform = (e) => {
     return null;
   }
 
-  GifOS.meshPipe = { supported, tapReceiver, pipeSender, pausePipe, keyKick, reroute, unpipe, makeCarrier, receiverForTrack, stats, chain, on };
+  GifOS.meshPipe = { supported, tapReceiver, pipeSender, pausePipe, keyKick, reroute, unpipe, makeCarrier, receiverForTrack, stats, chain, on, codecMismatch, releaseTap, _debugSizes, _workerSrc };
 })(typeof window !== 'undefined' ? window : globalThis);

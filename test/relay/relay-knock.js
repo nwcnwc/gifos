@@ -6,7 +6,9 @@
 //   • a MATCHING-key re-knock registers a sealed greeter address (E3);
 //   • a NON-matching key is a newcomer — gets the list, never registered;
 //   • the list reflects the LIVE greeter pool;
-//   • the genesis identity persists as long as any admitted seat is connected.
+//   • the genesis identity persists as long as any admitted seat is connected;
+//   • a knock FRAME's gk is cut to the URL path's 128 chars before hashing, so
+//     both paths name one genesis.
 // The relay is zero-knowledge: it stores only H(genesis key) + opaque sealed
 // blobs, gates genesis, and never holds the meeting-URL key.
 const { spawn } = require('child_process');
@@ -61,6 +63,16 @@ function open(sid, peer, gk) {
   const D = open(sid, 'D', 'unrelated-key'); await D.ready; await sleep(120);
   check('genesis persists after founder leaves (no re-found)', D.last() && D.last().founded === false, D.last());
   check('surviving greeter still served', D.last() && D.last().list.includes('SEALED(addrC)'), D.last());
+
+  // The frame path hashes gk cut to 128 chars, exactly as the URL path does.
+  const sid2 = 'knock-' + Math.random().toString(36).slice(2, 8);
+  const LONG = 'L'.repeat(200);
+  const E = open(sid2, 'E'); await E.ready; await sleep(120);
+  E.knock(LONG, 'SEALED(addrE)'); await sleep(120);
+  check('a blobbed knock frame with a 200-char gk founds', E.last() && E.last().founded === true, E.last());
+  const F = open(sid2, 'F', LONG.slice(0, 128)); await F.ready; await sleep(120);
+  check('the URL path with its 128-char prefix is admitted to the same genesis', F.last() && F.last().admitted === true && F.last().founded === false, F.last());
+  E.close(); F.close();
 
   [B, C, D].forEach((w) => { try { w.close(); } catch (_) {} });
   await sleep(100);

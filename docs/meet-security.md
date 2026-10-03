@@ -50,6 +50,17 @@ under their own labels, so neither reveals the other. (DS `gifos-net-3`.)
   my FLOOR. With the floor in place the guard drops its truthiness test —
   epoch 0 is a real generation — and the ancient grant is rejected as the
   replay it is.
+- **THE FLOOR IS BOUNDED (2026-10-03).** The pulse is any member's word, so it
+  may raise the floor only to a non-negative safe integer at most `PW_EP_MAX`
+  (1e9). Unbounded, one member pulsing `pwEp = 1e20` set every listener's
+  epoch to a number where `epoch + 1 === epoch`, persisted it, and the admin's
+  next grant was dead on arrival everywhere — for the life of the room name.
+  A grant's `ep` and the persisted counter must be non-negative safe integers
+  too (`pwEpInt`), so `pwEpoch + 1` is always a new generation and an admin
+  floored to `PW_EP_MAX` still mints one every seat takes; a stored value that
+  fails the rule reads as 0 and the room floors it again.
+  `test/unit/meet-pw-epoch.js` runs takeStatus on the poison;
+  `test/browser/e2e-meet-password.js` rotates past a poisoned guest.
 
 ## §SIG — Authority is a signature, never a stamp
 

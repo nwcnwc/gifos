@@ -58,7 +58,7 @@
   // Occupancy-authoring frames + the announce: signed on the way out, verified
   // on the way in when S4 is active. FINDLEAF/PLACE/CLAIM are the verifyFill-
   // gated fills; HELLO carries the announce (pubkey exchange + move recognition).
-  const SIGNED = new Set(['FINDLEAF', 'PLACE', 'CLAIM', 'HELLO', 'SITPONG', 'SITXFER']);   // V4: SITPONG is a re-CLAIM (confirms occupancy), SITXFER grants a row's admission ledger — both author occupancy and are S4-signed; SITPING is a question and rides unsigned like PHONE
+  const SIGNED = new Set(['FINDLEAF', 'PLACE', 'CLAIM', 'HELLO', 'SITPONG', 'SITXFER', 'DRAIN', 'LEAVE', 'MOVED', 'CONFIRM', 'YIELD', 'PHONE', 'PONG']);   // V4: SITPONG is a re-CLAIM (confirms occupancy), SITXFER grants a row's admission ledger — both author occupancy and are S4-signed; SITPING is a question and stays unsigned. LEAVE, MOVED, CONFIRM, YIELD, PHONE and PONG name an occupant or evict one, so they are signed and id is the signer. YIELD carries no id, so the signature proves a member. DRAIN (E1) vacates a whole subtree: signed, `id` bound to the signer, honoured by mesh.js only from the receiver's anchor
 
   // createMeshNode(opts):
   //   relayUrl        ws(s)://host:port of the relay (no path)
@@ -84,6 +84,7 @@
   //   onUpdate(node)  per-tick UI hook
   //   onLocked()      R6: greeters exist but none decrypt — wrong password
   //   onStranded()    R6: meeting is live but unreachable a full TTL
+  //   onClockSkew(ms, from) S4: while joining, a verified member's fill was minted outside the 10-min window; ms = its clock minus mine
   //   onFork(opts)    R5/E5§2: two+ door clusters — human pick-one
   //                   (multi-genesis OR same-key torn greeter halves).
   //                   opts = [{id, gkey, gateway, faces, tier, n}, …];
@@ -101,7 +102,7 @@
     const dropDeep = opts.dropDeepSocket !== false;
     const ident = GifOS.meshIdentity || null;
     let stopped = false, lockedFired = false, strandedFired = false, rejFired = false;
-    let sock = null, deepSince = -1, wasNetDark = false;
+    let sock = null, deepSince = -1, deepHold = -1, wasNetDark = false;
     // Wire-level greeter registration health (production only — the sim has no
     // sockets, so none of this is mesh law). The relay's greeter pool is pure
     // socket-attachment state: an entry dies WITH its socket, and the E3
@@ -112,6 +113,8 @@
     let lastRelayRx = 0;   // last frame heard from the relay on the live socket
     let lastRegAt = 0;     // last time we sent a greeter registration
     let regPendingAt = 0;  // a registration awaiting its greeters reply (zombie detector)
+    let mintGapTimer = null;
+    const clearMintGap = () => { if (mintGapTimer) { clearTimeout(mintGapTimer); mintGapTimer = null; } };
     // R3a CLIENT ARM (2026-08-02): consecutive not-admitted registration
     // replies while seated-S1. The relay's `admitted` says whether MY
     // presented genesis key matches the room's; a seated greeter refused
@@ -159,7 +162,10 @@
     const wantMint = !identity;             // ALWAYS mint when none is supplied
     let peer = identity ? identity.peerId : null;   // set post-mint
     const s4on = true;                      // unconditional — no off switch
-    const verifyChain = net.makeChain();
+    const verifyChain = net.makeChain();   // fills (HELLO/PLACE/CLAIM/...): FIFO so crypto never reorders a sender's frames
+    const gossipChain = net.makeChain();   // gossip has its own lane: a chat burst must never queue a newcomer's seating frame behind it
+    const gpending = new Set();            // gids whose verification is in flight — the copies that arrive meanwhile are not verified again
+    let skewFired = false;                 // onClockSkew fires once per node
     const gsig = new Map(); // gid -> Promise<s4> for gossip I authored (signed once, sent many times)
 
     let seat = null, timer = null;
@@ -323,8 +329,15 @@
     // never reorders a sender's frames); a good frame is delivered with m.s4ok
     // stamped and its key pinned, a forged one is dropped. Non-signed frames and
     // S4-off nodes pass straight through — the structural path is untouched.
-    function ingest(m) {
+    function ingest(m, via) {
       if (stopped || !seat || !m) return;
+      // THE LINK IS NAMED: `via` is the peer that delivered this frame (the
+      // DC pair's pid, a sponsor envelope's origin, the relay's `from`). A
+      // frame that carries no sender field of its own gets it, so the seat's
+      // per-link flood budget keys on the real link and S1SYNC's want-whole
+      // reply knows whom to ask. A frame that names its sender (WHOHOME's
+      // seeker, SITPING's assigner) keeps it.
+      if (via != null && m.from == null) m.from = via;
       // DEBUG sever (drill lever, mirrors the app's severPair): drop MESH
       // frames whose sender fields name a severed pid — without this, seat
       // liveness rides the wire's own relay fallback beneath the app-level
@@ -341,6 +354,12 @@
         verifyChain(() => ident.verifyFill(seat.pins, m).then((v) => {
           if (stopped) return;
           if (v && v.ok) { m.s4ok = true; m.s4from = v.from; seat.recv(m); }
+          // A key holder's fill minted outside the window while I am still
+          // JOINING: my seating frames fail the same window at every peer, so
+          // the retry loop would run in silence until R6 strands me. Say it
+          // once. A seated node stays quiet — a skewed neighbour is its own
+          // problem, not my clock's.
+          else if (v && v.reason === 'skew' && seat.state !== 3 && !skewFired) { skewFired = true; if (opts.onClockSkew) { try { opts.onClockSkew(v.skewMs, v.from); } catch (e) {} } }
           // else: unsigned / forged / impostor / key-swapped fill — DROP it.
         }).catch(() => {}));
         return;
@@ -348,20 +367,27 @@
       if (ident.GOSSIP_T && ident.GOSSIP_T.has(m.t)) seat.gspInAll = (seat.gspInAll || 0) + 1; // every gossip frame that reached this seat, duplicates included (the traffic gauge)
       if (s4on && ident.GOSSIP_T && ident.GOSSIP_T.has(m.t)) {
         // Duplicates are the common case (every neighbour forwards every
-        // message): dedup BEFORE paying for a verification.
+        // message): dedup BEFORE paying for a verification. gseen is written
+        // only when the verify resolves, so the copies that arrive inside that
+        // latency (up to degree of them, within milliseconds) are held off by
+        // gpending; a copy of a frame that FAILED stays unseen, so a later
+        // honest copy still lands.
         if (seat.gseen && seat.gseen.has(m.gid)) return;
-        verifyChain(() => ident.verifyGossip(seat.pins, m).then((v) => {
+        if (gpending.has(m.gid)) return;
+        gpending.add(m.gid);
+        gossipChain(() => ident.verifyGossip(seat.pins, m).then((v) => {
+          gpending.delete(m.gid);
           if (stopped) return;
           if (v && v.ok) { m.s4ok = true; seat.recv(m); }
           else { seat.gspForged = (seat.gspForged || 0) + 1; }   // unsigned / forged / impostor gossip — DROP it, unforwarded
-        }).catch(() => {}));
+        }).catch(() => { gpending.delete(m.gid); }));
         return;
       }
       seat.recv(m);
     }
 
     function makeSock() {
-      sock = net.steadySocket(makeUrl);
+      sock = net.steadySocket(makeUrl, { onDuty: () => iAmAGreeter() });
       lastRelayRx = Date.now(); // fresh socket starts its idle clock now
       // EVERY (re)connect: if I am a seated Section-1 greeter, my pool entry
       // died with the old socket — restore it NOW, not at the next E3 tick.
@@ -383,7 +409,7 @@
               // a THROW inside the seat's recv must be LOUD — the old shape
               // let it fall into the outer catch and masquerade as an
               // unopenable app frame, silently eating entry handshakes
-              try { ingest(o.m); } catch (e) { try { console.error('[mesh] recv threw on', o.m && o.m.t, e); } catch (e2) {} }
+              try { ingest(o.m, m.from); } catch (e) { try { console.error('[mesh] recv threw on', o.m && o.m.t, e); } catch (e2) {} }
             } else if (opts.onRelayMsg) opts.onRelayMsg(m);
           }).catch(() => { if (!stopped && opts.onRelayMsg) opts.onRelayMsg(m); });
           return;
@@ -418,9 +444,16 @@
     // seated seat routing internally, so the list quietly re-opened the relay
     // as a transport for anything wearing an entry type name.
     // ═══════════════════════════════════════════════════════════════════════
-    function sendRaw(obj) {   // PRIVATE — the four functions below only
-      if (stopped) return;
-      if (!sock) makeSock(); // recreate on demand (deep seats run socketless)
+    function sendRaw(obj, reopen) {   // PRIVATE — the four functions below only
+      if (stopped) return false;
+      if (!sock) {
+        // relaySend must not open a door. A deep seat drops its socket
+        // on purpose. First-contact signaling and the door steps pass
+        // reopen !== false, which is also the default.
+        if (reopen === false) return false;
+        makeSock();
+        if (seat && seat.state === 3 && seat.hasCoord && seat.coord.pc !== 0) deepHold = env.TICK + 120;
+      }
       // A POLICY-REJECTED socket (4000 replaced / banned / voted off) stays
       // DOWN — steadySocket already refuses to reconnect it, but replacing
       // the OBJECT minted a fresh connect every knock retry and re-ignited
@@ -428,8 +461,20 @@
       // e2e-meet-quiet part B: ~2 fresh sockets/s on the evicted tab).
       // Another tab owns this seat; we have no right to keep knocking.
       // The one sanctioned re-arm is an app credential change (setKey).
-      if (sock.rejected) return;
+      if (sock.rejected) return false;
+      // A seat below Section 1 drops this socket 20 ticks after it sat
+      // (deepSince is that seating tick). PLACE, NOROOM and HOME to an
+      // unseated joiner leave through here: the target has no DataChannel,
+      // so the frame is queued and the socket reopens. Leaving deepSince at
+      // the seating tick closed that socket on the next mesh tick, before
+      // the handshake, and steadySocket close() discards the queue. The
+      // admitter kept the vouch and the joiner never saw PLACE. Restart the
+      // grace at the send that needs the socket. deepHold covers the
+      // reopen itself: the next tick must not close a socket that was
+      // opened for that handshake.
+      if (seat && seat.state === 3 && seat.hasCoord && seat.coord.pc !== 0) deepSince = env.TICK;
       sock.send(obj);
+      return true;
     }
     const iAmInsideTheRoom = () => !!(seat && seat.hasCoord && seat.state === 3);
     const iAmAGreeter = () => iAmInsideTheRoom() && seat.coord.pc === 0;
@@ -461,10 +506,10 @@
     // socket just reconnected, a greeters reply came back empty, or the idle
     // keepalive is due. Throttled so a solo greeter's own empty replies can
     // never chain into a knock loop. Every call is stamped into greeterTrace.
-    function reregister(why) {
+    function reregister(why, minMs) {
       if (stopped || !seat || !iAmAGreeter()) return;
       const now = Date.now();
-      if (now - lastRegAt < 8000) return;
+      if (now - lastRegAt < (minMs || 8000)) return;
       lastRegAt = now; regPendingAt = now;
       REGISTER_MYSELF_AS_A_GREETER(seat.genKey);
       greeterTrace.push({ t: now, tick: env.TICK, state: seat.state, post: seat.state,
@@ -512,6 +557,7 @@
     function fireLocked() { if (!lockedFired) { lockedFired = true; if (opts.onLocked) opts.onLocked(); } }
 
     async function onGreeters(m) {
+      clearMintGap();
       const list = m.list || [];
       const ids = [], sealedFps = [];
       for (const s of list) {
@@ -593,6 +639,8 @@
         if (preState !== 3) fireLocked(); // R6: sealed list I can't read — wrong password (joiners only)
       } else if (!ids.length && !m.founded) {
         action = 'hold-mint-gap';                                         // hold; the join loop re-knocks
+        clearMintGap();
+        mintGapTimer = setTimeout(() => { mintGapTimer = null; if (!stopped) KNOCK_FOR_THE_GREETER_LIST(myKey); }, 750);
       } else {
         // empty+founded + still joining ⇒ R3/R6 take-over mints 0/0.0;
         // empty+founded while already seated is a no-op (mesh.js gates on state===0).
@@ -601,6 +649,7 @@
         else action = 'deliver';
         seat.recv({ t: 'GREETERS', list: ids });
       }
+      if (action !== 'hold-mint-gap') clearMintGap();
       // `adm` is the relay's `admitted`: does my genesis key match the room's?
       // Nothing ACTS on it — but its absence from this trace is why the
       // ghost-genesis brick (healing-laws R3a) took a relay-side instrumented
@@ -690,9 +739,12 @@
         // with no channel between them could otherwise never exchange the
         // signaling that would wire them).
         const needsRelay = !(seat.state === 3 && seat.hasCoord && seat.coord.pc !== 0) || !(!opts.wired || opts.wired());
-        if (needsRelay) deepSince = -1;
+        if (needsRelay) { deepSince = -1; deepHold = -1; }
         else if (deepSince < 0) deepSince = env.TICK;
-        if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > 20) { try { sock.close(); } catch (e) {} sock = null; }
+        // The first deep grace stays 20 ticks. A socket reopened for
+        // first-contact signaling sets deepHold 120 ticks ahead (60s at
+        // the 500ms tick) so the next tick does not close it at once.
+        if (dropDeep && !needsRelay && sock && deepSince >= 0 && env.TICK - deepSince > 20 && !(deepHold >= 0 && env.TICK < deepHold)) { deepHold = -1; try { sock.close(); } catch (e) {} sock = null; }
         if (needsRelay && !sock) makeSock(); // re-arm reachability (a policy-REJECTED socket stays down — see sendRaw)
         if (sock && sock.rejected && !rejFired) { rejFired = true; try { const L = (window.__pwLog = window.__pwLog || []); L.push(Date.now() + ' relay-socket REJECTED code=' + sock.rejected + ' — door unreachable'); if (L.length > 64) L.shift(); } catch (e) {} if (opts.onRejected) { try { opts.onRejected(sock.rejected); } catch (e) {} } }
         // Greeter socket health (wire-level, not mesh law — the sim has no
@@ -719,11 +771,17 @@
         if (iAmAGreeter() && sock && !sock.rejected) {
           const nowMs = Date.now();
           if (regPendingAt && nowMs - regPendingAt > 12000) {
-            // a registration the relay never answered ⇒ zombie socket:
-            // rebuild it (the fresh socket's onopen re-registers).
-            regPendingAt = 0;
-            try { sock.close(); } catch (e) {}
-            sock = null; makeSock();
+            // A socket that is not up is reconnecting under its own
+            // backoff. Replacing it minted a fresh steadySocket (attempt
+            // 0) every 12s. Only an OPEN socket that never answers is a
+            // zombie. Clear the pending stamp so the reconnect is not
+            // declared a zombie the moment it opens.
+            if (sock.state !== 'up') regPendingAt = 0;
+            else {
+              regPendingAt = 0;
+              try { sock.close(); } catch (e) {}
+              sock = null; makeSock();
+            }
           } else if (nowMs - lastRelayRx > 55000) {
             // idle keepalive: re-register before any middlebox forgets the
             // pipe; the greeters reply doubles as proof the socket is alive.
@@ -739,7 +797,7 @@
             // A room that SHRANK to one skips the 90-tick founder-grace and
             // probes within ~3s — the 2-person fork's heal window (see
             // shrankSolo) must beat human patience, not a cadence.
-            reregister(shrankSolo ? 'shrank-solo' : 'solo-probe');
+            reregister(shrankSolo ? 'shrank-solo' : 'solo-probe', shrankSolo ? 3000 : 8000);
           }
         }
         if (opts.onUpdate) opts.onUpdate(node);
@@ -778,7 +836,7 @@
       get identity() { return identity; },
       // DataChannel ingestion: the DC layer hands OPENED control objects here
       // (production unwraps its own sealed frames; {mw:1, m} envelopes route m).
-      recvCtl(m) { if (!stopped && seat && m) ingest(m); },
+      recvCtl(m, via) { if (!stopped && seat && m) ingest(m, via); }, // via: the delivering peer (optional; the link the flood budget keys on)
       // Room-wide app traffic (chat/status/votes/files): flood over the mesh —
       // the relay session is only the greeter pool now, not the room.
       gossip(payload, opts) { if (!stopped && seat) seat.gossip(payload, opts); }, // opts: { scope: 'section', ephemeral } — see mesh.js gossip()
@@ -816,8 +874,8 @@
       // is traffic with no peer path at all. It is named and listed here rather
       // than left as an anonymous export, because an unnamed way to reach the
       // relay is exactly how the last one crept in.
-      RELAY_FIRST_CONTACT_SIGNALING(obj) { sendRaw(obj); },
-      relaySend(obj) { sendRaw(obj); },   // legacy alias — callers should move to the named form
+      RELAY_FIRST_CONTACT_SIGNALING(obj) { return sendRaw(obj, true); },
+      relaySend(obj) { return sendRaw(obj, false); },   // does not open a socket; false means the frame was not sent
       relayUp() { return !!(sock && sock.state === 'up'); },
       // Password change re-keyed the room (§LOCK): adopt the NEW key for every
       // wire seal/open, and — if this seat is a Section-1 greeter — re-knock
@@ -852,7 +910,7 @@
       // R5/E5§2: after onFork, the app picks one genesis key; seat joins only that room.
       chooseFork(gkey) { return !!(seat && seat.chooseFork && seat.chooseFork(gkey)); },
       leave() { try { if (seat) seat.leave(); } catch (e) {} node.stop(); },
-      stop() { stopped = true; if (timer && timer.worker) { try { timer.worker.terminate(); } catch (e) {} } else if (timer) clearInterval(timer); timer = null; if (sock) { try { sock.close(); } catch (e) {} sock = null; } },
+      stop() { stopped = true; clearMintGap(); if (timer && timer.worker) { try { timer.worker.terminate(); } catch (e) {} } else if (timer) clearInterval(timer); timer = null; if (sock) { try { sock.close(); } catch (e) {} sock = null; } },
     };
 
     if (wantMint) {
@@ -860,7 +918,10 @@
         if (stopped) return;
         identity = id; peer = id.peerId; node.peer = peer;
         build();
-      }).catch(() => {});
+      }).catch((e) => {
+        if (opts.onError) { try { opts.onError('identity', e); } catch (e2) {} }
+        else { try { console.error('[mesh] identity mint failed', e); } catch (e2) {} }
+      });
     } else {
       rsFor().then(() => { if (!stopped) build(); }, () => { if (!stopped) build(); });
     }

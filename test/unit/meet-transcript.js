@@ -30,14 +30,22 @@ const start = html.indexOf('    const trs = new Map(); // id -> { id, byId, by, 
 const end = html.indexOf('    function showCaption(');
 check('the transcript block is where the lift expects it', start > 0 && end > start);
 const block = html.slice(start, end);
+// ---- and the chat bounds it shares (CHAT_MAX, chatRateOk, trimMap, takeChat), verbatim ----
+const cstart = html.indexOf('    const CHAT_MAX = 500, CHAT_PER_10S = 20;');
+const cend = html.indexOf('    function takeTomb(id, t) {');
+check('the chat-bounds block is where the lift expects it', cstart > 0 && cend > cstart);
+const cblock = html.slice(cstart, cend);
+function makeChat() {
+  const src = cblock + '\n return { chat, takeChat, trimMap, chatRateOk, CHAT_MAX };';
+  const chat = new Map(), chatTombs = new Map(), chatOffInfo = () => null, admins = [], myId = 'me';
+  return new Function('chat', 'chatTombs', 'chatOffInfo', 'admins', 'myId', src)(chat, chatTombs, chatOffInfo, admins, myId);
+}
 function makeTranscript() {
   const src = block
-    + '\n return { trs, takeTr, trBlocks, trEcho, drops: () => trDrops, setSource: (id) => { ccSourceId = id; } };';
-  const CHAT_MAX = 500;
-  const trimMap = (m, max) => { while (m.size > max) m.delete(m.keys().next().value); };
-  const chatRateOk = () => true;
+    + '\n return { trs, trSeen, takeTr, trBlocks, trEcho, drops: () => trDrops, setSource: (id) => { ccSourceId = id; } };';
+  const C = makeChat(); // the real trimMap and the real per-author limiter, as the page runs them
   const myId = 'me';
-  return new Function('CHAT_MAX', 'trimMap', 'chatRateOk', 'myId', src)(CHAT_MAX, trimMap, chatRateOk, myId);
+  return new Function('CHAT_MAX', 'trimMap', 'chatRateOk', 'myId', src)(C.CHAT_MAX, C.trimMap, C.chatRateOk, myId);
 }
 
 // ---- rule 1: echoes ----
@@ -108,9 +116,54 @@ function makeTranscript() {
   check('a paragraph keeps the first line\'s time', blocks[0].at === t0);
 }
 
+// ---- rule 4: the bounds hold, and the history replay is whole ----
+// trimMap deleted by value.id, but trSeen is keyed by the line's TEXT: nothing
+// was ever trimmed, and every caption past 500 paid a sort over all of them.
+{
+  const C = makeChat();
+  const byText = new Map();
+  for (let i = 0; i < 600; i++) byText.set('line number ' + i, { at: 1000 + i, src: 'x', id: 't' + i });
+  C.trimMap(byText, 500);
+  check('trimMap bounds a map keyed by text (deletes by key, not by value.id)', byText.size === 500, 'size ' + byText.size);
+  check('…and keeps the NEWEST by at', !byText.has('line number 0') && byText.has('line number 599'));
+  const T = makeTranscript();
+  for (let i = 0; i < 600; i++) T.takeTr({ id: 'l' + i, byId: 'me', by: 'Me', at: 5000000 + i * 1000, text: 'distinct sentence number ' + i + ' spoken in a long captioned class' });
+  check('600 distinct captions leave trSeen bounded by CHAT_MAX', T.trSeen.size <= 500 && T.trs.size <= 500, 'trSeen ' + T.trSeen.size + ' trs ' + T.trs.size);
+}
+// The 'hi' replay on a channel open carries one speaker's whole backlog in a
+// burst. The per-author limiter (20 per 10 s) is for a LIVE flood; applied to
+// the replay it kept 20 lines of 60 and the rest never came again.
+{
+  const T = makeTranscript();
+  const t0 = 6000000;
+  let live = 0;
+  for (let i = 0; i < 60; i++) if (T.takeTr({ id: 'v' + i, byId: 'oleg', by: 'Oleg', at: t0 + i * 1000, text: 'live sentence number ' + i + ' from one busy speaker' })) live++;
+  check('a live burst from one speaker is still capped at 20 per 10 s', live === 20, 'took ' + live);
+  const T2 = makeTranscript();
+  let replay = 0;
+  for (let i = 0; i < 60; i++) if (T2.takeTr({ id: 'v' + i, byId: 'oleg', by: 'Oleg', at: t0 + i * 1000, text: 'replayed sentence number ' + i + ' from one busy speaker' }, true)) replay++;
+  check('the same 60 lines as a hi replay (backfill) all land', replay === 60 && T2.trs.size === 60, 'took ' + replay);
+  const C = makeChat();
+  let cl = 0, cr = 0;
+  for (let i = 0; i < 40; i++) if (C.takeChat({ id: 'c' + i, byId: 'alex', by: 'Alexandra', at: t0 + i, text: 'live chat ' + i })) cl++;
+  check('a live chat burst from one author is still capped at 20 per 10 s', cl === 20, 'took ' + cl);
+  const C2 = makeChat();
+  for (let i = 0; i < 40; i++) if (C2.takeChat({ id: 'c' + i, byId: 'alex', by: 'Alexandra', at: t0 + i, text: 'replayed chat ' + i }, true)) cr++;
+  check('the same 40 chat lines as a hi replay (backfill) all land', cr === 40 && C2.chat.size === 40, 'took ' + cr);
+  check('a replayed duplicate is still refused', C2.takeChat({ id: 'c1', byId: 'alex', by: 'Alexandra', at: t0, text: 'again' }, true) === false);
+}
+
 // ---- rule 3: the controls and the layout rule ----
 check('a Leave button sits on the always-visible row, before the collapsible part',
   html.indexOf('<button id="leavebtn"') > 0 && html.indexOf('<button id="leavebtn"') < html.indexOf('<div class="barmore" id="barmore">'));
+// The bar is collapsed by default and nothing expands it on a message, so a
+// status inside .barmore (display:none) was a refusal, a ban, "reconnecting…"
+// and the five-minute host-absence countdown written into an invisible element.
+check('the status line sits on the always-visible row, before the collapsible part',
+  html.indexOf('<span class="status" id="status">') > 0 && html.indexOf('<span class="status" id="status">') < html.indexOf('<div class="barmore" id="barmore">'));
+check('…and so does the host-absence countdown',
+  html.indexOf('<div class="admcount" id="admcount"') > 0 && html.indexOf('<div class="admcount" id="admcount"') < html.indexOf('<div class="barmore" id="barmore">'));
+check('the first status text does not promise a camera (the page joins quiet and hidden)', !/id="status">Starting camera/.test(html) && /id="status">Joining…</.test(html));
 check('leaving shows a card with the way back', /id="left-modal"[\s\S]*id="left-rejoin"/.test(html));
 check('Settings offers a captions-language picker', /<select id="cclang"/.test(html));
 check('the engine listens in the chosen language, not the device default', /speech\.lang = ccLang\(\) === 'auto' \? \(navigator\.language \|\| 'en-US'\) : ccLang\(\);/.test(html) && !/speech\.lang = navigator\.language \|\| 'en-US';/.test(html));

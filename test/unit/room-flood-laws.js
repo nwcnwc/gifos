@@ -44,8 +44,14 @@ check('…and the mesh forwards nothing the app refused', has(mesh, /ok === fals
 const onRemote = run.slice(run.indexOf('function onRemote'), run.indexOf("} else if (m.k === 'sig')"));
 const rebroadcasts = (onRemote.match(/sendAll\(\{ k: '(chat|tr|fmeta|fdel|cdel)'/g) || []).filter((x) => !/k: 'hi'/.test(x));
 const hiMerge = onRemote.slice(onRemote.indexOf("m.k === 'hi'"), onRemote.indexOf("} else if (m.k === 'chat')"));
-const hiSends = (hiMerge.match(/sendAll\(/g) || []).length;
-check('a receiver never re-broadcasts a chat line, caption, file notice or deletion to the room', rebroadcasts.length === hiSends, { rebroadcasts: rebroadcasts.length, onlyIn: 'the hi merge', hiSends });
+const hiSends = (hiMerge.match(/sendAll\(|fanOut\(/g) || []).length;
+check('a receiver never re-broadcasts a chat line, caption, file notice or deletion to the room', rebroadcasts.length === 0, { rebroadcasts: rebroadcasts.length });
+// The 'hi' merge once re-flooded every line it learned (a newcomer's first
+// 'hi' is ALL news: up to 800 room-wide floods per join, O(history × N)).
+// What was news is handed on over my own open channels, once, like fmeta.
+check('the hi merge originates no room-wide flood (history rides the pair, not the room)', hiSends === 0, { hiSends });
+check('…and hands what was news on over my OWN links only, as one hi frame (dcSend), the source excluded', has(hiMerge, /q !== p && q\.dc && q\.dc\.readyState === 'open'\) dcSend\(q, \{ k: 'hi', chats: freshChats, trs: freshTrs \}\)/));
+check('…and the replay is taken as backfill, past the live per-author limiter', has(hiMerge, 'takeChat(c, true)') && has(hiMerge, 'takeTr(l, true)') && has(run, /function takeChat\(m, backfill\)[\s\S]{0,200}if \(!backfill && m\.byId !== myId && !chatRateOk\(m\.byId\)\) return false;/) && has(run, /function takeTr\(m, backfill\)[\s\S]{0,300}if \(!backfill && writer !== myId && !chatRateOk\('tr:' \+ writer\)\) return false;/));
 check('a file notice is handed on over my OWN links only (dcSend), never fanned out', has(onRemote, /takeMeta\(m\.f, p\)\) \{[^\n]*dcSend\(q, \{ k: 'fmeta'/) && !has(onRemote, "sendAll({ k: 'fmeta'"));
 
 // 4. the flood guard
@@ -55,6 +61,13 @@ check('the per-link budget exists and is small (rate ' + rate + '/tick, burst ' 
 check('the per-author budget exists and is smaller (rate ' + srate + '/tick, burst ' + sburst + ')', srate > 0 && srate <= rate && sburst > 0 && sburst <= burst, { srate, sburst });
 check('_gspRecv spends the budget before a message is seen or forwarded', has(mesh, /if \(!this\._gspBudget\(m\.from, m\.src\)\) \{[^\n]*return; \}\n\s*g\.set\(m\.gid/));
 check('the guard has no production off switch (env.GSP_GUARD === false is the harness control only)', (mesh.match(/GSP_GUARD/g) || []).length === 2 && !has(run, 'GSP_GUARD') && !has(wire, 'GSP_GUARD'));
+// The per-link bucket keys on the link that delivered the frame, so the wire
+// must NAME it: run.html hands recvCtl the pair's pid (and the sponsor
+// envelope's origin), the relay path hands the relay's `from`, and ingest
+// stamps a frame that carries no sender field of its own.
+check('run.html hands recvCtl the delivering pair and the sponsor-envelope origin', has(run, 'meshNode.recvCtl(m.m, p.id)') && has(run, 'meshNode.recvCtl(m.m, m.from)'));
+check('the wire stamps the delivering peer onto a frame with no sender field (DC and relay paths)', has(wire, /recvCtl\(m, via\) \{[^\n]*ingest\(m, via\)/) && has(wire, 'ingest(o.m, m.from)') && has(wire, 'if (via != null && m.from == null) m.from = via;'));
+check('a gid names its author: the seat and the identity layer both refuse a gid that does not start with its src', has(mesh, "!m.gid.startsWith(m.src + ':')") && has(ident, "!String(m.gid).startsWith(from + ':')"));
 
 // 5. signed gossip
 check('the wire signs the gossip I author and refuses to send unsigned gossip', has(wire, /ident\.GOSSIP_T\.has\(m\.t\) && !m\.s4\) \{\n\s*if \(m\.src !== seat\.id\) return;/));
@@ -73,6 +86,18 @@ for (const f of ['test/browser/e2e-status-plane.js', 'test/browser/e2e-status-pl
 check('e2e-status-plane still carries its tripwire leg (a quiet room originates no room-wide flood)', has(read('test/browser/e2e-status-plane.js'), 'QUIET ROOM, 20 s: no seat originated a room-wide flood'));
 check('…and its one-message-one-flood leg', has(read('test/browser/e2e-status-plane.js'), 'nobody re-broadcast it'));
 check('status-plane.js still has the flood-guard and forgery legs with their negative controls', has(read('test/mesh/status-plane.js'), 'control, guard OFF') && has(read('test/mesh/status-plane.js'), 'control, unsigned wire'));
+
+// 7. the sga pull-through forgets (2026-10-03). A neighbour's ask registers it
+// as a waiter; the chase ran "while wanted", and nothing but a served frame
+// or the owner's own drop ever removed a waiter — so an ask for an app whose
+// owner left before the bytes spread, or from an asker who then left, chased
+// every open channel every 5 s for the rest of the meeting, each receiver
+// chasing in turn. A waiter now ages out, leaves with its peer, and a sid no
+// one advertises is not wanted at all.
+check('a waiter entry ages out (SGA_WANT_TTL) — an asker refreshes it with every ask', /SGA_WANT_TTL\s*=\s*\d+/.test(run) && /function sgaWanters/.test(run));
+check('dropPeer forgets the departed peer in every sga want map', /function dropPeer[\s\S]{0,2500}sgaForgetWaiter\(peerId\)/.test(run));
+check('a pull-through chase ends when no one advertises the sid (sgaAdvertised)', /function sgaAdvertised\(sid\)/.test(run) && /sgaWanters\(sgaAppWant, sid\)[\s\S]{0,80}sgaAdvertised\(sid\)/.test(run) && /sgaWanters\(sgaWant, sid\)[\s\S]{0,80}sgaAdvertised\(sid\)/.test(run));
+check('a neighbour asking for a sid no one advertises is not registered as a waiter', /function sgaAppServe[\s\S]{0,300}sgaAdvertised\(m\.sid\)/.test(run) && /function sgaServe[\s\S]{0,300}sgaAdvertised\(m\.sid\)/.test(run));
 
 console.log(fails ? `\n${fails} FAIL` : '\nall ok');
 process.exit(fails ? 1 : 0);

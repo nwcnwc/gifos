@@ -16,7 +16,7 @@ const sha256hex = (s) => crypto.createHash('sha256').update(String(s)).digest('h
 // RELAY_GREETER_TTL_MS shortens the TTL for tests ONLY — the margin between
 // this TTL and the E3 re-knock is what a suite wants to exercise, and waiting
 // 250s per assertion is not a test. Default is the production value.
-const GREETER_TTL_MS = parseInt(process.env.RELAY_GREETER_TTL_MS || String(250 * 1000), 10), GBLOB_CAP = 4096;
+const GREETER_TTL_MS = parseInt(process.env.RELAY_GREETER_TTL_MS || String(250 * 1000), 10), GBLOB_CAP = 1024; // relay/src/relay.js GBLOB_CAP
 // A mint must become a real greeter within this, or the claim lapses (the
 // ghost-genesis rule — see relay/src/relay.js). NEVER above the greeter TTL: a
 // blobless claim must be WEAKER than a registered greeter's, never stronger,
@@ -131,8 +131,9 @@ class Conn {
 }
 
 // A session id "<room>.<verifier>" carries its verifier after the LAST dot
-// (hex, 16–64 chars). One derivation for BOTH the app host gate and the
-// meeting admin check — mirrors the Worker's verifierOf.
+// (hex, 24–64 chars). The floor is 24: admProven compares that many hash
+// chars, so a shorter tail could never be administered. Mirrors verifierOf
+// in relay/src/relay.js.
 function verifierOf(sid) {
   const dot = String(sid || '').lastIndexOf('.');
   if (dot <= 0) return '';
@@ -168,6 +169,10 @@ function orderIsNew(sess, act, ts) { sess.admTs = sess.admTs || {}; return (+ts 
 
 // ---- session hub (mirrors the Durable Object) ----
 const sessions = new Map(); // id -> { host, token, meshToken, clients:Map }
+// RELAY_DEBUG rate samples. Declared here so a refusal and a close can
+// drop entries. The 10s printer stays at the bottom. Unset RELAY_DEBUG
+// never writes these maps: a gate relay lives for the whole browser tier.
+const msgRate = new Map(), typeRate = new Map();
 // NOTE: no names map. Mirrors relay/src/relay.js — display names never reach
 // the relay; they travel end-to-end sealed between clients (status/offer/
 // answer), so the roster this test relay authors is peer ids only.
@@ -177,7 +182,18 @@ function getSession(id) { if (!sessions.has(id)) sessions.set(id, { host: null, 
 // (e.g. `tailscale cert <name>`), so a tailnet swarm + real users get a SECURE
 // CONTEXT (WebCrypto room-key derivation needs it) without tailscale-serve's WS
 // proxy (which doesn't upgrade) or insecure-origin hacks.
-const RELAY_HANDLER = (req, res) => { res.writeHead(200); res.end('gifos relay (local)'); };
+const RELAY_HANDLER = (req, res) => {
+  // RELAY_STATS=1 is a test probe: counts only, never a peer id or an address.
+  if (process.env.RELAY_STATS === '1' && (req.url || '').split('?')[0] === '/_stats') {
+    let clients = 0;
+    for (const s of sessions.values()) clients += s.clients.size;
+    const body = JSON.stringify({ sessions: sessions.size, clients, msgRate: msgRate.size });
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(body);
+    return;
+  }
+  res.writeHead(200); res.end('gifos relay (local)');
+};
 const useTLS = process.env.RELAY_TLS_CERT && process.env.RELAY_TLS_KEY;
 const server = useTLS
   ? https.createServer({ cert: fs.readFileSync(process.env.RELAY_TLS_CERT), key: fs.readFileSync(process.env.RELAY_TLS_KEY) }, RELAY_HANDLER)
@@ -253,7 +269,6 @@ server.on('upgrade', (req, socket, head) => {
   // uncoded, exactly as production does.
   const REJECT_CODES = {
     'too many joining right now — try again in a moment': 1013,
-    'this session is full': 1013,
     'too many connections from your network': 1013,
     'joining too fast — slow down': 1013,
     'the relay is a greeter — app sessions ride the room mesh now': 4010,
@@ -264,7 +279,17 @@ server.on('upgrade', (req, socket, head) => {
     'that id is in use from another device': 4011,
     'a device tag is required': 4012,
   };
-  const rejectConn = (error) => { clog('REJECT sid=' + parts[1] + ' peer=' + peer + ' ip=' + ip + ' :: ' + error); conn.send(JSON.stringify({ t: 'error', error })); conn.close(REJECT_CODES[error] || 0, error); };
+  // Production has no session cap. The string exists only while the
+  // RELAY_MAX_SOCKETS experiment knob is finite (see the banner).
+  if (Number.isFinite(MAX_SOCKETS_PER_SESSION)) REJECT_CODES['this session is full'] = 1013;
+  const rejectConn = (error) => {
+    clog('REJECT sid=' + parts[1] + ' peer=' + peer + ' ip=' + ip + ' :: ' + error);
+    try { conn.send(JSON.stringify({ t: 'error', error })); } catch (e) {}
+    conn.close(REJECT_CODES[error] || 0, error);
+    // A refusal never sat in sess.clients. Drop the room if this upgrade
+    // was the only reason getSession created it.
+    if (sess.clients.size === 0) sessions.delete(parts[1]);
+  };
   const allConns = () => sess.clients.size;
   if (allConns() >= MAX_SOCKETS_PER_SESSION) { rejectConn('this session is full'); return; }
   // The raw IP is used only TRANSIENTLY (rate-limit counting here); it is
@@ -297,11 +322,13 @@ server.on('upgrade', (req, socket, head) => {
   const DOOR_BURST = 4 * BURST, DOOR_REFILL = 4 * REFILL;
   const meter = { tokens: BURST, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 };
   const allow = (data) => {
-    msgRate.set(peer, (msgRate.get(peer) || 0) + 1); // RELAY_DEBUG: how fast do real clients actually talk?
+    if (process.env.RELAY_DEBUG) msgRate.set(peer, (msgRate.get(peer) || 0) + 1); // how fast do real clients actually talk?
     if (DEV) return true;   // RELAY_DEV: the bandwidth/frame meter is an abuse guard too
     const now = Date.now();
     const dt = (now - meter.last) / 1000;
-    const door = !!(conn.gblob || conn.gmint);
+    // A door only while its claim is live — a registration inside its grace,
+    // or a founder's mint inside MINT_GRACE_MS (mirrors relay.js doorLive).
+    const door = conn.gblob ? (conn.gexp || 0) + CLAIM_GRACE_MS > now : !!(conn.gmint && conn.gmint + MINT_GRACE_MS > now);
     const cap = door ? DOOR_BURST : BURST;
     meter.tokens = Math.min(cap, meter.tokens + dt * (door ? DOOR_REFILL : REFILL));
     meter.frames = Math.min(FRAME_BURST, meter.frames + dt * FRAMES_PER_SEC);
@@ -313,7 +340,12 @@ server.on('upgrade', (req, socket, head) => {
       if (meter.doorDrops % 100 === 1) clog('DOOR-DROP peer=' + peer + ' drops=' + meter.doorDrops + ' tokens=' + (meter.tokens | 0));
       return false;
     }
-    if (len <= BURST && meter.tokens >= len && meter.frames >= 1) { meter.tokens -= len; meter.frames -= 1; meter.warned = false; return true; }
+    if (len <= BURST && meter.tokens >= len && meter.frames >= 1) {
+      // Mirrors relay.js overBudget: a frame bucket refilled to FRAME_BURST has
+      // been inside the budget, so the strike count starts over.
+      if (meter.frames >= FRAME_BURST) meter.strikes = 0;
+      meter.tokens -= len; meter.frames -= 1; meter.warned = false; return true;
+    }
     if (!meter.warned) {
       meter.warned = true;
       meter.strikes++;
@@ -337,7 +369,9 @@ server.on('upgrade', (req, socket, head) => {
   // The old rule re-sent the whole list to every socket on every connect and
   // close: a burst of N joiners cost ~N³/3 list entries (13 GB of buffered
   // frames at N=700), and the 30-socket session cap existed only to hide it.
-  const isGreeter = (c) => !!c.gblob;
+  // A live registration only (mirrors relay.js isGreeter): the blob stays
+  // after gexp for genesisHash's re-register grace, but is not a door.
+  const isGreeter = (c) => !!c.gblob && (c.gexp || 0) > Date.now();
   const WHO_MIN_MS = 5000;
   const rosterMsg = (full) => {
     const msg = { t: 'roster', scope: full ? 'full' : 'door', peers: [] };
@@ -360,13 +394,30 @@ server.on('upgrade', (req, socket, head) => {
     }
     return JSON.stringify(msg);
   };
-  // Every socket, each its own scope — for a greeter-set change or a ban/lock
-  // change (all rare); never on an ordinary connect or close.
+  // Every socket, each its own scope — for a ban/lock change (rare); never on
+  // an ordinary connect or close; a greeter-set change is doorsChanged().
   const roster = () => {
     const full = rosterMsg(true), door = rosterMsg(false);
+    sess.whoCache = { at: Date.now(), s: full };
     for (const c of sess.clients.values()) c.send(isGreeter(c) ? full : door);
   };
   const rosterTo = (c, full) => c.send(rosterMsg(full || isGreeter(c)));
+  const WHO_CACHE_MS = 1000;
+  const fullRosterForPull = () => { // the pulled list is built at most once per WHO_CACHE_MS — mirrors relay.js
+    const nowC = Date.now();
+    if (!sess.whoCache || nowC - sess.whoCache.at >= WHO_CACHE_MS) sess.whoCache = { at: nowC, s: rosterMsg(true) };
+    return sess.whoCache.s;
+  };
+  // The greeter SET changed: every non-greeter gets the new door list, the
+  // newly registered greeter alone the full list once; existing greeters hold
+  // an exact list by deltas already — mirrors relay.js doorsChanged.
+  const doorsChanged = (newGreeter) => {
+    const door = rosterMsg(false);
+    for (const c of sess.clients.values()) {
+      if (c === newGreeter) rosterTo(c, true);
+      else if (!isGreeter(c)) c.send(door);
+    }
+  };
   const toGreeters = (s) => { for (const c of sess.clients.values()) if (isGreeter(c)) c.send(s); };
   const BAN_CAP = 20;
   // THE 2 KB ATTACHMENT, EMULATED. The Worker keeps every occupant's join
@@ -400,7 +451,7 @@ server.on('upgrade', (req, socket, head) => {
     for (const c of sess.clients.values()) if (c.dev === dev) { try { c.close(4004, 'banned'); } catch (e) {} }
     roster();
   };
-  const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 64)
+  const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 24) // relay/src/relay.js cleanDevList — 24 x 16 chars fits the 2 KB attachment
     .map((d) => String(d || '').slice(0, 16)).filter(Boolean);
   const tallyVotes = () => {
     if (sess.av) return; // admin rooms don't vote-kick
@@ -484,21 +535,26 @@ server.on('upgrade', (req, socket, head) => {
     return out;
   };
   const knock = (c, gk, gblob) => {
+    const prev = { gkh: c.gkh, gseen: c.gseen, gmint: c.gmint, gblob: c.gblob, gexp: c.gexp };
     const have = genesisHash();
     let founded = false, admitted = false;
     const wasGreeter = isGreeter(c);
-    if (!have) { c.gkh = gk ? sha256hex(gk) : null; founded = admitted = !!c.gkh; if (founded) c.gmint = Date.now(); } // empty ⇒ found (R3)
+    if (!have) { c.gkh = gk ? sha256hex(gk) : null; founded = admitted = !!c.gkh; if (founded) { c.gmint = Date.now(); delete c.gblob; delete c.gexp; } } // empty ⇒ found (R3); a stale blob would hide the mint from genesisHash
     else if (gk && sha256hex(gk) === have) { c.gkh = have; admitted = true; }       // key match ⇒ join pool
     if (c.gkh) c.gseen = Date.now(); // a knock is proof of life — see genesisHash
-    if (admitted && gblob) {
-      const prev = { gblob: c.gblob, gexp: c.gexp };
-      c.gblob = String(gblob).slice(0, GBLOB_CAP); c.gexp = Date.now() + GREETER_TTL_MS;
-      if (!attFits(attOf(c), 'knock')) Object.assign(c, prev); // the Worker's saveAtt failed: the registration is not kept
+    if (admitted && gblob) { c.gblob = String(gblob).slice(0, GBLOB_CAP); c.gexp = Date.now() + GREETER_TTL_MS; }
+    if (!attFits(attOf(c), 'knock')) {
+      // Mirrors relay.js knock: the Worker's saveAtt failed, so nothing is
+      // kept, and the reply carries no `admitted` (the client's R3a arm reads
+      // admitted:false as a key mismatch and would requeue an honest greeter).
+      for (const k of Object.keys(prev)) { if (prev[k] === undefined) delete c[k]; else c[k] = prev[k]; }
+      c.send(JSON.stringify({ t: 'greeters', list: greeterList(c), founded: false, error: 'registration too large' }));
+      return;
     }
     const list = greeterList(c);
     if (GREETDEBUG) greetLog(sess, parts[1], c, { gk, gblob, have, founded, admitted, listLen: list.length });
     c.send(JSON.stringify({ t: 'greeters', list, founded, admitted }));
-    if (!wasGreeter && isGreeter(c)) roster(); // the greeter set changed: the new greeter gets the full list, the rest new doors
+    if (wasGreeter !== isGreeter(c)) doorsChanged(isGreeter(c) ? c : null); // the greeter set changed: the new greeter gets the full list, the non-greeters new doors
   };
 
   // ONE RUNTIME step 6 (mirrors relay/src/relay.js): the app-session star is
@@ -567,10 +623,10 @@ server.on('upgrade', (req, socket, head) => {
       if (!m || typeof m !== 'object') return; // `null` parses; mirrors relay/src/relay.js
       if (process.env.RELAY_DEBUG) typeRate.set(m.t, (typeRate.get(m.t) || 0) + 1); // what is actually flooding the relay?
       if (m.t === 'peer') routePeer(peer, m);
-      else if (m.t === 'knock') knock(conn, m.gk, m.gblob); // (re)register greeter / take-over empty room (R2/R3/R6)
+      else if (m.t === 'knock') knock(conn, String(m.gk || '').slice(0, 128), m.gblob); // (re)register greeter / take-over empty room (R2/R3/R6); gk cut like the URL's
       else if (m.t === 'who') { // PULL the full socket list (admin re-grant, fork observers) — rate-limited per socket
         const nowW = Date.now();
-        if (nowW - (conn.whoAt || 0) >= WHO_MIN_MS) { conn.whoAt = nowW; rosterTo(conn, true); }
+        if (nowW - (conn.whoAt || 0) >= WHO_MIN_MS) { conn.whoAt = nowW; conn.send(fullRosterForPull()); }
       }
       // ({t:'gossip'} fan-out deleted 2026-08-01 — dead; mirrors relay/src/relay.js.)
       else if (m.t === 'setpw' && typeof m.pw === 'string') {
@@ -622,9 +678,14 @@ server.on('upgrade', (req, socket, head) => {
     conn.onclose = () => {
       if (sess.clients.get(peer) !== conn) return;
       sess.clients.delete(peer);
+      if (process.env.RELAY_DEBUG) msgRate.delete(peer);
       toGreeters(JSON.stringify({ t: 'peer-leave', peer })); // the doors' full lists stay exact; nobody else routes on it
       tallyVotes();
-      if (isGreeter(conn)) roster(); // a door closed: everyone's door list changes
+      // The blob, not its live TTL (mirrors relay.js cleanup): a lapse sends
+      // no door list, so the non-greeters' last list may still name it.
+      if (conn.gblob) doorsChanged(null); // a door closed: every non-greeter's door list changes; the greeters heard the leave
+      // The registry is occupancy. The Worker forgets a room whose last seat left.
+      if (sess.clients.size === 0) sessions.delete(parts[1]);
     };
     conn.send(JSON.stringify({ t: 'joined', peer }));
     conn.send(JSON.stringify({ t: 'whoami', ip })); // tell the socket its own address so it can seal it to peers
@@ -641,7 +702,6 @@ const HOST = process.env.RELAY_HOST || '127.0.0.1';
 // RELAY_DEBUG rate meter: the relay's frame budget (FRAMES_PER_SEC) is only
 // defensible against the rate real clients actually need, so measure it rather
 // than guess. Every 10s, report each peer's observed msgs/sec.
-const msgRate = new Map(), typeRate = new Map();
 if (process.env.RELAY_DEBUG) setInterval(() => {
   if (!msgRate.size) return;
   const rates = Array.from(msgRate.entries()).map(([p, n]) => (n / 10).toFixed(1) + '/s ' + p.slice(0, 10));
@@ -655,6 +715,11 @@ server.listen(PORT, HOST, () => {
   console.log('gifos local relay on ' + (useTLS ? 'wss' : 'ws') + '://' + HOST + ':' + PORT);
   // Say which mode is in force — "why did my bots vanish?" should never again
   // require reading this file.
-  if (process.env.RELAY_PROD === '1') console.log('  RELAY_PROD=1 — prod-mirroring abuse guards ON (8 sockets/IP, 30/session, frame meter)');
+  // The session cap is the experiment knob, not a production bound. Infinity
+  // unless RELAY_MAX_SOCKETS is a positive integer (same expression as
+  // MAX_SOCKETS_PER_SESSION inside the upgrade handler).
+  const sessionCap = parseInt(process.env.RELAY_MAX_SOCKETS || '0', 10) || Infinity;
+  const sessionCapText = Number.isFinite(sessionCap) ? String(sessionCap) : 'Infinity';
+  if (process.env.RELAY_PROD === '1') console.log('  RELAY_PROD=1 — prod-mirroring abuse guards ON (8 sockets/IP, session cap ' + sessionCapText + ', frame meter)');
   else console.log('  DEV mode (default) — abuse guards OFF. Set RELAY_PROD=1 to mirror the production caps.');
 });

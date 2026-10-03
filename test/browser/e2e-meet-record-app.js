@@ -104,6 +104,24 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   await m.waitForFunction(() => !window.__gifosVideo.recording(), null, { timeout: 8000 });
   check('stopping ends the recording cleanly', true);
 
+  // ---- 4. Leave mid-recording hands the file over ------------------------------
+  // leaveMeeting used to stop the tracks and drop the peers but never the
+  // recorder: the compositor kept recording black tiles until Close, and the
+  // navigation then dropped the whole .webm. The bar: a Leave click fires the
+  // download, and the recorder is inactive before the card is up.
+  await m.locator('#recbtn').click();
+  await m.waitForSelector('#rec-options', { timeout: 8000 });
+  await m.locator('#rec-options input[value=all]').check();
+  await m.locator('#ro-start').click();
+  await m.waitForFunction(() => window.__gifosVideo.recording(), null, { timeout: 8000 });
+  await m.waitForTimeout(2500); // a couple of timeslices in the can
+  const dlP = m.waitForEvent('download', { timeout: 20000 }).then((d) => d.suggestedFilename()).catch(() => null);
+  await m.evaluate(() => document.getElementById('leavebtn').click());
+  const dlName = await dlP;
+  check('leaving mid-recording hands the file over (a .webm download fires)', !!dlName && /\.webm$/.test(dlName), dlName);
+  check('the recorder is inactive after Leave', await m.evaluate(() => !window.__gifosVideo.recording()));
+  check('the left card is up with the way back', await m.evaluate(() => document.getElementById('left-modal').style.display === 'flex'));
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);

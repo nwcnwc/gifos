@@ -179,7 +179,9 @@ const REFILL_BYTES_PER_SEC = 48 * 1024; // ~384 Kbps sustained — below even lo
 // The roster is now scoped to the doors (see roster()), so a connect or close
 // costs O(greeters) sends, and the per-IP caps below bound abuse.
 const MAX_SOCKETS_PER_IP = 8;       // several devices behind one NAT are fine
+const RECOUNT_MIN_MS = 10 * 1000;   // an address already at that cap is recounted at most this often
 const WHO_MIN_MS = 5000;            // one full-roster pull per socket per 5s
+const WHO_CACHE_MS = 1000;          // the pulled list is rebuilt at most this often (see fullRosterForPull)
 const MAX_JOINS_PER_IP_MIN = 120;   // several flapping devices behind one NAT stay fine
 
 // GREETER REGISTRY (healing-laws R2/R3) — the relay's ONE piece of state beyond
@@ -245,6 +247,17 @@ const FRAME_STRIKES = 3; // sustained overruns after being told → cut the sock
 const DOOR_BURST_BYTES = 4 * BURST_BYTES;
 const DOOR_REFILL_BYTES_PER_SEC = 4 * REFILL_BYTES_PER_SEC;
 
+// A socket is a DOOR only while genesisHash() would honour its claim: a live
+// registration (or one inside its re-register grace), or a founder's mint
+// inside MINT_GRACE_MS. The index keeps lapsed entries (they still carry
+// room state), but the bytes-only meter and the never-cut rule are the
+// door's and lapse with the claim — a founder that never registers held
+// them for the socket's life.
+function doorLive(a, now) {
+  if (a.gblob) return (a.gexp || 0) + CLAIM_GRACE_MS > now;
+  return !!a.gmint && a.gmint + MINT_GRACE_MS > now;
+}
+
 function makeMeter() { return { tokens: BURST_BYTES, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 }; }
 // Returns true if this message must be DROPPED (would overrun a budget).
 function overBudget(meter, len, door) {
@@ -256,7 +269,12 @@ function overBudget(meter, len, door) {
   meter.last = now;
   if (len > cap) return true;
   if (door) { if (meter.tokens >= len) { meter.tokens -= len; return false; } return true; } // bytes only
-  if (meter.tokens >= len && meter.frames >= 1) { meter.tokens -= len; meter.frames -= 1; meter.warned = false; return false; }
+  if (meter.tokens >= len && meter.frames >= 1) {
+    // Strikes count a sustained overrun. A frame bucket that has refilled to
+    // FRAME_BURST has been inside the budget, so the count starts over.
+    if (meter.frames >= FRAME_BURST) meter.strikes = 0;
+    meter.tokens -= len; meter.frames -= 1; meter.warned = false; return false;
+  }
   return true;
 }
 
@@ -276,12 +294,14 @@ export class Session {
     this.state = state;
     this.env = env;           // for the TRUSTED_IPS test-mode allowlist
     this.meters = new Map();  // ws -> meter; in-memory, rebuilt after hibernation
-    this.joinLog = new Map(); // ip -> [join timestamps]; best-effort, in-memory
+    this.joinLog = new Map(); // salted ip tag -> [join timestamps]; best-effort, in-memory. Never a raw address.
     this.bornAt = Date.now(); // wedge self-heal: age-gates the self-abort below
     this.wedgeStrikes = [];   // timestamps of internal accept-path failures
-    this.whoAt = new Map();   // peer -> last full-roster pull (the {t:'who'} rate limit); in-memory
+    this.whoAt = new WeakMap(); // socket -> last full-roster pull (the {t:'who'} rate limit); in-memory, dies with the socket
+    this.whoCache = null;     // { at, s }: the full roster as last built for a pull — see fullRosterForPull()
     this._ix = null;          // THE DOOR INDEX — see ix(); null until the first event after a wake
     this._ixed = new WeakSet(); // sockets counted in the index (a close must be un-counted exactly once)
+    this._cleaned = new WeakSet(); // sockets cleanup() has run for (a server-side close, then the platform's echo)
     this.votesLive = false;   // did the last tally carry votes? (tallyVotes only re-sends while it does)
     // Edge-answered keepalive: a client-level ping is answered WITHOUT waking
     // (or billing) the hibernated object. Nothing sends {"t":"ping"} today —
@@ -358,16 +378,41 @@ export class Session {
   // Everyone else needs only the doors: scope 'door', sent on connect and again
   // only when the greeter set changes. Anyone may PULL the full list with
   // {t:'who'} (the admin re-grant after an eviction, fork observers).
-  isGreeter(a) { return !!a.gblob; }
+  // A live registration only. The blob stays after gexp so genesisHash can
+  // honour the re-register grace, but greeterList does not serve it.
+  isGreeter(a) { return !!a.gblob && (a.gexp || 0) > Date.now(); }
   toGreeters(obj) {
     const s = JSON.stringify(obj);
     for (const ws of this.doorSocks()) if (this.isGreeter(this.att(ws))) this.send(ws, s);
   }
   rosterTo(ws, full) { this.send(ws, this.rosterMsg(full || this.isGreeter(this.att(ws)))); }
-  // Every socket, each its own scope: for a greeter-set change or a ban/lock
-  // change (all rare) — never on an ordinary connect or close.
+  // The full list for a {t:'who'} pull costs one attachment read per socket.
+  // Any socket may pull once per WHO_MIN_MS and a network holds 8 sockets, so
+  // a crowd of pullers made the object rebuild it per pull; it is built at
+  // most once per WHO_CACHE_MS and the pulls inside that window share it.
+  fullRosterForPull() {
+    const now = Date.now();
+    if (!this.whoCache || now - this.whoCache.at >= WHO_CACHE_MS) this.whoCache = { at: now, s: this.rosterMsg(true) };
+    return this.whoCache.s;
+  }
+  // The greeter SET changed (a socket registered, or a door closed): every
+  // non-greeter gets the new door list; the newly registered greeter alone
+  // gets the full list once. Existing greeters hold an exact list already
+  // (peer-join / peer-leave deltas), so re-sending it to each of them was
+  // O(sockets × greeters) per change — a burst registers its 25 Section-1
+  // seats one by one while every attendee is connected.
+  doorsChanged(newGreeter) {
+    const door = this.rosterMsg(false);
+    for (const ws of this.members()) {
+      if (ws === newGreeter) this.rosterTo(ws, true);
+      else if (!this.isGreeter(this.att(ws))) this.send(ws, door);
+    }
+  }
+  // Every socket, each its own scope: for a ban/lock change (rare) — never on
+  // an ordinary connect or close; a greeter-set change is doorsChanged().
   roster() {
     const full = this.rosterMsg(true), door = this.rosterMsg(false);
+    this.whoCache = { at: Date.now(), s: full };
     for (const ws of this.members()) this.send(ws, this.isGreeter(this.att(ws)) ? full : door);
   }
 
@@ -534,7 +579,14 @@ export class Session {
     if (!have) {
       a.gkh = gkh;                               // empty registry ⇒ found (R3)
       founded = admitted = !!a.gkh;
-      if (founded) a.gmint = Date.now();         // the clock the mint must beat (see genesisHash)
+      if (founded) {
+        a.gmint = Date.now();                    // the clock the mint must beat (see genesisHash)
+        // A founder's claim is its MINT until it registers. A stale blob left
+        // from an earlier registration (a requeued seat knocks bloblessly)
+        // satisfied none of genesisHash's clauses — the founder was invisible
+        // and the next knocker founded too (a fork, the 2026-07-26 shape).
+        delete a.gblob; delete a.gexp;
+      }
     } else if (gk && gkh === have) {
       a.gkh = have; admitted = true;             // matching key ⇒ join the pool
     }
@@ -543,10 +595,19 @@ export class Session {
       a.gblob = String(gblob).slice(0, GBLOB_CAP);
       a.gexp = Date.now() + GREETER_TTL_MS;
     }
-    saveAtt(ws, a)
+    if (!saveAtt(ws, a)) {
+      // Nothing was written. Do not index the copy in hand, and do not tell
+      // the client the registration landed. Both would publish a door the
+      // attachment does not hold. No `admitted` either: the client's R3a arm
+      // reads admitted:false as a genesis-key mismatch and requeues after
+      // three, so a full attachment must give no key verdict at all.
+      this.send(ws, { t: 'greeters', list: this.greeterList(ws), founded: false, error: 'registration too large' });
+      return;
+    }
     this.ixAdd(ws, a); // a blob or a founder's mint puts this socket in the door set
     this.send(ws, { t: 'greeters', list: this.greeterList(ws), founded, admitted });
-    if (!wasGreeter && this.isGreeter(this.att(ws))) this.roster(); // the greeter set changed: the new greeter gets the full list, the rest new doors
+    const nowGreeter = this.isGreeter(this.att(ws));
+    if (wasGreeter !== nowGreeter) this.doorsChanged(nowGreeter ? ws : null); // the greeter set changed: the new greeter gets the full list, the non-greeters new doors
   }
 
   // WEDGE SELF-HEAL (2026-07-26, field incident): a Durable Object can wedge
@@ -566,6 +627,9 @@ export class Session {
     // socket's input, never a wedged object; it must not be able to earn
     // the restart that exists for platform failures.
     if (e && /attachment/i.test(String(e.message || ''))) return;
+    // A ReferenceError or TypeError is this code tripping on an input, not
+    // the platform refusing an accept: it must not earn the restart either.
+    if (e instanceof ReferenceError || e instanceof TypeError) return;
     const now = Date.now();
     this.wedgeStrikes = (this.wedgeStrikes || []).filter((t) => now - t < 60000);
     this.wedgeStrikes.push(now);
@@ -591,13 +655,24 @@ export class Session {
     // carries no role. The client sends a 24-hex token and a 64-hex proof.
     const token = (url.searchParams.get('token') || '').slice(0, 64);
     const peer = (url.searchParams.get('peer') || 'c_' + crypto.randomUUID().slice(0, 8)).slice(0, 64);
+    const pair = new WebSocketPair();
+    const client = pair[0], server = pair[1];
+    // Reject without hibernating: accept plainly, explain, close. Declared
+    // before ANY refusal: a `const` read before its line throws
+    // (ReferenceError), the throw lands in fetch()'s wedge counter, and two
+    // dev-less upgrades restarted the room object (2026-10-03).
+    const reject = (error, code) => {
+      server.accept();
+      try { server.send(JSON.stringify({ t: 'error', error })); server.close(code, error.slice(0, 120)); } catch (e) {}
+      return new Response(null, { status: 101, webSocket: client });
+    };
     // The DEVICE TAG (room-salted by the client) is what a ban, a vote-off
     // and the one-slot-per-device rule key on; a socket without one was
     // unbannable and un-vote-off-able by construction. mesh-wire always
     // sends one (an ephemeral one without storage), so none means a
     // hand-made client that wants the door's exclusion verbs not to apply.
     const dev = (url.searchParams.get('dev') || '').slice(0, 16);
-    if (!dev) return reject('a device tag is required', 4012);
+    if (!dev) return reject('a device tag is required', 4012); // reject is declared ABOVE: an early return here must never throw
     // The RECONNECT SECRET: a per-device token hashed with the room by the
     // client (mesh-wire.js). Replacing a socket that holds the same peer
     // id or device tag is a reload's right and a ghost's cure — but both
@@ -621,31 +696,33 @@ export class Session {
     // the host slot is epoch-guarded only (a friend may keep it going).
     const sid = (url.pathname.split('/').filter(Boolean)[1] || '');
 
-    const pair = new WebSocketPair();
-    const client = pair[0], server = pair[1];
-    // Reject without hibernating: accept plainly, explain, close.
-    const reject = (error, code) => {
-      server.accept();
-      try { server.send(JSON.stringify({ t: 'error', error })); server.close(code, error.slice(0, 120)); } catch (e) {}
-      return new Response(null, { status: 101, webSocket: client });
-    };
-
     // ---- abuse guards ----
     // 1013 = RFC 6455 "Try Again Later" (the client backs off + retries).
     const trusted = isTrusted(ip, this.env); // operator load-test IPs skip the per-IP caps
     const iph = await ipTag(ip, this.env);   // salted tag; the raw IP is never stored
+    const now = Date.now();
     let mine = this.ix().iph.get(iph) || 0;
-    if (mine >= MAX_SOCKETS_PER_IP && !trusted) { // at the cap by the index: recount before refusing (a missed close must not lock a network out)
-      mine = 0; for (const ws of this.members()) if (this.att(ws).iph === iph) mine++;
-      this.ix().iph.set(iph, mine);
+    if (mine >= MAX_SOCKETS_PER_IP && !trusted) {
+      // Recount before refusing, so a missed close cannot lock a network out.
+      // An address already at the cap retries this path on every upgrade, and
+      // the join-rate log is not written until the cap allows the join.
+      let recAt = this.recountAt;
+      if (!recAt || recAt.size > 2000) this.recountAt = recAt = new Map();
+      const last = recAt.get(iph) || 0;
+      if (now - last >= RECOUNT_MIN_MS) {
+        mine = 0; for (const ws of this.members()) if (this.att(ws).iph === iph) mine++;
+        this.ix().iph.set(iph, mine);
+        recAt.set(iph, now);
+      }
     }
     if (mine >= MAX_SOCKETS_PER_IP && !trusted) return reject('too many connections from your network', 1013);
-    const now = Date.now();
-    const jk = ipKey(ip);
-    const log = (this.joinLog.get(jk) || []).filter((t) => now - t < 60000);
+    // Same salted tag as the attachment (iph). ipKey() is only the network
+    // prefix inside that hash; storing the prefix would keep a raw IPv4 or an
+    // IPv6 /64 in this object until the map is cleared.
+    const log = (this.joinLog.get(iph) || []).filter((t) => now - t < 60000);
     log.push(now);
     if (this.joinLog.size > 2000) this.joinLog.clear(); // best-effort burst damper; bounded memory while awake
-    this.joinLog.set(jk, log);
+    this.joinLog.set(iph, log);
     if (log.length > MAX_JOINS_PER_IP_MIN && !trusted) return reject('joining too fast — slow down', 1013);
 
     // ONE RUNTIME (docs/one-runtime.md step 6): the app-session STAR is DELETED.
@@ -747,7 +824,11 @@ export class Session {
           evict.push(ws);
         }
       }
-      for (const ws of evict) { this.ixDel(ws, this.att(ws)); try { ws.close(4000, 'replaced'); } catch (e) {} }
+      for (const ws of evict) {
+        const old = this.att(ws);
+        try { ws.close(4000, 'replaced'); } catch (e) {}
+        this.cleanup(ws, { leave: old.peer !== peer, tally: false }); // a reload keeps its id: no departure to announce
+      }
       this.state.acceptWebSocket(server, ['role:mesh', 'peer:' + peer]);
       try { server.serializeAttachment({ role: 'mesh', peer, iph, tok: token, pw: roomPw, av, dev, ban, rs }); }
       catch (e) { try { server.close(1008, 'join state too large'); } catch (e2) {} return new Response(null, { status: 101, webSocket: client }); }
@@ -778,7 +859,8 @@ export class Session {
     let meter = this.meters.get(ws);
     if (!meter) { meter = makeMeter(); this.meters.set(ws, meter); }
     const size = typeof data === 'string' ? data.length : ((data && data.byteLength) || 0);
-    const door = this.ix().door.has(ws);
+    const a = this.att(ws);
+    const door = this.ix().door.has(ws) && doorLive(a, Date.now());
     if (overBudget(meter, size, door)) {
       if (door) return; // dropped, never warned or cut — see DOOR_BURST_BYTES
       if (!meter.warned) {
@@ -788,21 +870,19 @@ export class Session {
         // A sender that keeps hammering after being told is cut loose: every
         // frame it sends bills a wake whether we act or not, and a 1013 close
         // puts a well-behaved client on its slow retry lane instead of a loop.
-        if (meter.strikes >= FRAME_STRIKES) { try { ws.close(1013, 'rate'); } catch (e) {} }
+        if (meter.strikes >= FRAME_STRIKES) { try { ws.close(1013, 'rate'); } catch (e) {} this.cleanup(ws); }
       }
       return;
     }
     if (typeof data !== 'string') return;
     let m; try { m = JSON.parse(data); } catch (e) { return; }
     if (!m || typeof m !== 'object') return; // `null` parses; (null).t throws
-    const a = this.att(ws);
     if (a.role === 'mesh') {
       if (m.t === 'peer') this.routePeer(a.peer, m); // signaling only — authority is a signature now (§9), never a stamp
-      else if (m.t === 'knock') this.knock(ws, m.gk, m.gblob); // (re)register a greeter / take-over an empty room (R2/R3/R6)
+      else if (m.t === 'knock') this.knock(ws, String(m.gk || '').slice(0, 128), m.gblob); // (re)register a greeter / take-over an empty room (R2/R3/R6); gk cut like the URL's
       else if (m.t === 'who') { // PULL the full socket list — rate-limited per socket (in-memory: a hibernation wake forgets it, harmlessly)
-        const now = Date.now(), last = this.whoAt.get(a.peer) || 0;
-        if (now - last >= WHO_MIN_MS) { this.whoAt.set(a.peer, now); this.rosterTo(ws, true); }
-        if (this.whoAt.size > 4096) this.whoAt.clear();
+        const now = Date.now(), last = this.whoAt.get(ws) || 0;
+        if (now - last >= WHO_MIN_MS) { this.whoAt.set(ws, now); this.send(ws, this.fullRosterForPull()); }
       }
       // ({ t:'gossip' } fan-out DELETED 2026-08-01 — dead since mesh gossip
       // moved onto WebRTC (mesh.js over DataChannels); no client sends it.
@@ -870,7 +950,7 @@ export class Session {
         }
         for (const ws2 of this.members()) {
           const a2 = this.att(ws2);
-          if (a2.dev && ban.some((b) => b.d === a2.dev)) { try { ws2.close(4004, 'banned'); } catch (e) {} }
+          if (a2.dev && ban.some((b) => b.d === a2.dev)) { try { ws2.close(4004, 'banned'); } catch (e) {} this.cleanup(ws2, { tally: false }); }
         }
         this.roster();
       }
@@ -919,7 +999,7 @@ export class Session {
     this.broadcast({ t: 'ban', dev, by: String(by || '').slice(0, 64) });
     for (const ws2 of this.members()) {
       const a2 = this.att(ws2);
-      if (a2.dev === dev) { try { ws2.close(4004, 'banned'); } catch (e) {} }
+      if (a2.dev === dev) { try { ws2.close(4004, 'banned'); } catch (e) {} this.cleanup(ws2, { tally: false }); }
     }
     this.roster();
   }
@@ -969,7 +1049,7 @@ export class Session {
         this.broadcast({ t: 'ban', dev: d, by: 'the room (vote)' });
         for (const s of this.members()) {
           const a2 = this.att(s);
-          if (a2.dev === d) { try { s.close(4007, 'voted-off'); } catch (e) {} }
+          if (a2.dev === d) { try { s.close(4007, 'voted-off'); } catch (e) {} this.cleanup(s, { tally: false }); } // tallying is what runs this
         }
         this.roster();
       }
@@ -987,8 +1067,16 @@ export class Session {
     try { ws.close(1011, 'error'); } catch (e) {}
     this.cleanup(ws);
   }
-  cleanup(ws) {
+  // Runs once per socket: at once after a close THIS object makes (replaced,
+  // banned, voted-off, rate), and from the platform's close callback for a
+  // close the client makes. Whether the platform echoes a server-side close
+  // into webSocketClose is not relied on: the greeters' lists, the door
+  // index and the meters must not wait on it. opts.leave=false: the peer id
+  // is still present (a reload); opts.tally=false: the caller tallies.
+  cleanup(ws, opts) {
     this.meters.delete(ws);
+    if (this._cleaned.has(ws)) return;
+    this._cleaned.add(ws);
     const a = this.att(ws);
     if (!a.role) return;
     this.ixDel(ws, a);
@@ -996,18 +1084,21 @@ export class Session {
     // this one, this stale close must not announce a departure.
     const cur = this.ix().peer.get(a.peer);
     if (cur && cur !== ws && this.open(cur)) return;
-    if (a.role === 'mesh') { this.toGreeters({ t: 'peer-leave', peer: a.peer }); this.tallyVotes(); } // the doors' full lists stay exact; nobody else routes on it
-    if (this.isGreeter(a)) this.roster(); // a door closed: everyone's door list changes
+    if (a.role === 'mesh' && (!opts || opts.leave !== false)) this.toGreeters({ t: 'peer-leave', peer: a.peer }); // the doors' full lists stay exact; nobody else routes on it
+    if (a.role === 'mesh' && (!opts || opts.tally !== false)) this.tallyVotes();
+    // The blob, not its live TTL: a lapse sends no door list, so the
+    // non-greeters' last list still names a lapsed greeter until this close.
+    if (a.gblob) this.doorsChanged(null); // a door closed: every non-greeter's door list changes; the greeters heard the leave
   }
 }
 
 // Best-effort per-IP upgrade limiter at the edge: per-isolate memory, so it's
 // a burst damper (each PoP isolate counts separately), not a global ledger —
 // the real per-session guards live in the Durable Object above.
-const ipHits = new Map(); // ip -> [timestamps]
-function edgeLimited(ip) {
+const ipHits = new Map(); // salted ip tag -> [timestamps]; never a raw address
+async function edgeLimited(ip, env) {
   const now = Date.now();
-  const k = ipKey(ip);
+  const k = await ipTag(ip, env); // same tag as the door cap; ipKey() stays inside the hash
   const log = (ipHits.get(k) || []).filter((t) => now - t < 60000);
   log.push(now);
   ipHits.set(k, log);
@@ -1053,7 +1144,7 @@ export default {
         return new Response('forbidden origin', { status: 403 });
       }
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-      if (edgeLimited(ip) && !isTrusted(ip, env)) return new Response('rate limited', { status: 429 });
+      if (await edgeLimited(ip, env) && !isTrusted(ip, env)) return new Response('rate limited', { status: 429 });
       const id = env.SESSION.idFromName(parts[1]);
       return env.SESSION.get(id).fetch(request);
     }

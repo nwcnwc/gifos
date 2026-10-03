@@ -84,6 +84,7 @@
   }
   const FILL_WINDOW_MS = 10 * 60 * 1000;
   const SEEN_MAX = 4096;
+  const PIN_MAX = 4096;
 
   // Sign a fill frame as `identity`. Returns a {sp, sig, pub} block (mirrors the
   // admin §SIG shape) to attach to the frame as m.s4. `from` is the signer's
@@ -110,12 +111,21 @@
       // pin(id, pub): returns { ok, changed }. ok=false ⇒ this pub CONFLICTS with
       // the one already pinned for id (a key-swap attempt) — reject. changed is
       // reserved for surfacing a key rotation (not used to reject here).
+      // The map is an LRU capped at PIN_MAX. A peer id is H(pub), so a
+      // different key is a different id. Evicting an id and pinning it
+      // again is the same trust as first contact. drop(id) forgets one
+      // departed participant.
       pin(id, pub) {
         const cur = map.get(id);
-        if (cur === undefined) { map.set(id, pub); return { ok: true, changed: false }; }
-        if (cur === pub) return { ok: true, changed: false };
+        if (cur === undefined) {
+          while (map.size >= PIN_MAX) map.delete(map.keys().next().value);
+          map.set(id, pub);
+          return { ok: true, changed: false };
+        }
+        if (cur === pub) { map.delete(id); map.set(id, pub); return { ok: true, changed: false }; }
         return { ok: false, changed: true, first: cur };
       },
+      drop(id) { return map.delete(id); },
       get(id) { const v = map.get(id); return v === undefined ? null : v; },
       size() { return map.size; },
     };
@@ -130,6 +140,7 @@
   //   - the recomputed canonical statement !== the signed sp (frame tampered)
   //   - the Ed25519 signature does not verify                (not the key holder)
   //   - TOFU conflict: pub != the key pinned for `from`      (key-swap / impostor)
+  //   - minted outside FILL_WINDOW_MS on a VERIFIED signature → { reason: 'skew', skewMs }
   async function verifyFill(pins, m) {
     const s = m && m.s4;
     if (!s || typeof s.sp !== 'string' || !s.sig || !s.pub) return { ok: false, from: null };
@@ -142,12 +153,17 @@
     // the signed statement must describe THIS frame (no cross-frame replay),
     // be minted inside the window, and not be one this seat already accepted
     if (statement(from, m, sp.ts) !== s.sp) return { ok: false, from: null };
-    if (Math.abs(Date.now() - (+sp.ts || 0)) > FILL_WINDOW_MS) return { ok: false, from: null };
     if (pins.seen && pins.seen(String(s.sig))) return { ok: false, from: null };
     // an occupant-bearing frame must be signed BY that occupant
     if (m.id != null && m.id !== from) return { ok: false, from: null };
     // (2) the signer actually holds the private key
     if (!(await net.edVerify(s.pub, s.sig, s.sp))) return { ok: false, from: null };
+    // Minted outside the window: still refused, but NAMED. Checked after the
+    // signature so only a key holder's frame can report a skew (a forgery
+    // says nothing). skewMs = the signer's clock minus mine; a joining node
+    // surfaces it (mesh-wire onClockSkew) instead of retrying in silence.
+    const skewMs = (+sp.ts || 0) - Date.now();
+    if (Math.abs(skewMs) > FILL_WINDOW_MS) return { ok: false, from: null, reason: 'skew', skewMs };
     // (3) TOFU: pin on first contact, reject a key that conflicts with the pin
     const p = pins.pin(from, s.pub);
     if (!p.ok) return { ok: false, from: null };
@@ -179,6 +195,7 @@
     let sp; try { sp = JSON.parse(s.sp); } catch (e) { return { ok: false, from: null }; }
     const from = sp.from;
     if (!from || typeof from !== 'string' || from !== m.src) return { ok: false, from: null };   // the frame's author IS the signer
+    if (!String(m.gid).startsWith(from + ':')) return { ok: false, from: null };                 // and the gid names that author: a signer may not mint ids in another seat's name (the seen set is keyed by gid)
     if ((await peerIdOf(s.pub)) !== from) return { ok: false, from: null };                    // id bound to key
     if ((await gossipStatement(from, m, sp.ts)) !== s.sp) return { ok: false, from: null };     // the statement describes THIS frame
     if (!(await net.edVerify(s.pub, s.sig, s.sp))) return { ok: false, from: null };
@@ -187,5 +204,5 @@
     return { ok: true, from };
   }
 
-  GifOS.meshIdentity = { mint, peerIdOf, signFill, verifyFill, newPins, statement, signGossip, verifyGossip, GOSSIP_T };
+  GifOS.meshIdentity = { mint, peerIdOf, signFill, verifyFill, newPins, statement, signGossip, verifyGossip, GOSSIP_T, PIN_MAX };
 })(typeof window !== 'undefined' ? window : globalThis);

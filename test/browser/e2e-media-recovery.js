@@ -3,6 +3,9 @@
 //     explain, and a tap must be able to re-ask and JOIN the video mesh late.
 //  B) camera delivers black video (dad's iPhone) — the watchdog must notice
 //     and re-grab the camera automatically.
+//  C) a desktop with a microphone and NO webcam — the combined ask fails with
+//     NotFoundError; boot and the mic tap must fall back to audio alone, and
+//     a camera tap must name the missing camera, not permissions.
 const { chromium, CHROME } = require('../lib/pw');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -168,6 +171,53 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(7000); // two more watchdog ticks on the healthy camera
   const calls = await dPage.evaluate(() => window.__gumCalls);
   check('B: a healthy camera is left alone (no revive loop; calls=' + calls + ')', calls <= 2);
+
+  // ---------- C: Nat's desktop has a microphone and NO webcam ----------
+  // The combined camera+mic ask rejects as a whole with NotFoundError (also
+  // the shape of a camera disabled by policy or held by another app), and
+  // the mic used to be lost with it: view-only for life, with a note telling
+  // him to close an app that does not exist. The boot ask and the tap now
+  // fall back to audio alone.
+  const nCtx = await browser.newContext({ permissions: ['camera', 'microphone'] });
+  await nCtx.addInitScript(setup('Nat'));
+  await nCtx.addInitScript({ content: `
+    window.__gumAsks = [];
+    const real = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = (c) => {
+      window.__gumAsks.push(JSON.stringify(c));
+      if (c && c.video) return Promise.reject(Object.assign(new Error('Requested device not found'), { name: 'NotFoundError' }));
+      return real(c);
+    };
+  ` });
+  const nPage = await nCtx.newPage();
+  nPage.on('console', (m) => { if (m.type() === 'error') console.log('  [nat]', m.text()); });
+  await nPage.goto(link);
+  await nPage.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 25000 });
+  await nPage.waitForFunction(() => window.__gifosVideo.localStreamActive() || window.__gumBootErr, null, { timeout: 15000 }).catch(() => {});
+  const natBoot = await nPage.evaluate(() => ({ live: window.__gifosVideo.localStreamActive(), noCam: window.__gumBootNoCam || null, err: window.__gumBootErr || null, asks: window.__gumAsks }));
+  check('C: a webcam-less desktop boots WITH a microphone (audio-only fallback after NotFoundError)', natBoot.live === true && natBoot.noCam === 'NotFoundError', JSON.stringify(natBoot));
+  check('C: the boot asked camera+mic once, then audio alone once', natBoot.asks.length === 2 && /video/.test(natBoot.asks[0]) && !/video/.test(natBoot.asks[1]), JSON.stringify(natBoot.asks));
+  await nPage.locator('#mic').click();
+  // The plain toggle path (a stream already held) flips the track and repaints
+  // the button; only the late ask writes a status line. The proof is the track.
+  const micOn = await nPage.waitForFunction(() => window.__gifosVideo.micEnabled(), null, { timeout: 8000 }).then(() => true).catch(() => false);
+  check('C: one tap turns the mic on', micOn, await nPage.evaluate(() => document.getElementById('status').textContent));
+  // His voice reaches Ada: her tile for Nat carries a live audio track.
+  const heard = await aPage.waitForFunction(() => {
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Nat');
+    const v = t && t.querySelector('video');
+    const s = v && v.srcObject;
+    return !!(s && s.getAudioTracks && s.getAudioTracks().some((tr) => tr.readyState === 'live'));
+  }, null, { timeout: 30000 }).then(() => true).catch(() => false);
+  check('C: his audio track reaches Ada', heard);
+  await nPage.locator('#cam').click();
+  // The whole video ask is refused (the stub rejects any constraint naming video), so the
+  // refusal path answers: it names the camera and NotFoundError, never permissions or another app.
+  const camNote = await nPage.waitForFunction(() => /No camera (on|was found on) this device \(NotFoundError\)/.test(document.getElementById('status').textContent), null, { timeout: 8000 }).then(() => true).catch(() => false);
+  check('C: a camera tap names the missing camera (not permissions, not another app) and keeps the mic', camNote
+    && await nPage.evaluate(() => window.__gifosVideo.micEnabled() && window.__gifosVideo.camOff()),
+    await nPage.evaluate(() => document.getElementById('status').textContent));
+  await nCtx.close();
 
   await browser.close();
   console.log(failures ? 'FAILURES: ' + failures : 'ALL GREEN');
