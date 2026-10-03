@@ -1,7 +1,9 @@
 // Guards for the mesh-wire-pipe findings that live in gifos-net.js,
 // mesh-identity.js, and mesh-pipe.js. No browser and no relay.
 'use strict';
-global.crypto = require('crypto').webcrypto;
+// Node 22 exposes WebCrypto as a read-only global (the gate's toolchain); older
+// nodes need it supplied. Assigning over the getter throws before any check runs.
+if (!globalThis.crypto || !globalThis.crypto.subtle) Object.defineProperty(globalThis, 'crypto', { value: require('crypto').webcrypto, configurable: true });
 global.addEventListener = () => {};
 global.removeEventListener = () => {};
 
