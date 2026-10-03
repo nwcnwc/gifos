@@ -15,11 +15,14 @@
 //
 // The rule now: sendOffer marks its offer in flight (p.offering) and stays on
 // the pc it started on; onSignal counts that window as a collision on a pair
-// that never carried a byte; the polite side then answers on a FRESH pc
-// instead of rolling back, and the impolite side's 4 s yield does the same.
-// A pair that once carried data keeps the rollback path.
+// with no live transport (ICE not connected, no open DataChannel); the polite
+// side then answers on a FRESH pc instead of rolling back, and the impolite
+// side's 4 s yield does the same. A pair with a live transport keeps the
+// rollback path. (The first cut keyed on "never carried a byte" via dcRxAt,
+// which onRemote also stamps for RELAYED frames: a forming pair that had
+// heard one relayed frame fell back to rollback and took 17 s to mesh.)
 //
-// neverCarried, armGlareYield, sendOffer and onSignal's offer branch are lifted
+// noLiveTransport, armGlareYield, sendOffer and onSignal's offer branch are lifted
 // verbatim out of site/run.html and run in Node against a fake
 // RTCPeerConnection that models the operations chain and the measured rollback
 // behaviour (an answer made after a rollback gathers no candidate).
@@ -39,10 +42,10 @@ const glareSrc = slice('    const GLARE_YIELD_MS = 4000;', '    function sendOff
 const sendOfferSrc = slice('    function sendOffer(peerId, iceRestart) {', '    // ============================ STATUS GOSSIP');
 const offerSrc = slice("      if (msg.kind === 'offer') {", "      } else if (msg.kind === 'answer') {");
 check('armGlareYield, sendOffer and the offer branch are where the lift expects them', !!glareSrc && !!sendOfferSrc && !!offerSrc);
-check('run.html defines neverCarried (no connect, no DataChannel or mesh receive)', /const neverCarried = \(p\) => !p\.connected && !p\.dcRxAt && !p\.meshRxAt;/.test(glareSrc));
+check('run.html defines noLiveTransport (ICE not connected, no open DataChannel)', /const noLiveTransport = \(p\) => !p\.connected && !\(p\.dc && p\.dc\.readyState === 'open'\);/.test(glareSrc));
 check('sendOffer marks the offer in flight and stays on its own pc', /p\.offering = mark/.test(sendOfferSrc) && /if \(p\.pc !== pc\) return;/.test(sendOfferSrc));
-check('the collision test counts an offer still minting on a never-carried pair',
-  /signalingState === 'have-local-offer' \|\| \(p\.offering && neverCarried\(p\)\)/.test(offerSrc));
+check('the collision test counts an offer still minting on a pair with no live transport',
+  /signalingState === 'have-local-offer' \|\| \(p\.offering && noLiveTransport\(p\)\)/.test(offerSrc));
 
 // ---- a fake RTCPeerConnection: an operations chain, the signaling states,
 // implicit and explicit rollback, and the measured gathering rule.
@@ -168,17 +171,31 @@ const settle = (ms) => new Promise((r) => setTimeout(r, ms || 120));
     check('the impolite yield on a never-carried pair answers on a fresh pc, without rollback', p.pc !== first && p.pc.rollbacks === 0 && sam.sent.some((s) => s.kind === 'answer') && p.pc.answerEmitted > 0,
       { fresh: p.pc !== first, rollbacks: p.pc.rollbacks, kinds: sam.sent.map((s) => s.kind), answerEmitted: p.pc.answerEmitted });
   }
-  // 5. A pair that once carried data keeps the rollback path (unchanged).
+  // 5. A pair with a LIVE transport keeps the rollback path (unchanged).
   {
     const tia = makeSide('k_14d0');
     const p = tia.makePeer('k_ff04');
-    p.dcRxAt = Date.now() - 60000; // this pair carried data before it went down
     tia.sendOffer('k_ff04', false);
     await settle(40);
+    p.connected = true; p.dc = { readyState: 'open' }; // an ICE-restart glare on a live pair
     const first = p.pc;
     tia.onOffer('k_ff04', { kind: 'offer', sdp: { type: 'offer', sdp: 'far-offer' }, ib: 1 });
     await settle();
-    check('a once-carried pair still rolls back on the same pc (behaviour outside the join race is unchanged)', p.pc === first && first.rollbacks === 1 && tia.sent.some((s) => s.kind === 'answer'), { same: p.pc === first, rollbacks: first.rollbacks });
+    check('a pair with a live transport still rolls back on the same pc (behaviour outside the join race is unchanged)', p.pc === first && first.rollbacks === 1 && tia.sent.some((s) => s.kind === 'answer'), { same: p.pc === first, rollbacks: first.rollbacks });
+  }
+  // 5b. A forming pair that has only heard RELAYED frames (onRemote stamps
+  //     dcRxAt) still has no live transport: fresh pc, not rollback.
+  {
+    const tia = makeSide('k_14d0');
+    const p = tia.makePeer('k_ff04');
+    p.dcRxAt = Date.now(); // a relayed 'hi' or status reached onDc through onRemote
+    tia.sendOffer('k_ff04', false);
+    await new Promise((r) => setTimeout(r, 3));
+    const first = p.pc;
+    tia.onOffer('k_ff04', { kind: 'offer', sdp: { type: 'offer', sdp: 'far-offer' }, ib: 1 });
+    await settle();
+    check('a forming pair that only heard relayed frames answers on a fresh pc that gathers', p.pc !== first && p.pc.rollbacks === 0 && p.pc.answerEmitted > 0 && !tia.sent.some((s) => s.kind === 'offer'),
+      { fresh: p.pc !== first, rollbacks: p.pc.rollbacks, answerEmitted: p.pc.answerEmitted, kinds: tia.sent.map((s) => s.kind) });
   }
   // 6. No collision: an offer on an idle pc is accepted directly.
   {

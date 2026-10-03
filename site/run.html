@@ -5437,10 +5437,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // have-local-offer, and it drops the stored offer as soon as the pair moves
     // on by any other route, so a pair that healed normally is never disturbed.
     const GLARE_YIELD_MS = 4000;
-    // A pair that never carried a byte (no connect, no DataChannel or mesh
-    // receive): a glare there is a JOIN race, and it resolves on a fresh pc,
-    // never by rolling an offer back (see onSignal's collision branch).
-    const neverCarried = (p) => !p.connected && !p.dcRxAt && !p.meshRxAt;
+    // A pair with no live transport on its current pc (ICE not connected, no
+    // open DataChannel): a glare there resolves on a fresh pc, never by
+    // rolling an offer back (see onSignal's collision branch). Not dcRxAt:
+    // onRemote stamps it for frames that came over the RELAY, so a forming
+    // pair that had heard one relayed frame read as carried (traced: the
+    // Rex-Tia pair in e2e-video, 17 s to mesh).
+    const noLiveTransport = (p) => !p.connected && !(p.dc && p.dc.readyState === 'open');
     function armGlareYield(p, from, msg) {
       p.glareOffer = msg;
       if (p.glareTimer) return;                       // already waiting
@@ -5450,10 +5453,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!m || !p.pc || leaving) return;
         if (p.pc.signalingState !== 'have-local-offer') return;  // it healed; leave it alone
         if (typeof clog === 'function') clog('glare-yield ' + String(from).slice(0, 6));
-        // A pair that never carried a byte yields on a FRESH pc, not by
+        // A pair with no live transport yields on a FRESH pc, not by
         // rollback: an answer made after rolling back an offer gathers no ICE
         // candidate in Chromium (see onSignal's collision branch).
-        const fresh = neverCarried(p);
+        const fresh = noLiveTransport(p);
         if (fresh) { const queued = p.pendingIce; newPcFor(p); p.pendingIce = queued; }
         Promise.resolve(fresh ? null : p.pc.setLocalDescription({ type: 'rollback' }))
           .then(() => p.pc.setRemoteDescription(m.sdp))
@@ -5757,19 +5760,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, ib: 1, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
           .catch((e) => { noteNegFail('accept', from, e); });
         // A COLLISION is my own offer applied (have-local-offer) or, on a pair
-        // that never carried a byte, still being minted (p.offering — see
+        // with no live transport, still being minted (p.offering — see
         // sendOffer; the pc reads 'stable' until it lands).
-        if (p.pc.signalingState === 'have-local-offer' || (p.offering && neverCarried(p))) {
+        if (p.pc.signalingState === 'have-local-offer' || (p.offering && noLiveTransport(p))) {
           if (myId && myId < from) {
-            // Polite, on a pair that never carried a byte: answer on a FRESH
-            // pc. Rolling back an offer whose gathering has begun (here, or
+            // Polite, on a pair with no live transport: answer on a FRESH pc.
+            // Rolling back an offer whose gathering has begun (here, or
             // implicitly inside setRemoteDescription) leaves Chromium's answer
             // with no ICE candidate, so the pair waited 12-25 s for a healer.
-            // Nothing is lost: the pair carries nothing yet, my offer in
+            // Nothing is lost: no media or data flows on this pc, my offer in
             // flight is dropped with its pc (sendOffer), and their offer
             // brings its own DataChannel. Their trickle already queued for
             // this offer is kept.
-            if (neverCarried(p)) {
+            if (noLiveTransport(p)) {
               const queued = p.pendingIce;
               newPcFor(p);
               p.pendingIce = queued;
