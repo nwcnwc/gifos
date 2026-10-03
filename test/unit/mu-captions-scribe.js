@@ -82,9 +82,20 @@ check('knownTotal says statuses reach the section', /Statuses reach the\s+\/\/ s
   const src = slice('    let scribeBeatAt = 0;', '    function ccScribes()');
   const sent = [];
   const myStatus = { scribe: false };
-  const api = new Function('fanOut', 'dcSend', 'myStatus', 'myName',
+  const room = { past: false, digest: true };
+  const api = new Function('fanOut', 'dcSend', 'myStatus', 'myName', 'digestMode', 'roomPastSection',
     src + '\nreturn { scribeAdvert, beat: () => scribeBeatAt };')(
-    (msg, via, opts) => sent.push({ msg, opts }), () => {}, myStatus, () => 'Ada');
+    (msg, via, opts) => sent.push({ msg, opts }), () => {}, myStatus, () => 'Ada', () => room.digest, () => room.past);
+  myStatus.scribe = true;
+  api.scribeAdvert(); api.scribeAdvert(true);
+  check('a room within one section sends no room-wide advert (the status carries the flag)', sent.length === 0, JSON.stringify(sent));
+  room.digest = false; room.past = true;
+  api.scribeAdvert(true);
+  check('a room without the digest plane (statuses flood) sends no advert either', sent.length === 0, JSON.stringify(sent));
+  myStatus.scribe = false;
+  api.scribeAdvert();
+  check('stopping without ever advertising sends no retraction', sent.length === 0, JSON.stringify(sent));
+  room.digest = true;
   api.scribeAdvert();
   check('a device that is not a scribe sends no advert', sent.length === 0);
   myStatus.scribe = true;
@@ -99,6 +110,32 @@ check('knownTotal says statuses reach the section', /Statuses reach the\s+\/\/ s
   check('turning the scribe off sends one advert, and only one',
     sent.length === 2 && sent[1].msg.on === false);
 }
+// ---- a far scribe does not silence my own engine ----
+{
+  const src = slice('    function ccSourceWritesMe()', "    document.getElementById('ccbtn').onclick");
+  const peers = new Map();
+  const myStatus = { cc: true, muted: false };
+  const log = [];
+  let running = false;
+  const api = new Function('peers', 'myStatus', 'speechRunning', 'stopSpeech', 'startSpeech', 'wspStop', 'wspSync', 'ccEngine', 'wspCaps', 'startWhisper',
+    'let ccSourceId = null, wspPaused = false;\n' + src + '\nreturn { syncSpeech, ccSourceWritesMe, set: (v) => { ccSourceId = v; }, direct: () => ccSrcDirect };')(
+    peers, myStatus, () => running, () => { running = false; log.push('stop'); }, () => { running = true; log.push('start'); return true; },
+    () => {}, () => {}, () => 'browser', new Map(), () => false);
+  api.set('far');
+  api.syncSpeech();
+  check('choosing a scribe that is not my direct peer keeps my own engine running', running === true && api.ccSourceWritesMe() === false, log.join(','));
+  peers.set('near', { connected: true });
+  api.set('near');
+  api.syncSpeech();
+  check('choosing a connected direct-peer scribe stops my own engine', running === false && api.direct() === true, log.join(','));
+  peers.get('near').connected = false;
+  check('a direct-peer scribe whose link dropped no longer writes me down', api.ccSourceWritesMe() === false);
+  api.syncSpeech();
+  check('…so my own engine takes over again', running === true, log.join(','));
+}
+check('wspSync keeps my own Whisper capture unless the chosen scribe hears me',
+  /\(!ccSourceId \|\| !ccSourceWritesMe\(\)\) && whisperReady\(\)\) want\.add\('me'\)/.test(html));
+check('the 2 s tick re-syncs my engine when the scribe link changes', /if \(ccSourceId && ccSourceWritesMe\(\) !== ccSrcDirect\) syncSpeech\(\)/.test(html));
 check('caption lines are still sendAll, not given a scope here', /sendAll\(\{ k: 'tr', m \}\);/.test(html));
 
 // ---- the scribe hears the stage before silent row-mates ----

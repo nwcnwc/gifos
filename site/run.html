@@ -14132,7 +14132,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function scribeOn() { return !!myStatus.scribe && ccEngine() === 'whisper' && whisperReady(); }
     function wspSync() {
       const want = new Set();
-      if (!wspPaused && myStatus.cc && !myStatus.muted && ccEngine() === 'whisper' && !ccSourceId && whisperReady()) want.add('me');
+      if (!wspPaused && myStatus.cc && !myStatus.muted && ccEngine() === 'whisper' && (!ccSourceId || !ccSourceWritesMe()) && whisperReady()) want.add('me');
       if (!wspPaused && scribeOn()) {
         const stagers = (typeof stageIds === 'function') ? stageIds() : [];
         const stageSet = new Set(stagers);
@@ -14188,13 +14188,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // 12s. Status heartbeats are section-scoped, so a seat outside the section
     // never saw the offer. Caption LINES stay on sendAll (that flood is a
     // separate decision). This frame is the offer only. Gossip is S4-signed.
+    // Only a room past one section needs it: below that (or with the digest
+    // off, where statuses flood) the status heartbeat already carries the
+    // scribe flag to every seat, so the advert would be a second flood for
+    // nothing — the same gate as the admin presence beat. A retraction goes
+    // out only for an offer that was actually advertised.
     function scribeAdvert(force) {
       const on = !!myStatus.scribe;
       const now = Date.now();
       if (!on) {
         if (!scribeBeatAt) return;
         scribeBeatAt = 0;
-      } else if (!force && scribeBeatAt && now - scribeBeatAt < 12000) return;
+      } else if (!(digestMode() && roomPastSection())) return;
+      else if (!force && scribeBeatAt && now - scribeBeatAt < 12000) return;
       else scribeBeatAt = now;
       const msg = { k: 'scribe', on: on, name: myName(), at: now };
       fanOut(msg, (p) => dcSend(p, msg), { ephemeral: true });
@@ -14238,7 +14244,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const ccModal = document.getElementById('set-modal');
       if (ccModal && ccModal.style.display === 'none') return;
       const list = ccScribes();
-      const key = list.map((sc) => sc.id + ':' + sc.name).join('|') + '#' + (ccSourceId || '');
+      const near = (id) => !!(peers.get(id) || {}).connected;
+      const key = list.map((sc) => sc.id + ':' + sc.name + (near(sc.id) ? '+' : '')).join('|') + '#' + (ccSourceId || '');
       if (box.dataset.key === key) return;
       box.dataset.key = key;
       if (!list.length && !ccSourceId) { box.style.display = 'none'; box.innerHTML = ''; return; }
@@ -14246,15 +14253,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       box.innerHTML = '<b>Captions source</b>'
         + '<label class="rec-opt"><input type="radio" name="ccsource" value=""' + (!ccSourceId ? ' checked' : '') + '><span>My own device writes me down</span></label>'
         + list.map((sc) => '<label class="rec-opt"><input type="radio" name="ccsource" value="' + esc(sc.id) + '"' + (ccSourceId === sc.id ? ' checked' : '')
-          + '><span>Use <b>' + esc(sc.name) + '</b>’s captions<small>Their device writes down everyone, you included, and yours stops transcribing. Every line they write carries their name — choose this only if you trust them.</small></span></label>').join('');
+          + '><span>Use <b>' + esc(sc.name) + '</b>’s captions<small>' + (near(sc.id)
+            ? 'Their device writes down everyone, you included, and yours stops transcribing.'
+            : 'Their device writes down the people it hears. It is not linked to you directly, so your own device keeps writing you down.')
+          + ' Every line they write carries their name — choose this only if you trust them.</small></span></label>').join('');
       for (const r of box.querySelectorAll('input[name="ccsource"]')) r.onchange = () => {
         if (!r.checked) return;
         ccSourceId = r.value || null; box.dataset.key = '';
         syncSpeech();
-        setStatus(ccSourceId ? 'Using ' + (rosterNames[ccSourceId] || 'their') + '’s captions — your device is no longer transcribing.' : 'Your own device writes you down again.', 6000);
+        setStatus(!ccSourceId ? 'Your own device writes you down again.'
+          : 'Using ' + (rosterNames[ccSourceId] || 'their') + '’s captions — ' + (ccSourceWritesMe() ? 'your device is no longer transcribing.' : 'your own device still writes you down.'), 6000);
       };
     }
-    setInterval(() => { if (wspCaps.size || scribeOn() || ccSourceId) wspSync(); if (scribeSeen.size || ccSourceId || anyScribeStatus || scribeOffers.size) scribeWatch(); }, 2000);
+    setInterval(() => { if (ccSourceId && ccSourceWritesMe() !== ccSrcDirect) syncSpeech(); if (wspCaps.size || scribeOn() || ccSourceId) wspSync(); if (scribeSeen.size || ccSourceId || anyScribeStatus || scribeOffers.size) scribeWatch(); }, 2000);
     // ONE TAP TO INSTALL. The provider is a signed 13 MB GIF on this very site:
     // GifOS.providers.install downloads, checks the catalog hash and the
     // gifos.app signature, files it into the Providers folder and we assign it
@@ -14414,9 +14425,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (e.error === 'network' || e.error === 'audio-capture' || e.error === 'aborted') {
             speechFails++;
             if (speechFails >= 3) {
+              // The engine stays stopped until a tap on CC clears speechGaveUp.
+              // A lit CC and a status saying cc would claim captions nobody
+              // writes, so both go dark with the reason held on screen. Under
+              // a room-wide order this counts as an opt-out, or the next
+              // order replay would relight CC into the same dead service.
               speechGaveUp = true;
               stopSpeech();
-              setStatus('Captions cannot reach the speech service');
+              myStatus.cc = false;
+              if (typeof ccAllInfo === 'function' && ccAllInfo()) ccOptOutAt = Date.now();
+              document.getElementById('ccbtn').classList.remove('on');
+              setStatus('Captions stopped: this browser cannot reach its speech service — tap CC to retry.', 15000);
+              broadcastStatus();
             }
           }
         };
@@ -14430,9 +14450,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (speechRetry) { clearTimeout(speechRetry); speechRetry = null; }
       if (sp) { try { sp.stop(); } catch (e) {} }
     }
+    // A chosen scribe writes me down only if it hears me: its wspSync captures
+    // its direct, connected peers (and stagers, capped). A far scribe picked
+    // from the room-wide advert still supplies everyone else's lines, but my
+    // own engine keeps writing me down; where both copies exist, trEcho keeps
+    // one. ccSrcDirect is the verdict syncSpeech last acted on, so the 2 s
+    // tick re-syncs when that link comes or goes.
+    let ccSrcDirect = false;
+    function ccSourceWritesMe() {
+      const p = ccSourceId ? peers.get(ccSourceId) : null;
+      return !!(p && p.connected);
+    }
     function syncSpeech() { // CC follows the mic: muted people aren't transcribed
       const want = myStatus.cc && !myStatus.muted;
-      if (ccSourceId) { // somebody else's device writes me down: no engine of my own
+      ccSrcDirect = ccSourceWritesMe();
+      if (ccSrcDirect) { // the chosen scribe hears me directly: no engine of my own
         if (speechRunning()) stopSpeech();
         wspStop('me'); wspSync();
         return;

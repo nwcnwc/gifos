@@ -258,18 +258,19 @@ function runSpeech() {
     }
   }
   const myStatus = { cc: true, muted: false };
+  const holds = [], btn = { on: true }, bcasts = [];
   const api = new Function('setTimeout', 'clearTimeout', 'window', 'setStatus', 'ccLang', 'navigator', 'meters', 'myVoiceAt',
     'addTranscriptLine', 'trDrops', 'myStatus', 'document', 'broadcastStatus',
     src + '\nreturn { startSpeech, stopSpeech, speechRunning, rec: () => speech, gaveUp: () => speechGaveUp, fails: () => speechFails, delay: speechRetryDelay };')(
     (fn, ms) => { const t = { fn, ms, cleared: false }; timers.push(t); return t; },
     (t) => { if (t) t.cleared = true; },
     { SpeechRecognition: SR },
-    (s) => statuses.push(s),
+    (s, hold) => { statuses.push(s); holds.push(hold); },
     () => 'en-US',
     { language: 'en-US' },
     new Map(), 0, () => {}, 0, myStatus,
-    { getElementById: () => ({ classList: { remove() {} } }) },
-    () => {});
+    { getElementById: (id) => ({ classList: { remove(c) { if (id === 'ccbtn' && c === 'on') btn.on = false; } } }) },
+    () => bcasts.push(myStatus.cc));
   check('the backoff delays are 1 s, 2 s, 4 s, capped at 30 s',
     api.delay(1) === 1000 && api.delay(2) === 2000 && api.delay(3) === 4000 && api.delay(6) === 30000);
   check('captions start', api.startSpeech() === true && api.rec().started === 1);
@@ -298,7 +299,11 @@ function runSpeech() {
   check('…and starts again', rec.started === 3);
   rec.onerror({ error: 'audio-capture' });
   check('the third failure stops the engine', api.speechRunning() === false && api.gaveUp() === true);
-  check('…and says so once', statuses.filter((s) => s === 'Captions cannot reach the speech service').length === 1, statuses.join('|'));
+  const gaveUpAt = statuses.findIndex((s) => /^Captions stopped: .+ tap CC to retry\.$/.test(s));
+  check('…and says so once, held on the status line, with the retry', gaveUpAt >= 0 && holds[gaveUpAt] >= 10000
+    && statuses.filter((s) => /^Captions stopped:/.test(s)).length === 1, statuses.join('|'));
+  check('…and the CC button and my status stop claiming captions', myStatus.cc === false && btn.on === false && bcasts[bcasts.length - 1] === false,
+    JSON.stringify({ cc: myStatus.cc, btn: btn.on, bcasts }));
   check('a later sync does not start it again', api.startSpeech() === false && rec.started === 3);
   check('turning captions on clears the give-up', /if \(myStatus\.cc\) \{ speechGaveUp = false;/.test(html));
 
