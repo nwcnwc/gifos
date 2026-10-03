@@ -2633,7 +2633,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function pipSource() {
       // The stage is the room's chosen broadcast — float it when live (the
       // composited strip beyond S1, individual stager feeds inside S1).
-      for (const v of stagefeedEl.querySelectorAll('.rowtile video')) if (pipReady(v)) return v;
+      for (const v of stagefeedEl.querySelectorAll('.rowtile video')) if (pipReady(v) && !v.classList.contains('stageface')) return v;
       let first = null;
       for (const [pid, p] of peers) {
         // a camOff peer's track still decodes (black) frames — skip by STATUS
@@ -3129,6 +3129,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function fsSources() {
       const out = [];
       for (const v of stagefeedEl.querySelectorAll('.rowtile video')) {
+        if (v.classList.contains('stageface')) continue;
         if (pipReady(v)) out.push({ key: 'stage:' + ((v.closest('.rowtile') || {}).dataset || {}).row, label: 'On stage', v });
       }
       for (const [pid, p] of peers) {
@@ -5024,6 +5025,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!p) return;
       clearTimeout(p.hiLate);
       try { p.pc.close(); } catch (e) {}
+      releaseAudio(p.video);
       p.tile.remove();
       peers.delete(peerId);
       meters.delete(peerId);
@@ -7393,7 +7395,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const kick = () => {
           // A route change can pause background audio elements — re-kick them.
           for (const el of document.querySelectorAll('.tile video, .rowtile video')) {
-            if (el._aud && el._aud.srcObject) el._aud.play().catch((e) => audioBlocked(el._aud, e));
+            if (el._aud && el._aud.srcObject) {
+              let pr = null; try { pr = el._aud.play(); } catch (e) { audioBlocked(el._aud, e); }
+              if (pr && pr.then) pr.then(() => { if (typeof audioUnblocked === 'function') audioUnblocked(el._aud); }).catch((e) => audioBlocked(el._aud, e));
+            }
           }
         };
         const md = navigator.mediaDevices;
@@ -10311,12 +10316,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function dropMosIn(rk) {
       const c = mosIn.get(rk); if (!c) return;
       mosIn.delete(rk);
-      try { c.el.srcObject = null; c.el.remove(); } catch (e) {}
+      try { releaseAudio(c.el); c.el.srcObject = null; c.el.remove(); } catch (e) {}
     }
     function dropStandby(rk) {
       const c = mosStandby.get(rk); if (!c) return;
       mosStandby.delete(rk);
-      try { c.el.srcObject = null; c.el.remove(); } catch (e) {}
+      try { releaseAudio(c.el); c.el.srcObject = null; c.el.remove(); } catch (e) {}
     }
     // Claim announced streams off the announcing peer's incoming list, and
     // RESOLVE each to its routing slot (the mosaic's whole routing table):
@@ -10900,7 +10905,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           fb.dark = false; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; fb.flowSince = 0; fb.fp = 0; fb.fpDecayAt = 0; fb.b0 = -1; fb.d0 = -1; fb.stdFdec = -1; fb.claimAt = now; // fresh primary — the watchdog re-baselines and the penalty clears
           repaintRedun(rk, pri.stream);
           if (inCand(old)) { std = { via: old.via, key: old.key, streamId: old.streamId, stream: old.stream, el: old.el, meta: old.meta }; mosStandby.set(rk, std); } // failback: the loser re-parks as the standby
-          else { try { old.el.srcObject = null; old.el.remove(); } catch (e) {} }
+          else { try { releaseAudio(old.el); old.el.srcObject = null; old.el.remove(); } catch (e) {} }
         }
       } else { fb.wakeAt = 0; if (!stdIsPref) fb.prefSince = 0; }
       // GRACE teardown: a dead primary whose standby never materialized/flowed.
@@ -10972,6 +10977,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       for (const x of cand) demand(x.from, x.key, x.sid, hot.has(x.from + '|' + x.sid));
     }
+    // keep: an announcer still names the slot and its stream is on that peer.
+    // Otherwise stamp deadAt and drop once MOS_GRACE has passed. A fresh stamp
+    // does not drop in the same sweep.
+    function structuralClaimGrace(cur, keep, now, grace) {
+      if (!cur) return false;
+      if (keep) { cur.deadAt = 0; return false; }
+      if (!cur.deadAt) { cur.deadAt = now; return false; }
+      return now - cur.deadAt > grace;
+    }
     function claimMos() {
       // ANNOUNCE AGEING: a live job re-announces every sweep (~2s); an entry
       // not refreshed for 12s has a dead sender (silent DC death — mx-end never
@@ -10985,6 +10999,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!ann || ann.streamId !== dk.slice(b + 1)) subWant.delete(dk);
       }
       const redun = new Map(); // rk -> [{from,key,ann}]
+      const structuralSeen = new Set(); // non-redundant slots an announcer still names
       // A redundant slot we HOLD but nobody announces any more must still run
       // claimRedun (with zero candidates) so its claim-linger grace expires —
       // otherwise an orphaned claim would paint a dead frame forever.
@@ -10994,6 +11009,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const rk = mosResolve(key, ann, from);
         if (!rk) continue;
         if (isRedun(rk)) { let a = redun.get(rk); if (!a) { a = []; redun.set(rk, a); } a.push({ from, key, ann }); continue; }
+        structuralSeen.add(rk);
         const cur = mosIn.get(rk);
         // STICKY single claim for structural relay slots: keep the live source,
         // only its own announcer refreshes meta. Same corpse-rebind rule as
@@ -11017,6 +11033,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!st) continue;
         if (cur) dropMosIn(rk);
         mosIn.set(rk, { via: from, streamId: ann.streamId, stream: st, el: mosVideo(st), meta: annMeta(ann) });
+        structuralSeen.add(rk);
+      }
+      // A structural slot (sub, x1, x2, sdxc, sdnmr) has no second announcer
+      // and no claimRedun pass. Once its announce ages out, or the peer is
+      // gone, nothing in the announcer loop visits it, and the last frame
+      // stays painted. Keep it only while someone still announces it AND the
+      // stream is still on that peer; otherwise the same MOS_GRACE as a
+      // redundant primary, then drop. dropPeer calls claimMos, so a departure
+      // starts this clock immediately.
+      for (const [rk, cur] of [...mosIn]) {
+        if (isRedun(rk) || !cur) continue;
+        const keep = structuralSeen.has(rk) && mosLive(cur.via, cur.streamId);
+        if (structuralClaimGrace(cur, keep, nowA, MOS_GRACE)) dropMosIn(rk);
       }
       for (const [rk, arr] of redun) claimRedun(rk, arr);
     }
@@ -11030,7 +11059,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // The stadium tile (one, keyed 'sd') in the stadium strip.
     function paintStadiumTile(stream) {
       let el = stadiumEl.querySelector('[data-row="sd"]');
-      if (!stream) { if (el) el.remove(); stadiumEl.classList.toggle('on', !!stadiumEl.querySelector('.rowtile')); compOf.delete('sd'); return; }
+      if (!stream) {
+        if (el) { for (const v of el.querySelectorAll('video')) { try { v.pause(); v.srcObject = null; } catch (e) {} releaseAudio(v); } el.remove(); }
+        stadiumEl.classList.toggle('on', !!stadiumEl.querySelector('.rowtile')); compOf.delete('sd'); return;
+      }
       if (!el) {
         el = document.createElement('div'); el.className = 'rowtile'; el.dataset.row = 'sd';
         const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.setAttribute('playsinline', '');
@@ -11070,7 +11102,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // The Stage strip: one wide tile at the top of the stage feed.
     function paintStageStrip(stream) {
       let el = stagefeedEl.querySelector('[data-row="sgs"]');
-      if (!stream) { if (el) el.remove(); compOf.delete('sgs'); return; }
+      if (!stream) {
+        if (el) { for (const v of el.querySelectorAll('video')) { try { v.pause(); v.srcObject = null; } catch (e) {} releaseAudio(v); } el.remove(); }
+        compOf.delete('sgs'); return;
+      }
       if (!el) {
         el = document.createElement('div'); el.className = 'rowtile'; el.dataset.row = 'sgs';
         const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.setAttribute('playsinline', '');
@@ -11196,9 +11231,29 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // element a stream that ALSO carries the stager's audio would play it a
       // second time. Cached by track identity — paintStageStrip re-assigns
       // srcObject whenever the stream differs, and this sweep runs every 2s.
+      // One shared screen fills the stage even when other people are up
+      // there with it. Two screens have no single picture to feature, and a
+      // face-only stage stays on the strip. Seats that do not hold the feed
+      // still paint the composite.
+      const stageScreenSid = () => {
+        let sid = null;
+        for (const id of stagers) {
+          if (!sharingScreen(id)) continue;
+          if (sid) return null;
+          sid = id;
+        }
+        return sid;
+      };
+      // stageDirect refuses the self seat. soloSelf already covers "only me".
+      // This is the sharer beside other faces.
+      const myScreenBeside = () => {
+        if (stagers.length < 2) return null;
+        if (stageScreenSid() !== myId) return null;
+        return selfStageStream();
+      };
       const stageDirect = () => {
-        if (stagers.length !== 1) return null;  // 2+ stagers: the strip IS the composition to show
-        const sid = stagers[0];
+        const sid = stageScreenSid();
+        if (!sid) return null;
         // My own screen is selfStageStream's job; a FACE stays on the strip,
         // whose square crop is a deliberate choice about what a face is.
         if (sid === myId || !sharingScreen(sid)) return null;
@@ -11208,6 +11263,50 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!vt || vt.readyState === 'ended') return null;
         if (!stageDirectSt || stageDirectSt.getVideoTracks()[0] !== vt) stageDirectSt = new MediaStream([vt]);
         return stageDirectSt;
+      };
+      // Grid tiles of stagers are hidden. When the stage element is the raw
+      // screen, the other faces have to sit on it or they vanish. Video only:
+      // their audio is already in the stage ear.
+      const paintStageFaces = (screenSid) => {
+        const host = stagefeedEl.querySelector('[data-row="sgs"]');
+        if (!host) return;
+        let box = host.querySelector('.stagefaces');
+        if (!screenSid) { if (box) box.remove(); return; }
+        if (!box) {
+          box = document.createElement('div');
+          box.className = 'stagefaces';
+          box.style.cssText = 'position:absolute;top:6px;right:6px;display:flex;flex-direction:column;gap:4px;z-index:2;max-height:80%;overflow:hidden;pointer-events:none';
+          host.appendChild(box);
+        }
+        const keep = new Set();
+        for (const id of stagers) {
+          if (id === screenSid) continue;
+          const sc = srcFor(id, id === myId ? null : ('stg:' + id));
+          const stream = sc && sc.stream;
+          const vt = stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
+          let face = null;
+          for (const ch of box.children) if (ch.dataset.face === id) face = ch;
+          if (!vt || vt.readyState === 'ended') { if (face) face.remove(); continue; }
+          keep.add(id);
+          if (!face) {
+            face = document.createElement('video');
+            face.className = 'stageface';
+            face.muted = true;
+            face.autoplay = true;
+            face.playsInline = true;
+            face.setAttribute('playsinline', '');
+            face.dataset.face = id;
+            face.style.cssText = 'width:96px;height:96px;object-fit:cover;border-radius:8px;background:#000';
+            box.appendChild(face);
+          }
+          if (face._vt !== vt) {
+            face._vt = vt;
+            face.srcObject = new MediaStream([vt]);
+            const pr = face.play(); if (pr && pr.catch) pr.catch(() => {});
+          }
+        }
+        for (const ch of [...box.children]) if (!keep.has(ch.dataset.face)) ch.remove();
+        if (!box.children.length) box.remove();
       };
       // ---- GAPLESS PACKING (approach A — docs/media-plane.md) ----------------
       // Every shipped mosaic is a row-major PACKED grid of square faces with NO
@@ -11567,7 +11666,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (sc && sc.el) { stripPack.setTile(sid, j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(sid), fit: fitFor(sid) }); stgKeep.add(sid); }
         });
         for (const id of stripPack.ids()) if (!stgKeep.has(id)) stripPack.delTile(id);
-        paintStageStrip(selfSt || stageDirect() || stripPack.stream);
+        paintStageStrip(selfSt || myScreenBeside() || stageDirect() || stripPack.stream);
+        paintStageFaces(selfSt ? null : ((myScreenBeside() || stageDirect()) ? stageScreenSid() : null));
         // Fan the strip DOWN only: every S1 seat composites its OWN strip from
         // the flooded stg feeds, so sideways sgs ships between S1 seats were
         // dead weight (receivers own stripPack and never paint them) — gone.
@@ -11583,7 +11683,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // Relay it regardless (my subtree needs it) — but if the only face in
         // it is mine, look at the local track instead of at my own pixels
         // after a round trip up to Section 1 and back down.
-        paintStageStrip((soloSelf && selfStageStream()) || stageDirect() || sgs.stream);
+        paintStageStrip((soloSelf && selfStageStream()) || myScreenBeside() || stageDirect() || sgs.stream);
+        paintStageFaces((soloSelf && selfStageStream()) ? null : ((myScreenBeside() || stageDirect()) ? stageScreenSid() : null));
         const dj = shipMos('sgs', occPid(T.down(c)), sgs.stream, blockMeta(sgs)); if (dj) wanted.add(dj);
         if (iAmHead) for (let j = 1; j < C; j++) { const jk = shipMos('sgs', occPid({ pc: c.pc, r: c.r, i: j }), sgs.stream, blockMeta(sgs)); if (jk) wanted.add(jk); }
         const xg = T.crossLink(c); const xgPid = xg ? occPid(xg) : null;
@@ -11683,6 +11784,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // no app relay-session. 'snap' frames (full state) are retained and
     // replayed to late subscribers; 'delta'/'act' frames are fire-and-forget.
     const sgaSeen = new Map();  // sid|seq -> at (flood dedup)
+    let sgaSeenSweepAt = 0, sgaSeenSweeps = 0;
+    // Past 4096 entries a per-frame scan of the whole map costs a phone a
+    // full walk on every delta. Sweep at most once per 10s. Entries younger
+    // than 120s stay, so a busy sid still dedupes; the walk is no longer
+    // per frame.
+    function sgaNoteSeen(k, now) {
+      const t = now || Date.now();
+      sgaSeen.set(k, t);
+      if (sgaSeen.size <= 4096) return;
+      if (t - sgaSeenSweepAt < 10000) return;
+      sgaSeenSweepAt = t;
+      sgaSeenSweeps++;
+      const cut = t - 120000;
+      for (const [k2, at] of sgaSeen) if (at < cut) sgaSeen.delete(k2);
+    }
     const sgaSnap = new Map();  // sid -> latest full-state frame (late-joiner replay)
     // THE APP BYTES ARE RETAINED AND PEER-SERVED, exactly like the snap.
     // Until 2026-08-02 the owner-signed 'app' frame was a ONE-SHOT broadcast:
@@ -11833,17 +11949,100 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const subs = sgaSubs.get(m.sid);
       if (subs) for (const cb of [...subs]) { try { cb(m); } catch (e) {} }
     }
+    const sgaSnapChal = new Map(); // sid -> snap from a sender who is not the advertised host yet
+    function sgaSnapSender(seq) {
+      const s = String(seq || '');
+      const i = s.lastIndexOf(':');
+      return i < 0 ? s : s.slice(0, i);
+    }
+    function sgaSnapCount(seq) {
+      const s = String(seq || '');
+      const i = s.lastIndexOf(':');
+      const n = parseInt(i < 0 ? '0' : s.slice(i + 1), 10);
+      return n === n ? n : 0;
+    }
+    // The peer whose live ad names this sid. Same presence rule as
+    // sgaAdvertised: mine, a fresh status, else the digest. Newest ad, then
+    // lowest peer id, so every seat picks the same host.
+    function sgaSnapHost(sid) {
+      const stop = appStops.get(sid);
+      const live = (ad) => !!(ad && ad.s === sid && !(stop && (ad.ts || 0) <= stop.at));
+      let bestPid = '', bestTs = -1;
+      const take = (pid, ad, ts) => {
+        if (!live(ad)) return;
+        const t = ts || 0;
+        if (!bestPid || t > bestTs || (t === bestTs && String(pid) < bestPid)) { bestPid = String(pid); bestTs = t; }
+      };
+      if (myId) take(myId, myStatus.app, myStatus.app && myStatus.app.ts);
+      for (const [pid, st] of statusOf) if (st && stHold(pid) && !meshGone.has(pid)) take(pid, st.app, st.app && st.app.ts);
+      const dg = typeof digLists === 'function' ? digLists() : null;
+      if (dg) for (const e of dg.apps) {
+        if (!e.id || e.id === myId || meshGone.has(e.id) || stHold(e.id)) continue;
+        take(e.id, e.a, e.a && (e.a.ts || e.k));
+      }
+      return bestPid;
+    }
+    // Same author: the later wall clock wins, and an equal clock keeps the
+    // higher counter. A different author wins only when that author is the
+    // advertised host, even if their clock is behind the previous host.
+    function sgaSnapWins(cur, m) {
+      if (!m || !m.sid) return false;
+      if (!cur) return true;
+      if (cur.seq === m.seq) return false;
+      const a = sgaSnapSender(cur.seq), b = sgaSnapSender(m.seq);
+      if (a && a === b) {
+        const ca = cur.at || 0, cb = m.at || 0;
+        if (cb !== ca) return cb > ca;
+        return sgaSnapCount(m.seq) > sgaSnapCount(cur.seq);
+      }
+      const host = sgaSnapHost(m.sid);
+      if (host && b === host) return true;
+      if (host && a === host) return false;
+      return (m.at || 0) > (cur.at || 0);
+    }
+    function sgaConsiderSnap(m) {
+      const cur = sgaSnap.get(m.sid);
+      if (sgaSnapWins(cur, m)) {
+        sgaSnap.set(m.sid, m);
+        if (sgaSnapSender(m.seq) === sgaSnapHost(m.sid)) sgaSnapChal.delete(m.sid);
+        return true;
+      }
+      const host = sgaSnapHost(m.sid);
+      const b = sgaSnapSender(m.seq);
+      if (b && b !== host) {
+        const prev = sgaSnapChal.get(m.sid);
+        if (!prev || (m.at || 0) >= (prev.at || 0)) sgaSnapChal.set(m.sid, m);
+      }
+      return false;
+    }
+    // A successor's snap can arrive before the ad that names them host.
+    // Hold that one frame and adopt it once the ad does.
+    function sgaPromoteSnaps() {
+      for (const [sid, m] of [...sgaSnapChal]) {
+        if (!sgaSnapWins(sgaSnap.get(sid), m)) continue;
+        sgaSnap.set(sid, m);
+        sgaSnapChal.delete(sid);
+        const w = sgaWant.get(sid);
+        if (w) {
+          sgaWant.delete(sid);
+          for (const pid of w.keys()) { const p2 = peers.get(pid); if (p2 && p2.dc && p2.dc.readyState === 'open') dcSend(p2, { k: 'sga-snap', m }); }
+        }
+        const subs = sgaSubs.get(sid);
+        if (subs) for (const cb of [...subs]) { try { cb(m); } catch (e) {} }
+      }
+    }
     function sgaDeliver(m) {
       if (m.kind === 'app') { sgaAdmitApp(m); return; } // retained, served and delivered only once verified
       if (m.kind === 'snap') {
-        const cur = sgaSnap.get(m.sid);
-        if (!cur || cur.seq === m.seq || (cur.at || 0) <= (m.at || 0)) sgaSnap.set(m.sid, m);
-        // serve any neighbour that asked for this snap while I had nothing
+        const won = sgaConsiderSnap(m);
+        const held = sgaSnap.get(m.sid);
+        // serve the snap we kept, not a copy that lost the host check
         const w = sgaWant.get(m.sid);
-        if (w) {
+        if (w && held) {
           sgaWant.delete(m.sid);
-          for (const pid of w.keys()) { const p2 = peers.get(pid); if (p2 && p2.dc && p2.dc.readyState === 'open') dcSend(p2, { k: 'sga-snap', m }); }
+          for (const pid of w.keys()) { const p2 = peers.get(pid); if (p2 && p2.dc && p2.dc.readyState === 'open') dcSend(p2, { k: 'sga-snap', m: held }); }
         }
+        if (!won && !(held && held.seq === m.seq)) return;
       }
       const subs = sgaSubs.get(m.sid);
       if (subs) for (const cb of [...subs]) { try { cb(m); } catch (e) {} }
@@ -11918,9 +12117,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function sgaAskTargets(sid, tries) {
       const structural = sgaTargets();
-      if (tries < SGA_WIDEN_AFTER) return structural;
+      const openDc = (pid) => { const p = peers.get(pid); return !!(p && p.dc && p.dc.readyState === 'open'); };
+      // An empty structural set, or one with no open channel, has nobody to
+      // ask. Waiting out SGA_WIDEN_AFTER tries spends 4-6s talking to nobody.
+      if (tries < SGA_WIDEN_AFTER && structural.some(openDc)) return structural;
       const out = new Set(structural);
-      for (const [pid, p] of peers) if (pid !== myId && p && p.dc && p.dc.readyState === 'open') out.add(pid);
+      for (const [pid, p] of peers) if (pid !== myId && openDc(pid)) out.add(pid);
       return [...out];
     }
     function sgaRequest(sid) {
@@ -11997,7 +12199,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function sgaRecvSnap(m) {
       if (!m.sid || m.seq == null || m.kind !== 'snap') return;
       const cur = sgaSnap.get(m.sid);
-      if (cur && (cur.seq === m.seq || (cur.at || 0) >= (m.at || 0))) return; // hold equal or newer
+      if (cur && cur.seq === m.seq) return;
+      if (cur && !sgaSnapWins(cur, m)) { sgaConsiderSnap(m); return; } // maybe the next host, racing the ad
       sgaSeen.set(m.sid + '|' + m.seq, Date.now()); // a later flood dup of this seq stays deduped
       sgaDeliver(m); // retains the snap, wakes subscribers, serves waiters — NO re-fan
     }
@@ -12005,8 +12208,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!m.sid || m.seq == null) return;
       const dk = m.sid + '|' + m.seq;
       if (sgaSeen.has(dk)) return;
-      sgaSeen.set(dk, Date.now());
-      if (sgaSeen.size > 4096) { const cut = Date.now() - 120000; for (const [k2, at] of sgaSeen) if (at < cut) sgaSeen.delete(k2); }
+      sgaNoteSeen(dk);
       sgaDeliver(m);
       sgaFan(m, fromPid);
     }
@@ -12134,6 +12336,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let stgFlips = 0; // every step-up/down (test hook: a vote storm shows as a rising count)
     function setStage(on) {
       myStatus.stg = on ? Date.now() : 0;
+      const songEnded = !on && endSongOnStepDown();
       stgFlips++;
       if (on) lowerHandForStage(); // an answered hand lowers itself — the broadcast below carries both
       paintStage();
@@ -12141,6 +12344,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       refreshAllTiles();
       applyBuses();
       reactStageSelf(); // don't wait for the beat: park/restore my MAIN senders now
+      if (songEnded) reactSing();
     }
     stageBtn.onclick = () => {
       if (myStatus.stg) {
@@ -12149,7 +12353,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // voter re-arms the invitation.
         const vt = stageVoteTallies();
         if ((vt.up[myDevHash] || 0) >= vt.need) vupDismissedSig = myUpVoteSig();
-        setStage(false); return;
+        if (myStatus.scr) stopScreenShare('you stepped down');
+        if (myStatus.stg) setStage(false);
+        return;
       }
       if (!canStage(myId)) { setStatus('Only room admins — and people they allow — can take the stage here.'); return; }
       if (stageIds().length >= SCALE.C) { setStatus('The stage is full (' + SCALE.C + ' seats).'); return; }
@@ -12356,20 +12562,41 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const blocked = !myStatus.scr && !myStatus.stg && !canStage(myId);
       document.getElementById('share-go').style.display = blocked ? 'none' : '';
       document.getElementById('share-denied').style.display = blocked ? '' : 'none';
+      shareSheetOpener = (document.activeElement && document.activeElement !== document.body) ? document.activeElement : shareBtn;
       modal.style.display = 'flex';
+      const focusEl = document.getElementById(shareSheetFocusId(blocked));
+      if (focusEl && focusEl.focus) { try { focusEl.focus(); } catch (e) {} }
+    }
+    let shareSheetOpener = null;
+    function shareSheetFocusId(blocked) { return blocked ? 'share-cancel' : 'share-go'; }
+    function closeShareSheet() {
+      const modal = document.getElementById('share-modal');
+      if (!modal || modal.style.display === 'none') return;
+      modal.style.display = 'none';
+      const back = shareSheetOpener;
+      shareSheetOpener = null;
+      if (back && back.focus) { try { back.focus(); } catch (e) {} }
     }
     (function wireShareSheet() {
       const modal = document.getElementById('share-modal');
       if (!modal) return;
-      document.getElementById('share-cancel').onclick = () => { modal.style.display = 'none'; };
-      document.getElementById('share-go').onclick = () => { modal.style.display = 'none'; startScreenShare(); };
+      document.getElementById('share-cancel').onclick = () => { closeShareSheet(); };
+      document.getElementById('share-go').onclick = () => { closeShareSheet(); startScreenShare(); };
       document.getElementById('share-runapp').onclick = () => {
-        modal.style.display = 'none';
+        closeShareSheet();
         const want = (typeof findSharedApp === 'function') ? findSharedApp() : null;
         if (want && appHiddenSid === want.s) { appHiddenSid = null; reconcileApp(); return; }
         if (want) { setStatus('🧩 ' + (want.name || 'The app') + ' is running here — it is on your screen already.'); return; }
         openAppPicker();
       };
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeShareSheet(); });
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (modal.style.display === 'none') return;
+        e.preventDefault();
+        e.stopPropagation();
+        closeShareSheet();
+      }, true);
     })();
 
     // ---- audio: three buses, receiver-side (docs/media-plane.md) --------------
@@ -12407,14 +12634,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // and the person is told. A separate sweep re-kicks any companion the
     // platform merely PAUSED (an interruption that ends without a rejection).
     const blockedAudio = new Set();
-    let audioKickArmed = false;
+    let audioKickArmed = false, audioNoteQueued = false;
     function audioUnblocked(el) {
       blockedAudio.delete(el);
       if (blockedAudio.size || !audioKickArmed) return;
       audioKickArmed = false;
+      audioNoteQueued = false;
       document.removeEventListener('pointerdown', audioKick, true);
       document.removeEventListener('keydown', audioKick, true);
       setStatus('🔊 Sound is back.');
+    }
+    // Drop the companion. A removed tile used to leave el._aud playing the
+    // stream with no picture. Safe to call before blockedAudio exists.
+    function releaseAudio(el) {
+      if (!el || !el._aud) return;
+      const a = el._aud;
+      try { a.pause(); } catch (e) {}
+      try { a.srcObject = null; } catch (e) {}
+      el._aud = null;
+      try { blockedAudio.delete(a); } catch (e) {}
     }
     function audioRetry(el) {
       let pr = null; try { pr = el.play(); } catch (e) {}
@@ -12429,25 +12667,41 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         document.addEventListener('pointerdown', audioKick, true);
         document.addEventListener('keydown', audioKick, true);
       }
-      setStatus('🔇 This device refused to play someone’s sound (' + ((err && err.name) || 'error') + '). Tap anywhere on the page to hear them.', 15000);
+      // One line per refusal episode. A burst of companions (stage, stadium,
+      // row) rejects in the same turn; the count is the set after that turn.
+      if (!audioNoteQueued) {
+        audioNoteQueued = true;
+        const name = (err && err.name) || 'error';
+        queueMicrotask(() => {
+          if (!audioKickArmed || !blockedAudio.size) return;
+          const n = blockedAudio.size;
+          setStatus('🔇 This device refused to play someone’s sound (' + n + (n === 1 ? ' voice' : ' voices') + ', ' + name + '). Tap anywhere on the page to hear them.', 15000);
+        });
+      }
       setTimeout(() => { if (blockedAudio.has(el)) audioRetry(el); }, 1500);
     }
-    setInterval(() => { // the pause sweep: a companion that is paused but not refused is restarted
+    function kickPausedAudio() { // a companion that is paused but not refused is restarted
       for (const v of document.querySelectorAll('.tile video, .rowtile video')) {
+        if (v.classList && v.classList.contains('stageface')) continue;
         const a = v._aud; if (!a || !a.srcObject || !a.paused || blockedAudio.has(a)) continue;
         let pr = null; try { pr = a.play(); } catch (e) {}
-        if (pr && pr.catch) pr.catch((e) => audioBlocked(a, e));
+        if (pr && pr.then) pr.then(() => { if (typeof audioUnblocked === 'function') audioUnblocked(a); }).catch((e) => audioBlocked(a, e));
       }
       if (stageEar && stageEar.el && stageEar.el.srcObject && stageEar.el.paused && !blockedAudio.has(stageEar.el)) {
         let pr = null; try { pr = stageEar.el.play(); } catch (e) {}
-        if (pr && pr.catch) pr.catch((e) => audioBlocked(stageEar.el, e));
+        if (pr && pr.then) pr.then(() => { if (typeof audioUnblocked === 'function') audioUnblocked(stageEar.el); }).catch((e) => audioBlocked(stageEar.el, e));
       }
-    }, 3000);
+    }
+
     function busVolume(el, vol) {
       if (!el.srcObject) { if (el._aud) el._aud.srcObject = null; el.volume = vol; return; }
       if (!el._aud) { el._aud = new Audio(); el._aud.autoplay = true; }
       el.muted = true; // the <video> is picture-only, always — sound lives in the companion
-      if (el._aud.srcObject !== el.srcObject) { el._aud.srcObject = el.srcObject; el._aud.play().catch((e) => audioBlocked(el._aud, e)); }
+      if (el._aud.srcObject !== el.srcObject) {
+        el._aud.srcObject = el.srcObject;
+        let pr = null; try { pr = el._aud.play(); } catch (e) { audioBlocked(el._aud, e); }
+        if (pr && pr.then) pr.then(() => { if (typeof audioUnblocked === 'function') audioUnblocked(el._aud); }).catch((e) => audioBlocked(el._aud, e));
+      }
       el._aud.volume = vol;
       // A bus at 0 is MUTED, not merely volume 0: iOS Safari ignores the
       // HTMLMediaElement volume setter (sound stays under the hardware
@@ -12475,15 +12729,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       // feed tiles (the fractal mosaics): stage strip is Stage; stadium tiles
       // are The stadium.
-      for (const el of stagefeedEl.querySelectorAll('.rowtile video')) busVolume(el, mix.stage);
+      for (const el of stagefeedEl.querySelectorAll('.rowtile video')) { if (el.classList.contains('stageface')) continue; busVolume(el, mix.stage); }
       for (const el of stadiumEl.querySelectorAll('.rowtile')) {
         const v = el.querySelector('video'); if (!v) continue;
         busVolume(v, mix.stadium); hasStadium = true; // the only stadium-area tile now is the Stadium composite
       }
       // Section A/V + audio are dropped; section-mates fold into the Stadium.
       // Progressive disclosure for the stadium fader.
-      document.getElementById('mixlab-stadium').style.display = hasStadium ? '' : 'none';
+      const stadLab = document.getElementById('mixlab-stadium');
+      const stadMark = hasStadium ? '1' : '0';
+      if (stadLab && stadLab.dataset.on !== stadMark) { stadLab.dataset.on = stadMark; stadLab.style.display = hasStadium ? '' : 'none'; }
       if (stageEar) { stageEar.el.volume = mix.stage; stageEar.el.muted = !(mix.stage > 0); } // the Stage fader drives the ear fold (muted at 0: iOS ignores volume)
+      kickPausedAudio();
     }
     // The Settings modal: the sound mix's new home (same fader ids as when it
     // floated as its own Mix panel) plus the video-quality picker.
@@ -12513,7 +12770,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       inp.value = Math.round(mix[bus] * 100);
       inp.addEventListener('input', () => {
         mix[bus] = Math.max(0, Math.min(1, inp.value / 100));
-        try { localStorage.setItem(MIX_KEY, JSON.stringify(mix)); } catch (e) {}
+        rememberMix(bus);
         applyBuses();
       });
     }
@@ -12626,7 +12883,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const roomSingOn = () => stageIds().some(singOf);
     const singLeaderName = () => {
       const pid = stageIds().find(singOf);
-      return pid === myId ? myName() : ((peers.get(pid) || {}).name || 'Someone');
+      if (!pid || pid === myId) return myName();
+      const near = (peers.get(pid) || {}).name;
+      if (near) return near;
+      if (rosterNames[pid]) return rosterNames[pid];
+      const e = digStageEntry(pid);
+      if (e && e.nm) return e.nm;
+      return 'Someone';
     };
 
     // Apply the tiers: one jitterBufferTarget per incoming audio receiver so
@@ -12745,6 +13008,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // music-grade mic, and a nudge for everyone else. All derived from
     // roomSingOn(), so a leader vanishing mid-hymn unwinds everything.
     let singWas = false, singPrevMix = null, singSteppedUp = false;
+    // Any path off the stage, not only the Song pill. The flag used to stay
+    // gossiped, so the next step-up restarted the song.
+    function endSongOnStepDown() {
+      if (!myStatus.sing && !singSteppedUp) return false;
+      myStatus.sing = 0;
+      singSteppedUp = false;
+      return true;
+    }
+    // While a song is on, mix holds the preset. Persist the user's mix:
+    // the bus they moved is remembered, the untouched preset buses are not.
+    function rememberMix(bus) {
+      if (singPrevMix && bus) singPrevMix[bus] = mix[bus];
+      try { localStorage.setItem(MIX_KEY, JSON.stringify(singPrevMix || mix)); } catch (e) {}
+    }
     function reactSing() {
       const on = roomSingOn();
       if (on !== singWas) {
@@ -12764,7 +13041,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               + (knob ? '' : ' This browser can\'t line voices up in time, so they may stagger.'));
           }
         } else {
-          if (singPrevMix) { Object.assign(mix, singPrevMix); singPrevMix = null; paintFaders(); applyBuses(); }
+          if (singPrevMix) { Object.assign(mix, singPrevMix); singPrevMix = null; rememberMix(null); paintFaders(); applyBuses(); }
           setMicMode('voice'); // leader and followers alike
           setStatus('🎵 The song ended.');
         }
@@ -12774,7 +13051,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     setInterval(() => {
       reactSing(); applyGrid();
-      applyBuses(); // buses too: a swapped stream re-feeds its companion audio within a tick
+      // Buses ride the 2s beat and the events that change membership. A
+      // swapped stream re-feeds its companion there. This tick is the grid.
       if (typeof updateMediaSession === 'function') updateMediaSession(); // keep the OS call card's count fresh
     }, GRID.APPLY_EVERY);
 
@@ -12785,10 +13063,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // song. While someone else leads, the pill just glows — one leader keeps
     // the timing anchor unambiguous.
     const timingRow = document.getElementById('timingrow');
+    const SONG_PILL_TITLE = 'Lead the room in song — steps you onto the stage with a music-grade mic and lines everyone\'s sound up to you; tap again to end (earbuds recommended for singers)';
     function paintTiming() {
       const sing = roomSingOn();
+      const mine = !!(myStatus.sing && stageIds().includes(myId));
       for (const btn of timingRow.querySelectorAll('button')) {
         btn.classList.toggle('on', sing ? btn.dataset.timing === 'song' : btn.dataset.timing === timing);
+        if (btn.dataset.timing !== 'song') continue;
+        const blocked = sing && !mine;
+        btn.setAttribute('aria-disabled', blocked ? 'true' : 'false');
+        btn.title = blocked ? (singLeaderName() + ' is leading; wait for the song to end.') : SONG_PILL_TITLE;
       }
     }
     function toggleSing() {
@@ -12798,7 +13082,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         reactSing();
         return;
       }
-      if (roomSingOn()) return; // someone else is leading — their song, their pill
+      if (roomSingOn()) { setStatus(singLeaderName() + ' is leading; wait for the song to end.'); return; }
       if (!stageIds().includes(myId)) {
         if (!canStage(myId)) { setStatus('Only room admins — and people they allow — can lead a song here.'); return; }
         if (stageIds().length >= SCALE.C) { setStatus('The stage is full (' + SCALE.C + ' seats).'); return; }
@@ -14362,8 +14646,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // button is now sign-in + bans, and shows only inside an admin room.
     const invModal = document.getElementById('inv-modal');
     const surfaceBtn = 'background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)';
+    function armCopiedLabel(btn, later) {
+      btn.textContent = 'Copied ✓';
+      later(() => { if (btn.textContent === 'Copied ✓') btn.textContent = 'Copy'; }, 2000);
+    }
     function linkRowHtml() {
-      return '<div style="display:flex;gap:.5rem;margin:.6rem 0"><input id="inv-url" readonly value="' + esc(shareUrl.value) + '" style="flex:1;min-width:0"><button id="inv-copy">Copy</button></div>';
+      return '<div style="display:flex;gap:.5rem;margin:.6rem 0"><input id="inv-url" readonly value="' + esc(shareUrl.value) + '" style="flex:1;min-width:0"><button id="inv-copy">Copy</button><button id="inv-share" style="display:none">Share…</button></div>';
     }
     function showInviteModal() {
       const body = document.getElementById('inv-body');
@@ -14412,12 +14700,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           '<div style="display:flex;justify-content:flex-end;margin-top:.9rem"><button id="inv-done" style="' + surfaceBtn + '">Close</button></div>';
       }
       const copyBtn = document.getElementById('inv-copy');
+      const shareInviteBtn = document.getElementById('inv-share');
+      const inviteSharePayload = () => ({ title: isApp ? 'Join me on GifOS' : BROADCAST ? 'Watch my GifOS broadcast' : 'Join my GifOS meeting', text: 'Tap this link and you’re in:', url: shareUrl.value });
+      if (shareInviteBtn && navigator.share) {
+        shareInviteBtn.style.display = '';
+        shareInviteBtn.onclick = () => { navigator.share(inviteSharePayload()).catch(() => {}); };
+      }
       if (copyBtn) copyBtn.onclick = () => {
         const u = document.getElementById('inv-url'); u.select();
         try { document.execCommand('copy'); } catch (e) {}
         if (navigator.clipboard) navigator.clipboard.writeText(shareUrl.value).catch(() => {});
-        copyBtn.textContent = 'Copied ✓';
-        if (navigator.share) navigator.share({ title: isApp ? 'Join me on GifOS' : BROADCAST ? 'Watch my GifOS broadcast' : 'Join my GifOS meeting', text: 'Tap this link and you’re in:', url: shareUrl.value }).catch(() => {});
+        armCopiedLabel(copyBtn, setTimeout);
       };
       const done = document.getElementById('inv-done');
       if (done) done.onclick = () => { invModal.style.display = 'none'; };
@@ -15153,6 +15446,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Converge THIS phone's app view onto whatever the room is sharing. Runs on
     // every status tick and on peer departure, so it self-heals like the mesh.
     function reconcileApp() {
+      sgaPromoteSnaps(); // a snap that raced the successor's ad
       if (appBooting) return; // a host boot is settling — runApp reconciles when it lands
       const want = findSharedApp();
       // My own share lost the deterministic race, was stopped for the room, or
