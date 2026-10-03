@@ -15126,17 +15126,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (!h.id) h.id = (el.id || 'dlg') + '-title';
           if (!el.getAttribute('aria-labelledby')) el.setAttribute('aria-labelledby', h.id);
         }
-        el.addEventListener('click', (e) => { if (e.target === el) el.style.display = 'none'; });
       }
-      document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape') return;
-        const open = [];
-        for (const el of document.querySelectorAll('.name-modal')) if (el.style.display === 'flex') open.push(el);
-        const top = open[open.length - 1];
-        if (!top) return;
-        e.preventDefault();
-        top.style.display = 'none';
-      });
+      // Dismissal is NOT armed here. The page-wide handler (modalDismissBtn)
+      // closes a dialog only through its own cancel/close button, so each
+      // dialog's close logic runs, and a dialog with no such button (the
+      // locked-room password prompt, the first-run name prompt) cannot be
+      // dismissed into a stranded page.
       const obs = new MutationObserver((recs) => {
         for (const r of recs) {
           const el = r.target;
@@ -15587,6 +15582,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function modalDismissBtn(el) {
       if (!el) return null;
       if (el.id === 'pw-modal' && el.dataset.mode === 'join') return null;
+      // Terminal screens: Escape or a stray tap must not navigate away (left-modal's
+      // Close leaves the page) or uncover a meeting that has ended.
+      if (el.id === 'left-modal' || el.id === 'closed-modal') return null;
       const buttons = el.querySelectorAll('button');
       for (const b of buttons) {
         if (b.style.display === 'none' || b.disabled) continue;

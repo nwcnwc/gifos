@@ -314,7 +314,20 @@ function runFn(name, prelude, call) {
   check('armMeetDialogs exists', /function armMeetDialogs\(/.test(src));
   const arm = extractFn(src, 'armMeetDialogs') || '';
   check('name-modals become dialogs', /setAttribute\('role', 'dialog'\)/.test(arm) && /setAttribute\('aria-modal', 'true'\)/.test(arm));
-  check('Escape closes the top open dialog', /e\.key !== 'Escape'/.test(arm) && /style\.display = 'none'/.test(arm));
+  // Dismissal goes through each dialog's own cancel/close button (the
+  // page-wide modalDismissBtn handler), never a blunt hide: a hide skipped the
+  // dialog's close logic and could strand the locked-room and name prompts.
+  check('armMeetDialogs arms no blunt hide', !/style\.display = 'none'/.test(arm));
+  {
+    const mdb = extractFn(src, 'modalDismissBtn') || '';
+    const pick = new Function(mdb + '\nreturn modalDismissBtn;')();
+    const btn = (id) => ({ id, style: {}, disabled: false });
+    const dlg = (id, buttons, mode) => ({ id, dataset: { mode }, querySelectorAll: () => buttons });
+    check('Escape closes an ordinary dialog through its close button', (pick(dlg('set-modal', [btn('set-close')])) || {}).id === 'set-close');
+    check('the locked-room password prompt cannot be dismissed', pick(dlg('pw-modal', [btn('pw-cancel')], 'join')) === null);
+    check('the left and closed screens cannot be dismissed (Close would leave the page)', pick(dlg('left-modal', [btn('left-close')])) === null && pick(dlg('closed-modal', [btn('closed-close')])) === null);
+    check('a dialog with no cancel/close button cannot be dismissed', pick(dlg('fork-modal', [btn('fork-pick')])) === null);
+  }
   check('opening a dialog focuses a control and closing returns focus', /_opener/.test(arm) && /focusOf\(el\)/.test(arm));
   const paint = extractFn(src, 'paintControls') || '';
   check('mic, camera, and blur segments expose aria-pressed', (paint.match(/setAttribute\('aria-pressed'/g) || []).length >= 3);

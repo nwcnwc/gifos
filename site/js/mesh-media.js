@@ -261,7 +261,10 @@
     let heldRows = 0, pendingRows = 0, pendingSince = 0;
     const ROW_STEP = 4, ROW_HOLD_MS = 5000;
     function stadRows(natural, now) {
-      const want = Math.ceil(natural / ROW_STEP) * ROW_STEP;
+      // Small stadiums keep their own height (1, 2, then 4 rows): padding one
+      // row of faces to a 4-row step painted three dark rows and encoded four
+      // times the area. Past 4 rows the step holds the height across joins.
+      const want = natural <= 2 ? Math.max(1, natural) : natural <= ROW_STEP ? ROW_STEP : Math.ceil(natural / ROW_STEP) * ROW_STEP;
       if (heldRows === 0 || want >= heldRows) {
         heldRows = want; pendingRows = 0; pendingSince = 0;
         return heldRows;

@@ -216,6 +216,23 @@ function stream(id, tracks) {
   pk.stop();
   timers.clear();
 
+  // A small stadium keeps its own height: one row of faces is one row tall,
+  // two are two, three or four rows take the 4-row step. Padding one row to
+  // four painted three dark rows and encoded four times the area.
+  const sp = M.createPacker({ shape: 'stad', cell: 110, fps: 8 });
+  // (stadiumGrid packs square-ish: 1 face = 1 row, 3 faces = 2 rows, 8 = 3.)
+  sp.setTile('s', 0, el, null, { n: 1, cols: 5 });
+  sp.start();
+  check('a one-row stadium is one row tall (no dark padding)', sp.canvas.height === 110, sp.canvas.height);
+  sp.setTile('s', 0, el, null, { n: 3, cols: 5 });
+  pump();
+  check('a two-row stadium is two rows tall', sp.canvas.height === 220, sp.canvas.height);
+  sp.setTile('s', 0, el, null, { n: 8, cols: 5 });
+  pump();
+  check('three rows take the 4-row step', sp.canvas.height === 440, sp.canvas.height);
+  sp.stop();
+  timers.clear();
+
   const g = M.createPacker({ shape: 'grid', cell: 100, maxW: 1000, fps: 8 });
   g.setTile('a', 0, el, null, { n: 1, cols: 1 });
   g.start();
