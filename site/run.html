@@ -1303,7 +1303,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         <p class="set-help">What <b>your own device</b> listens for when CC is on. It cannot guess: a phone set to Russian writes English down as nonsense, so pick the language you will speak.</p>
         <select id="cclang" style="padding:.35rem .5rem;border-radius:.4rem;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);max-width:100%"></select>
         <div id="ccengine-row" style="margin-top:.6rem">
-          <label class="rec-opt"><input type="radio" name="ccengine" value="browser"><span><b>Browser captions</b><small>Instant. One fixed language, picked above; two-word lines without punctuation on some devices.</small></span></label>
+          <label class="rec-opt"><input type="radio" name="ccengine" value="browser"><span><b>Browser captions</b><small>Instant. One fixed language, picked above; two-word lines without punctuation on some devices. Your browser may send your voice to its maker's speech service (Chrome: Google).</small></span></label>
           <label class="rec-opt"><input type="radio" name="ccengine" value="whisper"><span><b>Whisper on this device</b><small>Any language, found by itself. Real sentences with punctuation. Your own names and words. Can write everything in English. A sentence appears a few seconds after it is said; on a phone it is slower and uses battery. Nothing leaves the device.</small></span></label>
           <div id="ccwhisper" style="display:none;margin:.2rem 0 0 1.6rem">
             <div id="ccwhisper-state" class="set-help" style="margin-bottom:.4rem"></div>
@@ -12457,53 +12457,131 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const wspCaps = new Map(); // 'me' | pid -> capture
     const wspQ = { items: [], busy: false, sent: 0, dropped: 0 };
     let wsp = null; // my own capture, by the name the older call sites use
+    let wspPaused = false; // two stalled provider calls: stop Whisper for this meeting
+    // The worklet posts 4096-sample chunks off the main thread. A ScriptProcessor
+    // is the fallback when this context has no AudioWorklet yet, or the module failed.
+    const WSP_WORKLET_JS = [
+      'class WspCaptureProcessor extends AudioWorkletProcessor {',
+      '  constructor() { super(); this.buf = new Float32Array(4096); this.n = 0; }',
+      '  process(inputs) {',
+      '    const ch = inputs[0] && inputs[0][0];',
+      '    if (ch && ch.length) {',
+      '      let i = 0;',
+      '      while (i < ch.length) {',
+      '        const take = Math.min(ch.length - i, 4096 - this.n);',
+      '        this.buf.set(ch.subarray(i, i + take), this.n);',
+      '        this.n += take; i += take;',
+      '        if (this.n === 4096) {',
+      '          const out = this.buf;',
+      '          this.buf = new Float32Array(4096);',
+      '          this.n = 0;',
+      '          this.port.postMessage(out, [out.buffer]);',
+      '        }',
+      '      }',
+      '    }',
+      '    return true;',
+      '  }',
+      '}',
+      "registerProcessor('wsp-capture', WspCaptureProcessor);"
+    ].join('\n');
+    let wspWorkletUrl = null;
     function wspSource(id) { const m = meters.get(id); return (m && m.src) ? m.src : null; }
+    function wspOnChunk(w, chunk) {
+      const ms = chunk.length / w.rate * 1000, now = Date.now();
+      const talking = !!speakingOf.get(w.id) || (w.id === 'me' && now - myVoiceAt < 250);
+      if (w.utt) {
+        w.utt.push(chunk);
+        if (talking) w.lastVoice = now;
+        const secs = (now - w.uttStart) / 1000;
+        if ((!talking && now - w.lastVoice > WSP_GAP_MS) || secs >= WSP_MAX_S) {
+          const done = w.utt, at = w.uttStart; w.utt = null;
+          if (secs >= WSP_MIN_S) wspEnqueue(w, done, at);
+          if (secs >= WSP_MAX_S && talking) { w.utt = []; w.uttStart = now; w.lastVoice = now; }
+        }
+      } else if (talking) {
+        w.utt = w.pre; w.pre = [];
+        w.utt.push(chunk); w.uttStart = now - w.preMs; w.lastVoice = now; w.preMs = 0;
+      } else {
+        w.pre.push(chunk); w.preMs += ms;
+        while (w.preMs > WSP_PRE_MS && w.pre.length > 1) { w.preMs -= w.pre[0].length / w.rate * 1000; w.pre.shift(); }
+      }
+    }
+    function wspAttach(id, w, node, viaWorklet) {
+      const prev = w.node;
+      if (prev) {
+        try { w.src.disconnect(prev); } catch (e) {}
+        try { prev.disconnect(); } catch (e) {}
+        prev.onaudioprocess = null;
+        if (prev.port) prev.port.onmessage = null;
+      }
+      w.node = node;
+      w.worklet = !!viaWorklet;
+      if (viaWorklet) {
+        node.port.onmessage = (ev) => {
+          if (wspCaps.get(id) !== w || !(ev.data instanceof Float32Array)) return;
+          wspOnChunk(w, ev.data);
+        };
+      } else {
+        node.onaudioprocess = (e) => {
+          if (wspCaps.get(id) !== w) return;
+          wspOnChunk(w, new Float32Array(e.inputBuffer.getChannelData(0))); // the browser reuses its buffer
+        };
+      }
+      w.src.connect(node);
+      node.connect(ac.destination); // the node only ticks while connected onward; both paths output silence
+      wspCaps.set(id, w);
+      if (id === 'me') wsp = w;
+    }
+    function wspWorkletPending(ctx) {
+      if (!ctx || ctx._wspWorkletBad || !ctx.audioWorklet || typeof ctx.audioWorklet.addModule !== 'function') return null;
+      if (typeof AudioWorkletNode !== 'function') return null;
+      if (ctx._wspWorklet) return ctx._wspWorklet;
+      try {
+        if (!wspWorkletUrl) wspWorkletUrl = URL.createObjectURL(new Blob([WSP_WORKLET_JS], { type: 'application/javascript' }));
+        ctx._wspWorklet = ctx.audioWorklet.addModule(wspWorkletUrl).then(() => { ctx._wspWorkletOk = true; return true; }, () => false);
+      } catch (e) { return null; }
+      return ctx._wspWorklet;
+    }
+    function wspUseWorklet(id, w) {
+      if (!ac._wspWorkletOk || ac._wspWorkletBad || typeof AudioWorkletNode !== 'function') return false;
+      try {
+        wspAttach(id, w, new AudioWorkletNode(ac, 'wsp-capture'), true);
+        return true;
+      } catch (e) { ac._wspWorkletBad = true; return false; }
+    }
     function wspStart(id) {
       if (wspCaps.has(id)) return true;
       if (!whisperReady()) { if (id === 'me') setStatus('Whisper captions need the Offline Captions app — open Settings → Captions to install it. Browser captions are on meanwhile.', 10000); return false; }
       if (!ensureAc()) return false;
-      let src = wspSource(id), node, own = false;
+      let src = wspSource(id), own = false;
       if (!src && id === 'me' && localStream && localStream.getAudioTracks()[0]) {
         try { src = ac.createMediaStreamSource(new MediaStream([localStream.getAudioTracks()[0]])); own = true; } catch (e) { return false; }
       }
       if (!src) return false;
+      const w = { id, src, node: null, own, rate: ac.sampleRate, pre: [], preMs: 0, utt: null, uttStart: 0, lastVoice: 0, worklet: false };
+      if (wspUseWorklet(id, w)) return true;
+      let node;
       try { node = ac.createScriptProcessor(4096, 1, 1); } catch (e) { return false; }
-      const rate = ac.sampleRate;
-      const w = { id, src, node, own, rate, pre: [], preMs: 0, utt: null, uttStart: 0, lastVoice: 0 };
-      node.onaudioprocess = (e) => {
-        if (wspCaps.get(id) !== w) return;
-        const chunk = new Float32Array(e.inputBuffer.getChannelData(0)); // the browser reuses its buffer
-        const ms = chunk.length / rate * 1000, now = Date.now();
-        const talking = !!speakingOf.get(id) || (id === 'me' && now - myVoiceAt < 250);
-        if (w.utt) {
-          w.utt.push(chunk);
-          if (talking) w.lastVoice = now;
-          const secs = (now - w.uttStart) / 1000;
-          if ((!talking && now - w.lastVoice > WSP_GAP_MS) || secs >= WSP_MAX_S) {
-            const done = w.utt, at = w.uttStart; w.utt = null;
-            if (secs >= WSP_MIN_S) wspEnqueue(w, done, at);
-            if (secs >= WSP_MAX_S && talking) { w.utt = []; w.uttStart = now; w.lastVoice = now; }
-          }
-        } else if (talking) {
-          w.utt = w.pre; w.pre = [];
-          w.utt.push(chunk); w.uttStart = now - w.preMs; w.lastVoice = now; w.preMs = 0;
-        } else {
-          w.pre.push(chunk); w.preMs += ms;
-          while (w.preMs > WSP_PRE_MS && w.pre.length > 1) { w.preMs -= w.pre[0].length / rate * 1000; w.pre.shift(); }
-        }
-      };
-      src.connect(node); node.connect(ac.destination); // a ScriptProcessor only ticks on the way to the destination; it outputs silence
-      wspCaps.set(id, w);
-      if (id === 'me') wsp = w;
+      wspAttach(id, w, node, false);
+      const pending = wspWorkletPending(ac);
+      if (pending && typeof pending.then === 'function') {
+        pending.then((ok) => {
+          if (!ok || ac._wspWorkletBad || wspCaps.get(id) !== w || w.worklet) return;
+          wspUseWorklet(id, w);
+        });
+      }
       return true;
     }
     function wspStop(id) {
       const w = wspCaps.get(id); if (!w) return;
       wspCaps.delete(id); if (id === 'me') wsp = null;
-      w.node.onaudioprocess = null;
-      try { w.src.disconnect(w.node); } catch (e) {}
+      if (w.node) {
+        w.node.onaudioprocess = null;
+        if (w.node.port) w.node.port.onmessage = null;
+        try { w.src.disconnect(w.node); } catch (e) {}
+        try { w.node.disconnect(); } catch (e) {}
+      }
       if (w.own) { try { w.src.disconnect(); } catch (e) {} }
-      try { w.node.disconnect(); } catch (e) {}
     }
     // A meter was rebuilt (camera flip, mic mode, a peer's stream re-claimed):
     // the capture on it holds a disconnected source and never ticks again.
@@ -12513,7 +12591,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       wspStop(id);
       wspSync();
     }
-    function startWhisper() { return wspStart('me'); }
+    function startWhisper() { return !wspPaused && wspStart('me'); }
     function stopWhisper() { for (const id of Array.from(wspCaps.keys())) wspStop(id); wspQ.items.length = 0; }
     function wspPcm16k(chunks, rate) { // concatenate, then a box-filter resample to 16 kHz
       let n = 0; for (const c of chunks) n += c.length;
@@ -12533,6 +12611,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (keep) wspQ.items.unshift(job); else wspQ.items.push(job);
       wspDrain();
     }
+    // A missing app stays missing: drop the stale stt assignment and the engine
+    // choice once, then let the browser engine carry the meeting.
+    function wspProviderGone() {
+      if (wspQ.providerGone) return;
+      wspQ.providerGone = true;
+      try {
+        const cfg = JSON.parse(localStorage.getItem('gifos_ai_config') || '{}') || {};
+        if (cfg && typeof cfg === 'object' && cfg.stt) {
+          delete cfg.stt;
+          localStorage.setItem('gifos_ai_config', JSON.stringify(cfg));
+        }
+      } catch (e) {}
+      try { lsSet(CC_ENGINE_KEY, ''); } catch (e) {}
+      try { stopWhisper(); } catch (e) {}
+      try { syncSpeech(); } catch (e) {}
+      try { paintCcState(); } catch (e) {}
+      setStatus('Whisper app missing — browser captions on', 10000);
+    }
+    function wspStallGiveUp() {
+      if (wspPaused) return;
+      wspPaused = true;
+      try { stopWhisper(); } catch (e) {}
+      try { syncSpeech(); } catch (e) {}
+      setStatus('Whisper captions stalled — browser captions are on.', 10000);
+    }
     function wspDrain() {
       if (wspQ.busy || !wspQ.items.length) return;
       const job = wspQ.items.shift();
@@ -12543,16 +12646,34 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const req = { bytes: pcm.buffer, mime: 'audio/pcm;rate=16000;bits=32', language: lang === 'auto' ? 'auto' : lang,
         task: lsGet(CC_TRANSLATE_KEY) === '1' ? 'translate' : 'transcribe', prompt: lsGet(CC_WORDS_KEY).slice(0, 400), model: IS_MOBILE ? 'tiny' : 'base' };
       wspQ.sent++;
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        wspQ.busy = false;
+        wspDrain();
+      };
+      const clipMs = pcm.length / 16; // 16 kHz samples → milliseconds
+      let timer = setTimeout(() => {
+        timer = null;
+        wspQ.stalls = (wspQ.stalls || 0) + 1;
+        if (wspQ.stalls >= 2) wspStallGiveUp();
+        finish();
+      }, clipMs * 4 + 10000);
       GifOS.providers.call('stt', req).then((r) => {
+        if (settled) return;
+        wspQ.stalls = 0;
         const text = r && r.text ? String(r.text).trim() : '';
         if (!text || !wspCaps.has(job.id)) return;
         if (job.id === 'me') { if (myStatus.cc) addTranscriptLine(text, job.at); }
         else if (scribeOn() && peers.has(job.id)) addTranscriptLine(text, job.at, job.id);
       }).catch((e) => {
+        if (settled) return;
         const msg = (e && e.message) || String(e);
+        if (/NOT_CONFIGURED|PROVIDER_MISSING|PROVIDER_NOT_IN_FOLDER/.test(msg)) { wspProviderGone(); return; }
         setStatus('Whisper captions failed: ' + msg.slice(0, 160), 10000);
-        if (/NOT_CONFIGURED|PROVIDER_MISSING|PROVIDER_NOT_IN_FOLDER/.test(msg)) { stopWhisper(); syncSpeech(); }
-      }).then(() => { wspQ.busy = false; wspDrain(); });
+      }).then(() => finish());
     }
     // THE SCRIBE: one strong device writes down every voice it hears, so the
     // others need no engine of their own. Each direct-link neighbour's audio
@@ -12564,8 +12685,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function scribeOn() { return !!myStatus.scribe && ccEngine() === 'whisper' && whisperReady(); }
     function wspSync() {
       const want = new Set();
-      if (myStatus.cc && !myStatus.muted && ccEngine() === 'whisper' && !ccSourceId && whisperReady()) want.add('me');
-      if (scribeOn()) {
+      if (!wspPaused && myStatus.cc && !myStatus.muted && ccEngine() === 'whisper' && !ccSourceId && whisperReady()) want.add('me');
+      if (!wspPaused && scribeOn()) {
         for (const [pid, p] of peers) {
           if (want.size >= WSP_SCRIBE_MAX + 1) break;
           const st = statusOf.get(pid) || {};
@@ -12640,10 +12761,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return whisperInstalling;
     }
     let whisperRescan = null;
-    function armWhisperRescan() { // while the app is missing, look again every few seconds — returning from the store needs no button
+    const WSP_RESCAN_MAX = 15; // a missing app is not a reason to scan the folder for the whole meeting
+    function armWhisperRescan() { // opening Settings arms another bounded look; the install button has its own promise
       if (whisperRescan) return;
+      let attempts = 0;
       whisperRescan = setInterval(() => {
-        if (whisperReady() || ccEngine() !== 'whisper' || !window.GifOS || !GifOS.providers) { clearInterval(whisperRescan); whisperRescan = null; return; }
+        if (++attempts > WSP_RESCAN_MAX || whisperReady() || ccEngine() !== 'whisper' || !window.GifOS || !GifOS.providers) { clearInterval(whisperRescan); whisperRescan = null; return; }
         GifOS.providers.scan().then((list) => {
           const hit = list.find((p) => p.roles.indexOf('stt') >= 0 && p.appId === WHISPER_APP_ID) || list.find((p) => p.roles.indexOf('stt') >= 0);
           if (!hit) return;
@@ -12676,6 +12799,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       document.getElementById('ccwhisper-install').onclick = () => { installWhisper(true).catch(() => {}); paintCcState(); };
       armWhisperRescan();
     }
+    function whisperSeedBlocked() {
+      // A phone, a data-saver flag, or a cellular link does not fetch the 13 MB app on its own.
+      if (IS_MOBILE) return true;
+      const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (c && (c.saveData || c.type === 'cellular' || c.type === 'wimax')) return true;
+      return false;
+    }
     (function wireCcEngine() {
       const radios = Array.from(document.querySelectorAll('input[name="ccengine"]')); if (!radios.length) return;
       const tr = document.getElementById('cctranslate'), words = document.getElementById('ccwords'), scribe = document.getElementById('ccscribe');
@@ -12691,6 +12821,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const r of radios) r.onchange = () => {
         if (!r.checked) return;
         lsSet(CC_ENGINE_KEY, r.value === 'whisper' ? 'whisper' : '');
+        if (r.value !== 'whisper') speechGaveUp = false;
         if (r.value === 'whisper' && IS_MOBILE) setStatus('On a phone, Whisper runs on the processor: a sentence can take 5 to 10 seconds to appear, and it uses battery. Browser captions stay instant.', 12000);
         if (r.value !== 'whisper' && myStatus.scribe) { myStatus.scribe = false; broadcastStatus(); }
         paintCcState();
@@ -12698,26 +12829,37 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       };
       paintCcState();
       document.getElementById('setbtn').addEventListener('click', () => { paintCcState(); paintCcSource(); });
-      // The quiet seed: a meeting up for 20 s on a computer without the app, online, once.
+      // The quiet seed: 20 s into a meeting, on an unmetered computer, once. Idle, so it
+      // does not compete with the call. A phone or a cellular link never starts it.
       setTimeout(() => {
-        const seeded = lsGet(WHISPER_SEED_KEY);
-        const triedAt = /^tried:(\d+)$/.test(seeded) ? Number(seeded.slice(6)) : 0;
-        if (seeded === 'done' || (triedAt && Date.now() - triedAt < 86400000)) return;
-        if (!navigator.onLine || whisperReady() || !window.GifOS || !GifOS.providers || !myId || document.body.classList.contains('app-room')) return;
-        installWhisper(false).catch(() => {});
+        const run = () => {
+          const seeded = lsGet(WHISPER_SEED_KEY);
+          const triedAt = /^tried:(\d+)$/.test(seeded) ? Number(seeded.slice(6)) : 0;
+          if (seeded === 'done' || (triedAt && Date.now() - triedAt < 86400000)) return;
+          if (whisperSeedBlocked()) return;
+          if (!navigator.onLine || whisperReady() || !window.GifOS || !GifOS.providers || !myId || document.body.classList.contains('app-room')) return;
+          installWhisper(false).catch(() => {});
+        };
+        if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 8000 });
+        else run();
       }, 20000);
     })();
-    let speech = null;
+    let speech = null, speechFails = 0, speechRetry = null, speechGaveUp = false;
     function speechRunning() { return !!speech; }
+    function speechRetryDelay(n) { return Math.min(30000, 1000 * Math.pow(2, Math.max(0, n - 1))); }
     function startSpeech() {
+      if (speechGaveUp) return false;
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) { setStatus('This browser cannot write down what people say.'); return false; }
+      speechFails = 0;
       try {
         speech = new SR();
+        const rec = speech;
         speech.continuous = true;
         speech.interimResults = false;
         speech.lang = ccLang() === 'auto' ? (navigator.language || 'en-US') : ccLang();
         speech.onresult = (e) => {
+          speechFails = 0;
           // THE GATE (see trEcho): no voice on my own echo-cancelled mic in
           // the last 3s means I only heard this through the speakers. No
           // meter yet (AudioContext not born) ⇒ no verdict ⇒ let it through.
@@ -12728,14 +12870,35 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             addTranscriptLine(e.results[i][0].transcript);
           }
         };
-        speech.onend = () => { if (myStatus.cc && !myStatus.muted && speech) { try { speech.start(); } catch (e) {} } };
+        speech.onend = () => {
+          if (!(myStatus.cc && !myStatus.muted && speech)) return;
+          if (speechFails > 0) {
+            const wait = speechRetryDelay(speechFails);
+            speechRetry = setTimeout(() => {
+              speechRetry = null;
+              if (myStatus.cc && !myStatus.muted && speech) { try { speech.start(); } catch (err) {} }
+            }, wait);
+            return;
+          }
+          try { speech.start(); } catch (err) {}
+        };
         speech.onerror = (e) => {
+          if (speech !== rec) return;
           if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'language-not-supported') {
             stopSpeech();
             myStatus.cc = false;
             document.getElementById('ccbtn').classList.remove('on');
             setStatus('Captions are not working here (' + e.error + ').');
             broadcastStatus();
+            return;
+          }
+          if (e.error === 'network' || e.error === 'audio-capture' || e.error === 'aborted') {
+            speechFails++;
+            if (speechFails >= 3) {
+              speechGaveUp = true;
+              stopSpeech();
+              setStatus('Captions cannot reach the speech service');
+            }
           }
         };
         speech.start();
@@ -12745,6 +12908,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function stopSpeech() {
       const sp = speech;
       speech = null; // onend sees null → no restart
+      if (speechRetry) { clearTimeout(speechRetry); speechRetry = null; }
       if (sp) { try { sp.stop(); } catch (e) {} }
     }
     function syncSpeech() { // CC follows the mic: muted people aren't transcribed
@@ -12755,10 +12919,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return;
       }
       if (want && ccEngine() === 'whisper') {
-        if (speechRunning()) stopSpeech();
-        if (wspCaps.has('me') || startWhisper()) { wspSync(); return; }
+        if (!wspPaused) {
+          if (speechRunning()) stopSpeech();
+          if (wspCaps.has('me') || startWhisper()) { wspSync(); return; }
+        }
         // Whisper is chosen but cannot run here (no provider yet, no mic
-        // track): the browser engine carries on so captions are never silently off.
+        // track, or the provider stalled): the browser engine carries on.
       }
       wspStop('me'); wspSync();
       if (want && !speechRunning()) startSpeech();
@@ -12766,6 +12932,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     document.getElementById('ccbtn').onclick = () => {
       myStatus.cc = !myStatus.cc;
+      if (myStatus.cc) speechGaveUp = false;
       ccByOrder = false;
       if (!myStatus.cc && ccAllInfo()) ccOptOutAt = Date.now(); // opting out of a room-wide order holds until the next order
       document.getElementById('ccbtn').classList.toggle('on', myStatus.cc);
@@ -12791,7 +12958,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return;
       }
       if (myStatus.cc || ccOptOutAt >= (m.at || 0)) return;
-      myStatus.cc = true; ccByOrder = true;
+      myStatus.cc = true; ccByOrder = true; speechGaveUp = false;
       cc.classList.add('on');
       syncSpeech();
       setStatus((m.by || 'An admin') + ' turned captions on for everyone — this device writes down what you say' + (myStatus.muted ? ' once you unmute' : '') + '. Tap CC to opt out.', 8000);
