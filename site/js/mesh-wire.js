@@ -453,6 +453,15 @@
       // Another tab owns this seat; we have no right to keep knocking.
       // The one sanctioned re-arm is an app credential change (setKey).
       if (sock.rejected) return;
+      // A seat below Section 1 drops this socket 20 ticks after it sat
+      // (deepSince is that seating tick). PLACE, NOROOM and HOME to an
+      // unseated joiner leave through here: the target has no DataChannel,
+      // so the frame is queued and the socket reopens. Leaving deepSince at
+      // the seating tick closed that socket on the next mesh tick, before
+      // the handshake, and steadySocket close() discards the queue. The
+      // admitter kept the vouch and the joiner never saw PLACE. Restart the
+      // grace at the send that needs the socket.
+      if (seat && seat.state === 3 && seat.hasCoord && seat.coord.pc !== 0) deepSince = env.TICK;
       sock.send(obj);
     }
     const iAmInsideTheRoom = () => !!(seat && seat.hasCoord && seat.state === 3);
