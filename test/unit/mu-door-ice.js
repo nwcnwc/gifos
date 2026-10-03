@@ -137,7 +137,9 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
       oldSent.length === 3 && oldSent.every((m) => m.kind === 'ice' && m.candidate && typeof m.candidate.candidate === 'string' && !m.candidates && !m.end),
       JSON.stringify(oldSent));
     check('the offer and both answers advertise ib:1',
-      (html.match(/kind: 'offer', sdp: p\.pc\.localDescription, ib: 1,/g) || []).length === 1
+      // sendOffer reads its own captured pc (the offer in flight stays on the
+      // pc it started on), so the offer's description is pc.localDescription.
+      (html.match(/kind: 'offer', sdp: (?:p\.)?pc\.localDescription, ib: 1,/g) || []).length === 1
       && (html.match(/kind: 'answer', sdp: p\.pc\.localDescription, ib: 1,/g) || []).length === 2);
     const offerH = between("      if (msg.kind === 'offer') {", "        const accept = () =>");
     const ansH = between("} else if (msg.kind === 'answer') {", "} else if (msg.kind === 'ice') {");

@@ -5257,6 +5257,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       try { if (p.glareTimer) clearTimeout(p.glareTimer); } catch (e) {}
       p.glareTimer = null; p.glareOffer = null;
       p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = []; p.deadSince = 0; p.rebuiltAt = Date.now();
+      p.offering = null; // an offer still minting belongs to the closed pc (sendOffer drops it)
       // A new pc gathers afresh: its first host candidate must leave at once,
       // so the old pc's batch (sawHost, a pending flush) is dropped.
       { const ib = iceBatch.get(p.id); if (ib && ib.t) clearTimeout(ib.t); iceBatch.delete(p.id); }
@@ -5436,6 +5437,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // have-local-offer, and it drops the stored offer as soon as the pair moves
     // on by any other route, so a pair that healed normally is never disturbed.
     const GLARE_YIELD_MS = 4000;
+    // A pair that never carried a byte (no connect, no DataChannel or mesh
+    // receive): a glare there is a JOIN race, and it resolves on a fresh pc,
+    // never by rolling an offer back (see onSignal's collision branch).
+    const neverCarried = (p) => !p.connected && !p.dcRxAt && !p.meshRxAt;
     function armGlareYield(p, from, msg) {
       p.glareOffer = msg;
       if (p.glareTimer) return;                       // already waiting
@@ -5445,7 +5450,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!m || !p.pc || leaving) return;
         if (p.pc.signalingState !== 'have-local-offer') return;  // it healed; leave it alone
         if (typeof clog === 'function') clog('glare-yield ' + String(from).slice(0, 6));
-        Promise.resolve(p.pc.setLocalDescription({ type: 'rollback' }))
+        // A pair that never carried a byte yields on a FRESH pc, not by
+        // rollback: an answer made after rolling back an offer gathers no ICE
+        // candidate in Chromium (see onSignal's collision branch).
+        const fresh = neverCarried(p);
+        if (fresh) { const queued = p.pendingIce; newPcFor(p); p.pendingIce = queued; }
+        Promise.resolve(fresh ? null : p.pc.setLocalDescription({ type: 'rollback' }))
           .then(() => p.pc.setRemoteDescription(m.sdp))
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
           .then(() => { preferHwVideo(p.pc); return p.pc.createAnswer(); })
@@ -5480,9 +5490,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!dcAlive) { try { wireDc(p, p.pc.createDataChannel('gifos')); } catch (e) {} }
       preferHwVideo(p.pc);
       const opts = iceRestart ? { iceRestart: true } : undefined;
-      p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
-        .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, ib: 1, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
-        .catch((e) => { noteNegFail('offer', peerId, e); });
+      // THE OFFER IN FLIGHT. createOffer and setLocalDescription are async,
+      // and until the offer is applied the pc still reads 'stable'. A far
+      // offer landing in that window was accepted as if nothing collided:
+      // setRemoteDescription then rolled our just-applied offer back
+      // implicitly, and Chromium gathers no ICE candidate for an answer made
+      // after that rollback, so the pair sat sig=stable/ice=new until a
+      // 12-25 s healer (e2e-video's three-phone mesh, traced 3 Oct 2026:
+      // 16 s, and past its 30 s budget under load). p.offering marks the
+      // window for onSignal's collision test. The chain stays on the pc it
+      // started on, and an offer whose pc was replaced meanwhile is not sent.
+      const pc = p.pc, mark = {};
+      p.offering = mark;
+      const settled = () => { if (p.offering === mark) p.offering = null; };
+      pc.createOffer(opts).then((offer) => (p.pc === pc ? pc.setLocalDescription(offer) : null))
+        .then(() => {
+          settled();
+          if (p.pc !== pc) return; // rebuilt while minting: this offer belongs to a closed pc
+          sendSig(peerId, { kind: 'offer', sdp: pc.localDescription, ib: 1, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() });
+        })
+        .catch((e) => { settled(); if (p.pc === pc) noteNegFail('offer', peerId, e); });
     }
 
     // ============================ STATUS GOSSIP ==============================
@@ -5729,8 +5756,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           .then((ans) => p.pc.setLocalDescription(ans))
           .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, ib: 1, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
           .catch((e) => { noteNegFail('accept', from, e); });
-        if (p.pc.signalingState === 'have-local-offer') {
+        // A COLLISION is my own offer applied (have-local-offer) or, on a pair
+        // that never carried a byte, still being minted (p.offering — see
+        // sendOffer; the pc reads 'stable' until it lands).
+        if (p.pc.signalingState === 'have-local-offer' || (p.offering && neverCarried(p))) {
           if (myId && myId < from) {
+            // Polite, on a pair that never carried a byte: answer on a FRESH
+            // pc. Rolling back an offer whose gathering has begun (here, or
+            // implicitly inside setRemoteDescription) leaves Chromium's answer
+            // with no ICE candidate, so the pair waited 12-25 s for a healer.
+            // Nothing is lost: the pair carries nothing yet, my offer in
+            // flight is dropped with its pc (sendOffer), and their offer
+            // brings its own DataChannel. Their trickle already queued for
+            // this offer is kept.
+            if (neverCarried(p)) {
+              const queued = p.pendingIce;
+              newPcFor(p);
+              p.pendingIce = queued;
+              p.offering = null;
+              accept();
+              return;
+            }
             // Polite: roll back and answer. A FAILURE HERE USED TO BE THE END OF
             // THE PAIR — the catch swallowed it and nobody ever looked again,
             // while the impolite side sat on an offer that would never be
