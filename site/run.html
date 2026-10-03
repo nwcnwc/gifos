@@ -12073,10 +12073,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (let i = 0; i < outN; i++) { const a = Math.floor(i * ratio), b = Math.max(a + 1, Math.floor((i + 1) * ratio)); let sum = 0; for (let j = a; j < b; j++) sum += all[j]; out[i] = sum / (b - a); }
       return out;
     }
-    function wspEnqueue(w, chunks, at, rate) {
+    function wspEnqueue(w, chunks, at, rate, keep) {
       const cap = WSP_BACKLOG + 2 * Math.max(0, wspCaps.size - 1);
-      if (wspQ.items.length >= cap) { wspQ.items.shift(); wspQ.dropped++; setStatus('Captions are behind — this device cannot keep up, so a sentence was skipped.', 6000); }
-      wspQ.items.push({ id: w.id, chunks, at, rate: rate || w.rate });
+      if (wspQ.items.length >= cap) {
+        const i = wspQ.items.findIndex((j) => !j.keep); // the oldest ordinary clip goes; a kept one (a test feed) never does
+        if (i >= 0) { wspQ.items.splice(i, 1); wspQ.dropped++; setStatus('Captions are behind — this device cannot keep up, so a sentence was skipped.', 6000); }
+      }
+      const job = { id: w.id, chunks, at, rate: rate || w.rate, keep: !!keep };
+      if (keep) wspQ.items.unshift(job); else wspQ.items.push(job);
       wspDrain();
     }
     function wspDrain() {
@@ -14802,7 +14806,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       transcriptBlocks: () => trBlocks().map((l) => l.by + ': ' + l.text),
       transcriptDrops: () => trDrops,
       whisperForTest: () => ({ engine: ccEngine(), live: !!wsp, ready: whisperReady(), queue: wspQ.items.length, sent: wspQ.sent, dropped: wspQ.dropped, rate: wsp ? wsp.rate : 0, captures: Array.from(wspCaps.keys()), scribe: scribeOn(), source: ccSourceId, scribes: ccScribes().map((x) => x.id) }),
-      whisperFeedForTest: (f32, rate, forId) => { const w = wspCaps.get(forId || 'me'); if (!w) return false; wspEnqueue(w, [Float32Array.from(f32)], Date.now(), rate || 16000); return true; },
+      whisperFeedForTest: (f32, rate, forId) => { const w = wspCaps.get(forId || 'me'); if (!w) return false; wspEnqueue(w, [Float32Array.from(f32)], Date.now(), rate || 16000, true); return true; },
       scribeForTest: (on) => { myStatus.scribe = !!on; if (on && !myStatus.cc) { myStatus.cc = true; document.getElementById('ccbtn').classList.add('on'); } broadcastStatus(); syncSpeech(); },
       ccSourceForTest: (id) => { ccSourceId = id || null; syncSpeech(); scribeWatch(); },
       installWhisperForTest: () => installWhisper(true),
