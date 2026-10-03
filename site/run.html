@@ -9163,6 +9163,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const f = files.get(m.id);
         if (!f || tombs.has(m.id)) return;
         const r = takeFc(f, m);
+        if (r === 'part' || r === 'dup' || r === 'done') f.gotChunk = true;
         if (r === 'part' || r === 'dup') armFileAsk(f);
         if (r !== 'done') return;
         stopFileAsks(f, p && p.id);
@@ -9567,6 +9568,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       dcSend(p, { k: 'want', id: f.id });
       armFileAsk(f);
     }
+    // A source answers a want with its first chunk in well under a second;
+    // 3 s with nothing at all means the want (or the answer) was lost, which a
+    // re-key after a password change can do. Once chunks flow, 8 s of silence
+    // is the stall. Before this split a lost want cost 8 s, two cost 16.
     function armFileAsk(f) {
       if (!f || f.bytes) return;
       clearTimeout(f.askT);
@@ -9586,7 +9591,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         f.nextAsk.delete(next);
         const q = peers.get(next);
         if (q) askFile(f, q);
-      }, 8000);
+      }, f.gotChunk ? 8000 : 3000);
     }
     function stopFileAsks(f, keepId) {
       if (!f) return;

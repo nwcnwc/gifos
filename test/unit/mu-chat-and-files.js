@@ -136,6 +136,8 @@ check('askFile is the only want', /function askFile\(/.test(html) && /askFile\(k
     peers: peers,
     dcSend: (q, m) => sent.push(q.id + ':' + m.k),
   };
+  const delays = [];
+  env.setTimeout = (fn, ms) => { timers.push(fn); delays.push(ms); return timers.length; };
   const fns = new Function(Object.keys(env).join(','), lift('askFile') + '\n' + lift('armFileAsk') + '\nreturn { askFile, armFileAsk };')
     .apply(null, Object.keys(env).map((k) => env[k]));
   const f = { id: 'fx', bytes: null };
@@ -151,7 +153,15 @@ check('askFile is the only want', /function askFile\(/.test(html) && /askFile\(k
   timers.shift()();
   check('a stall with a next source stops the old one and asks the next',
     sent.join() === 'mid:fc-stop,alt:want' && f.asking === 'alt', sent.join());
+  // A lost want is noticed fast: before any chunk the wait is 3 s; once chunks
+  // flow, 8 s of silence is the stall.
+  check('before the first chunk, a silent source is re-asked after 3 s', delays.length > 0 && delays.every((d) => d === 3000), delays.join());
+  delays.length = 0; f.gotChunk = true;
+  fns.armFileAsk(f);
+  check('once chunks flow, the stall wait is 8 s', delays.join() === '8000', delays.join());
 }
+check('a chunk marks the file as flowing (gotChunk) before the stall timer re-arms',
+  /if \(r === 'part' \|\| r === 'dup' \|\| r === 'done'\) f\.gotChunk = true;/.test(html));
 {
   const i = html.indexOf("} else if (m.k === 'want') {");
   const seg = html.slice(i, html.indexOf("} else if (m.k === 'fc') {", i));
