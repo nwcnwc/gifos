@@ -14,7 +14,11 @@
 //      then NOTHING while other sockets come and go (per-join cost O(greeters));
 //   3. a greeter gets the full list and exact peer-join / peer-leave deltas;
 //   4. a greeter closing re-sends the door list (the doors changed);
-//   5. {t:'who'} pulls the full list, at most once per 5s per socket.
+//   5. {t:'who'} pulls the full list, at most once per 5s per socket;
+//   6. a greeter REGISTERING sends the full list to that greeter alone and the
+//      door list to the non-greeters — an existing greeter receives no roster
+//      (it holds an exact list by deltas; re-sending it per registration was
+//      O(sockets × greeters) while a burst seats its 25 Section-1 greeters).
 //
 // Runs against a private relay-local by default, in BOTH modes (dev, and
 // RELAY_PROD=1 with TRUSTED_IPS so the per-IP cap does not stand in for the
@@ -57,8 +61,11 @@ async function scenario(base, label) {
   const G1 = open(base, sid, 'G1', KEY); await G1.ready; await sleep(150);
   G1.knock(KEY, 'SEALED(g1)'); await sleep(150);
   const G2 = open(base, sid, 'G2', KEY); await G2.ready; await sleep(150);
+  G1.mark();
   G2.knock(KEY, 'SEALED(g2)'); await sleep(250);
   check('a greeter gets the FULL list', G1.lastRoster() && G1.lastRoster().scope === 'full', G1.lastRoster() && G1.lastRoster().scope);
+  check('an existing greeter gets NO roster when another greeter registers', G1.since('roster').length === 0, G1.since('roster').map((r) => r.scope));
+  check('...the new greeter gets the full list', G2.lastRoster() && G2.lastRoster().scope === 'full', G2.lastRoster() && G2.lastRoster().scope);
 
   // A joiner: the doors only.
   const J1 = open(base, sid, 'J1', STRANGER); await J1.ready; await sleep(250);
@@ -107,7 +114,19 @@ async function scenario(base, label) {
   J1.send(JSON.stringify({ t: 'who' })); await sleep(300);
   check('a second pull inside 5s is ignored', J1.since('roster').length === 0, J1.since('roster').length);
 
-  [G1, J1, ...crowd].forEach((w) => { try { w.close(); } catch (_) {} });
+  // A third greeter registers while the crowd is connected: the existing
+  // greeter hears its peer-join only, every joiner gets the new door list.
+  await sleep(1100); // past the pull cache window: J1's door list below must be fresh
+  J1.mark(); G1.mark();
+  const G3 = open(base, sid, 'G3', KEY); await G3.ready; await sleep(150);
+  G3.knock(KEY, 'SEALED(g3)'); await sleep(400);
+  check('a greeter registering sends the existing greeter NO roster', G1.since('roster').length === 0, G1.since('roster').map((r) => r.scope));
+  check('...only its peer-join', G1.since('peer-join').some((m) => m.peer === 'G3'));
+  const r3 = J1.since('roster').pop();
+  check('...and every joiner the new door list', r3 && r3.scope === 'door' && r3.peers.slice().sort().join(',') === 'G1,G3', r3);
+  check('...the new greeter gets the full list once', G3.of('roster').filter((r) => r.scope === 'full').length === 1 && G3.lastRoster().peers.length === expect + 1, G3.of('roster').map((r) => r.scope));
+
+  [G1, G3, J1, ...crowd].forEach((w) => { try { w.close(); } catch (_) {} });
   await sleep(200);
 }
 

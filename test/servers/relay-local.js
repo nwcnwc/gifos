@@ -301,7 +301,9 @@ server.on('upgrade', (req, socket, head) => {
     if (DEV) return true;   // RELAY_DEV: the bandwidth/frame meter is an abuse guard too
     const now = Date.now();
     const dt = (now - meter.last) / 1000;
-    const door = !!(conn.gblob || conn.gmint);
+    // A door only while its claim is live — a registration inside its grace,
+    // or a founder's mint inside MINT_GRACE_MS (mirrors relay.js doorLive).
+    const door = conn.gblob ? (conn.gexp || 0) + CLAIM_GRACE_MS > now : !!(conn.gmint && conn.gmint + MINT_GRACE_MS > now);
     const cap = door ? DOOR_BURST : BURST;
     meter.tokens = Math.min(cap, meter.tokens + dt * (door ? DOOR_REFILL : REFILL));
     meter.frames = Math.min(FRAME_BURST, meter.frames + dt * FRAMES_PER_SEC);
@@ -360,13 +362,30 @@ server.on('upgrade', (req, socket, head) => {
     }
     return JSON.stringify(msg);
   };
-  // Every socket, each its own scope — for a greeter-set change or a ban/lock
-  // change (all rare); never on an ordinary connect or close.
+  // Every socket, each its own scope — for a ban/lock change (rare); never on
+  // an ordinary connect or close; a greeter-set change is doorsChanged().
   const roster = () => {
     const full = rosterMsg(true), door = rosterMsg(false);
+    sess.whoCache = { at: Date.now(), s: full };
     for (const c of sess.clients.values()) c.send(isGreeter(c) ? full : door);
   };
   const rosterTo = (c, full) => c.send(rosterMsg(full || isGreeter(c)));
+  const WHO_CACHE_MS = 1000;
+  const fullRosterForPull = () => { // the pulled list is built at most once per WHO_CACHE_MS — mirrors relay.js
+    const nowC = Date.now();
+    if (!sess.whoCache || nowC - sess.whoCache.at >= WHO_CACHE_MS) sess.whoCache = { at: nowC, s: rosterMsg(true) };
+    return sess.whoCache.s;
+  };
+  // The greeter SET changed: every non-greeter gets the new door list, the
+  // newly registered greeter alone the full list once; existing greeters hold
+  // an exact list by deltas already — mirrors relay.js doorsChanged.
+  const doorsChanged = (newGreeter) => {
+    const door = rosterMsg(false);
+    for (const c of sess.clients.values()) {
+      if (c === newGreeter) rosterTo(c, true);
+      else if (!isGreeter(c)) c.send(door);
+    }
+  };
   const toGreeters = (s) => { for (const c of sess.clients.values()) if (isGreeter(c)) c.send(s); };
   const BAN_CAP = 20;
   // THE 2 KB ATTACHMENT, EMULATED. The Worker keeps every occupant's join
@@ -487,7 +506,7 @@ server.on('upgrade', (req, socket, head) => {
     const have = genesisHash();
     let founded = false, admitted = false;
     const wasGreeter = isGreeter(c);
-    if (!have) { c.gkh = gk ? sha256hex(gk) : null; founded = admitted = !!c.gkh; if (founded) c.gmint = Date.now(); } // empty ⇒ found (R3)
+    if (!have) { c.gkh = gk ? sha256hex(gk) : null; founded = admitted = !!c.gkh; if (founded) { c.gmint = Date.now(); delete c.gblob; delete c.gexp; } } // empty ⇒ found (R3); a stale blob would hide the mint from genesisHash
     else if (gk && sha256hex(gk) === have) { c.gkh = have; admitted = true; }       // key match ⇒ join pool
     if (c.gkh) c.gseen = Date.now(); // a knock is proof of life — see genesisHash
     if (admitted && gblob) {
@@ -498,7 +517,7 @@ server.on('upgrade', (req, socket, head) => {
     const list = greeterList(c);
     if (GREETDEBUG) greetLog(sess, parts[1], c, { gk, gblob, have, founded, admitted, listLen: list.length });
     c.send(JSON.stringify({ t: 'greeters', list, founded, admitted }));
-    if (!wasGreeter && isGreeter(c)) roster(); // the greeter set changed: the new greeter gets the full list, the rest new doors
+    if (wasGreeter !== isGreeter(c)) doorsChanged(isGreeter(c) ? c : null); // the greeter set changed: the new greeter gets the full list, the non-greeters new doors
   };
 
   // ONE RUNTIME step 6 (mirrors relay/src/relay.js): the app-session star is
@@ -567,10 +586,10 @@ server.on('upgrade', (req, socket, head) => {
       if (!m || typeof m !== 'object') return; // `null` parses; mirrors relay/src/relay.js
       if (process.env.RELAY_DEBUG) typeRate.set(m.t, (typeRate.get(m.t) || 0) + 1); // what is actually flooding the relay?
       if (m.t === 'peer') routePeer(peer, m);
-      else if (m.t === 'knock') knock(conn, m.gk, m.gblob); // (re)register greeter / take-over empty room (R2/R3/R6)
+      else if (m.t === 'knock') knock(conn, String(m.gk || '').slice(0, 128), m.gblob); // (re)register greeter / take-over empty room (R2/R3/R6); gk cut like the URL's
       else if (m.t === 'who') { // PULL the full socket list (admin re-grant, fork observers) — rate-limited per socket
         const nowW = Date.now();
-        if (nowW - (conn.whoAt || 0) >= WHO_MIN_MS) { conn.whoAt = nowW; rosterTo(conn, true); }
+        if (nowW - (conn.whoAt || 0) >= WHO_MIN_MS) { conn.whoAt = nowW; conn.send(fullRosterForPull()); }
       }
       // ({t:'gossip'} fan-out deleted 2026-08-01 — dead; mirrors relay/src/relay.js.)
       else if (m.t === 'setpw' && typeof m.pw === 'string') {
@@ -624,7 +643,7 @@ server.on('upgrade', (req, socket, head) => {
       sess.clients.delete(peer);
       toGreeters(JSON.stringify({ t: 'peer-leave', peer })); // the doors' full lists stay exact; nobody else routes on it
       tallyVotes();
-      if (isGreeter(conn)) roster(); // a door closed: everyone's door list changes
+      if (isGreeter(conn)) doorsChanged(null); // a door closed: every non-greeter's door list changes; the greeters heard the leave
     };
     conn.send(JSON.stringify({ t: 'joined', peer }));
     conn.send(JSON.stringify({ t: 'whoami', ip })); // tell the socket its own address so it can seal it to peers
