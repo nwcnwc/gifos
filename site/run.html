@@ -864,6 +864,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      interrupted, not a mechanism. Asked and answered: nobody. */
   #fsview { display: none; position: fixed; inset: 0; background: #000; z-index: 60; }
   #fsview.on { display: block; }
+  body.fsopen #grid video { visibility: hidden; }
   #fsmain { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
   #fsstrip { position: absolute; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; gap: .5rem;
     padding: .55rem; overflow-y: auto; overflow-x: hidden; z-index: 2;
@@ -2153,8 +2154,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!myStatus.away) { add(bagUp, myDevHash, myStatus.vup); add(bagDn, myDevHash, myStatus.vdn); if (myDevHash) engagedDevs.add(myDevHash); }
       else if (myDevHash) awayDevs.add(myDevHash);
       for (const [pid, st] of statusOf) {
+        // Freshness before away. A dead phone's old away pulse used to sit
+        // its device out of the bar for as long as the occ echo kept the
+        // status. stHold is the 15s / holdover rule the vote itself uses.
+        if (!stHold(pid)) continue;
         if (st.away) { if (devOf[pid]) awayDevs.add(devOf[pid]); continue; }
-        if (!stHold(pid)) continue; // a voter needs a LIVE status (15s fresh, or the away/transport holdover) — stale = no vote
         add(bagUp, devOf[pid], st.vup); add(bagDn, devOf[pid], st.vdn);
         if (devOf[pid]) engagedDevs.add(devOf[pid]);
       }
@@ -3047,6 +3051,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     fsview.appendChild(fsmain); fsview.appendChild(fsstrip); fsview.appendChild(fsclose);
     document.body.appendChild(fsview);
     let fsSel = null, fsTick = null, fsAutoPid = null;
+    // Parked grid sinks while #fsview is open. The stream stays here so a
+    // later refresh can still list the tile after srcObject is detached.
+    const fsParked = new Map();
+    const fsHeld = (v) => !!(v && fsParked.get(v));
+    function fsParkGrid() {
+      if (typeof grid === 'undefined' || !grid) return;
+      for (const v of grid.querySelectorAll('video')) {
+        if (fsParked.has(v)) continue;
+        fsParked.set(v, v.srcObject || null);
+        try { v.pause(); } catch (e) {}
+        v.srcObject = null;
+      }
+    }
+    function fsUnparkGrid() {
+      for (const [v, st] of fsParked) {
+        try {
+          v.srcObject = st || null;
+          if (st && v.play) { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
+        } catch (e) {}
+      }
+      fsParked.clear();
+    }
     // FOLLOW THE SPEAKER (fsSel === 'auto'): the big view rides whoever is
     // talking. Hysteresis by memory — the last speaker HOLDS the view while
     // nobody (or the same person) talks, so two voices trading lines don't
@@ -3069,27 +3095,32 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // hides the peer here too (the ORDER, not their status — a sender
         // that ignores it keeps transmitting), and the receiver blur level
         // rides along so the big feed and the thumb paint it.
-        if (p.connected && pipReady(p.video) && !seatDark(statusOf.get(pid)) && !forcedCamOff(pid)) {
+        if (p.connected && (pipReady(p.video) || fsHeld(p.video)) && !seatDark(statusOf.get(pid)) && !forcedCamOff(pid)) {
           out.push({ key: 'peer:' + pid, label: rosterNames[pid] || 'Guest', v: p.video, bl: blurLevelFor(pid) });
         }
       }
       const sd = stadiumEl.querySelector('[data-row="sd"] video');
       if (pipReady(sd)) out.push({ key: 'sd', label: 'The stadium', v: sd });
-      if (meTile && !seatDark(myStatus) && pipReady(meTile.video)) out.push({ key: 'me', label: 'You', v: meTile.video });
+      if (meTile && !seatDark(myStatus) && (pipReady(meTile.video) || fsHeld(meTile.video))) out.push({ key: 'me', label: 'You', v: meTile.video });
       return out;
     }
     function fsPaintSel() { for (const th of fsstrip.children) th.classList.toggle('sel', th.dataset.key === fsSel); }
     function fsRefresh() {
       const src = fsSources();
+      // Snapshot before fsParkGrid detaches the grid element. One live sink
+      // per feed after that: #fsmain, or a thumb, never both, never the grid.
+      for (const s of src) s.stream = (s.v && (s.v.srcObject || fsParked.get(s.v))) || null;
+      if (fsview.classList.contains('on')) fsParkGrid();
       const main = fsSel === 'auto' ? fsPickAuto(src) : (src.find((s) => s.key === fsSel) || src[0] || null);
       if (main) {
         if (fsSel !== 'auto') fsSel = main.key; // a pin re-anchors; auto stays auto
-        const st = main.v.srcObject;
+        const st = main.stream;
         if (fsmain.srcObject !== st) { fsmain.srcObject = st; const pr = fsmain.play(); if (pr && pr.catch) pr.catch(() => {}); }
         fsmain.dataset.key = main.key;
         fsBlurClass(fsmain, main.bl);
       } else { fsmain.srcObject = null; fsmain.dataset.key = ''; fsBlurClass(fsmain, 0); }
-      const want = src.map((s) => s.key).join('|');
+      const thumbs = src.filter((s) => !main || s.key !== main.key);
+      const want = thumbs.map((s) => s.key).join('|');
       if (fsstrip.dataset.set !== want) {
         fsstrip.dataset.set = want;
         fsstrip.textContent = '';
@@ -3098,10 +3129,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         chip.innerHTML = '<span class="fsautoglyph">🗣</span><span class="fslbl">Follow speaker</span>';
         chip.onclick = () => { fsSel = 'auto'; fsAutoPid = null; fsRefresh(); };
         fsstrip.appendChild(chip);
-        for (const s of src) {
+        for (const s of thumbs) {
           const th = document.createElement('div'); th.className = 'fsthumb'; th.dataset.key = s.key;
           const tv = document.createElement('video'); tv.autoplay = true; tv.muted = true; tv.setAttribute('playsinline', ''); tv.setAttribute('muted', '');
-          tv.srcObject = s.v.srcObject; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {});
+          tv.srcObject = s.stream; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {});
           fsBlurClass(tv, s.bl);
           const lb = document.createElement('span'); lb.className = 'fslbl'; lb.textContent = s.label;
           th.appendChild(tv); th.appendChild(lb);
@@ -3113,7 +3144,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         for (const th of fsstrip.children) {
           const s = src.find((x) => x.key === th.dataset.key);
           const tv = th.querySelector('video');
-          if (s && tv && tv.srcObject !== s.v.srcObject) { tv.srcObject = s.v.srcObject; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {}); }
+          if (s && tv && tv.srcObject !== s.stream) { tv.srcObject = s.stream; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {}); }
           if (s && tv) fsBlurClass(tv, s.bl); // the level can change while the set stays (a block lands, the room clears)
         }
       }
@@ -3124,6 +3155,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function openFsView(key) {
       fsSel = key || null;
       fsview.classList.add('on');
+      document.body.classList.add('fsopen');
       fsRefresh();
       if (!fsTick) fsTick = setInterval(fsRefresh, 2000);
       if (fsview.requestFullscreen) fsview.requestFullscreen().catch(() => {});
@@ -3131,9 +3163,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function closeFsView() {
       if (fsTick) { clearInterval(fsTick); fsTick = null; }
       fsview.classList.remove('on');
+      document.body.classList.remove('fsopen');
       fsmain.srcObject = null;
       for (const tv of fsstrip.querySelectorAll('video')) tv.srcObject = null; // no leftover sinks — decode work ends with the view
       fsstrip.textContent = ''; fsstrip.dataset.set = '';
+      fsUnparkGrid();
       if (document.fullscreenElement === fsview) document.exitFullscreen().catch(() => {});
     }
     fsclose.onclick = () => closeFsView();
@@ -4333,7 +4367,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return msg;
     };
     const txStats = { relayStatus: 0, dcStatus: 0, relaySig: 0, dcSig: 0, fwdSig: 0, fwdMesh: 0, doorSig: 0, hopFwd: 0, hopRelay: 0, nosock: 0 }; // test/inspection hook: where heartbeats + signaling + sponsor hops actually travel
-    const rxStats = { offer: 0, answer: 0, ice: 0, status: 0, offerRejected: 0, answerNoPeer: 0 }; // reception mirror: what actually ARRIVED (and what was refused)
+    const rxStats = { offer: 0, answer: 0, ice: 0, status: 0, offerRejected: 0, answerNoPeer: 0, negFail: 0, answerStale: 0 }; // reception mirror: what actually ARRIVED (and what was refused)
+    function noteNegFail(kind, from, e) {
+      rxStats.negFail++;
+      if (typeof clog === 'function') clog('neg-fail ' + kind + ' ' + String(from).slice(0, 6) + ' ' + String(e && e.message || e).slice(0, 60));
+    }
     // ---- §FWD sponsor-forward machinery (docs/meet-security.md) -------------
     // Shared by fsig (WebRTC signaling) and fmesh (mesh control). The old rule
     // — "one hop via a MUTUAL DataChannel friend" — deadlocked the newcomer:
@@ -4817,6 +4855,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       try { if (p.glareTimer) clearTimeout(p.glareTimer); } catch (e) {}
       p.glareTimer = null; p.glareOffer = null;
       p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = []; p.deadSince = 0; p.rebuiltAt = Date.now();
+      // New receivers. The jitter skip is keyed by the old verdict, so a
+      // rebuild used to leave the new audio receivers without a target.
+      try { gridApplied.delete(p.id); } catch (e) {}
       p.remoteParkMain = false; // hidden-viewer dormancy resets with the transport: a rebuilt pair must never inherit a stale park (black tile forever)
       // ENCODES = LINKS: the raw camera is CHANNEL R only — it goes to my
       // ROW-MATES, who show it as a direct tile. Structural links (cross/up/
@@ -4893,7 +4934,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         claimRelayStreams();   // explicitly mapped forwarded media → the target's tile
         claimMos();            // explicitly mapped mosaic hops → bands/frames (3b)
       };
-      pc.onicecandidate = (ev) => { if (ev.candidate) sendSig(p.id, { kind: 'ice', candidate: ev.candidate }); };
+      pc.onicecandidate = (ev) => { noteIce(p.id, ev.candidate || null); };
       pc.onconnectionstatechange = () => {
         if (p.pc !== pc) return; // a replaced transport's tail events — not this pair's truth
         p.connected = pc.connectionState === 'connected';
@@ -5000,7 +5041,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           .then((ans) => p.pc.setLocalDescription(ans))
           .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), ip: myIp,
                                       st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
-          .catch(() => { try { newPcFor(p); if (iInitiate(from)) sendOffer(from, false); } catch (e) {} });
+          .catch((e) => {
+            // Rollback failed. Rebuild and dial from this side too. Dialling
+            // only from the higher id left the polite side with a pc nobody offered on.
+            try { newPcFor(p); sendOffer(from, false); } catch (e2) { noteNegFail('glare', from, e2 || e); }
+          });
       }, GLARE_YIELD_MS);
     }
 
@@ -5026,7 +5071,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
         .then(() => sendSig(peerId, { kind: 'offer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
-        .catch(() => {});
+        .catch((e) => { noteNegFail('offer', peerId, e); });
     }
 
     // ============================ STATUS GOSSIP ==============================
@@ -5137,6 +5182,64 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if ('sid' in msg && p && sidIsNews(p, msg.sid)) { p.ownSid = msg.sid; claimOwnStream(p); }
     }
 
+
+    // ICE batching. The first host candidate leaves at once so a LAN pair
+    // does not wait. The rest of a trickle, and the null end-of-candidates
+    // mark, leave as one frame 50ms later. A candidate that beats makePeer
+    // waits in preIce (16, 15s) and is drained into pendingIce on the offer.
+    const iceBatch = new Map();
+    const preIce = new Map();
+    const ICE_BATCH_MS = 50;
+    const PRE_ICE_CAP = 16;
+    const PRE_ICE_MS = 15000;
+    function iceIsHost(c) {
+      return !!(c && typeof c.candidate === 'string' && /(^|\s)typ host(\s|$)/.test(c.candidate));
+    }
+    function noteIce(pid, candidate) {
+      let b = iceBatch.get(pid);
+      if (iceIsHost(candidate) && !(b && b.sawHost)) {
+        if (!b) { b = { list: [], end: false, sawHost: false, t: 0 }; iceBatch.set(pid, b); }
+        b.sawHost = true;
+        sendSig(pid, { kind: 'ice', candidate: candidate });
+        return;
+      }
+      if (!b) { b = { list: [], end: false, sawHost: false, t: 0 }; iceBatch.set(pid, b); }
+      if (candidate) { if (b.list.length < 64) b.list.push(candidate); }
+      else b.end = true;
+      if (b.t) return;
+      b.t = setTimeout(() => {
+        const cur = iceBatch.get(pid);
+        if (!cur) return;
+        cur.t = 0;
+        const list = cur.list.splice(0);
+        const end = cur.end;
+        cur.end = false;
+        if (!list.length && !end) iceBatch.delete(pid);
+        if (list.length) sendSig(pid, { kind: 'ice', candidates: list });
+        if (end) { iceBatch.delete(pid); sendSig(pid, { kind: 'ice', end: true }); }
+      }, ICE_BATCH_MS);
+    }
+    function parkPreIce(from, cands) {
+      const now = Date.now();
+      let e = preIce.get(from);
+      if (!e || now - e.at > PRE_ICE_MS) { e = { at: now, list: [] }; preIce.set(from, e); }
+      for (const c of cands) { if (!c) continue; if (e.list.length >= PRE_ICE_CAP) break; e.list.push(c); }
+    }
+    function drainPreIce(from, p) {
+      const e = preIce.get(from);
+      if (!e || !p || !p.pendingIce) return;
+      preIce.delete(from);
+      if (Date.now() - e.at > PRE_ICE_MS) return;
+      for (const c of e.list) { if (p.pendingIce.length >= PRE_ICE_CAP) break; p.pendingIce.push(c); }
+    }
+    function iceCandsOf(msg) {
+      if (!msg) return [];
+      if (Array.isArray(msg.candidates)) return msg.candidates.filter(Boolean);
+      if (msg.candidate) return [msg.candidate];
+      return [];
+    }
+    function ckReply(t0) { return { k: 'ck2', t0: t0, t1: performance.now() }; }
+
     function onSignal(from, msg, adm) {
       if (isSevered(from)) return; // DEBUG sever — see severPair
       if (!msg || !msg.kind) return;
@@ -5178,6 +5281,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // DC past formation age gets a fresh pc to land on.
         if (p.pc && p.connected && !(p.dc && p.dc.readyState === 'open') && !p.meshRxAt && !p.dcRxAt
             && Date.now() - (p.rebuiltAt || p.bornAt) > 5000) newPcFor(p);
+        drainPreIce(from, p); // after any rebuild, which clears pendingIce
         // p.connected is LOAD-BEARING in that gate: the wedge signature is
         // connected-WITHOUT-DC. A pair still in ICE 'connecting' receiving an
         // offer is ordinary formation glare — under load a healthy formation
@@ -5194,7 +5298,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           .then(() => { preferHwVideo(p.pc); return p.pc.createAnswer(); })
           .then((ans) => p.pc.setLocalDescription(ans))
           .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), ip: myIp, st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
-          .catch(() => {});
+          .catch((e) => { noteNegFail('accept', from, e); });
         if (p.pc.signalingState === 'have-local-offer') {
           if (myId && myId < from) {
             // Polite: roll back and answer. A FAILURE HERE USED TO BE THE END OF
@@ -5236,14 +5340,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const p = peers.get(from);
         if (!p) { rxStats.answerNoPeer++; return; }
         learn(from, msg, p, adm);
+        // A second copy of an answer we already applied is in 'stable'.
+        // Setting it again throws and used to be swallowed as if it landed.
+        if (!p.pc || p.pc.signalingState !== 'have-local-offer') { rxStats.answerStale++; return; }
         p.pc.setRemoteDescription(msg.sdp)
           .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
-          .catch(() => {});
+          .catch((e) => { noteNegFail('answer', from, e); });
       } else if (msg.kind === 'ice') {
+        const cands = iceCandsOf(msg);
         const p = peers.get(from);
-        if (!p) return;
-        if (p.pc.remoteDescription) p.pc.addIceCandidate(msg.candidate).catch(() => {});
-        else p.pendingIce.push(msg.candidate);
+        if (!p) { if (cands.length) parkPreIce(from, cands); return; }
+        for (const c of cands) {
+          if (p.pc.remoteDescription) p.pc.addIceCandidate(c).catch(() => {});
+          else p.pendingIce.push(c);
+        }
+        if (msg.end && p.pc && p.pc.remoteDescription) {
+          try { const r = p.pc.addIceCandidate(null); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+        }
       } else if (msg.kind === 'status') {
         const took = takeStatus(from, msg.s || {}); // null: the same pulse again (the DC copy and the section-gossip copy of one beat)
         if (msg.conns) setConns(from, msg.conns);
@@ -8365,7 +8478,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const k3 = m.m && m.m.kind;
         if (!(k3 === 'offer' || k3 === 'answer' || k3 === 'ice' || k3 === 'appstop')) return;
         if (m.to === myId) {
-          if (m.from && m.from !== myId) {
+          // The same envelope id arrives once per door. Take the first copy.
+          // An intermediate hop still records the id only on handoff, so a
+          // door that cannot deliver does not poison a later path.
+          if (m.from && m.from !== myId && fwdDedup(m.id)) {
             // An offer that REACHED me sponsored gets its answer sent back the
             // same way — the direct relay leg may be exactly what's rotten.
             if (k3 === 'offer') sponsorReplyTo.add(String(m.from));
@@ -8375,9 +8491,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         }
         fwdOnward('fsig', m, p.id);
       } else if (m.k === 'ck') {
-        // Clock sync (the grid's metronome): answer with our clock immediately;
-        // the asker derives offset + rtt NTP-style. Rides the free DC path.
-        dcSend(p, { k: 'ck2', t0: m.t0, t1: performance.now() });
+        // Clock sync (the grid's metronome): answer with our clock.
+        // t1 is read when the seal job RUNS, not when it is queued. A file
+        // share can sit hundreds of seals ahead; stamping first shifted the
+        // asker's offset by half that wait. Rides the free DC path.
+        const dc = p.dc, t0 = m.t0;
+        if (dc && dc.readyState === 'open') txm(() => {
+          const msg = ckReply(t0);
+          return net.seal(roomE2E, msg).then((env) =>
+            net.sendChunked(env, (piece, str) => { try { dc.send(str); } catch (e) {} }));
+        });
       } else if (m.k === 'ck2') {
         clockSample(p.id, m.t0, m.t1, performance.now());
       } else if (m.k === 'relay-req') {
@@ -11699,10 +11822,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // A share is a broadcast, so it takes a Stage seat — the tier whose
           // whole job is "what the room is looking at". Someone already up
           // there keeps their seat and simply changes what they broadcast.
+          // scr is already set, so setStage's broadcast carries the share.
+          // A second broadcast and a second tile pass painted the room twice.
           if (!myStatus.stg) { screenSteppedUp = true; setStage(true); } else screenSteppedUp = false;
           paintShare(); paintControls();
           refreshOutbound();   // republish: self-view, row-mates, the stg: feed
-          broadcastStatus();   // and tell the room what it is looking at
+          if (!screenSteppedUp) broadcastStatus(); // setStage already told the room
           refreshAllTiles();
           setStatus('🖥 Sharing your screen with the meeting. Sound from the shared tab does not travel — talk over it.');
         })
@@ -11720,10 +11845,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (s) for (const t of s.getTracks()) { try { t.onended = null; t.stop(); } catch (e) {} }
       // Step back down only if THIS share is what brought me up. Someone who
       // was already on stage stays on stage, now showing their camera again.
+      const steppedDown = !!screenSteppedUp;
       if (screenSteppedUp) { screenSteppedUp = false; setStage(false); }
       paintShare(); paintControls();
       refreshOutbound();   // the camera (or nothing) becomes the source again
-      broadcastStatus();
+      if (!steppedDown) broadcastStatus(); // setStage already told the room
       refreshAllTiles();
       setStatus(why ? 'Screen share stopped — ' + why + '.' : 'Screen share stopped.');
     }
