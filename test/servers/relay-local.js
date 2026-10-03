@@ -16,7 +16,7 @@ const sha256hex = (s) => crypto.createHash('sha256').update(String(s)).digest('h
 // RELAY_GREETER_TTL_MS shortens the TTL for tests ONLY — the margin between
 // this TTL and the E3 re-knock is what a suite wants to exercise, and waiting
 // 250s per assertion is not a test. Default is the production value.
-const GREETER_TTL_MS = parseInt(process.env.RELAY_GREETER_TTL_MS || String(250 * 1000), 10), GBLOB_CAP = 4096;
+const GREETER_TTL_MS = parseInt(process.env.RELAY_GREETER_TTL_MS || String(250 * 1000), 10), GBLOB_CAP = 1024; // relay/src/relay.js GBLOB_CAP
 // A mint must become a real greeter within this, or the claim lapses (the
 // ghost-genesis rule — see relay/src/relay.js). NEVER above the greeter TTL: a
 // blobless claim must be WEAKER than a registered greeter's, never stronger,
@@ -131,8 +131,9 @@ class Conn {
 }
 
 // A session id "<room>.<verifier>" carries its verifier after the LAST dot
-// (hex, 16–64 chars). One derivation for BOTH the app host gate and the
-// meeting admin check — mirrors the Worker's verifierOf.
+// (hex, 24–64 chars). The floor is 24: admProven compares that many hash
+// chars, so a shorter tail could never be administered. Mirrors verifierOf
+// in relay/src/relay.js.
 function verifierOf(sid) {
   const dot = String(sid || '').lastIndexOf('.');
   if (dot <= 0) return '';
@@ -168,6 +169,10 @@ function orderIsNew(sess, act, ts) { sess.admTs = sess.admTs || {}; return (+ts 
 
 // ---- session hub (mirrors the Durable Object) ----
 const sessions = new Map(); // id -> { host, token, meshToken, clients:Map }
+// RELAY_DEBUG rate samples. Declared here so a refusal and a close can
+// drop entries. The 10s printer stays at the bottom. Unset RELAY_DEBUG
+// never writes these maps: a gate relay lives for the whole browser tier.
+const msgRate = new Map(), typeRate = new Map();
 // NOTE: no names map. Mirrors relay/src/relay.js — display names never reach
 // the relay; they travel end-to-end sealed between clients (status/offer/
 // answer), so the roster this test relay authors is peer ids only.
@@ -177,7 +182,18 @@ function getSession(id) { if (!sessions.has(id)) sessions.set(id, { host: null, 
 // (e.g. `tailscale cert <name>`), so a tailnet swarm + real users get a SECURE
 // CONTEXT (WebCrypto room-key derivation needs it) without tailscale-serve's WS
 // proxy (which doesn't upgrade) or insecure-origin hacks.
-const RELAY_HANDLER = (req, res) => { res.writeHead(200); res.end('gifos relay (local)'); };
+const RELAY_HANDLER = (req, res) => {
+  // RELAY_STATS=1 is a test probe: counts only, never a peer id or an address.
+  if (process.env.RELAY_STATS === '1' && (req.url || '').split('?')[0] === '/_stats') {
+    let clients = 0;
+    for (const s of sessions.values()) clients += s.clients.size;
+    const body = JSON.stringify({ sessions: sessions.size, clients, msgRate: msgRate.size });
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(body);
+    return;
+  }
+  res.writeHead(200); res.end('gifos relay (local)');
+};
 const useTLS = process.env.RELAY_TLS_CERT && process.env.RELAY_TLS_KEY;
 const server = useTLS
   ? https.createServer({ cert: fs.readFileSync(process.env.RELAY_TLS_CERT), key: fs.readFileSync(process.env.RELAY_TLS_KEY) }, RELAY_HANDLER)
@@ -253,7 +269,6 @@ server.on('upgrade', (req, socket, head) => {
   // uncoded, exactly as production does.
   const REJECT_CODES = {
     'too many joining right now — try again in a moment': 1013,
-    'this session is full': 1013,
     'too many connections from your network': 1013,
     'joining too fast — slow down': 1013,
     'the relay is a greeter — app sessions ride the room mesh now': 4010,
@@ -264,7 +279,17 @@ server.on('upgrade', (req, socket, head) => {
     'that id is in use from another device': 4011,
     'a device tag is required': 4012,
   };
-  const rejectConn = (error) => { clog('REJECT sid=' + parts[1] + ' peer=' + peer + ' ip=' + ip + ' :: ' + error); conn.send(JSON.stringify({ t: 'error', error })); conn.close(REJECT_CODES[error] || 0, error); };
+  // Production has no session cap. The string exists only while the
+  // RELAY_MAX_SOCKETS experiment knob is finite (see the banner).
+  if (Number.isFinite(MAX_SOCKETS_PER_SESSION)) REJECT_CODES['this session is full'] = 1013;
+  const rejectConn = (error) => {
+    clog('REJECT sid=' + parts[1] + ' peer=' + peer + ' ip=' + ip + ' :: ' + error);
+    try { conn.send(JSON.stringify({ t: 'error', error })); } catch (e) {}
+    conn.close(REJECT_CODES[error] || 0, error);
+    // A refusal never sat in sess.clients. Drop the room if this upgrade
+    // was the only reason getSession created it.
+    if (sess.clients.size === 0) sessions.delete(parts[1]);
+  };
   const allConns = () => sess.clients.size;
   if (allConns() >= MAX_SOCKETS_PER_SESSION) { rejectConn('this session is full'); return; }
   // The raw IP is used only TRANSIENTLY (rate-limit counting here); it is
@@ -297,7 +322,7 @@ server.on('upgrade', (req, socket, head) => {
   const DOOR_BURST = 4 * BURST, DOOR_REFILL = 4 * REFILL;
   const meter = { tokens: BURST, frames: FRAME_BURST, last: Date.now(), warned: false, strikes: 0 };
   const allow = (data) => {
-    msgRate.set(peer, (msgRate.get(peer) || 0) + 1); // RELAY_DEBUG: how fast do real clients actually talk?
+    if (process.env.RELAY_DEBUG) msgRate.set(peer, (msgRate.get(peer) || 0) + 1); // how fast do real clients actually talk?
     if (DEV) return true;   // RELAY_DEV: the bandwidth/frame meter is an abuse guard too
     const now = Date.now();
     const dt = (now - meter.last) / 1000;
@@ -419,7 +444,7 @@ server.on('upgrade', (req, socket, head) => {
     for (const c of sess.clients.values()) if (c.dev === dev) { try { c.close(4004, 'banned'); } catch (e) {} }
     roster();
   };
-  const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 64)
+  const cleanDevList = (list) => (Array.isArray(list) ? list : []).slice(0, 24) // relay/src/relay.js cleanDevList — 24 x 16 chars fits the 2 KB attachment
     .map((d) => String(d || '').slice(0, 16)).filter(Boolean);
   const tallyVotes = () => {
     if (sess.av) return; // admin rooms don't vote-kick
@@ -641,9 +666,12 @@ server.on('upgrade', (req, socket, head) => {
     conn.onclose = () => {
       if (sess.clients.get(peer) !== conn) return;
       sess.clients.delete(peer);
+      if (process.env.RELAY_DEBUG) msgRate.delete(peer);
       toGreeters(JSON.stringify({ t: 'peer-leave', peer })); // the doors' full lists stay exact; nobody else routes on it
       tallyVotes();
       if (isGreeter(conn)) doorsChanged(null); // a door closed: every non-greeter's door list changes; the greeters heard the leave
+      // The registry is occupancy. The Worker forgets a room whose last seat left.
+      if (sess.clients.size === 0) sessions.delete(parts[1]);
     };
     conn.send(JSON.stringify({ t: 'joined', peer }));
     conn.send(JSON.stringify({ t: 'whoami', ip })); // tell the socket its own address so it can seal it to peers
@@ -660,7 +688,6 @@ const HOST = process.env.RELAY_HOST || '127.0.0.1';
 // RELAY_DEBUG rate meter: the relay's frame budget (FRAMES_PER_SEC) is only
 // defensible against the rate real clients actually need, so measure it rather
 // than guess. Every 10s, report each peer's observed msgs/sec.
-const msgRate = new Map(), typeRate = new Map();
 if (process.env.RELAY_DEBUG) setInterval(() => {
   if (!msgRate.size) return;
   const rates = Array.from(msgRate.entries()).map(([p, n]) => (n / 10).toFixed(1) + '/s ' + p.slice(0, 10));
@@ -674,6 +701,11 @@ server.listen(PORT, HOST, () => {
   console.log('gifos local relay on ' + (useTLS ? 'wss' : 'ws') + '://' + HOST + ':' + PORT);
   // Say which mode is in force — "why did my bots vanish?" should never again
   // require reading this file.
-  if (process.env.RELAY_PROD === '1') console.log('  RELAY_PROD=1 — prod-mirroring abuse guards ON (8 sockets/IP, 30/session, frame meter)');
+  // The session cap is the experiment knob, not a production bound. Infinity
+  // unless RELAY_MAX_SOCKETS is a positive integer (same expression as
+  // MAX_SOCKETS_PER_SESSION inside the upgrade handler).
+  const sessionCap = parseInt(process.env.RELAY_MAX_SOCKETS || '0', 10) || Infinity;
+  const sessionCapText = Number.isFinite(sessionCap) ? String(sessionCap) : 'Infinity';
+  if (process.env.RELAY_PROD === '1') console.log('  RELAY_PROD=1 — prod-mirroring abuse guards ON (8 sockets/IP, session cap ' + sessionCapText + ', frame meter)');
   else console.log('  DEV mode (default) — abuse guards OFF. Set RELAY_PROD=1 to mirror the production caps.');
 });
