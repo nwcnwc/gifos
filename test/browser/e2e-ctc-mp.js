@@ -127,8 +127,18 @@ const SEAT = (id) => window.CTCNet.roster().filter((p) => p.id === id)[0] || nul
   check('Invite mints a room link for the app', /#j=|\/join\//.test(link), link);
   check('the app comes back up on the room lane', await ready(h));
 
-  const board = await hEval(() => window.CTCNet.round());
+  // The app remounts on the room lane: ready() can see the outgoing frame's
+  // round just before the new frame starts at round 0. Take the host's board
+  // only once the frame that stays has DEALT one (n >= 1, a seed), or a slow
+  // box compares the guest against a board nobody is playing.
   const hostId = await hEval(() => window.CTCNet.me().id);
+  let board = null;
+  await until(async () => {
+    const r = await hEval(() => window.CTCNet.round());
+    if (r && r.id && r.seed && r.n >= 1) { board = r; return true; }
+    return false;
+  }, 60000);
+  if (!board) board = await hEval(() => window.CTCNet.round());
 
   // ---- the guest opens the link --------------------------------------------
   const cCtx = await mkCtx('Cleo');
@@ -142,12 +152,17 @@ const SEAT = (id) => window.CTCNet.roster().filter((p) => p.id === id)[0] || nul
   const cEval = ev(c);
   const guestId = await cEval(() => window.CTCNet.me().id);
 
+  // Compare against the host's CURRENT board each poll, and require that the
+  // board both agree on was dealt by the host: a guest that dealt its own round
+  // (which the host might then adopt) does not count as landing on the host's.
   const same = await until(async () => {
     const r = await cEval(() => window.CTCNet.round());
-    return r.seed === board.seed && r.n === board.n;
+    const hb = await hEval(() => window.CTCNet.round());
+    if (r.seed && r.seed === hb.seed && r.n === hb.n && hb.by === hostId) { board = hb; return true; }
+    return false;
   }, 60000);
   const gRound = await cEval(() => window.CTCNet.round());
-  check('the guest lands on the host\'s board', same, JSON.stringify({ host: board.seed, guest: gRound.seed }));
+  check('the guest lands on the host\'s board', same, JSON.stringify({ host: board.seed, guest: gRound.seed, dealtBy: board.by === hostId ? 'host' : board.by }));
   check('...and on the same round number', gRound.n === board.n, JSON.stringify({ host: board.n, guest: gRound.n }));
 
   // A guest's row is a write that leaves the tab: it must reach the host.
