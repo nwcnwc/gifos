@@ -54,6 +54,7 @@ check('the Home Screen seeds default store apps AFTER render in the boot chain',
 check('…and does not hold the chain: the seed is armed, not awaited (the run/place hand-offs and the orphan sweep go on at once)', /\.then\(\(\) => \{ scheduleStoreDefaults\(\); \}\)\.then\(noteRetiredBuild\)/.test(bootLine), bootLine.slice(0, 200));
 check('…lazily: a delay, then an idle callback', /setTimeout\(idle, 6000\)/.test(desktop) && /requestIdleCallback\(go/.test(desktop));
 check('…placed by saveItem into the default\'s folder, never a raw item write', /await saveItem\(\{ id: store\.uid\('item'\), kind: 'file', fileId, name, parent: d\.folder \|\| null, iconSize: 64 \}, \{ into: d\.folder \|\| null \}\)/.test(desktop) && (desktop.match(/store\.putItem\(/g) || []).length === 2);
+check('…and never repaints under a drag in flight', /if \(pointerHeld\) root\.addEventListener\('pointerup'/.test(desktop));
 check('…assigning the role only where nothing is assigned yet', /if \(!cfg\[d\.role\] \|\| \(!cfg\[d\.role\]\.app && !cfg\[d\.role\]\.url\)\)/.test(desktop));
 check('…stamping done / tried so a deletion is respected and a failure retries after a day', /localStorage\.setItem\(key, 'done'\)/.test(desktop) && /'tried:' \+ Date\.now\(\)/.test(desktop) && /86400000/.test(desktop));
 check('the meeting\'s own seed writes the same stamp the Home Screen reads', /WHISPER_SEED_KEY = 'gifos_store_default_' \+ 'offline-stt-whisper'/.test(run));

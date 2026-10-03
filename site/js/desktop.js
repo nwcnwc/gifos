@@ -4062,6 +4062,9 @@
   // like every other icon; the role (Settings → AI models) is assigned only
   // where nothing is assigned yet.
   const storeDefaultsState = { ran: false, results: {} };
+  let pointerHeld = false; // a drag in flight — nothing may repaint the icons under it
+  root.addEventListener('pointerdown', () => { pointerHeld = true; }, true);
+  for (const ev of ['pointerup', 'pointercancel']) root.addEventListener(ev, () => { pointerHeld = false; }, true);
   async function seedStoreDefaults() {
     storeDefaultsState.ran = true;
     const inst = GifOS.install; if (!inst || !inst.defaults) return storeDefaultsState;
@@ -4082,7 +4085,10 @@
           await store.putFile({ id: fileId, name, bytes, kind: 'gif', isApp: true, appId: manifest.appId, mime: 'image/gif' });
           await ensureSystemItems();
           await saveItem({ id: store.uid('item'), kind: 'file', fileId, name, parent: d.folder || null, iconSize: 64 }, { into: d.folder || null });
-          await load(); render();
+          await load();
+          // render() REPLACES every icon element; a finger or mouse mid-drag
+          // would lose its icon. Paint now, or on the pointer's release.
+          if (pointerHeld) root.addEventListener('pointerup', () => setTimeout(render, 60), { once: true }); else render();
         }
         if (d.role) {
           const cfg = aiCfgAll();
