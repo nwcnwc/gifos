@@ -1623,6 +1623,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   <script src="js/gifos-pay-broker.js"></script>
   <script src="js/gifos-assets.js"></script>
   <script src="js/gifos-store.js"></script>
+  <script src="js/gifos-install.js"></script>
   <script src="js/gifos-lock.js"></script>
   <script src="js/app-update.js"></script>
   <script src="js/gifos-net.js"></script>
@@ -12007,7 +12008,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const WHISPER_APP_ID = 'offline-stt-whisper';
     const whisperReady = () => !!(window.GifOS && GifOS.providers && GifOS.providers.assigned('stt'));
     const WSP_PRE_MS = 400, WSP_GAP_MS = 700, WSP_MAX_S = 15, WSP_MIN_S = 0.4, WSP_BACKLOG = 3, WSP_SCRIBE_MAX = 8;
-    const WHISPER_SEED_KEY = 'gifos_whisper_seed';
+    const WHISPER_SEED_KEY = 'gifos_store_default_' + 'offline-stt-whisper'; // the same stamp the Home Screen's lazy seed writes (gifos-install.js)
     // One capture per VOICE: 'me' (my own echo-cancelled track) and, for a
     // scribe, each direct-link neighbour whose audio already feeds a meter.
     // Every capture cuts its own utterances; one shared queue hands them to

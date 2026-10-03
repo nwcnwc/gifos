@@ -118,8 +118,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
 
   // Every App GIF request, for the whole session. The counter is the test.
+  // ONE exception, read from the source so it cannot rot: the DEFAULT STORE
+  // APPS (gifos-install.js `defaults`) — the Home Screen installs those by
+  // itself, lazily after it paints. That download is the desktop's, not the
+  // store's, and it is the one GIF a computer fetches unasked.
+  const defaultSlugs = Array.from(fs.readFileSync(path.join(SITE, 'js', 'gifos-install.js'), 'utf8').matchAll(/\{ slug: '([a-z0-9-]+)'/g)).map((m) => m[1]);
+  const isDefaultSeed = (u) => defaultSlugs.some((slug) => new RegExp('/apps/' + slug + '/' + slug + '\\.gif(\\?|$)').test(u));
   const gifHits = [];
-  ctx.on('request', (r) => { if (/\/apps\/[^/]+\/[^/]+\.gif(\?|$)/i.test(r.url())) gifHits.push(r.url()); });
+  ctx.on('request', (r) => { if (/\/apps\/[^/]+\/[^/]+\.gif(\?|$)/i.test(r.url()) && !isDefaultSeed(r.url())) gifHits.push(r.url()); });
 
   // Seed a desktop first — the store checks it to say "Installed", and the
   // install hand-off finishes there.

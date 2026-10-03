@@ -35,6 +35,28 @@ function readWav16k(p) { // the fixture is 16 kHz mono 16-bit
   const browser = await chromium.launch({ executablePath: CHROME, args: ['--disable-gpu', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
   const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
   await ctx.addInitScript({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','Ada');localStorage.setItem('gifos_meet_bar','0');}catch(e){}" });
+  // ---- phase 0: THE DEFAULT. A fresh Home Screen paints, then — lazily,
+  // after an idle moment — installs the Whisper provider from the store by
+  // itself, files it into Providers and assigns Speech → text. ----
+  {
+    const dCtx = await browser.newContext({ permissions: ['camera', 'microphone'] });
+    const desk = await dCtx.newPage();
+    desk.on('pageerror', (e) => console.log('  [desk pageerror]', e.message));
+    const t = Date.now();
+    await desk.goto(BASE + '/index.html');
+    await desk.waitForSelector('.icon', { timeout: 20000 });
+    const painted = Date.now() - t;
+    const seeded = await desk.evaluate(() => GifOS.desktop.storeDefaults());
+    check('the Home Screen painted first and seeded the default store app afterwards (paint ' + painted + ' ms)', seeded && seeded.results['offline-stt-whisper'] === 'installed', JSON.stringify(seeded && seeded.results));
+    const provs = await desk.evaluate(async () => { const items = await GifOS.store.allItems(); return items.filter((i) => i.parent === 'sys_providers' && i.kind === 'file').map((i) => i.name); });
+    check('…it sits in the Providers folder', provs.some((n) => /Whisper/.test(n)), provs.join(', '));
+    const cfg = await desk.evaluate(() => JSON.parse(localStorage.getItem('gifos_ai_config') || '{}'));
+    check('…and Speech → text is assigned to it, since nothing was assigned', cfg.stt && cfg.stt.appId === 'offline-stt-whisper', JSON.stringify(cfg.stt));
+    const again = await desk.evaluate(async () => { const s = GifOS.desktop.storeDefaultsState; return s.results; });
+    check('the stamp says done, so it will not download again', (await desk.evaluate(() => localStorage.getItem('gifos_store_default_offline-stt-whisper'))) === 'done', JSON.stringify(again));
+    await desk.close(); await dCtx.close();
+  }
+
   // ---- phase 1: ONE TAP. A fresh computer, no provider anywhere; the meeting
   // installs the signed GIF from this site, files it, assigns it. ----
   const page = await ctx.newPage();

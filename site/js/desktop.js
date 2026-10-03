@@ -4052,9 +4052,70 @@
     } catch (e) { /* leave the stamp unset — it will try again next boot */ }
   }
 
+  // ---------- default STORE apps: seeded lazily, after the paint ----------
+  // A new kind of default (gifos-install.js `defaults`, 2026-10-03): a signed
+  // first-party listing every computer should carry, installed FROM THE STORE
+  // rather than built from source like sample-apps.js. It never holds the
+  // desktop up: the seed waits for the first paint plus an idle moment, needs
+  // the network, runs once per computer (the per-slug stamp), and respects a
+  // later deletion — a stamped slug is not re-seeded. Placement is saveItem's,
+  // like every other icon; the role (Settings → AI models) is assigned only
+  // where nothing is assigned yet.
+  const storeDefaultsState = { ran: false, results: {} };
+  async function seedStoreDefaults() {
+    storeDefaultsState.ran = true;
+    const inst = GifOS.install; if (!inst || !inst.defaults) return storeDefaultsState;
+    for (const d of inst.defaults) {
+      const key = nsKey(inst.stampKey(d.slug));
+      let stamp = ''; try { stamp = localStorage.getItem(key) || ''; } catch (e) {}
+      const triedAt = /^tried:(\d+)$/.test(stamp) ? Number(stamp.slice(6)) : 0;
+      if (stamp === 'done' || (triedAt && Date.now() - triedAt < 86400000)) { storeDefaultsState.results[d.slug] = stamp; continue; }
+      try {
+        // Already here (installed by hand, or by a meeting's own seed)? Stamp and move on.
+        const have = (await scanProviders()).find((p) => p.appId === d.slug);
+        let fileId = have ? have.fileId : '', name = have ? have.name : '';
+        if (!have) {
+          if (!navigator.onLine) { storeDefaultsState.results[d.slug] = 'offline'; continue; }
+          const app = await inst.listing(d.slug);
+          const { bytes, manifest } = await inst.fetchApp(app, null, { provider: d.folder === 'sys_providers' });
+          fileId = store.uid('file'); name = (manifest.name || app.name || d.slug) + '.gif';
+          await store.putFile({ id: fileId, name, bytes, kind: 'gif', isApp: true, appId: manifest.appId, mime: 'image/gif' });
+          await ensureSystemItems();
+          await saveItem({ id: store.uid('item'), kind: 'file', fileId, name, parent: d.folder || null, iconSize: 64 }, { into: d.folder || null });
+          await load(); render();
+        }
+        if (d.role) {
+          const cfg = aiCfgAll();
+          if (!cfg[d.role] || (!cfg[d.role].app && !cfg[d.role].url)) {
+            cfg[d.role] = { app: fileId, appId: d.slug, appName: (name || d.slug).replace(/\.gif$/i, '') };
+            try { root.localStorage.setItem(AI_LS, JSON.stringify(cfg)); } catch (e) {}
+          }
+        }
+        try { localStorage.setItem(key, 'done'); } catch (e) {}
+        storeDefaultsState.results[d.slug] = have ? 'present' : 'installed';
+      } catch (e) {
+        try { localStorage.setItem(key, 'tried:' + Date.now()); } catch (e2) {}
+        storeDefaultsState.results[d.slug] = 'failed: ' + ((e && e.message) || e);
+      }
+    }
+    return storeDefaultsState;
+  }
+  let storeDefaultsP = null;
+  function scheduleStoreDefaults() {
+    if (storeDefaultsP) return storeDefaultsP;
+    storeDefaultsP = new Promise((resolve) => {
+      const go = () => { seedStoreDefaults().then(resolve, () => resolve(storeDefaultsState)); };
+      const idle = () => (root.requestIdleCallback ? root.requestIdleCallback(go, { timeout: 15000 }) : setTimeout(go, 0));
+      setTimeout(idle, 6000); // the paint first, then a quiet moment
+    });
+    return storeDefaultsP;
+  }
+
   // ---------- boot ----------
   requestPersistence();
-  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(drainPendingReceipts).then(render).then(noteRetiredBuild).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate).then(reclaimOrphanAssets).then(backfillOrnaments);
+  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(drainPendingReceipts).then(render).then(scheduleStoreDefaults.bind(null)).then(noteRetiredBuild).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate).then(reclaimOrphanAssets).then(backfillOrnaments);
 
-  GifOS.desktop = { render, load, backfillOrnaments, get stats() { return renderStats; } };
+  GifOS.desktop = { render, load, backfillOrnaments, get stats() { return renderStats; },
+    // The lazy seed, awaitable: the promise the boot armed (resolves once it has run), and what it decided.
+    storeDefaults: () => scheduleStoreDefaults(), get storeDefaultsState() { return storeDefaultsState; } };
 })(typeof window !== 'undefined' ? window : globalThis);
