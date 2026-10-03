@@ -237,6 +237,32 @@ function partA() {
     run(r.env, 2);
     check('A9 a captured goodbye replayed with its destination re-pointed does not plant the seat (' + cap.length + ' captured)', target.occGet(x) !== d.V.id, { planted: target.occGet(x) === d.V.id, captured: cap.length });
   }
+  {
+    // ...and replayed UNCHANGED after the seat is gone and its row has packed
+    // left over the hole: V sat at i=1 of a deep row with i=2 and i=3 behind
+    // it; V leaves (a real signed goodbye), the row left-packs (i=2 -> 1,
+    // i=3 -> 2), and then H replays V's goodbye to the seat now at i=2. The
+    // cell it names is held by someone else, so it must free nothing and start
+    // no heal (main left-packed the receiver into the occupied cell).
+    H.seedRng(31337); const env = H.makeFabric(); H.spawn(env, 100); H.runJoin(env, 100, 20000); env.COMPACTION = false; run(env, 300);
+    const seats = [...env.seats.values()].filter((x) => x.alive && x.state === 3 && x.hasCoord);
+    const row = ['5_1', '5_2', '4_1', '2_2', '1_0', '1_1', '4_4'].find((pr) => [0, 1, 2, 3].every((q) => at(seats, pr + '_' + q)));
+    if (!row) { check('A9 replay-after-pack: a deep row with cells 0..3 seated', false); }
+    else {
+      const V = at(seats, row + '_1'); const vk = ck(V.coord);
+      const cap = []; const send0 = env.send;
+      env.send = (from, to, m) => { if (m.t === 'LEAVE' && from === V.id) cap.push(JSON.parse(JSON.stringify(m))); return send0(from, to, m); };
+      V.leave(); env.send = send0;
+      run(env, 300);
+      const live = [...env.seats.values()].filter((x) => x.alive && x.state === 3 && x.hasCoord);
+      const holder = at(live, vk), recv = at(live, row + '_2');
+      const moves0 = env.moves; const gh = holder ? guard(holder) : null, gr = recv ? guard(recv) : null;
+      const f = Object.assign({}, cap[0] || { t: 'LEAVE', ck: vk, id: V.id }); delete f.to; delete f.lk; delete f.s4ok;
+      if (recv) inject(env, recv, f, null);
+      run(env, 150);
+      check('A9 V\'s own goodbye replayed after its row packed over the hole (' + cap.length + ' captured) frees nothing and moves nobody', !!holder && !!recv && env.moves === moves0 && gh.kept() && gr.kept(), { row, holder: !!holder, recv: !!recv, moves: env.moves - moves0, holderKept: gh && gh.kept(), recvKept: gr && gr.kept() });
+    }
+  }
 }
 
 // ---------------------------------------------------------------- Part B ----
