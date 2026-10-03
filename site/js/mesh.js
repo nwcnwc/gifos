@@ -284,8 +284,8 @@
   // fan-down): a non-empty list of {k: cell key, v: peer id}. It arrives off
   // the wire, so its shape is checked before it is stored — a roster-less or
   // junk DRAIN used to leave tick() throwing on `roster.length` every tick.
-  // A roster names Section-1 cells, at most one entry per cell.
-  const rosterOk = (r) => Array.isArray(r) && r.length > 0 && r.length <= C() * C() && r.every((e) => e && s1KeyOk(e.k) && (typeof e.v === 'string' || typeof e.v === 'number'));
+  // (621f699e; unchanged here — a roster's keys never index occ.)
+  const rosterOk = (r) => Array.isArray(r) && r.length > 0 && r.every((e) => e && typeof e.k === 'string' && (typeof e.v === 'string' || typeof e.v === 'number'));
   // ownerCoordOf(c): the coord that owns cell c (its head's up), or null for Section 1.
   const ownerCoordOf = (c) => (c.pc === 0 ? null : topo.up({ pc: c.pc, r: c.r, i: 0 }));
   // A tiny non-crypto key hash for the modelled relay / genesis identity. In

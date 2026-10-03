@@ -1490,7 +1490,6 @@ void Seat::recv(Msg& m){
       return; }
     case HOME: {
       if(state==3&&(int)TICK-rosterAskAt>120) return;   // a SEATED seat hears HOME only as the answer to its own WHOHOME (drainOrReenter): unsolicited, it must not re-key or re-roster the seat
-      if((int)m.roster.size()>C*C) return;   // a roster names Section-1 cells, one entry each (mesh.js rosterOk)
       if(m.gkey) genKey=m.gkey;   // learn THIS meeting's genesis key from the greeter (the newcomer dance)
       if(state==1){ if(m.roster.empty()){ retryAt=(int)TICK-10; return; } roster=m.roster; haveRoster=true; lastReach=(int)TICK; seatTries=0; resumeTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }   // reached a greeter (HOME roster came back): note it for R6; a landed HOME re-arms the resume budget. genesis is ONLY via an empty greeter LIST.
       else if(state==3&&m.roster.size()){ roster=m.roster; haveRoster=true; }   // E3 stripped: store the roster (a draining DEEP seat re-seats against it via E1) but do NO Section-1 self-audit
@@ -1686,7 +1685,7 @@ void Seat::recv(Msg& m){
     case DRAIN: {
       if(!hasCoord||state!=3||coord.pc==0||drainAt) return;
       { Coord oc; if(!ownerCoord(oc)||m.id<0||occGet(ckey(oc))!=m.id) return; }   // E1: only my ANCHOR (owner-cell occupant) may dissolve my subtree
-      if(m.roster.empty() || (int)m.roster.size()>C*C) return;   // mesh.js rosterOk
+      if(m.roster.empty()) return;
       roster=m.roster; haveRoster=true; Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id){ Msg d;d.t=DRAIN;d.roster=m.roster;d.id=id; emit(x,d);} } drainAt=(int)TICK+6+(int)(rng()*12); wake(id); return; }
     case CHALLENGE: if(evil){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c); return;} if(hasCoord&&state==3&&ckey(coord)==m.ck){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c);} return;
     case CONFIRM: {   // the answer to MY CHALLENGE, from that very rival, for that cell, within 40 ticks (mesh.js twin)
