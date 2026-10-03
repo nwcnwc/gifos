@@ -302,3 +302,18 @@ bytes ever diverge from the catalog's.
 - Guards: `test/browser/e2e-providers.js` (recognition-by-place, red ✕,
   network-less rule, brokered end-to-end synthesis), wired into the release
   battery.
+
+## Default store apps — a provider every computer carries
+
+Until 2026-10-03 every default app was BUILT from source at desktop seed time
+(`sample-apps.js`). A **default store app** is a signed first-party listing the
+Home Screen installs **from the store**, lazily: after its first paint, in an
+idle moment, online, once per computer. The list is `defaults` in
+`site/js/gifos-install.js`; the first member is *Offline Captions (Whisper)*,
+filed into Providers and assigned to Speech → text where nothing is assigned.
+The per-slug stamp (`gifos_store_default_<slug>`) respects a deletion — a
+stamped slug is never re-seeded — and a failed download is retried after a
+day. `gifos-install.js` is also what a meeting's one-tap install
+(`GifOS.providers.install`) runs: the catalog record, the byte-exact sha256,
+the gifos.app signature, the manifest's own appId, and the provider rules
+above. `test/unit/store-defaults.js` guards the pattern.
