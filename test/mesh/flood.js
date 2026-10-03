@@ -39,7 +39,7 @@ function census(nodes) {
   const ROOM = 'flood-' + Math.random().toString(36).slice(2, 8);
   const key = await net.deriveMeetKey(ROOM, '', '');
   const bus = new Map();
-  const sendDC = (to, m) => { const e = bus.get(to); if (e && !e.dead) { const c = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (!e.dead) e.node.recvCtl(c); }, 5 + Math.random() * 20); } return true; };
+  const sendDC = (to, m, from) => { const e = bus.get(to); if (e && !e.dead) { const c = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (!e.dead) e.node.recvCtl(c, from, true); }, 5 + Math.random() * 20); } return true; }; // lands as run.html hands a DataChannel frame over: from the pair, direct
 
   console.log('BURST: creating ' + N + ' nodes in one synchronous loop, ZERO stagger…');
   const nodes = [];

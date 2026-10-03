@@ -58,9 +58,9 @@ async function waitConverged(nodes, N, ms) {
 
   const key = await net.deriveMeetKey('ident-room', '', '');
   const bus = new Map(); // peerId -> { node, dead }
-  const sendDC = (to, m) => {
+  const sendDC = (to, m, from) => {
     const e = bus.get(to);
-    if (e && !e.dead) { const c = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (!e.dead) e.node.recvCtl(c); }, 4 + Math.random() * 12); }
+    if (e && !e.dead) { const c = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (!e.dead) e.node.recvCtl(c, from, true); }, 4 + Math.random() * 12); } // from the pair, direct (run.html's DataChannel intake)
     return true; // a channel "exists" either way — a crashed far end just never answers
   };
 

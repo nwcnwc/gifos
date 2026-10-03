@@ -1,6 +1,42 @@
 static inline Coord unck(uint64_t k){ return {(uint32_t)(k>>16),(uint8_t)((k>>8)&0xff),(uint8_t)(k&0xff)}; }
 static inline bool ownerCoordOf(Coord c, Coord& o){ if(c.pc==0) return false; return up({c.pc,c.r,0},o); }
 
+// ---- FRAME AUTHORITY (docs/meet-security.md §AUTH; mesh.js is the twin) -----
+// A cell key a frame names must be a real cell: r and i columns of this C,
+// every path digit a column, no deeper than the depth wall. (The sim's keys come
+// from Coords, so this never refuses an honest frame; mesh.js applies it at the
+// wire, where keys are strings a peer wrote.)
+static inline bool cellOk(uint64_t k){ Coord c=unck(k); if(c.r>=C||c.i>=C) return false; uint32_t pc=c.pc; int d=0; while(pc){ if((int)((pc-1)%6)>=C) return false; pc=(pc-1)/6; if(++d>12) return false; } return true; }
+bool Seat::ownedLinkCell(uint64_t k){ if(!hasCoord) return false; Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); for(int q=0;q<n;q++) if(ckey(ol[q])==k) return true; return false; }
+// My ARBITERS hear me first-hand on a heartbeat: my phone target (a deep
+// non-head phones its row head, a deep head its owner) or, in Section 1, a rook
+// peer. Only they can witness a second claimant at my cell, so only their
+// YIELD counts (law S: one member's eviction power stays local).
+bool Seat::arbiterIs(int x){
+  if(x<0||!hasCoord) return false;
+  if(coord.pc==0){ Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); for(int q=0;q<n;q++) if(ol[q].pc==0 && occGet(ckey(ol[q]))==x) return true; return false; }
+  Coord tc; if(coord.i!=0) tc={coord.pc,coord.r,0}; else if(!ownerCoord(tc)) return false;
+  return occGet(ckey(tc))==x;
+}
+bool Seat::claimRel(uint64_t k,int x,bool childRow){
+  if(!hasCoord) return false;
+  if(k==ckey(coord) || ownedLinkCell(k)) return true;
+  Coord oc; if(ownerCoord(oc) && ckey(oc)==k) return true;
+  auto sit=sitting.find(k); if(sit!=sitting.end() && sit->second.joiner==x) return true;
+  if(childRow){ Coord d=down(coord), c=unck(k); if(c.pc==d.pc && c.r==d.r) return true; }
+  return false;
+}
+bool Seat::liveElsewhere(int x,uint64_t k){ for(auto&e:occ) if(e.second==x && e.first!=k && firstHandLive(e.first)) return true; return false; }
+bool Seat::hintClaim(uint64_t k,int x){
+  if(occ.count(k)) return false;
+  if(liveElsewhere(x,k)) return false;
+  vector<uint64_t> drop; for(auto&e:occ) if(e.second==x && e.first!=k && !firstHandLive(e.first)) drop.push_back(e.first);
+  for(uint64_t d:drop) occDrop(d,"hint-move");
+  setOcc(k,x); noteS1(k); return true;
+}
+void Seat::probeNote(uint64_t k){ if(probeOut.size()>=64){ vector<uint64_t> old; for(auto&e:probeOut) if(TICK-e.second>240) old.push_back(e.first); for(auto o:old) probeOut.erase(o); if(probeOut.size()>=64) probeOut.erase(probeOut.begin()); } probeOut[k]=(int)TICK; }
+bool Seat::probeAsked(uint64_t k){ auto it=probeOut.find(k); return it!=probeOut.end() && TICK-it->second<=240; }
+
 void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   if(c.i>=C||c.r>=C){ return; }   // sanity: never take a malformed coord
   // DUPMINT forensics (MESH_DUPLOG=1): the moment a take() lands on a cell
@@ -22,7 +58,12 @@ void Seat::take(Coord c,int owner,vector<KV>&nbrs){
   coord=c; hasCoord=true; state=3; joinStart=-1; stranded=false; reAsk=false; reJoin=false; noroomSeen=0; rowLedgerAt=-1;   // T7: the NOROOM evidence dies with the attempt it belonged to; V7: a new seat holds no child-row ledger yet   // seated: any deferred entry retry is moot
   // A: self-confirm sitting-down → seated (only the joiner upgrades).
   confirmSeated(ckey(c), id);
-  for(auto&kv:nbrs) if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); }
+  // The neighbours a PLACE (or a heal) teaches me: my new owned links, my owner,
+  // and the admitter itself (wherever it sits) — nothing else (mesh.js twin).
+  { Coord ol[MAXLINKS]; int n=ownedLinks(c,ol); Coord oc; bool hasO=ownerCoordOf(c,oc); bool adm=owner>=0;
+    for(auto&kv:nbrs){ if(kv.v<0 || !cellOk(kv.k)) continue; bool ok=false; for(int q=0;q<n;q++) if(ckey(ol[q])==kv.k){ ok=true; break; } if(!ok && hasO && ckey(oc)==kv.k) ok=true;
+      if(!ok){ if(!adm || kv.v!=owner) continue; adm=false; }
+      if(!occ.count(kv.k)){ setOcc(kv.k,kv.v); noteS1(kv.k); } } }
   drainAt=0; seatTries=0; seatedAt=(int)TICK; rookSeenAt=(int)TICK;   // grace: don't call a just-seated seat isolated
   // § G: a seat change re-parents me — new aggregator, new scope, new child row.
   // Every digest relationship starts over, including G4's grace window; carrying
@@ -759,8 +800,9 @@ void Seat::doMove(Coord hole, int owner, vector<KV>& nbrs){
 }
 // A frame that evidences my NEW neighbourhood (someone accepted me there).
 bool Seat::moveEvidence(const Msg& m){
-  if(m.t==PONG) return true;                                   // my new phone answered
-  if(m.t==PHONE) return m.tock==ckey(coord);                   // a call TO my new cell
+  // PHONE and PONG ride unsigned: they count only when the transport names their author.
+  if(m.t==PONG) return linkIs(m, m.id>=0?m.id:m.lk);            // my new phone answered
+  if(m.t==PHONE) return linkIs(m,m.id) && m.tock==ckey(coord);  // a call TO my new cell
   if(m.t==HELLO||m.t==CLAIM){ Coord c=unck(m.ck); Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol);
     for(int k=0;k<n;k++) if(ckey(ol[k])==ckey(c)) return true; }
   return false;
@@ -856,7 +898,7 @@ int Seat::nextHopToward(Coord target,int exclude){
   Coord rm[C-1]; rowMates(coord,rm); for(int q=0;q<C-1;q++){ Coord cx; if(!crossLink(rm[q],cx))continue; int x=occGet(ckey(cx)); if(x>=0&&x!=id&&x!=exclude) return x; }
   return -1;
 }
-void Seat::routeTo(Coord target,int tag){ int nh=nextHopToward(target,-1); if(ckey(coord)==ckey(target)) return; if(nh>=0){ Msg m;m.t=ROUTE;m.target=target;m.asker=id;m.tag=tag;m.ttl=60;m.via=id; emit(nh,m);} }
+void Seat::routeTo(Coord target,int tag){ int nh=nextHopToward(target,-1); if(ckey(coord)==ckey(target)) return; if(nh>=0){ probeNote(ckey(target)); Msg m;m.t=ROUTE;m.target=target;m.asker=id;m.tag=tag;m.ttl=60;m.via=id; emit(nh,m);} }
 // routeToProbe: the D5 translost probe. THE PROBE TRAVELS THE MESH, NOT THE
 // DEAD LINK: the first hop excludes the probed occupant itself (my direct link
 // to it is exactly what died), and the frame carries my coord (m.coord) so the
@@ -867,7 +909,7 @@ void Seat::routeTo(Coord target,int tag){ int nh=nextHopToward(target,-1); if(ck
 void Seat::routeToProbe(Coord target){
   uint64_t tk=ckey(target); if(!hasCoord||ckey(coord)==tk) return;
   int nh=probeHop(target,occGet(tk));
-  if(nh>=0){ Msg m;m.t=ROUTE;m.target=target;m.asker=id;m.tag=2;m.ttl=60;m.via=id;m.coord=coord; emit(nh,m); }
+  if(nh>=0){ probeNote(tk); Msg m;m.t=ROUTE;m.target=target;m.asker=id;m.tag=2;m.ttl=60;m.via=id;m.coord=coord; emit(nh,m); }
 }
 // probeHop: first hop for a probe (or its answer) that must NOT use the direct
 // link to `target`. Prefer a hop that is itself a DIRECT neighbour of the
@@ -931,15 +973,22 @@ bool Seat::routeStep(Msg& m){
 }
 
 void Seat::onPhone(Msg& m){
+  if(m.id<0) return;
+  bool sure=linkIs(m,m.id);   // FRAME AUTHORITY: a PHONE is unsigned — the phoner's own word only when the transport names it
   if(hasCoord && moving && m.tock==oldCk && m.tock!=ckey(coord)){   // T1 dual-hold: the OLD seat still answers while the claim is in flight — its callers keep first-hand liveness, nobody heals it
-    Msg p;p.t=PONG;p.coord=oldCoord; emit(m.id,p); return; }
+    Msg p;p.t=PONG;p.coord=oldCoord;p.id=id; emit(m.id,p); return; }   // id: the answer names its author (a routed PONG's last hop is not the responder)
   if(hasCoord && leaseUntil>=0 && TICK<=leaseUntil && m.tock==leaseCk && m.tock!=ckey(coord)){   // T3: a call to my just-vacated cell — answer MOVED so the caller confirms the vacancy NOW (no silent-decay wait)
     Msg r;r.t=MOVED;r.ck=leaseCk;r.mvd=ckey(coord);r.id=id; emit(m.id,r); return; }
   if(!hasCoord || m.tock!=ckey(coord)) return;   // tock is always set for a PHONE; ckey(0,0,0)==0 is a REAL coord, so never skip the check
+  // Every honest PHONE comes from one of MY owned links (ownedLinks is
+  // symmetric); an UNPROVEN one may only refresh a pairing I already hold —
+  // no install, no YIELD, no row ledger, no digest (mesh.js onPhone twin).
+  if(!ownedLinkCell(ckey(m.coord))) return;
+  if(!sure && occGet(ckey(m.coord))!=m.id) return;
   // § G UP-LEG: the phoner's digest arrives as PAYLOAD on the beat it already
   // sends (G0). Which scope it names is decided by the phoner's RELATION to me,
   // which I read from its coord — never from anything it asserts.
-  if(DIGEST && state==3 && m.dgUp.at>=0){ uint64_t pk=ckey(m.coord); Dig u=m.dgUp; rxDig(u);   // G0b: freshness on MY clock
+  if(sure && DIGEST && state==3 && m.dgUp.at>=0){ uint64_t pk=ckey(m.coord); Dig u=m.dgUp; rxDig(u);   // G0b: freshness on MY clock
     if(pk==ckey(down(coord)))                                                        downDig=u;                      // my down-child head published MY OWNED CHILD ROW
     else if(coord.pc==0 && m.coord.pc==0){ auto it=s1tab.find(pk);                                                   // a rook peer published ITS SECTION
       if(it==s1tab.end() || it->second.rx<=u.rx) s1tab[pk]=u; }
@@ -951,12 +1000,12 @@ void Seat::onPhone(Msg& m){
   // 40-tick window must not out-tenure the legitimate healer's fill. An
   // answered probe erases the observation, restoring full tenure protection
   // (S5: "has itself, first-hand, stopped hearing the prior occupant").
-  if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40 && !translost.count(ck)){ Msg y;y.t=YIELD;y.ck=ck; emit(m.id,y); return; }
-  setOcc(ck,m.id); liveMark(ck); noteS1(ck); kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck);
+  if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40 && !translost.count(ck)){ Msg y;y.t=YIELD;y.ck=ck;y.id=id; emit(m.id,y); return; }   // id: the arbiter names itself
+  setOcc(ck,m.id); liveMark(ck); noteS1(ck); if(sure){ kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck); }
   // V7: my down-child head phoned me its ROW LEDGER. Install what I lack (a
   // cell I already hold first-hand keeps my entry — two claimants are the
   // head's E2 yield to settle, not mine to overwrite) and stamp the beat.
-  if(ck==ckey(down(coord))){ for(auto&e:m.row){ if(!occ.count(e.k)){ setOcc(e.k,e.v); noteS1(e.k); } } rowLedgerAt=(int)TICK; }
+  if(sure && ck==ckey(down(coord))){ int nr=0; for(auto&e:m.row){ if(++nr>C) break; Coord c=unck(e.k); if(!cellOk(e.k)||c.pc!=m.coord.pc||c.r!=m.coord.r||c.i==0||e.v<0) continue; if(!occ.count(e.k)){ setOcc(e.k,e.v); noteS1(e.k); } } rowLedgerAt=(int)TICK; }   // only the head itself, only cells 1..C-1 of ITS row
   int owner=-1; uint64_t oCk=0; Coord myoc; if(ownerCoord(myoc)){ oCk=ckey(myoc); owner=occGet(oCk); }
   vector<Ent> row;
   if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){ row.push_back({ckey(coord),id, occGet(ckey(down(coord)))}); for(int c=1;c<C;c++){ Coord rc={coord.pc,coord.r,(uint8_t)c}; int x=occGet(ckey(rc)); if(x>=0&&x!=m.id) row.push_back({ckey(rc),x, childOf.count(ckey(rc))?childOf[ckey(rc)]:-1}); } }
@@ -969,7 +1018,7 @@ void Seat::onPhone(Msg& m){
   } else if(coord.i==0 && m.coord.pc==coord.pc && m.coord.r==coord.r){   // a ROW-MATE phoned me (the head): share MY cousins, so if it scooches/heals into head (H2/C2) it inherits the relay-free promote-up neighborhood
     for(auto&c:cousins) cous.push_back({c.first,c.second});
   }
-  Msg p;p.t=PONG;p.owner=owner;p.oCk=oCk;p.row=row;p.nbrs=cous;p.coord=coord;
+  Msg p;p.t=PONG;p.owner=owner;p.oCk=oCk;p.row=row;p.nbrs=cous;p.coord=coord;p.id=id;
   // § G DOWN-LEG (rides the PONG I already send, G0): the room fold, plus the
   // fold I PUBLISH BACK TO THIS PEER. The published fold is the whole of G4 —
   // it hands every author the one value it is uniquely qualified to refute:
@@ -993,7 +1042,7 @@ void Seat::onPhone(Msg& m){
     if(isDownKid) p.dgEcho=pubDig(downUsed);
     else if(coord.pc!=0 && coord.i==0){ auto it=rowUsed.find(ckey(m.coord)); if(it!=rowUsed.end()) p.dgEcho=pubDig(it->second); } }
   emit(m.id,p);   // p.coord: my coord, so the phoner gains FIRST-HAND liveness for me (bidirectional heartbeat)
-  if(prev>=0&&prev!=m.id){ Msg y;y.t=YIELD;y.ck=ck; emit(prev,y); }
+  if(prev>=0&&prev!=m.id){ Msg y;y.t=YIELD;y.ck=ck;y.id=id; emit(prev,y); }
 }
 void Seat::phoneHome(){
   Coord tc; bool have=false; if(hasCoord){ if(coord.i!=0){ tc={coord.pc,coord.r,0}; have=true; } else have=ownerCoord(tc); }
@@ -1441,6 +1490,7 @@ void Seat::recv(Msg& m){
       return; }
     case HOME: {
       if(state==3&&(int)TICK-rosterAskAt>120) return;   // a SEATED seat hears HOME only as the answer to its own WHOHOME (drainOrReenter): unsolicited, it must not re-key or re-roster the seat
+      if((int)m.roster.size()>C*C) return;   // a roster names Section-1 cells, one entry each (mesh.js rosterOk)
       if(m.gkey) genKey=m.gkey;   // learn THIS meeting's genesis key from the greeter (the newcomer dance)
       if(state==1){ if(m.roster.empty()){ retryAt=(int)TICK-10; return; } roster=m.roster; haveRoster=true; lastReach=(int)TICK; seatTries=0; resumeTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }   // reached a greeter (HOME roster came back): note it for R6; a landed HOME re-arms the resume budget. genesis is ONLY via an empty greeter LIST.
       else if(state==3&&m.roster.size()){ roster=m.roster; haveRoster=true; }   // E3 stripped: store the roster (a draining DEEP seat re-seats against it via E1) but do NO Section-1 self-audit
@@ -1479,13 +1529,28 @@ void Seat::recv(Msg& m){
     case HELLO: {
       // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it holds to
       // me, claiming coord m.ck. So it sets first-hand liveness for m.ck.
-      if(hasCoord&&state==3&&m.ck==ckey(coord)&&m.id!=id&&m.id<id){ if(TICK-challAt>20){ challAt=(int)TICK; Msg c;c.t=CHALLENGE;c.ck=m.ck;c.from=id; emit(m.id,c);} return; }
+      // FRAME AUTHORITY (mesh.js twin): the claim is signed, so m.id is its
+      // author — but the CELL is the author's word: it must be one I relate to.
+      if(m.id<0 || !cellOk(m.ck) || !claimRel(m.ck,m.id,false)) return;
+      bool sure=linkIs(m,m.id);
+      if(hasCoord&&state==3&&m.ck==ckey(coord)&&m.id!=id&&m.id<id){
+        // a rival for MY cell: only Section 1 is settled by challenge (a deep
+        // cell by its one arbiter); a rival first-hand live elsewhere is in two places
+        if(coord.pc!=0 || liveElsewhere(m.id,m.ck)) return;
+        if(TICK-challAt>20){ challAt=(int)TICK; challToId=m.id; challToCk=m.ck; challToAt=(int)TICK; Msg c;c.t=CHALLENGE;c.ck=m.ck;c.from=id; emit(m.id,c);} return; }
       int prev=occGet(m.ck);
       // E2: yield only between FIRST-HAND-LIVE claimants. A prev that is only gossip
       // (a phantom) is NOT first-hand live ⇒ no yield ⇒ the real sender is accepted.
       // D5: an unanswered transport loss ends my first-hand hearing of prev.
       bool prevFresh = (prev>=0) && firstHandLive(m.ck) && !translost.count(m.ck);
-      if(prev>=0&&prev!=m.id&&prevFresh){ Msg y;y.t=YIELD;y.ck=m.ck; emit(m.id>prev?m.id:prev,y); }   // two live seats at one coord: lower id wins, higher yields
+      if(!sure){
+        // UNPROVEN (relay/sponsor): never displaces an incumbent; a higher-id
+        // rival of a live one is YIELDed as E2 would; a free cell is a hint only.
+        if(prev>=0 && prev!=m.id){ if(prevFresh && m.id>prev){ Msg y;y.t=YIELD;y.ck=m.ck;y.id=id; emit(m.id,y);} return; }
+        if(prev<0 && hintClaim(m.ck,m.id)){ if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
+        { auto sit=sitting.find(m.ck); if(sit!=sitting.end() && sit->second.joiner==m.id) clearSoft(m.ck,"hello"); }
+        return; }
+      if(prev>=0&&prev!=m.id&&prevFresh){ Msg y;y.t=YIELD;y.ck=m.ck;y.id=id; emit(m.id>prev?m.id:prev,y); }   // two live seats at one coord: lower id wins, higher yields
       if(prev!=m.id){ setOcc(m.ck,m.id); if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
       liveMark(m.ck);   // first-hand: I just heard m.id directly at m.ck
       noteS1(m.ck);
@@ -1497,14 +1562,27 @@ void Seat::recv(Msg& m){
       // by why=hello at N=3000 det — the deep-firstFree feedstock).
       { auto sit=sitting.find(m.ck); if(sit!=sitting.end() && sit->second.joiner==m.id) clearSoft(m.ck,"hello"); }
       return; }
-    case YIELD: if(hasCoord&&state==3&&ckey(coord)==m.ck){ if(moving) rollbackMove(); else requeue("T1-yield"); } return;   // T1: a mover contradicted at its NEW cell goes home, not homeless
-    case CLAIM:
-      // A: joiner self-confirm — upgrade sitting-down → seated.
-      confirmSeated(m.ck, m.id);
-      return;
+    case YIELD: {   // honoured only from my ARBITER, proven the sender (mesh.js twin)
+      if(!hasCoord||state!=3||ckey(coord)!=m.ck) return;
+      int by=m.id>=0?m.id:m.lk;
+      if(by<0||by==id||!proven(m,by)||!arbiterIs(by)) return;
+      if(moving) rollbackMove(); else requeue("T1-yield");   // T1: a mover contradicted at its NEW cell goes home, not homeless
+      return; }
+    case CLAIM: {
+      if(m.id<0||!cellOk(m.ck)) return;
+      // A: joiner self-confirm — upgrade sitting-down → seated. My own vouch
+      // for exactly this joiner is the admitter's word, whatever the path.
+      { auto sit=sitting.find(m.ck); if(sit!=sitting.end() && sit->second.joiner==m.id){ confirmSeated(m.ck, m.id); return; } }
+      if(hasCoord && m.ck==ckey(coord)) return;
+      if(!claimRel(m.ck,m.id,true)) return;
+      if(linkIs(m,m.id)) confirmSeated(m.ck, m.id); else hintClaim(m.ck,m.id);
+      return; }
     case LEAVE: {
+      // FRAME AUTHORITY: a goodbye frees the LEAVER'S OWN cell — its own link or signature.
+      if(m.id<0 || !cellOk(m.ck) || (m.mvd && !cellOk(m.mvd)) || !proven(m,m.id)) return;
       lastChurn=(int)TICK;   // Q2 hysteresis: a departure near me — hold off compaction until quiescent
-      if(occGet(m.ck)==m.id){ occDrop(m.ck,"leave"); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); tlForget(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
+      bool mine = occGet(m.ck)==m.id;
+      if(mine){ occDrop(m.ck,"leave"); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); tlForget(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
       // A, ATTRIBUTABLE (V4): only the LEAVER'S OWN vouch clears. A soft sit
       // exists only for a cell that read FREE at admit time, so a LEAVE naming
       // this cell from anyone else is a PRIOR tenant's departure echo (MOVED/
@@ -1513,7 +1591,10 @@ void Seat::recv(Msg& m){
       // same admitter re-placed the cell 3 ticks later (the V4 same-admitter
       // double-place, 10 of 19 S1 seed pairs at N=3000 det).
       { auto sit=sitting.find(m.ck); if(sit!=sitting.end() && sit->second.joiner==m.id){ sitLog("SIT-",m.ck,m.id,"leave-own"); sitting.erase(sit); } }
-      if(m.mvd){ setOcc(m.mvd,m.id); noteS1(m.mvd); }   // T3: the goodbye says WHERE it went — routing hint, first-hand
+      if(mine && m.mvd){ setOcc(m.mvd,m.id); noteS1(m.mvd); }   // T3: the goodbye says WHERE it went — routing hint, first-hand (only from a seat I held there)
+      // A goodbye about a cell somebody ELSE holds in my view frees nothing,
+      // so it heals nothing; an empty cell (freed now or never known) still heals.
+      if(occGet(m.ck)>=0) return;
       // H-CHAIN vertical: when a DOWN-CHILD vacates, clear childOf on its
       // owner. childOf never expired before, so hasDownChild stayed true
       // forever and LEFT-PACK deferred to a dead vertical healer (the hole
@@ -1559,17 +1640,19 @@ void Seat::recv(Msg& m){
       return; }
     case GREETWALK: return;   // H6 RETIRED — folded into E3 (Section-1 seats knock directly as the greeter pool)
     case S1SYNC: {
+      if((int)m.ent.size()>C*C || (int)m.digs.size()>C*C) return;   // Section-1 gossip: at most one entry per home cell (mesh.js twin)
       // § G root fold: merge the relayed section table, the FRESHEST on my clock
       // wins (G0b relative ages). Purely additive display state — it touches
       // nothing below.
       if(DIGEST && state==3 && hasCoord && coord.pc==0)
-        for(auto&e:m.digs){ if((e.k>>16)!=0) continue; if(hasCoord && e.k==ckey(coord)) continue;   // never take a relayed claim about MY OWN section — I fold that first-hand
+        for(auto&e:m.digs){ if((e.k>>16)!=0 || !cellOk(e.k)) continue; if(hasCoord && e.k==ckey(coord)) continue;   // never take a relayed claim about MY OWN section — I fold that first-hand
           Dig u=e.d; rxDig(u); if(u.at<0 || LT()-u.rx>DIG_TTL) continue; auto it=s1tab.find(e.k); if(it==s1tab.end()||it->second.rx<u.rx) s1tab[e.k]=u; }
       // GOSSIP updates the ROSTER HINT (occ/s1seen) only — it NEVER evicts a seat
       // and NEVER overwrites a cell I hold FIRST-HAND. (E2: gossip may inform
       // routing, but liveness is first-hand only. The old gossip-requeue and
       // gossip-YIELD were phantom weapons — a stale echo could evict a live seat.)
       for(auto&e:m.ent){ uint64_t ck=e.k; int eid=e.v; int age=e.age;
+        if((ck>>16)!=0 || !cellOk(ck) || eid<0) continue;   // Section-1 cells only (mesh.js s1KeyOk)
         if(e.ch>=0) childOf[ck]=e.ch;   // learn this Section-1 cell's heir (its down-child) — feeds cousins-in-PONG
         if(hasCoord&&ck==ckey(coord)&&eid!=id) continue;   // gossip claims MY seat: IGNORE. A genuine duplicate is settled by a first-hand witness (onPhone/HELLO), never by an echo.
         if(firstHandLive(ck)) continue;                    // I have first-hand truth here — gossip can't resurrect a moved/dead occupant over it
@@ -1598,20 +1681,29 @@ void Seat::recv(Msg& m){
     case DRAIN: {
       if(!hasCoord||state!=3||coord.pc==0||drainAt) return;
       { Coord oc; if(!ownerCoord(oc)||m.id<0||occGet(ckey(oc))!=m.id) return; }   // E1: only my ANCHOR (owner-cell occupant) may dissolve my subtree
-      if(m.roster.empty()) return;
+      if(m.roster.empty() || (int)m.roster.size()>C*C) return;   // mesh.js rosterOk
       roster=m.roster; haveRoster=true; Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id){ Msg d;d.t=DRAIN;d.roster=m.roster;d.id=id; emit(x,d);} } drainAt=(int)TICK+6+(int)(rng()*12); wake(id); return; }
     case CHALLENGE: if(evil){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c); return;} if(hasCoord&&state==3&&ckey(coord)==m.ck){ Msg c;c.t=CONFIRM;c.ck=m.ck;c.id=id; emit(m.from,c);} return;
-    case CONFIRM: if(hasCoord&&state==3&&ckey(coord)==m.ck&&m.id!=id&&m.id<id){ if(moving) rollbackMove(); else requeue("CONFIRM-lower-id"); } return;
+    case CONFIRM: {   // the answer to MY CHALLENGE, from that very rival, for that cell, within 40 ticks (mesh.js twin)
+      if(!hasCoord||state!=3||ckey(coord)!=m.ck||m.id<0||m.id==id||!(m.id<id)) return;
+      if(challToId!=m.id || challToCk!=m.ck || TICK-challToAt>40 || !proven(m,m.id) || liveElsewhere(m.id,m.ck)) return;
+      challToId=-1;
+      if(moving) rollbackMove(); else requeue("CONFIRM-lower-id");
+      return; }
     case MOVED: {   // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
-      if(occGet(m.ck)==m.id){ occDrop(m.ck,"moved"); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); healTry.erase(m.ck); }   // freed ⇒ admissible now
+      // the mover's own word, about a cell I phone, that I hold the mover at (mesh.js twin)
+      if(m.id<0 || !cellOk(m.ck) || (m.mvd && !cellOk(m.mvd)) || !proven(m,m.id)) return;
+      if(!ownedLinkCell(m.ck) || occGet(m.ck)!=m.id) return;
+      occDrop(m.ck,"moved"); live.erase(m.ck); kidful.erase(m.ck); s1seen.erase(m.ck); healTry.erase(m.ck);   // freed ⇒ admissible now
       if(m.mvd){ setOcc(m.mvd,m.id); liveMark(m.mvd); noteS1(m.mvd); }
       wake(id); return; }
     case SITXFER: {
       // V4: my assigner hands me my row's outstanding vouch ledger — I am now
       // the row's admitter, and these cells are already promised.
       if(hasCoord&&coord.pc==0&&coord.i==0&&ckey(coord)==m.ck){
-        for(auto&kv:m.nbrs) if(!occ.count(kv.k) && !sitting.count(kv.k)) sitting[kv.k]={kv.v,id,(int)TICK,-1};
-        for(auto&e:m.row) if(!occ.count(e.k)){ setOcc(e.k,e.v); noteS1(e.k); }   // the assigner's CONFIRMED row occ — first-hand at the assigner, ledger-grade here
+        auto inRow=[&](uint64_t k,int v){ Coord c=unck(k); return cellOk(k) && c.pc==0 && c.r==coord.r && v>=0; };   // the ledger of MY row, nothing else (mesh.js twin)
+        for(auto&kv:m.nbrs) if(inRow(kv.k,kv.v) && !occ.count(kv.k) && !sitting.count(kv.k)) sitting[kv.k]={kv.v,id,(int)TICK,-1};
+        for(auto&e:m.row) if(inRow(e.k,e.v) && !occ.count(e.k)){ setOcc(e.k,e.v); noteS1(e.k); }   // the assigner's CONFIRMED row occ — first-hand at the assigner, ledger-grade here
         rowLedger=true;
       }
       return; }
@@ -1633,8 +1725,19 @@ void Seat::recv(Msg& m){
       }
       return; }
     case PHONE: onPhone(m); return;
-    case PONG: { lastAck=(int)TICK; if(hasCoord&&m.coord.pc==0&&m.from>=0){ setOcc(ckey(m.coord),m.from); liveMark(ckey(m.coord)); noteS1(ckey(m.coord)); }   // FIRST-HAND: the responder spoke to me directly on our rook link
-      if(m.owner>=0&&occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} for(auto&e:m.row){ if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } for(auto&kv:m.nbrs) cousins[kv.k]=kv.v;
+    case PONG: {
+      // FRAME AUTHORITY (mesh.js twin): a PONG answers MY PHONE, so it comes
+      // from one of my owned links; its responder is id (else the link). Only a
+      // transport-named responder teaches me; an unproven one only confirms a
+      // pairing I already hold.
+      if(!hasCoord) return;
+      uint64_t pk=ckey(m.coord); if(!ownedLinkCell(pk)) return;
+      int pid=m.id>=0?m.id:m.lk; if(pid<0) return;
+      if(!linkIs(m,pid)){ if(occGet(pk)!=pid) return; lastAck=(int)TICK; if(m.coord.pc==0){ liveMark(pk); noteS1(pk); } return; }
+      lastAck=(int)TICK; if(m.coord.pc==0){ setOcc(pk,pid); liveMark(pk); noteS1(pk); }   // FIRST-HAND: the responder spoke to me directly on our rook link
+      { Coord oc; if(m.owner>=0 && ownerCoordOf(m.coord,oc) && m.oCk==ckey(oc) && occGet(m.oCk)!=m.owner){ setOcc(m.oCk,m.owner); noteS1(m.oCk);} }   // its owner cell is a fact of the topology
+      { int nr=0; for(auto&e:m.row){ if(++nr>C) break; Coord c=unck(e.k); if(!cellOk(e.k)||c.pc!=m.coord.pc||c.r!=m.coord.r||e.v<0) continue; if(occGet(e.k)!=e.v) setOcc(e.k,e.v); noteS1(e.k); if(e.age>=0) childOf[e.k]=e.age; } }   // ITS row, at most C cells
+      { int nn=0; for(auto&kv:m.nbrs){ if(++nn>4*C) break; if(!cellOk(kv.k)||kv.v<0) continue; if(!cousins.count(kv.k) && (int)cousins.size()>=4*C) continue; cousins[kv.k]=kv.v; } }   // cousins capped (W, 4C)
       // ---- § G DOWN-LEG + the AUTHOR'S REFUTATION ----------------------------
       if(DIGEST && state==3 && hasCoord && coord.pc!=0){
         if(m.dgRoot.at>=0){ Dig rt=m.dgRoot; rxDig(rt); if(rootDig.at<0 || rt.rx>rootDig.rx) rootDig=rt; }   // the room fold, one level per period (staleness O(depth x period)); fresher ON MY CLOCK wins (G0b)
@@ -1654,7 +1757,7 @@ void Seat::recv(Msg& m){
           // this the omission arm accuses every fresh aggregator (115 false
           // fires at N=600). The relationship, not my history, is what has to
           // be 2*DIG_TTL old.
-          if((isOwner||isHead) && m.from!=lastAgg){ lastAgg=m.from; upSince=TICK; emptyEcho=0; }
+          if((isOwner||isHead) && pid!=lastAgg){ lastAgg=pid; upSince=TICK; emptyEcho=0; }
           else if((isOwner && upRefuted(m.dgPub,m.dgEcho,1)) || (isHead && upRefuted(m.dgPub,m.dgEcho,0))){
             digMismatch++; if(!PAR) DIG_MISMATCH++;
             if(getenv("MESH_DIGLOG")){ int mn=-1,mr=-1; for(int q=0;q<16;q++) if(upLog[q].at==m.dgEcho.at){ mn=upLog[q].n; mr=upLog[q].refuse; break; }
@@ -1668,7 +1771,7 @@ void Seat::recv(Msg& m){
     case ROUTE: {
       if(!hasCoord) return;
       if(ckey(coord)==ckey(m.target)){
-        if(m.tag==3){ probeAck[m.ck]=(int)TICK; return; }   // a D5 probe ANSWER routed back around the dead link — the probed peer LIVES
+        if(m.tag==3){ if(!translost.count(m.ck)) return; probeAck[m.ck]=(int)TICK; return; }   // a D5 probe ANSWER routed back around the dead link — the probed peer LIVES (only while I hold that observation)
         if(m.tag==2){
           // D5 translost probe reached me: I am alive — answer AROUND the dead
           // link (first hop excludes the asker; my direct link to it is
@@ -1687,7 +1790,8 @@ void Seat::recv(Msg& m){
       // answer-around machinery had never worked past one hop.
       int nh=nextHopToward(m.target,m.via); if(nh>=0){ Msg r;r.t=ROUTE;r.target=m.target;r.asker=m.asker;r.tag=m.tag;r.ttl=m.ttl-1;r.via=id;r.ck=m.ck;r.coord=m.coord; emit(nh,r); return; }
       Msg r;r.t=ROUTED;r.tag=m.tag;r.target=m.target;r.id=-1; emit(m.asker,r); return; }
-    case ROUTED: if(m.tag==1||m.tag==2){ if(m.id>=0&&hasCoord){ setOcc(ckey(m.target),m.id); noteS1(ckey(m.target)); probeAck[ckey(m.target)]=(int)TICK; Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} } return;   // probeAck AFTER setOcc (a changed occupant clears the observation first)
+    // ROUTED: only an answer to a probe I sent (probeOut; mesh.js twin)
+    case ROUTED: if(m.tag==1||m.tag==2){ if(m.id>=0&&hasCoord&&probeAsked(ckey(m.target))){ setOcc(ckey(m.target),m.id); noteS1(ckey(m.target)); probeAck[ckey(m.target)]=(int)TICK; Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} } return;   // probeAck AFTER setOcc (a changed occupant clears the observation first)
     case TRANSLOST: transportLost(m.id); return;   // D5: fabric event — MY OWN transport to m.id died
     default: return;
   }

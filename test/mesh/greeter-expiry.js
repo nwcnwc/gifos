@@ -64,7 +64,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 
   const key = await net.deriveMeetKey('greeter-expiry-room', '', '');
   const bus = new Map();
-  const sendDC = (to, m) => { const e = bus.get(to); if (e && !e.dead) { const c = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (!e.dead) e.node.recvCtl(c); }, 2 + Math.random() * 6); } return true; };
+  const sendDC = (to, m, from) => { const e = bus.get(to); if (e && !e.dead) { const c = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (!e.dead) e.node.recvCtl(c, from, true); }, 2 + Math.random() * 6); } return true; }; // from the pair, direct (run.html's DataChannel intake)
   const nodes = [];
   const mk = async () => {
     const n = wire.createMeshNode({ relayUrl: RELAY, sid: 'gx-sid', tok: 'T', key, tickMs: TICK_MS, sendDC });

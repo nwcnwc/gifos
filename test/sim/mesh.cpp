@@ -176,6 +176,12 @@ struct Msg {
   // is how the protocol reaches a NON-adjacent seat without teleporting.
   bool routing=false; int rfinal=-1,rttl=0,rvia=-1; Coord rdst{0,0,0};
   bool direct=false;   // set on a gateway→attached-newcomer hand-off: deliver over the direct link, do NOT re-enter routing (breaks the emit↔route loop)
+  // ---- FRAME AUTHORITY (mesh.js twin; docs/meet-security.md §AUTH) ----------
+  // lk: the sender the TRANSPORT names — written only by schedule() for a frame
+  // carried straight from its sender (never for a routed frame: its last hop
+  // is not its author). sig: the frame is S4-signed by its author (`id`); the
+  // sim models the signature as unforgeable, so only the author's emit sets it.
+  int lk=-1; bool sig=false;
 };
 
 // ---- globals / fabric ----
@@ -419,6 +425,8 @@ struct Seat {
   int askTick=-1,joinTick=-1; bool reAsk=false,reJoin=false;
   unordered_map<int,int> strangeSeen;   // two-ring reconciliation: pool-listed ids absent from my occ, by consecutive E3 sightings
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
+  int challToId=-1,challToAt=-99999; uint64_t challToCk=0;   // the rival I last CHALLENGEd for my cell: only its CONFIRM can unseat me
+  Occ probeOut;                                               // probes I have in flight (target cell -> tick): a ROUTED answer counts only for one of them
   int myPlacer=-2;   // DUPMINT forensics: the owner argument of my last take() (-1 = genesis/self, -2 = never seated)
   bool rowLedger=true;   // V4: a VOUCHED-IN Section-1 row head holds its row's admissions until its assigner hands over the row's vouch ledger (SITXFER) — or the handover window passes (a dead assigner's vouches die with it)
   int rookSeenAt=0;   // last tick I heard ANY rook neighbour first-hand (split-off fragment detection)
@@ -672,6 +680,16 @@ struct Seat {
   bool ownerCoord(Coord&o){ if(!hasCoord||coord.pc==0) return false; return up({coord.pc,coord.r,0},o); }
   int ownerId(){ if(!hasCoord) return -1; Coord u; if(!up({coord.pc,coord.r,0},u)) return -1; return occGet(ckey(u)); }
   bool hasChildren(){ Coord rc[C]; rosterCells(rc); for(int c=0;c<C;c++){int x=occGet(ckey(rc[c])); if(x>=0&&x!=id) return true;} return false; }
+  // ---- FRAME AUTHORITY (mesh.js twin, same names; mesh_seat.inc) -----------
+  bool linkIs(const Msg& m,int x) const { return x>=0 && m.lk>=0 && m.lk==x; }
+  bool proven(const Msg& m,int x) const { return linkIs(m,x) || (x>=0 && m.sig && m.id==x); }
+  bool ownedLinkCell(uint64_t k);          // k is one of my owned links
+  bool arbiterIs(int x);                   // x is my phone target (deep) / a rook peer (Section 1) in my view
+  bool claimRel(uint64_t k,int id,bool childRow);   // a cell I may learn occupancy for from its claimant
+  bool liveElsewhere(int x,uint64_t k);    // x is first-hand live at a cell other than k
+  bool hintClaim(uint64_t k,int x);        // an UNPROVEN claim: a free cell, as a hint, one per claimant
+  void probeNote(uint64_t k);
+  bool probeAsked(uint64_t k);
   bool lowestSurvivor(){ for(int j=1;j<coord.i;j++){ uint64_t k=ckey({coord.pc,coord.r,(uint8_t)j}); int x=occGet(k); if(x<0||x==id) continue; if(coord.pc!=0||s1Fresh(k)) return false;} return true; }
   // 11a / H-CHAIN: does cell c own a LIVE down-child (so its fixed healer is
   // that down-child — VERTICAL — and the right-neighbour must DEFER)? Known
@@ -862,13 +880,16 @@ static void schedule(int from,int to,Msg m){
     int spread = (NET_LAT>1)? 1+(int)(frnd()*NET_LAT) : 1+(int)(SEQ&1);
     int qp = (q<1.0)? (int)((1.0-q)*4.0*frnd()) : 0;
     int d; if(openPairs.count(pk)) d=spread+qp; else { openPairs.insert(pk); d=4+(int)(SEQ%5)+spread+qp; }
-    m.to=to; m.from=from; SEQ++; bus[TICK+d].push_back(move(m)); return;
+    m.to=to; m.from=from; m.lk=(m.rvia<0)?from:-1; SEQ++; bus[TICK+d].push_back(move(m)); return;
   }
   int d; if(openPairs.count(pk)) d=1+(SEQ&1); else { openPairs.insert(pk); d=4+(int)(SEQ%5); }
-  m.to=to; m.from=from; SEQ++;
+  m.to=to; m.from=from; m.lk=(m.rvia<0)?from:-1; SEQ++;   // the transport's word: the bus names the sender of an unrouted frame
   bus[TICK+d].push_back(move(m));
 }
 void Seat::emit(int to,const Msg& m){
+  // An eviction frame (LEAVE/MOVED/YIELD/CONFIRM) is signed by its author
+  // (mesh-wire env.send; the harness signs the same set).
+  if(!m.sig && m.id==id && (m.t==LEAVE||m.t==MOVED||m.t==YIELD||m.t==CONFIRM)){ Msg mm=m; mm.sig=true; emit(to,mm); return; }
   // Option A: a seated seat may only hand a frame to a seat it holds a real
   // owned-link (DataChannel) to. If `to` is a seated NON-neighbor, ROUTE the
   // frame over the mesh toward its coord instead of teleporting it there. (An

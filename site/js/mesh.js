@@ -261,11 +261,31 @@
 
   // A Section-1 key has pc==0 — its string ckey starts "0_".
   const isS1key = (k) => k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95;
+  // ---- WIRE CELL KEYS (frame authority, docs/meet-security.md §AUTH) ------
+  // A cell key from a peer is ckey()'s three decimal fields and nothing else:
+  // r and i are columns of this C, every digit of the section path is a
+  // column (childPath(pc, d) = 6pc + d + 1 with d < C), and the path is no
+  // deeper than the depth wall. Anything else used to land in occ, live,
+  // born, fhEver and s1seen and be walked on every beat (10,000 junk keys grew
+  // occ by 7,820 — test/mesh/forged-frames.js A8). Twin: mesh_seat.inc cellOk.
+  const MAXDEPTH = 12;
+  const pathOk = (pc) => { if (!Number.isInteger(pc) || pc < 0 || pc > 0xffffffff) return false; let d = 0; while (pc > 0) { if ((pc - 1) % 6 >= C()) return false; pc = Math.floor((pc - 1) / 6); if (++d > MAXDEPTH) return false; } return true; };
+  const cellKeyOk = (k) => {
+    if (typeof k !== 'string' || k.length > 24) return null;
+    const p = k.split('_'); if (p.length !== 3) return null;
+    for (const f of p) if (!/^(0|[1-9][0-9]*)$/.test(f)) return null;
+    const c = { pc: +p[0], r: +p[1], i: +p[2] };
+    if (c.r >= C() || c.i >= C() || !pathOk(c.pc)) return null;
+    return c;
+  };
+  const coordOk = (c) => !!c && typeof c === 'object' && Number.isInteger(c.r) && c.r >= 0 && c.r < C() && Number.isInteger(c.i) && c.i >= 0 && c.i < C() && pathOk(c.pc);
+  const s1KeyOk = (k) => { const c = cellKeyOk(k); return !!c && c.pc === 0; };
   // A roster is what a seat re-seats AGAINST (HOME in the dance, DRAIN's
   // fan-down): a non-empty list of {k: cell key, v: peer id}. It arrives off
   // the wire, so its shape is checked before it is stored — a roster-less or
   // junk DRAIN used to leave tick() throwing on `roster.length` every tick.
-  const rosterOk = (r) => Array.isArray(r) && r.length > 0 && r.every((e) => e && typeof e.k === 'string' && (typeof e.v === 'string' || typeof e.v === 'number'));
+  // A roster names Section-1 cells, at most one entry per cell.
+  const rosterOk = (r) => Array.isArray(r) && r.length > 0 && r.length <= C() * C() && r.every((e) => e && s1KeyOk(e.k) && (typeof e.v === 'string' || typeof e.v === 'number'));
   // ownerCoordOf(c): the coord that owns cell c (its head's up), or null for Section 1.
   const ownerCoordOf = (c) => (c.pc === 0 ? null : topo.up({ pc: c.pc, r: c.r, i: 0 }));
   // A tiny non-crypto key hash for the modelled relay / genesis identity. In
@@ -520,6 +540,58 @@
     }
     clearSoft(k) { this.sitting.delete(k); }
     markSitting(k, joiner) { this.sitting.set(k, { joiner, assigner: this.id, at: this.TICK, pingAt: -1 }); }
+
+    // ---- FRAME AUTHORITY (docs/meet-security.md §AUTH; twin: mesh_seat.inc) --
+    // `from` and `id` are written by the sender and prove nothing. Two things do:
+    //   m.lk   — the TRANSPORT names the sender. Only the wire writes it
+    //            (mesh-wire ingest: a frame that came straight over the
+    //            sender's own DataChannel and was not routed; the harness and
+    //            sim buses likewise). A relay `from` or a sponsor envelope's
+    //            origin never becomes `lk`: the sender writes both.
+    //   m.s4ok — the frame is S4-signed and `id` is the signer (verifyFill).
+    // linkIs: the transport delivered m from x itself. proven: m speaks for x.
+    linkIs(m, x) { return x != null && m.lk != null && m.lk === x; }
+    proven(m, x) { return this.linkIs(m, x) || (x != null && m.s4ok === true && m.id === x); }
+    ownedLinkCell(k) { if (!this.hasCoord) return false; for (const olc of topo.ownedLinks(this.coord)) if (ck(olc) === k) return true; return false; }
+    // My ARBITERS: the seats that hear me first-hand on a heartbeat, and so the
+    // only ones that can witness a second claimant at my cell — my phone
+    // target (a deep non-head phones its row head, a deep head its owner) or,
+    // in Section 1, a rook peer. A YIELD is honoured only from one of them, so
+    // one member's eviction power stays bounded by the cells it really holds
+    // next to its victim (law S, harm ~ fanout).
+    arbiterIs(x) {
+      if (x == null || !this.hasCoord) return false;
+      if (this.coord.pc === 0) { for (const olc of topo.ownedLinks(this.coord)) if (olc.pc === 0 && this.occGet(ck(olc)) === x) return true; return false; }
+      const tc = this.coord.i !== 0 ? { pc: this.coord.pc, r: this.coord.r, i: 0 } : this.ownerCoord();
+      return !!tc && this.occGet(ck(tc)) === x;
+    }
+    // A cell whose occupancy this seat may learn from its claimant: my own,
+    // an owned link, my owner's, a cell I vouched for THIS claimant, and (for
+    // a CLAIM, the admittee's word to its admitter) my owned child row.
+    claimRel(k, id, childRow) {
+      if (!this.hasCoord) return false;
+      if (k === ck(this.coord) || this.ownedLinkCell(k)) return true;
+      const oc = this.ownerCoord(); if (oc && ck(oc) === k) return true;
+      const sit = this.sitting.get(k); if (sit && sit.joiner === id) return true;
+      if (childRow) { const d = topo.down(this.coord); const c = cellKeyOk(k); if (c && c.pc === d.pc && c.r === d.r) return true; }
+      return false;
+    }
+    // x is first-hand live at a cell other than k: a seat is in ONE place.
+    liveElsewhere(x, k) { for (const [k2, v2] of this.occ) if (v2 === x && k2 !== k && this.firstHandLive(k2)) return true; return false; }
+    // An UNPROVEN claim (signed, but over the relay or a sponsor: nothing
+    // proves the claimant is on a link to me — a newcomer whose channels are
+    // still opening, or anyone). It may teach a FREE cell, as a hint (no
+    // liveness), and it never displaces or overwrites an occupant. A claimant
+    // holds at most one such cell in my view: its other non-first-hand
+    // entries go, so one member cannot plant itself across a greeter's home
+    // (test/mesh/forged-frames.js A7). Returns true if it installed.
+    hintClaim(k, id) {
+      if (this.occ.has(k)) return false;
+      if (this.liveElsewhere(id, k)) return false;
+      for (const [k2, v2] of Array.from(this.occ)) if (v2 === id && k2 !== k && !this.firstHandLive(k2)) this.occ.delete(k2);
+      this.setOcc(k, id); this.noteS1(k);
+      return true;
+    }
     confirmSeated(k, joiner) {
       // V4 SITXFER: confirming a Section-1 row HEAD I vouched hands it the
       // row's outstanding vouch ledger AND my confirmed row occ — the head
@@ -1055,7 +1127,11 @@
       this.coord = c; this.hasCoord = true; this.state = 3; this.joinStart = -1; this.stranded = false; this.reAsk = false; this.reJoin = false; this.noroomSeen = 0; this.rowLedgerAt = -1; // seated: any deferred entry retry is moot; T7: the NOROOM evidence dies; V7: a new seat holds no child-row ledger yet with the attempt it belonged to
       // A: self-confirm sitting-down → seated (only the joiner upgrades).
       this.confirmSeated(ck(c), this.id);
-      for (const kv of nbrs) if (!this.occ.has(kv.k)) { this.setOcc(kv.k, kv.v); this.noteS1(kv.k); }
+      // The neighbours a PLACE (or a heal) teaches me: my new owned links, my
+      // owner, and the admitter itself (wherever it sits) — nothing else, so a
+      // signed PLACE cannot fill my view with cells of its choosing.
+      { const ok = new Set(topo.ownedLinks(c).map(ck)); const oc = ownerCoordOf(c); if (oc) ok.add(ck(oc)); let adm = owner != null;
+        for (const kv of (Array.isArray(nbrs) ? nbrs : [])) { if (!kv || kv.v == null || !cellKeyOk(kv.k)) continue; if (!ok.has(kv.k)) { if (!adm || kv.v !== owner) continue; adm = false; } if (!this.occ.has(kv.k)) { this.setOcc(kv.k, kv.v); this.noteS1(kv.k); } } }
       this.drainAt = 0; this.seatTries = 0; this.seatedAt = this.TICK; this.rookSeenAt = this.TICK;
       // § G: a seat change re-parents me — new aggregator, new scope, new child
       // row. Every digest relationship starts over, including G4's grace
@@ -1534,8 +1610,10 @@
     }
     // A frame that evidences my NEW neighbourhood (someone accepted me there).
     moveEvidence(m) {
-      if (m.t === 'PONG') return true;                          // my new phone answered
-      if (m.t === 'PHONE') return m.tock === ck(this.coord);    // a call TO my new cell
+      // PHONE and PONG ride unsigned: they count only when the transport
+      // names their author (a forged one must not vacate my old seat early).
+      if (m.t === 'PONG') return this.linkIs(m, m.id != null ? m.id : m.lk);   // my new phone answered
+      if (m.t === 'PHONE') return this.linkIs(m, m.id) && m.tock === ck(this.coord);    // a call TO my new cell
       if (m.t === 'HELLO' || (m.t === 'CLAIM' && this.verifyFill(m))) {
         for (const olc of topo.ownedLinks(this.coord)) if (ck(olc) === m.ck) return true;
       }
@@ -1630,7 +1708,12 @@
       const rm = topo.rowMates(this.coord); for (const m of rm) { const cx = topo.crossLink(m); if (!cx) continue; const x = this.occGet(ck(cx)); if (x != null && x !== this.id && x !== exclude) return x; }
       return null;
     }
-    routeTo(target, tag) { const nh = this.nextHopToward(target, null); if (ck(this.coord) === ck(target)) return; if (nh != null) this.emit(nh, { t: 'ROUTE', target, asker: this.id, tag, ttl: 60, via: this.id }); }
+    routeTo(target, tag) { const nh = this.nextHopToward(target, null); if (ck(this.coord) === ck(target)) return; if (nh != null) { this.probeNote(ck(target)); this.emit(nh, { t: 'ROUTE', target, asker: this.id, tag, ttl: 60, via: this.id }); } }
+    // The probes I have in flight (target cell -> tick): a ROUTED answer is
+    // taken only for one of them. Bounded: one entry per probed cell, and a
+    // probe older than its longest round trip (ttl 60 hops each way) is gone.
+    probeNote(k) { const P = this.probeOut = this.probeOut || new Map(); if (P.size >= 64) { for (const [k2, t2] of P) if (this.TICK - t2 > 240) P.delete(k2); if (P.size >= 64) P.delete(P.keys().next().value); } P.set(k, this.TICK); }
+    probeAsked(k) { const t = this.probeOut ? this.probeOut.get(k) : undefined; return t !== undefined && this.TICK - t <= 240; }
     // routeToProbe: the D5 translost probe. THE PROBE TRAVELS THE MESH, NOT THE
     // DEAD LINK: the first hop excludes the probed occupant itself (my direct
     // link to it is exactly what died), and the frame carries my coord (acoord)
@@ -1641,7 +1724,7 @@
     routeToProbe(target) {
       const tk = ck(target); if (!this.hasCoord || ck(this.coord) === tk) return;
       const nh = this._probeHop(target, this.occGet(tk));
-      if (nh != null) this.emit(nh, { t: 'ROUTE', target, asker: this.id, tag: 2, ttl: 60, via: this.id, acoord: this.coord });
+      if (nh != null) { this.probeNote(tk); this.emit(nh, { t: 'ROUTE', target, asker: this.id, tag: 2, ttl: 60, via: this.id, acoord: this.coord }); }
     }
     // _probeHop: first hop for a probe (or its answer) that must NOT use the
     // direct link to `target`. Prefer a hop that is itself a DIRECT neighbour
@@ -1854,19 +1937,33 @@
 
     onPhone(m) {
       const TICK = this.TICK;
-      if (m.dw) this._dwTake(m.id, m.dw);
+      if (m.id == null || !m.coord) return;
+      const sure = this.linkIs(m, m.id);
+      if (sure && m.dw) this._dwTake(m.id, m.dw);
       if (this.hasCoord && this.moving && m.tock === this.oldCk && m.tock !== ck(this.coord)) { // T1 dual-hold: the OLD seat still answers while the claim is in flight
-        this.emit(m.id, { t: 'PONG', coord: this.oldCoord, from: null, owner: null, oCk: null, row: [], nbrs: [] }); return;
+        this.emit(m.id, { t: 'PONG', coord: this.oldCoord, from: null, id: this.id, owner: null, oCk: null, row: [], nbrs: [] }); return; // id: the answer names its author (a routed PONG's last hop is not the responder)
       }
       if (this.hasCoord && this.leaseUntil >= 0 && TICK <= this.leaseUntil && m.tock === this.leaseCk && m.tock !== ck(this.coord)) { // T3: a call to my just-vacated cell — answer MOVED so the caller confirms the vacancy NOW
         this.emit(m.id, { t: 'MOVED', ck: this.leaseCk, mvd: ck(this.coord), id: this.id }); return;
       }
       if (!this.hasCoord || m.tock !== ck(this.coord)) return; // ckey(0,0,0)=="0_0_0" is a REAL coord — always check
+      // FRAME AUTHORITY. Every honest PHONE comes from a cell that is one of
+      // MY owned links (ownedLinks is symmetric; a seat phones only its own
+      // owned links), so any other coord is refused outright. A PHONE is
+      // unsigned: it is the phoner's own word only when the transport names
+      // it (lk). An UNPROVEN one (a sponsor envelope, the relay — or a forger
+      // wearing any id) may only refresh a pairing I already hold: it keeps a
+      // newcomer whose channels are still opening alive, and it never installs
+      // a seat, YIELDs an incumbent, writes the row ledger or a digest.
+      const kk = ck(m.coord);
+      if (!this.ownedLinkCell(kk)) return;
+      const prev = this.occGet(kk);
+      if (!sure && prev !== m.id) return;
       // § G UP-LEG: the phoner's digest arrives as PAYLOAD on the beat it
       // already sends (G0). Which scope it names is decided by the phoner's
       // RELATION to me, read from its coord — never from anything it asserts.
       let upD = null;
-      if (this.digOn() && m.dgUp && m.coord) {
+      if (sure && this.digOn() && m.dgUp && m.coord) {
         if (m.dgUp.stub === 1) { if (this.coord.pc === 0 && m.coord.pc === 0) upD = this.stubTake(Object.assign({}, m.dgUp, { from_: m.id, slot_: 'up' }), this.s1tab.get(ck(m.coord))); } // a rook peer's "unchanged" — only Section-1 digests are ever stubbed
         else { upD = digSane(m.dgUp); if (upD) this.rxDig(upD); } // off the wire: typed and capped, or refused whole; G0b: freshness on MY clock
       }
@@ -1877,20 +1974,21 @@
           const it = this.s1tab.get(pk); if (it === undefined || it.rx <= upD.rx) this.s1tab.set(pk, upD);
         } else if (this.coord.pc !== 0 && this.coord.i === 0 && m.coord.pc === this.coord.pc && m.coord.r === this.coord.r) this.rowKids.set(pk, upD); // a row-mate published ITS SUBTREE
       }
-      const kk = ck(m.coord); const prev = this.occGet(kk);
       // D5: my first-hand hearing of prev ENDS at my own transport loss (an
       // unanswered translost) — a corpse whose last PHONE is still inside the
       // 40-tick window must not out-tenure the legitimate healer's fill. An
       // answered probe erases the observation, restoring the sitting
       // occupant's full tenure protection (S5: "has itself, first-hand,
       // stopped hearing the prior occupant").
-      if (prev != null && prev !== m.id && m.id > prev && this.live.has(kk) && TICK - this.live.get(kk) <= 40 && !this.translost.has(kk)) { this.emit(m.id, { t: 'YIELD', ck: kk }); return; }
-      this.setOcc(kk, m.id); this.liveMark(kk); this.noteS1(kk); this.kidful.set(kk, m.kids ? 1 : 0); if (m.child != null) this.childOf.set(kk, m.child); else this.childOf.delete(kk);
+      if (prev != null && prev !== m.id && m.id > prev && this.live.has(kk) && TICK - this.live.get(kk) <= 40 && !this.translost.has(kk)) { this.emit(m.id, { t: 'YIELD', ck: kk, id: this.id }); return; } // id: the arbiter names itself (the YIELD is honoured only from the loser's arbiter)
+      this.setOcc(kk, m.id); this.liveMark(kk); this.noteS1(kk);
+      if (sure) { this.kidful.set(kk, m.kids ? 1 : 0); if (m.child != null) this.childOf.set(kk, m.child); else this.childOf.delete(kk); }
       // V7: my down-child head phoned me its ROW LEDGER. Install what I lack (a
       // cell I already hold keeps my entry — two claimants are the head's E2
-      // yield to settle, not mine to overwrite) and stamp the beat.
-      if (kk === ck(topo.down(this.coord))) {
-        if (Array.isArray(m.row)) for (const e of m.row) { if (e && e.k != null && e.v != null && !this.occ.has(e.k)) { this.setOcc(e.k, e.v); this.noteS1(e.k); } }
+      // yield to settle, not mine to overwrite) and stamp the beat. Only the
+      // head itself writes it, and only cells 1..C-1 of ITS row.
+      if (sure && kk === ck(topo.down(this.coord))) {
+        if (Array.isArray(m.row)) for (const e of m.row.slice(0, C())) { const c = e && cellKeyOk(e.k); if (c && c.pc === m.coord.pc && c.r === m.coord.r && c.i > 0 && e.v != null && !this.occ.has(e.k)) { this.setOcc(e.k, e.v); this.noteS1(e.k); } }
         this.rowLedgerAt = this.TICK;
       }
       const myoc = this.ownerCoord(); let owner = null, oCk = null; if (myoc) { oCk = ck(myoc); owner = this.occGet(oCk); }
@@ -1929,7 +2027,7 @@
       }
       this.emit(m.id, pong);
       if (prev !== m.id) this._gspReplay(m.id); // NEW occupant learned ⇒ hand over the recent gossip backlog
-      if (prev != null && prev !== m.id) this.emit(prev, { t: 'YIELD', ck: kk });
+      if (prev != null && prev !== m.id) this.emit(prev, { t: 'YIELD', ck: kk, id: this.id });
     }
     phoneHome() {
       let tc = null; if (this.hasCoord) { if (this.coord.i !== 0) tc = { pc: this.coord.pc, r: this.coord.r, i: 0 }; else tc = this.ownerCoord(); }
@@ -2162,7 +2260,7 @@
       // meeting instead of ending it. (Duplicates are free: they never reach
       // this line.) Dropped messages stay unseen, so a copy arriving later
       // over a calmer link still lands.
-      if (!this._gspBudget(m.from, m.src)) { this.gspDropped = (this.gspDropped || 0) + 1; return; }
+      if (!this._gspBudget(m.lk != null ? m.lk : m.from, m.src)) { this.gspDropped = (this.gspDropped || 0) + 1; return; } // the link the TRANSPORT named, when it named one: a hostile link that writes a fresh `from` on every frame must not mint itself a fresh bucket each time
       g.set(m.gid, this.TICK);
       // Horizon GC from the OLDEST entry, stopping at the first fresh one: the
       // Map keeps insertion order and every entry is stamped with the tick it
@@ -2252,10 +2350,10 @@
       // that is not, is a hostile or corrupt frame, never a seat. Dropped at
       // the door so no handler has to re-check (topo.pcDepth guards itself
       // too — see gifos-net.js).
-      for (const k of ['coord', 'target', 'hole']) {
+      for (const k of ['coord', 'target', 'hole', 'rdst', 'acoord']) {
         const c = m[k];
         if (c == null) continue;
-        if (typeof c !== 'object' || !Number.isInteger(c.pc) || c.pc < 0 || !Number.isInteger(c.r) || c.r < 0 || !Number.isInteger(c.i) || c.i < 0) return;
+        if (!coordOk(c)) return; // r, i inside C; the section path a real one, no deeper than the wall
       }
       if (m.routing && !this.routeStep(m)) return; // Option A: in-transit routing frame — forward (or drop); fall through only when FOR me
       if (this.moving && this.state === 3 && this.moveEvidence(m)) this.confirmMove(); // T1: a new-neighbourhood frame is the claim's CONFIRMATION — vacate the old seat now
@@ -2383,7 +2481,7 @@
             this.lastReach = TICK;
             if (this.forkPending > 0) this.forkPending--;
             const gk = m.gkey != null ? String(m.gkey) : '';
-            if (gk && m.roster && m.roster.length) {
+            if (gk && Array.isArray(m.roster) && m.roster.length && m.roster.length <= C() * C()) { // a sample clusters by its peer ids; a roster longer than the home is no sample
               const faces = (m.roster || []).map((e) => (e && (e.v != null ? e.v : e))).filter(Boolean).map((v) => String(v).slice(0, 12));
               this.forkLastAt = TICK;
               this.forkSamples.push({
@@ -2438,14 +2536,39 @@
         case 'HELLO': {
           // A HELLO is FIRST-HAND: its sender (m.id) is speaking on a link it
           // holds to me, claiming coord m.ck — it sets first-hand liveness.
-          if (this.hasCoord && this.state === 3 && m.ck === ck(this.coord) && m.id !== this.id && m.id < this.id) { if (TICK - this.challAt > 20) { this.challAt = TICK; this.emit(m.id, { t: 'CHALLENGE', ck: m.ck, from: this.id }); } return; }
+          // FRAME AUTHORITY: it is S4-signed (the wire drops a bad one), so m.id
+          // is its author — but the CELL is the author's word. It must be a
+          // cell I have a relation to (mine, an owned link, my owner's, my
+          // vouch for this id); a claim on any other cell is nobody's business
+          // here (one signed member used to fill a greeter's whole home).
+          if (m.id == null || !cellKeyOk(m.ck) || !this.claimRel(m.ck, m.id, false)) return;
+          const sure = this.linkIs(m, m.id);
+          if (this.hasCoord && this.state === 3 && m.ck === ck(this.coord) && m.id !== this.id && m.id < this.id) {
+            // A rival for MY cell. Only Section 1 is settled by challenge (two
+            // rings sharing one door, healing-laws R5) — a deep cell is settled
+            // by its one arbiter, my phone target. A rival first-hand live at
+            // another cell in my view is in two places: not a rival.
+            if (this.coord.pc !== 0 || this.liveElsewhere(m.id, m.ck)) return;
+            if (TICK - this.challAt > 20) { this.challAt = TICK; this.challTo = { id: m.id, ck: m.ck, at: TICK }; this.emit(m.id, { t: 'CHALLENGE', ck: m.ck, from: this.id }); }
+            return;
+          }
           const prev = this.occGet(m.ck);
           // E2: yield only between FIRST-HAND-LIVE claimants. A prev that is
           // only gossip (a phantom) is NOT first-hand live ⇒ no yield ⇒ the
           // real sender is accepted (bug #1). D5: an unanswered transport loss
           // ends my first-hand hearing of prev, so it no longer counts fresh.
           const prevFresh = (prev != null) && this.firstHandLive(m.ck) && !this.translost.has(m.ck);
-          if (prev != null && prev !== m.id && prevFresh) this.emit(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck }); // two live seats at one coord: lower id wins, higher yields
+          if (!sure) {
+            // UNPROVEN (relay / sponsor: a newcomer whose channels are still
+            // opening, or anyone). It never displaces a live incumbent: a
+            // higher-id rival is YIELDed as E2 would, a lower one is ignored
+            // until it speaks over a link. It may teach a FREE cell, as a hint.
+            if (prev != null && prev !== m.id) { if (prevFresh && m.id > prev) this.emit(m.id, { t: 'YIELD', ck: m.ck, id: this.id }); return; }
+            if (prev == null && this.hintClaim(m.ck, m.id)) { if (this.hasCoord) this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); this._gspReplay(m.id); }
+            { const sit = this.sitting.get(m.ck); if (sit && sit.joiner === m.id) this.clearSoft(m.ck); }
+            return;
+          }
+          if (prev != null && prev !== m.id && prevFresh) this.emit(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck, id: this.id }); // two live seats at one coord: lower id wins, higher yields
           if (prev !== m.id) { this.setOcc(m.ck, m.id); if (this.hasCoord) this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); this._gspReplay(m.id); }
           this.liveMark(m.ck); // first-hand: I just heard m.id directly at m.ck
           this.noteS1(m.ck);
@@ -2456,21 +2579,53 @@
           { const sit = this.sitting.get(m.ck); if (sit && sit.joiner === m.id) this.clearSoft(m.ck); }
           return;
         }
-        case 'YIELD': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) { if (this.moving) this.rollbackMove(); else this.requeue(); } return; // T1: a mover contradicted at its NEW cell goes home, not homeless
-        case 'CLAIM':
-          if (!this.verifyFill(m)) return;
-          // A: joiner self-confirm — upgrade sitting-down → seated.
-          this.confirmSeated(m.ck, m.id);
+        // YIELD: "you and another claim your cell; you lost." Honoured only
+        // from my ARBITER (arbiterIs) and only when that arbiter is proven the
+        // sender — signed, or named by the transport. id: the arbiter (a
+        // pre-authority client sends none; over its own link it is lk).
+        case 'YIELD': {
+          if (!this.hasCoord || this.state !== 3 || ck(this.coord) !== m.ck) return;
+          const by = m.id != null ? m.id : m.lk;
+          if (by == null || by === this.id || !this.proven(m, by) || !this.arbiterIs(by)) return;
+          if (this.moving) this.rollbackMove(); else this.requeue(); // T1: a mover contradicted at its NEW cell goes home, not homeless
           return;
+        }
+        case 'CLAIM': {
+          if (!this.verifyFill(m) || m.id == null || !cellKeyOk(m.ck)) return;
+          // A: joiner self-confirm — upgrade sitting-down → seated. My own
+          // vouch for exactly this joiner at exactly this cell is the
+          // admitter's word, whatever path the CLAIM took.
+          const sit = this.sitting.get(m.ck);
+          if (sit && sit.joiner === m.id) { this.confirmSeated(m.ck, m.id); return; }
+          // Otherwise the cell must be one I relate to (my child row counts: I
+          // admit into it), never my own seat; over a link it is first-hand,
+          // unproven it may only teach a free cell.
+          if (this.hasCoord && m.ck === ck(this.coord)) return;
+          if (!this.claimRel(m.ck, m.id, true)) return;
+          if (this.linkIs(m, m.id)) this.confirmSeated(m.ck, m.id);
+          else this.hintClaim(m.ck, m.id);
+          return;
+        }
         case 'LEAVE': {
+          // FRAME AUTHORITY: a goodbye frees the LEAVER'S OWN cell, so it must
+          // be the leaver speaking — over its own link, or S4-signed (the
+          // statement covers `mvd`, so a carrier cannot re-point it). A LEAVE
+          // in anyone else's name used to free a live seat at every neighbour
+          // and start a left-pack heal into it.
+          if (m.id == null || !cellKeyOk(m.ck) || (m.mvd != null && !cellKeyOk(m.mvd)) || !this.proven(m, m.id)) return;
           this.lastChurn = TICK; // Q2 hysteresis: a departure near me — hold off compaction until quiescent
-          if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck, 'leave'); this.healTry.delete(m.ck); } // freed ⇒ admissible now
+          const mine = this.occGet(m.ck) === m.id;
+          if (mine) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.tlForget(m.ck, 'leave'); this.healTry.delete(m.ck); } // freed ⇒ admissible now
           // A, ATTRIBUTABLE (V4): only the LEAVER'S OWN vouch clears — a soft
           // sit exists only for a cell that read FREE at admit time, so a
           // LEAVE naming this cell from anyone else is a PRIOR tenant's
           // departure echo arriving after the cell was re-vouched.
           { const sit = this.sitting.get(m.ck); if (sit && sit.joiner === m.id) this.clearSoft(m.ck); }
-          if (m.mvd) { this.setOcc(m.mvd, m.id); this.noteS1(m.mvd); } // T3: the goodbye says WHERE it went — routing hint, first-hand
+          if (mine && m.mvd) { this.setOcc(m.mvd, m.id); this.noteS1(m.mvd); } // T3: the goodbye says WHERE it went — routing hint, first-hand (only from a seat I held there)
+          // A goodbye about a cell somebody ELSE holds in my view frees
+          // nothing, so it heals nothing (it was a left-pack lever into a live
+          // seat). An empty cell — freed now or never known — still heals.
+          if (this.occGet(m.ck) != null) return;
           // H-CHAIN vertical: vacated down-child clears childOf on its owner
           // so LEFT-PACK can devolve (childOf otherwise never expired).
           {
@@ -2514,13 +2669,17 @@
         }
         case 'GREETWALK': return; // H6 retired
         case 'S1SYNC': {
+          // Section-1 gossip names Section-1 cells, at most one entry per cell
+          // (s1Sync sends C^2 at most); anything else is a malformed or hostile
+          // frame and is dropped whole.
+          if (!Array.isArray(m.ent) || m.ent.length > C() * C() || (m.digs != null && (!Array.isArray(m.digs) || m.digs.length > C() * C()))) return;
           if (m.dw) this._dwTake(m.from, m.dw);
           // § G root fold: merge the relayed section table, the FRESHEST ON MY
           // CLOCK wins (G0b relative ages). Purely additive display state — it
           // touches nothing below this block.
           if (this.digOn() && this.hasCoord && this.coord.pc === 0 && m.digs) {
             for (const e of m.digs) {
-              if (!isS1key(e.k)) continue;
+              if (!e || !s1KeyOk(e.k)) continue;
               if (this.hasCoord && e.k === ck(this.coord)) continue; // never take a relayed claim about MY OWN section — I fold that first-hand
               if (!e.d) continue;
               const ed = e.d.stub === 1 ? this.stubTake(Object.assign({}, e.d, { from_: m.from, slot_: 's1:' + e.k }), this.s1tab.get(e.k)) : digSane(e.d); if (!ed || ed.at < 0) continue;
@@ -2535,6 +2694,7 @@
           // first-hand only. The old gossip-requeue and gossip-YIELD were
           // phantom weapons — a stale echo could evict a live seat. Bug #1.)
           for (const e of m.ent) {
+            if (!e || !s1KeyOk(e.k) || e.v == null) continue;
             const kk = e.k, eid = e.v, age = e.age;
             if (e.ch != null) this.childOf.set(kk, e.ch); // learn this cell's heir — feeds cousins-in-PONG
             if (this.hasCoord && kk === ck(this.coord) && eid !== this.id) continue; // gossip claims MY seat: IGNORE — a genuine duplicate is settled by a first-hand witness, never an echo
@@ -2579,10 +2739,27 @@
           this.roster = m.roster; this.haveRoster = true; const rc = this.rosterCells(); for (let c = 0; c < C(); c++) { const x = this.occGet(ck(rc[c])); if (x != null && x !== this.id) this.emit(x, { t: 'DRAIN', roster: m.roster, id: this.id }); } this.drainAt = TICK + 6 + (this.rng() * 12 | 0); this.wake(); return;
         }
         case 'CHALLENGE': if (this.evil) { this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return; } if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck) this.emit(m.from, { t: 'CONFIRM', ck: m.ck, id: this.id }); return;
-        case 'CONFIRM': if (this.hasCoord && this.state === 3 && ck(this.coord) === m.ck && m.id !== this.id && m.id < this.id) { if (this.moving) this.rollbackMove(); else this.requeue(); } return;
+        // CONFIRM: the answer to MY CHALLENGE — "I hold your cell too, and my
+        // id is lower." Honoured only from the very rival I challenged, for
+        // that cell, within 40 ticks, when it is proven the sender, and not
+        // while it is first-hand live at another cell in my view. Unsolicited,
+        // it used to unseat anyone with a higher id than the one it named.
+        case 'CONFIRM': {
+          const ch = this.challTo;
+          if (!this.hasCoord || this.state !== 3 || ck(this.coord) !== m.ck || m.id == null || m.id === this.id || !(m.id < this.id)) return;
+          if (!ch || ch.id !== m.id || ch.ck !== m.ck || TICK - ch.at > 40 || !this.proven(m, m.id) || this.liveElsewhere(m.id, m.ck)) return;
+          this.challTo = null;
+          if (this.moving) this.rollbackMove(); else this.requeue();
+          return;
+        }
         case 'GSP': case 'GSPS': this._gspRecv(m); return;
         case 'MOVED': { // T3: the cell I phoned was vacated by a MOVE — first-hand vacancy + redirect, right now
-          if (this.occGet(m.ck) === m.id) { this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.healTry.delete(m.ck); } // freed ⇒ admissible now
+          // FRAME AUTHORITY: the mover's own word (link or S4-signed, `mvd`
+          // inside the statement), about a cell I phone (an owned link) that
+          // I hold the mover at; otherwise it frees nothing and plants nothing.
+          if (m.id == null || !cellKeyOk(m.ck) || (m.mvd != null && !cellKeyOk(m.mvd)) || !this.proven(m, m.id)) return;
+          if (!this.ownedLinkCell(m.ck) || this.occGet(m.ck) !== m.id) return;
+          this.occ.delete(m.ck); this.live.delete(m.ck); this.kidful.delete(m.ck); this.s1seen.delete(m.ck); this.healTry.delete(m.ck); // freed ⇒ admissible now
           if (m.mvd) { this.setOcc(m.mvd, m.id); this.liveMark(m.mvd); this.noteS1(m.mvd); }
           this.wake(); return;
         }
@@ -2591,8 +2768,9 @@
           // and its confirmed row occ. I am now the row's admitter, and these
           // cells are already promised or held.
           if (this.hasCoord && this.coord.pc === 0 && this.coord.i === 0 && ck(this.coord) === m.ck) {
-            for (const kv of (m.vouches || [])) if (!this.occ.has(kv.k) && !this.sitting.has(kv.k)) this.sitting.set(kv.k, { joiner: kv.v, assigner: this.id, at: this.TICK, pingAt: -1 });
-            for (const e of (m.rowOcc || [])) if (!this.occ.has(e.k)) { this.setOcc(e.k, e.v); this.noteS1(e.k); }
+            const inRow = (e) => { const c = e && cellKeyOk(e.k); return !!c && c.pc === 0 && c.r === this.coord.r && e.v != null; }; // the ledger of MY row, nothing else
+            for (const kv of (Array.isArray(m.vouches) ? m.vouches.slice(0, C()) : [])) if (inRow(kv) && !this.occ.has(kv.k) && !this.sitting.has(kv.k)) this.sitting.set(kv.k, { joiner: kv.v, assigner: this.id, at: this.TICK, pingAt: -1 });
+            for (const e of (Array.isArray(m.rowOcc) ? m.rowOcc.slice(0, C()) : [])) if (inRow(e) && !this.occ.has(e.k)) { this.setOcc(e.k, e.v); this.noteS1(e.k); }
             this.rowLedger = true;
           }
           return;
@@ -2619,13 +2797,32 @@
         }
         case 'PHONE': this.onPhone(m); return;
         case 'PONG': {
+          // FRAME AUTHORITY: a PONG answers MY PHONE, so it comes from a cell I
+          // phone — one of my owned links. Its responder is `id` (a
+          // pre-authority dual-hold answer carries none: then the link). It is
+          // unsigned: only when the transport names the responder does it
+          // teach me anything; an unproven one (sponsor, relay, a forger) may
+          // only confirm a pairing I already hold.
+          if (!this.hasCoord || !m.coord) return;
+          const pk = ck(m.coord);
+          if (!this.ownedLinkCell(pk)) return;
+          const pid = (m.id != null) ? m.id : m.lk;
+          if (pid == null) return;
+          if (!this.linkIs(m, pid)) {
+            if (this.occGet(pk) !== pid) return;
+            this.lastAck = TICK;
+            if (m.coord.pc === 0) { this.liveMark(pk); this.noteS1(pk); }
+            return;
+          }
           this.lastAck = TICK;
           // FIRST-HAND: the responder spoke to me directly on our rook link.
-          const pid = (m.id != null) ? m.id : m.from;
-          if (this.hasCoord && m.coord && m.coord.pc === 0 && pid != null) { this.setOcc(ck(m.coord), pid); this.liveMark(ck(m.coord)); this.noteS1(ck(m.coord)); }
-          if (m.owner != null && this.occGet(m.oCk) !== m.owner) { this.setOcc(m.oCk, m.owner); this.noteS1(m.oCk); }
-          for (const e of m.row) { if (this.occGet(e.k) !== e.v) this.setOcc(e.k, e.v); this.noteS1(e.k); if (e.age != null) this.childOf.set(e.k, e.age); }
-          for (const kv of m.nbrs) this.cousins.set(kv.k, kv.v); // W: learn the heirs at my future owned-links for relay-free promote-up
+          if (m.coord.pc === 0) { this.setOcc(pk, pid); this.liveMark(pk); this.noteS1(pk); }
+          // Its owner cell is a fact of the topology, not of its word; its row
+          // is ITS row (at most C cells); cousins are capped (W, 4C).
+          const oc = ownerCoordOf(m.coord);
+          if (m.owner != null && oc && m.oCk === ck(oc) && this.occGet(m.oCk) !== m.owner) { this.setOcc(m.oCk, m.owner); this.noteS1(m.oCk); }
+          if (Array.isArray(m.row)) for (const e of m.row.slice(0, C())) { const c = e && cellKeyOk(e.k); if (!c || c.pc !== m.coord.pc || c.r !== m.coord.r || e.v == null) continue; if (this.occGet(e.k) !== e.v) this.setOcc(e.k, e.v); this.noteS1(e.k); if (e.age != null) this.childOf.set(e.k, e.age); }
+          if (Array.isArray(m.nbrs)) for (const kv of m.nbrs.slice(0, 4 * C())) { if (!kv || !cellKeyOk(kv.k) || kv.v == null) continue; if (!this.cousins.has(kv.k) && this.cousins.size >= 4 * C()) continue; this.cousins.set(kv.k, kv.v); } // W: learn the heirs at my future owned-links for relay-free promote-up
           // ---- § G DOWN-LEG + the AUTHOR'S REFUTATION --------------------
           // G4: I check ONE thing — that the fold my aggregator published
           // still contains the contribution I authored. An owner's subtree is
@@ -2662,7 +2859,7 @@
         case 'ROUTE': {
           if (!this.hasCoord) return;
           if (ck(this.coord) === ck(m.target)) {
-            if (m.tag === 3) { this.probeAck.set(m.ack, TICK); this.tlLog.push([m.ack, TICK, 'pa:tag3-answer from ' + String(m.id || m.via || '?').slice(0, 6)]); if (this.tlLog.length > 24) this.tlLog.shift(); return; } // a D5 probe ANSWER routed back around the dead link — the probed peer LIVES
+            if (m.tag === 3) { if (typeof m.ack !== 'string' || !this.translost.has(m.ack)) return; this.probeAck.set(m.ack, TICK); this.tlLog.push([m.ack, TICK, 'pa:tag3-answer from ' + String(m.id || m.via || '?').slice(0, 6)]); if (this.tlLog.length > 24) this.tlLog.shift(); return; } // a D5 probe ANSWER routed back around the dead link — the probed peer LIVES
             if (m.tag === 2 && m.acoord) {
               // D5 translost probe reached me: I am alive — answer AROUND the
               // dead link (first hop excludes the asker; my direct link to it
@@ -2684,7 +2881,10 @@
           const nh = this.nextHopToward(m.target, m.via); if (nh != null) { this.emit(nh, { t: 'ROUTE', target: m.target, asker: m.asker, tag: m.tag, ttl: m.ttl - 1, via: this.id, acoord: m.acoord, ack: m.ack }); return; }
           this.emit(m.asker, { t: 'ROUTED', tag: m.tag, target: m.target, id: null }); return;
         }
-        case 'ROUTED': if (m.tag === 1 || m.tag === 2) { if (m.id != null && this.hasCoord) { this.setOcc(ck(m.target), m.id); this.noteS1(ck(m.target)); this.probeAck.set(ck(m.target), TICK); this.tlLog.push([ck(m.target), TICK, 'pa:routed-tag' + m.tag + ' id=' + String(m.id).slice(0, 6)]); if (this.tlLog.length > 24) this.tlLog.shift(); this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } return; // probeAck AFTER setOcc (a changed occupant clears the observation first)
+        // ROUTED answers a probe I sent (routeTo / routeToProbe stamp probeOut):
+        // an answer about a target I never asked after is nobody's (it used to
+        // write any id into any cell of my occ).
+        case 'ROUTED': if (m.tag === 1 || m.tag === 2) { if (m.id != null && this.hasCoord && m.target && this.probeAsked(ck(m.target))) { this.setOcc(ck(m.target), m.id); this.noteS1(ck(m.target)); this.probeAck.set(ck(m.target), TICK); this.tlLog.push([ck(m.target), TICK, 'pa:routed-tag' + m.tag + ' id=' + String(m.id).slice(0, 6)]); if (this.tlLog.length > 24) this.tlLog.shift(); this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); } } return; // probeAck AFTER setOcc (a changed occupant clears the observation first)
         default: return;
       }
     }

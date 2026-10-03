@@ -86,11 +86,11 @@ function holdHandshakes() {
   const key = await net.deriveMeetKey(ROOM, '', '');
   const RELAY = 'ws://127.0.0.1:' + PORT;
   const bus = new Map();
-  const sendDC = (to, m) => {
+  const sendDC = (to, m, from) => {
     const e = bus.get(to);
     if (e && !e.dead) {
       const c = JSON.parse(JSON.stringify(m));
-      setTimeout(() => { if (!e.dead) e.node.recvCtl(c); }, 5);
+      setTimeout(() => { if (!e.dead) e.node.recvCtl(c, from, true); }, 5); // from the pair, direct (run.html's DataChannel intake)
     }
     return true;
   };

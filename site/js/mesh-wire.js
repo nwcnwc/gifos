@@ -59,6 +59,16 @@
   // on the way in when S4 is active. FINDLEAF/PLACE/CLAIM are the verifyFill-
   // gated fills; HELLO carries the announce (pubkey exchange + move recognition).
   const SIGNED = new Set(['FINDLEAF', 'PLACE', 'CLAIM', 'HELLO', 'SITPONG', 'SITXFER', 'DRAIN']);   // V4: SITPONG is a re-CLAIM (confirms occupancy), SITXFER grants a row's admission ledger — both author occupancy and are S4-signed; SITPING is a question and rides unsigned like PHONE. DRAIN (E1) vacates a whole subtree: signed, `id` bound to the signer, honoured by mesh.js only from the receiver's anchor
+  // EVICTION frames (docs/meet-security.md §AUTH). Each frees or unseats a
+  // seat, so mesh.js honours one only from its author — named by the
+  // transport (`lk`: the sender's own DataChannel) or S4-signed by that
+  // author. They are signed on the way out (they are rare), and on the way in
+  // verified only when the transport does not already name the author, on
+  // their OWN chain so they never queue in front of a seating frame. Unlike
+  // SIGNED, an unsigned one still reaches mesh.js (an older client's LEAVE
+  // over its own DataChannel is still the leaver speaking). A LEAVE is
+  // signed AHEAD (see preLeave) so a page closing sends it in the same tick.
+  const EVICT = new Set(['LEAVE', 'MOVED', 'YIELD', 'CONFIRM']);
 
   // createMeshNode(opts):
   //   relayUrl        ws(s)://host:port of the relay (no path)
@@ -162,6 +172,13 @@
     const s4on = true;                      // unconditional — no off switch
     const verifyChain = net.makeChain();   // fills (HELLO/PLACE/CLAIM/...): FIFO so crypto never reorders a sender's frames
     const gossipChain = net.makeChain();   // gossip has its own lane: a chat burst must never queue a newcomer's seating frame behind it
+    const evictChain = net.makeChain();    // eviction frames that need a signature check: their own lane, behind nobody's seating
+    // THE PRE-SIGNED GOODBYE: one signed LEAVE{ck, id} for the cell I hold now,
+    // re-signed on every seat change, after it is used, and every 4 minutes
+    // (verifyFill's window is 10). leave() runs in pagehide / beforeunload and
+    // the node stops in the same tick, so a goodbye signed only then would
+    // never leave (e5cdce8a: a graceful close took 57 ticks to free the seat).
+    let preLeave = null, preLeaveBusy = false;
     const gpending = new Set();            // gids whose verification is in flight — the copies that arrive meanwhile are not verified again
     let skewFired = false;                 // onClockSkew fires once per node
     const gsig = new Map(); // gid -> Promise<s4> for gossip I authored (signed once, sent many times)
@@ -260,7 +277,7 @@
       // still never touch the relay.
       if (AT_THE_DOOR_ASKING_TO_BE_LET_IN(to, m)) return;
       if (ANSWERING_SOMEONE_AT_THE_DOOR(to, m)) return;
-      if (opts.sendDC && opts.sendDC(to, m)) return;   // DataChannel, else sponsor-forward through the mesh
+      if (opts.sendDC && opts.sendDC(to, m, peer)) return;   // DataChannel, else sponsor-forward through the mesh (peer: the sender, for in-process buses)
       // Anything else has no path: the peer is NOT REACHABLE. Say nothing and
       // let healing (H1/H2/E2) see the truth — a back channel that lies about
       // reachability is worse than silence.
@@ -291,6 +308,13 @@
         // the frame, not the destination), so signing once and reusing is safe.
         if (s4on && identity && SIGNED.has(m.t) && !m.s4) {
           ident.signFill(identity, m).then((s) => { if (!stopped) { m.s4 = s; deliver(to, m); } }).catch(() => {});
+          return;
+        }
+        if (s4on && identity && EVICT.has(m.t) && !m.s4) {
+          if (m.t === 'LEAVE' && m.mvd == null && preLeave && preLeave.ck === m.ck && m.id === peer) { m.s4 = preLeave.s4; preLeave.used = true; deliver(to, m); return; }
+          // A goodbye is delivered even if the node stops before the signature
+          // resolves; anything else is moot once stopped.
+          ident.signFill(identity, m).then((s4) => { if (!stopped || m.t === 'LEAVE') { m.s4 = s4; deliver(to, m); } }).catch(() => {});
           return;
         }
         // GOSSIP I AUTHOR is signed once per message and the block reused for
@@ -327,8 +351,18 @@
     // never reorders a sender's frames); a good frame is delivered with m.s4ok
     // stamped and its key pinned, a forged one is dropped. Non-signed frames and
     // S4-off nodes pass straight through — the structural path is untouched.
-    function ingest(m, via) {
-      if (stopped || !seat || !m) return;
+    function ingest(m, via, direct) {
+      if (stopped || !seat || !m || typeof m !== 'object') return;
+      // THE TRANSPORT'S WORD (docs/meet-security.md §AUTH). `lk` is the
+      // sender the transport itself vouches for, and only this function
+      // writes it: a frame that came straight over the sender's own
+      // DataChannel (`direct`, from run.html's pair intake) and was not routed
+      // (a routed frame's last hop is not its author). A relay `from` or a
+      // sponsor envelope's origin never becomes `lk` — the sender writes both,
+      // and the relay stamps whatever peer id the socket asked for. `s4ok` /
+      // `s4from` are verification results: a sender may not pre-stamp them.
+      delete m.lk; delete m.s4ok; delete m.s4from;
+      if (direct === true && via != null && m.rvia == null && m.rdst == null) m.lk = via;
       // THE LINK IS NAMED: `via` is the peer that delivered this frame (the
       // DC pair's pid, a sponsor envelope's origin, the relay's `from`). A
       // frame that carries no sender field of its own gets it, so the seat's
@@ -359,6 +393,13 @@
           // problem, not my clock's.
           else if (v && v.reason === 'skew' && seat.state !== 3 && !skewFired) { skewFired = true; if (opts.onClockSkew) { try { opts.onClockSkew(v.skewMs, v.from); } catch (e) {} } }
           // else: unsigned / forged / impostor / key-swapped fill — DROP it.
+        }).catch(() => {}));
+        return;
+      }
+      if (s4on && EVICT.has(m.t) && m.s4 && !(m.lk != null && (m.id == null || m.id === m.lk))) {
+        evictChain(() => ident.verifyFill(seat.pins, m).then((v) => {
+          if (stopped) return;
+          if (v && v.ok) { m.s4ok = true; m.s4from = v.from; seat.recv(m); } // else: forged / replayed / tampered — dropped
         }).catch(() => {}));
         return;
       }
@@ -407,7 +448,8 @@
               // a THROW inside the seat's recv must be LOUD — the old shape
               // let it fall into the outer catch and masquerade as an
               // unopenable app frame, silently eating entry handshakes
-              try { ingest(o.m, m.from); } catch (e) { try { console.error('[mesh] recv threw on', o.m && o.m.t, e); } catch (e2) {} }
+              // (the relay's `from` is the socket's own claim: never the transport's word)
+              try { ingest(o.m, m.from, false); } catch (e) { try { console.error('[mesh] recv threw on', o.m && o.m.t, e); } catch (e2) {} }
             } else if (opts.onRelayMsg) opts.onRelayMsg(m);
           }).catch(() => { if (!stopped && opts.onRelayMsg) opts.onRelayMsg(m); });
           return;
@@ -681,6 +723,16 @@
       if (!ids.length && preState === 3 && iAmAGreeter()) reregister('empty-pool');
     }
 
+    // Keep the pre-signed goodbye (see preLeave) current: one signature per
+    // seat change or per 4 minutes, never on the per-tick path otherwise.
+    function refreshPreLeave() {
+      if (!s4on || !identity || preLeaveBusy || stopped || !seat || !seat.hasCoord || seat.state !== 3) return;
+      const k = net.topo.ckey(seat.coord), sat = seat.seatedAt;
+      if (preLeave && !preLeave.used && preLeave.ck === k && preLeave.sat === sat && Date.now() - preLeave.at < 240000) return;
+      preLeaveBusy = true;
+      const f = { t: 'LEAVE', ck: k, id: peer };
+      ident.signFill(identity, f).then((s4) => { preLeaveBusy = false; preLeave = { ck: k, sat, s4, at: Date.now(), used: false }; }).catch(() => { preLeaveBusy = false; });
+    }
     function startLoop() {
       // THE TICK CLOCK IS A WORKER where one exists (G1 sender side): this
       // one interval drives seat.tick(), the 55s greeter keepalive and the
@@ -712,6 +764,7 @@
           env.TICK++;
           seat.tick();
         }
+        refreshPreLeave();
         if (seat.stranded && !strandedFired) { strandedFired = true; if (opts.onStranded) opts.onStranded(); }
         // Socket lifecycle: deep-seated ⇒ the relay is done with me; drop after a
         // grace (Section-1 seats and joiners keep theirs — knock traffic). An
@@ -811,7 +864,7 @@
       get identity() { return identity; },
       // DataChannel ingestion: the DC layer hands OPENED control objects here
       // (production unwraps its own sealed frames; {mw:1, m} envelopes route m).
-      recvCtl(m, via) { if (!stopped && seat && m) ingest(m, via); }, // via: the delivering peer (optional; the link the flood budget keys on)
+      recvCtl(m, via, direct) { if (!stopped && seat && m) ingest(m, via, direct); }, // via: the delivering peer; direct === true ONLY for a frame off that peer's own DataChannel (run.html's pair intake) — never for a sponsor envelope or the relay
       // Room-wide app traffic (chat/status/votes/files): flood over the mesh —
       // the relay session is only the greeter pool now, not the room.
       gossip(payload, opts) { if (!stopped && seat) seat.gossip(payload, opts); }, // opts: { scope: 'section', ephemeral } — see mesh.js gossip()

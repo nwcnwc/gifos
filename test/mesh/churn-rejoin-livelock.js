@@ -57,7 +57,7 @@ const sendDC = (fromPeer) => (to, m) => {
   if (!(src.seat && src.seat.state === 3 && dst.seat && dst.seat.state === 3)) return false;
   if (dark.has(fromPeer) || dark.has(to)) return true; // channel "exists", frames vanish
   const c = JSON.parse(JSON.stringify(m));
-  setTimeout(() => { if (!dark.has(fromPeer) && !dark.has(to)) dst.recvCtl(c); }, 3 + Math.random() * 10);
+  setTimeout(() => { if (!dark.has(fromPeer) && !dark.has(to)) dst.recvCtl(c, fromPeer, true); }, 3 + Math.random() * 10); // from the pair, direct (run.html's DataChannel intake)
   return true;
 };
 

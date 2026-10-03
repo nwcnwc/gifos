@@ -1,6 +1,6 @@
 # Meeting security doctrines (canonical)
 
-The three security principles the meeting mesh is built on. Extracted from the
+The security principles the meeting mesh is built on (§LOCK, §SIG, §FWD, §AUTH). Extracted from the
 mesh-refactor design (git history: `docs/mesh-refactor.md`) when the old
 deacon/deck model was ripped out; these survived the rewrite because they are
 not topology — they are what makes the topology safe to run with a
@@ -132,6 +132,49 @@ sponsor to any room member on the path — but every carrier was already a
 room member holding the room key, so nothing new is readable, and S4-signed
 mesh fills stay verified at the final recipient regardless of the route. This
 is an accepted limit, not an oversight.
+
+## §AUTH — Who may say what about which seat (2026-10-03)
+
+A mesh control frame names seats (`id`, `from`) and cells (`ck`, `coord`),
+and the sender writes every one of those fields. None of them proves who sent
+it. Two things do:
+
+- **The transport's word, `lk`.** Only the wire writes it: `mesh-wire`
+  `ingest(m, via, direct)` sets `m.lk = via` for a frame that came straight
+  off the sender's own DataChannel (run.html's pair intake passes `direct`)
+  and was not routed. A relay frame's `from` is the socket's own `peer=`
+  claim (relay.js and relay-local.js stamp it, and nothing proves the socket
+  holds that key — `rs` only stops a live socket being *replaced*), and a
+  sponsor envelope's origin is written by whoever built it, so neither ever
+  becomes `lk`. The sender may not pre-stamp `lk`, `s4ok` or `s4from`.
+- **The author's signature, `s4ok`.** S4 `verifyFill` binds `id` to the
+  signer. YIELD, CONFIRM, LEAVE and MOVED are now signed by their author
+  (`EVICT` in mesh-wire); the LEAVE/MOVED statement covers `mvd`.
+
+The rules (mesh.js, twinned in test/sim/mesh_seat.inc):
+
+| frame | honoured only when |
+|---|---|
+| PHONE / PONG (never signed) | the cell is one of my owned links; the transport names the author; an unproven one may only refresh a pairing I already hold |
+| HELLO / CLAIM (signed) | the cell is mine, an owned link, my owner's, or my vouch for that id (CLAIM: also my child row). Unproven (sponsor/relay), it never displaces an occupant and holds at most one hint cell per claimant |
+| YIELD | from my arbiter — my phone target, or a rook peer in Section 1 — proven the sender |
+| CONFIRM | Section 1 only, from the rival I CHALLENGEd for that cell within 40 ticks, proven, not first-hand live elsewhere |
+| LEAVE / MOVED | from the leaver itself (link or signature), freeing only the cell I hold it at |
+| ROUTED | for a target I probed in the last 240 ticks |
+
+Every cell key from the wire must be a real cell (`cellKeyOk`: `r,i < C`,
+each path digit a column, depth <= 12). No signature rides a per-beat frame,
+and an eviction frame that needs one is verified on its own chain, never
+ahead of a seating frame. A LEAVE is signed ahead of time so a closing page
+sends it in the same tick. `test/mesh/forged-frames.js` is the attack suite.
+
+**Still open** (the first-contact edge of S4, extended to occupancy): a member
+can contest a Section-1 cell, or pose as a newcomer at a free cell next to a
+victim, under its own signed id, and E2's lower-id-wins favours a ground low
+id; a forged but consistent PHONE can keep a dead neighbour looking alive; and
+the DataChannel pair id is only as strong as the unsigned WebRTC signaling
+that built it. Binding occupancy to the admitter's signed PLACE, and signing
+the offer/answer with the S4 key, would close them.
 
 ## The relay's knowledge, in one paragraph
 

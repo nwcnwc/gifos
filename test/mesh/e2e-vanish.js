@@ -48,7 +48,7 @@ const secs = (ticks) => (ticks < 0 ? '?' : (ticks * PROD_TICK_S).toFixed(1) + 's
   const cut = (a, b) => { const ea = bus.get(a), eb = bus.get(b); return (ea && (ea.dead || ea.holed)) || (eb && (eb.dead || eb.holed)); };
   const sendDC = (to, m) => {
     const e = bus.get(to);
-    if (e && !cut(to, m && m.__from)) { const c = JSON.parse(JSON.stringify(m)); delete c.__from; setTimeout(() => { if (!e.dead && !e.holed) e.node.recvCtl(c); }, 5 + Math.random() * 15); }
+    if (e && !cut(to, m && m.__from)) { const c = JSON.parse(JSON.stringify(m)); const from = c.__from; delete c.__from; setTimeout(() => { if (!e.dead && !e.holed) e.node.recvCtl(c, from, true); }, 5 + Math.random() * 15); } // from the pair, direct (run.html's DataChannel intake)
     return true; // a channel "exists" either way — a crashed far end just never answers
   };
   const N = 12;

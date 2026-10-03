@@ -49,7 +49,10 @@ const idVerify = (pubB64, sigB64, str) => {
   verifyCache.set(k, ok);
   return ok;
 };
-const fillKeyOf = (m) => m.hole ? 'h:' + ck(m.hole) : (m.coord ? 'c:' + ck(m.coord) : (m.ck ? 'k:' + m.ck : '-'));
+const fillKeyOf = (m) => m.hole ? 'h:' + ck(m.hole) : (m.coord ? 'c:' + ck(m.coord) : (m.ck ? 'k:' + m.ck + (m.mvd != null ? '>' + m.mvd : '') : '-'));   // a goodbye commits to where it went (mesh-identity fillKeyOf)
+// Eviction frames (mirrors mesh-wire EVICT): signed by their author on send,
+// verified on delivery only when the bus does not name the author itself.
+const H_EVICT = new Set(['LEAVE', 'MOVED', 'YIELD', 'CONFIRM']);
 const H_GOSSIP = new Set(['GSP', 'GSPS']);
 const statement = (from, m) => (H_GOSSIP.has(m.t)
   ? JSON.stringify({ v: 1, t: m.t, gid: String(m.gid), from, sc: (m.sc === undefined ? null : m.sc), m: (m.m === undefined ? null : m.m) })   // gossip: the AUTHOR signs frame id, scope and payload (browser twin hashes the payload)
@@ -108,6 +111,7 @@ function makeFabric() {
     peek(id) { const s = env.seats.get(id); if (!s) return null; return { hasCoord: s.hasCoord, coord: s.coord, socketed: s.socketed(), gateway: s.gateway }; },
     send(from, to, m) {
       if (H_SIGNED.has(m.t) && !m.s4) { const sf = env.seats.get(from); if (sf && sf.identity) signFill(sf.identity, m); }
+      if (H_EVICT.has(m.t) && !m.s4) { const sf = env.seats.get(from); if (sf && sf.identity && m.id === sf.id) signFill(sf.identity, m); }   // only the author signs (a routing hop forwards the author's block)
       if (H_GOSSIP.has(m.t) && m.s4 === undefined && env.S4_GOSSIP !== false) { const sf = env.seats.get(from); if (sf && sf.identity && m.src === sf.id) signGossip(sf.identity, m); } // an author signs; a forwarder never signs another's
       classifyEmit(env, from, to, m);
       const pk = pairKey(from, to); let d;
@@ -146,7 +150,15 @@ function counts(env) {
 
 function doTick(env) {
   const q = env.bus.get(env.TICK);
-  if (q) { for (const m of q) { const s = env.seats.get(m.to); if (!s || !s.alive) continue; if (H_SIGNED.has(m.t)) { if (!verifyDelivered(s.pins, m)) continue; m.s4ok = true; }
+  if (q) { for (const m of q) { const s = env.seats.get(m.to); if (!s || !s.alive) continue;
+      // THE TRANSPORT'S WORD (mesh-wire ingest twin): the bus names the sender
+      // of a frame it carried straight from it (`lk`); a routed frame's last
+      // hop is not its author. A test injects a relay/sponsor frame with
+      // _lk = null (nobody proven) or a forger's link with _lk = its id.
+      // Verification results are never taken from the sender.
+      delete m.s4ok; m.lk = ('_lk' in m) ? m._lk : ((m.rvia == null && m.rdst == null) ? m.from : null); delete m._lk;
+      if (H_SIGNED.has(m.t)) { if (!verifyDelivered(s.pins, m)) continue; m.s4ok = true; }
+      if (H_EVICT.has(m.t) && m.s4 && !(m.lk != null && (m.id == null || m.id === m.lk))) { if (!verifyDelivered(s.pins, m)) continue; m.s4ok = true; }
       if (H_GOSSIP.has(m.t) && env.S4_GOSSIP !== false) { if (s.gseen && s.gseen.has(m.gid)) continue; if (!verifyDelivered(s.pins, m) || JSON.parse(m.s4.sp).from !== m.src) { s.gspForged = (s.gspForged || 0) + 1; continue; } m.s4ok = true; }
       s.recv(m); } env.bus.delete(env.TICK); }
   for (const s of env.seats.values()) if (s.alive) s.tick();
@@ -383,7 +395,7 @@ function d5Scenario() {
 module.exports = {
   mesh, net, topo, ck,
   makeFabric, doTick, converge, counts, spawn, spawnOne, spawnDue, runJoin, kill,
-  mintId, newPins, signFill, signGossip, verifyDelivered, seatSeed, seedRng, H_SIGNED, H_GOSSIP,
+  mintId, newPins, signFill, signGossip, verifyDelivered, seatSeed, seedRng, H_SIGNED, H_GOSSIP, H_EVICT,
 };
 
 if (require.main === module) {

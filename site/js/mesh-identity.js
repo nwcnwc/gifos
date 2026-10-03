@@ -71,7 +71,10 @@
     // the coordinate a fill frame authoritatively acts on
     if (m.hole) return 'h:' + net.topo.ckey(m.hole);
     if (m.coord) return 'c:' + net.topo.ckey(m.coord);
-    if (m.ck) return 'k:' + m.ck;
+    // A goodbye (LEAVE / MOVED) also commits to WHERE its author went, so a
+    // carrier cannot re-point it (only the new eviction frames carry mvd, and
+    // no older client verifies them, so no older statement changes).
+    if (m.ck) return 'k:' + m.ck + (m.mvd != null ? '>' + m.mvd : '');
     return '-';
   }
   // `ts` is the minting time: Ed25519 is deterministic, so two honest

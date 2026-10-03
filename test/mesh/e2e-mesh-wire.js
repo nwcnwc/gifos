@@ -59,9 +59,9 @@ async function waitConverged(nodes, N, ms) {
   {
     const key = await net.deriveMeetKey('wire-room-a', '', '');
     const bus = new Map(); // peer -> { node, dead }
-    const sendDC = (to, m) => { // reliable in-order fake DC; black-holes to the dead
+    const sendDC = (to, m, from) => { // reliable in-order fake DC; black-holes to the dead. A frame lands as run.html hands it over: from the pair, direct
       const e = bus.get(to);
-      if (e && !e.dead) { const c = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (!e.dead) e.node.recvCtl(c); }, 5 + Math.random() * 20); }
+      if (e && !e.dead) { const c = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (!e.dead) e.node.recvCtl(c, from, true); }, 5 + Math.random() * 20); }
       return true; // a channel "exists" either way — a crashed far end just never answers
     };
     const nodes = []; const heard = new Map();
