@@ -722,6 +722,7 @@ freeze a link mid-flight).
 | `e2e-mesh-wire.js` | mesh↔wire over a real relay and real sealing |
 | `e2e-mesh-identity.js` | S4 per-participant identity minting over real WebSockets |
 | `e2e-vanish.js` | healing-laws D5: vanish-to-seat-freed per departure mode over the production wire stack |
+| `forged-frames.js` | frame authority (docs/meet-security.md §AUTH): a hostile member forges YIELD, CONFIRM, LEAVE, MOVED, PHONE and PONG in another seat's name, over its own link and over the relay/a sponsor; claims cells it does not hold; floods junk cell keys; replays a real signed goodbye. Part A on the harness fabric, Part B through the production ingest and a real relay socket |
 | `e2e-app-owner.js` / `e2e-app-mesh-wire.js` | app ownership on the mesh |
 | `steady-socket.js` | R2 socket retention |
 

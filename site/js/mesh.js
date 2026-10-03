@@ -1980,7 +1980,12 @@
       // answered probe erases the observation, restoring the sitting
       // occupant's full tenure protection (S5: "has itself, first-hand,
       // stopped hearing the prior occupant").
-      if (prev != null && prev !== m.id && m.id > prev && this.live.has(kk) && TICK - this.live.get(kk) <= 40 && !this.translost.has(kk)) { this.emit(m.id, { t: 'YIELD', ck: kk, id: this.id }); return; } // id: the arbiter names itself (the YIELD is honoured only from the loser's arbiter)
+      if (prev != null && prev !== m.id && m.id > prev && this.live.has(kk) && TICK - this.live.get(kk) <= 40 && !this.translost.has(kk)) { this.emit(m.id, { t: 'YIELD', ck: kk, id: this.id }); return; }
+      // A seat is in ONE place: a phoner I hear first-hand at another cell
+      // does not displace the live incumbent here, whatever its id (a
+      // neighbour claiming the next cell over was an eviction lever). A real
+      // mover's old cell is freed by its LEAVE(mvd); then E2 decides.
+      if (prev != null && prev !== m.id && this.live.has(kk) && TICK - this.live.get(kk) <= 40 && !this.translost.has(kk) && this.liveElsewhere(m.id, kk)) return; // id: the arbiter names itself (the YIELD is honoured only from the loser's arbiter)
       this.setOcc(kk, m.id); this.liveMark(kk); this.noteS1(kk);
       if (sure) { this.kidful.set(kk, m.kids ? 1 : 0); if (m.child != null) this.childOf.set(kk, m.child); else this.childOf.delete(kk); }
       // V7: my down-child head phoned me its ROW LEDGER. Install what I lack (a
@@ -2575,6 +2580,7 @@
             { const sit = this.sitting.get(m.ck); if (sit && sit.joiner === m.id) this.clearSoft(m.ck); }
             return;
           }
+          if (prev != null && prev !== m.id && prevFresh && this.liveElsewhere(m.id, m.ck)) { if (m.id > prev) this.emit(m.id, { t: 'YIELD', ck: m.ck, id: this.id }); return; } // a seat is in ONE place: a claimant live at another cell does not displace a live incumbent
           if (prev != null && prev !== m.id && prevFresh) this.emit(m.id > prev ? m.id : prev, { t: 'YIELD', ck: m.ck, id: this.id }); // two live seats at one coord: lower id wins, higher yields
           if (prev !== m.id) { this.setOcc(m.ck, m.id); if (this.hasCoord) this.emit(m.id, { t: 'HELLO', ck: ck(this.coord), id: this.id }); this._gspReplay(m.id); }
           this.liveMark(m.ck); // first-hand: I just heard m.id directly at m.ck
@@ -2594,6 +2600,17 @@
           if (!this.hasCoord || this.state !== 3 || ck(this.coord) !== m.ck) return;
           const by = m.id != null ? m.id : m.lk;
           if (by == null || by === this.id || !this.proven(m, by) || !this.arbiterIs(by)) return;
+          // Section 1 has up to 2C-2 arbiters and an honest contest is seen by
+          // every one the rival phones, so ONE rook peer's word is not enough
+          // while two or more of them are live: a single hostile neighbour
+          // cannot evict me alone. A deep cell has exactly one arbiter (C3).
+          if (this.coord.pc === 0) {
+            const Y = this.yieldBy = (this.yieldBy && this.yieldBy.ck === m.ck) ? this.yieldBy : { ck: m.ck, by: new Map() };
+            Y.by.set(by, TICK); for (const [b, t] of Y.by) if (TICK - t > 16) Y.by.delete(b);
+            let liveRook = 0; for (const olc of topo.ownedLinks(this.coord)) if (olc.pc === 0 && this.firstHandLive(ck(olc))) liveRook++;
+            if (Y.by.size < Math.min(2, Math.max(1, liveRook))) return;
+            this.yieldBy = null;
+          }
           if (this.moving) this.rollbackMove(); else this.requeue(); // T1: a mover contradicted at its NEW cell goes home, not homeless
           return;
         }

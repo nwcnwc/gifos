@@ -1001,6 +1001,7 @@ void Seat::onPhone(Msg& m){
   // answered probe erases the observation, restoring full tenure protection
   // (S5: "has itself, first-hand, stopped hearing the prior occupant").
   if(prev>=0&&prev!=m.id&&m.id>prev && live.count(ck) && TICK-live[ck]<=40 && !translost.count(ck)){ Msg y;y.t=YIELD;y.ck=ck;y.id=id; emit(m.id,y); return; }   // id: the arbiter names itself
+  if(prev>=0&&prev!=m.id && live.count(ck) && TICK-live[ck]<=40 && !translost.count(ck) && liveElsewhere(m.id,ck)) return;   // a seat is in ONE place: a phoner live at another cell does not displace the live incumbent (mesh.js twin)
   setOcc(ck,m.id); liveMark(ck); noteS1(ck); if(sure){ kidful[ck]=m.kids?1:0; if(m.child>=0) childOf[ck]=m.child; else childOf.erase(ck); }
   // V7: my down-child head phoned me its ROW LEDGER. Install what I lack (a
   // cell I already hold first-hand keeps my entry — two claimants are the
@@ -1554,6 +1555,7 @@ void Seat::recv(Msg& m){
         if(prev<0 && hintClaim(m.ck,m.id)){ if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
         { auto sit=sitting.find(m.ck); if(sit!=sitting.end() && sit->second.joiner==m.id) clearSoft(m.ck,"hello"); }
         return; }
+      if(prev>=0&&prev!=m.id&&prevFresh&&liveElsewhere(m.id,m.ck)){ if(m.id>prev){ Msg y;y.t=YIELD;y.ck=m.ck;y.id=id; emit(m.id,y);} return; }   // a seat is in ONE place (mesh.js twin)
       if(prev>=0&&prev!=m.id&&prevFresh){ Msg y;y.t=YIELD;y.ck=m.ck;y.id=id; emit(m.id>prev?m.id:prev,y); }   // two live seats at one coord: lower id wins, higher yields
       if(prev!=m.id){ setOcc(m.ck,m.id); if(hasCoord){ Msg h;h.t=HELLO;h.ck=ckey(coord);h.id=id; emit(m.id,h);} }
       liveMark(m.ck);   // first-hand: I just heard m.id directly at m.ck
@@ -1570,6 +1572,15 @@ void Seat::recv(Msg& m){
       if(!hasCoord||state!=3||ckey(coord)!=m.ck) return;
       int by=m.id>=0?m.id:m.lk;
       if(by<0||by==id||!proven(m,by)||!arbiterIs(by)) return;
+      // Section 1: two distinct arbiters within 16 ticks while two or more rook
+      // peers are live (a single hostile neighbour cannot evict alone); deep: one (C3)
+      if(coord.pc==0){
+        if(yieldCk!=m.ck){ yieldCk=m.ck; yieldBy.clear(); }
+        yieldBy[by]=(int)TICK; { vector<int> old; for(auto&e:yieldBy) if(TICK-e.second>16) old.push_back(e.first); for(int o:old) yieldBy.erase(o); }
+        int liveRook=0; { Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); for(int q=0;q<n;q++) if(ol[q].pc==0 && firstHandLive(ckey(ol[q]))) liveRook++; }
+        if((int)yieldBy.size() < min(2, max(1,liveRook))) return;
+        yieldBy.clear(); yieldCk=~0ULL;
+      }
       if(moving) rollbackMove(); else requeue("T1-yield");   // T1: a mover contradicted at its NEW cell goes home, not homeless
       return; }
     case CLAIM: {

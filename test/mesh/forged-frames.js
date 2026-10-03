@@ -219,6 +219,34 @@ function partA() {
     run(r.env, 150);
     check('A10 HELLO for the victim\'s own cell from a higher id (' + (link ? 'H\'s link' : 'relay') + ') is never written into the victim\'s own seat', own !== Hs.id && inRoster === 1 && g.kept(), { own: own === Hs.id ? 'H' : own === V.id ? 'V' : own, inRoster, g });
   }
+  // A11 ONE Section-1 neighbour (a real arbiter of the victim: a rook peer)
+  // YIELDs it, over its own link and signed over the relay. While the victim
+  // hears two or more rook peers, one neighbour's word does not unseat it.
+  for (const how of ['link', 'relay-signed']) {
+    const r = room(); const s1 = r.seats.filter((x) => x.coord.pc === 0).sort((a, b) => (a.id < b.id ? 1 : -1));
+    const V = s1[0]; const vk = ck(V.coord);
+    const rook = new Set(topo.ownedLinks(V.coord).filter((c) => c.pc === 0).map(ck));
+    const Hs = r.seats.filter((x) => rook.has(ck(x.coord))).sort((a, b) => (a.id < b.id ? -1 : 1))[0];
+    const g = guard(V); const hears = [...rook].filter((k) => V.firstHandLive(k)).length;
+    const f = how === 'link' ? { t: 'YIELD', ck: vk } : signed(Hs, { t: 'YIELD', ck: vk, id: Hs.id });
+    inject(r.env, V, f, how === 'link' ? Hs.id : null);
+    run(r.env, 150);
+    check('A11 one rook neighbour\'s YIELD (' + how + ') does not unseat a Section-1 seat that hears ' + hears + ' rook peers', hears >= 2 && g.kept(), g);
+  }
+  // A12 a neighbour, live at its OWN cell, claims the victim's cell to a
+  // common arbiter in its own name with a lower id (PHONE over its own link).
+  {
+    const r = room(); const s1 = r.seats.filter((x) => x.coord.pc === 0).sort((a, b) => (a.id < b.id ? 1 : -1));
+    const V = s1[0]; const vk = ck(V.coord);
+    const mates = r.seats.filter((x) => x.coord.pc === 0 && x.coord.r === V.coord.r && x.id !== V.id).sort((a, b) => (a.id < b.id ? -1 : 1));
+    const Hs = mates[0], W = mates[mates.length - 1];
+    const g = guard(V);
+    inject(r.env, W, { t: 'PHONE', coord: V.coord, tock: ck(W.coord), id: Hs.id }, Hs.id);
+    run(r.env, 2);
+    const early = W.occGet(vk);
+    run(r.env, 150);
+    check('A12 a row-mate live at its own cell claiming the victim\'s cell (its own lower id, its own link) takes nothing at the arbiter', Hs.id < V.id && early === V.id && g.kept(), { lower: Hs.id < V.id, arbiterSaw: early === V.id ? 'V' : early === Hs.id ? 'H' : early, g });
+  }
   // A9 a replayed signed goodbye: H captures a seat's real signed LEAVE (with
   // where it went) and replays it with the destination changed.
   {
