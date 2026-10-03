@@ -224,6 +224,17 @@ The final mosaic (`stadiumGrid`, the `'stad'` pack shape) is packed for a
   in — pixels/person fall, footprint fixed. `createPacker({shape:'stad', …})` sizes the
   square against a fixed footprint width, so `cols > 5 ⇒ smaller square` falls
   out automatically.
+- **Dense mode** (a packer holding > STAD_CAP faces, every shape but the
+  Stage bar): per-face repacking stops. Each received block **keeps its own
+  geometry** and is **one** `drawImage`, scaled so its faces match the common
+  square; a skyline packer places the blocks, and the square is sized so the
+  grid fits the shape's fixed footprint (stad: 5·cell × 20·cell; grid: maxW²).
+  Per-paint cost is the tile count (≤ ~2C), and the canvas never outgrows the
+  footprint, whatever N is. The stadium may still split small blocks into
+  faces to fill gaps, within STAD_CAP draws. A dense block's `{n, cols}` no
+  longer locates faces (rows come from the frame aspect); only dense packers
+  receive such blocks, so nothing blits faces out of them. Guard:
+  `test/unit/mu-stadium-packer.js` (draws and canvas area for N = 25 … 100k).
 
 ### Overlay threshold — tapestry + green audio-dot
 Each square burns its info overlay (name / status / hand + green talking-frame)

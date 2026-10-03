@@ -213,11 +213,13 @@
   // 110px secondary-tile default for as long as it did).
   //   'stad' — square sized against a FIXED footprint (STAD_COLS·cellPref), so
   //            ≤STAD_COLS columns render at full cellPref and denser grids
-  //            shrink the square (footprint fixed, pixels/person fall).
+  //            shrink the square (footprint fixed, pixels/person fall). No
+  //            floor above 1 px: a 6 px floor grew the canvas with N past
+  //            about 28k faces (3 Oct 2026 audit).
   //   else   — cellPref, capped so the whole canvas fits in maxW.
   function cellSize(shape, cellPref, maxW, cols) {
     const G = Math.max(1, cols | 0);
-    if (shape === 'stad') return Math.max(6, Math.min(cellPref, Math.floor((STAD_COLS * cellPref) / G)));
+    if (shape === 'stad') return Math.max(1, Math.min(cellPref, Math.floor((STAD_COLS * cellPref) / G)));
     return Math.max(24, Math.min(cellPref, Math.floor(maxW / G)));
   }
   // faceSrcRect(j, n, cols, sw, sh): source rect of face j inside a packed block
@@ -275,6 +277,106 @@
     }
 
     const total = () => { let t = 0; for (const v of tiles.values()) t += v.n; return t; };
+
+    // ---- DENSE MODE: compose composites, not faces (3 Oct 2026 audit) ----
+    // Per-face blits cost one drawImage per face in the room, and a Section-1
+    // head holds the whole room: O(N) per paint. So per-face repacking runs
+    // only while the packer holds <= STAD_CAP faces. Past that, every received
+    // block KEEPS ITS OWN GEOMETRY (cols × rows of face squares) and is ONE
+    // drawImage, scaled so its faces match the common square. Blocks are
+    // placed by a skyline packer; the square is sized so the whole grid fits
+    // the shape's FIXED FOOTPRINT (stad: STAD_COLS·cell × capRows·cell; grid:
+    // maxW²). Cost per paint = number of tiles (≤ ~2C), area ≤ footprint,
+    // whatever N is. The output is no longer gapless, so its {n, cols} only
+    // says "n faces, cols squares wide"; rows come from the frame's aspect.
+    // That is safe: a block with n > STAD_CAP can only reach a packer holding
+    // more than STAD_CAP faces, which is dense too and never blits per face.
+    const DENSE = shape !== 'bar';
+    let denseNow = false, cellNow = 0;
+    function footprint() {
+      return shape === 'stad' ? { w: STAD_COLS * cellPref, h: Math.ceil(STAD_CAP / STAD_COLS) * cellPref } : { w: maxW, h: maxW };
+    }
+    // A tile's geometry in face squares, and the source height holding them.
+    function blockGeom(t) {
+      const el = t.el;
+      const sw = el ? (el.videoWidth || el.width || 0) : 0;
+      const sh = el ? (el.videoHeight || el.height || 0) : 0;
+      if (t.n === 1 && t.cols === 1) return { w: 1, h: 1, sw, sh, srcH: sh };
+      const rows = Math.max(1, Math.ceil(t.n / t.cols));
+      if (!sw || !sh) return { w: t.cols, h: rows, sw, sh, srcH: sh };
+      // A gapless sender (n <= STAD_CAP): the faces fill `rows` rows; any
+      // height below them is the stad row-step tail. A dense sender: the
+      // whole frame is its grid.
+      if (t.n <= STAD_CAP) return { w: t.cols, h: rows, sw, sh, srcH: Math.min(sh, rows * sw / t.cols) };
+      return { w: t.cols, h: Math.max(1, Math.round(sh * t.cols / sw)), sw, sh, srcH: sh };
+    }
+    // The draw list: whole blocks, plus (when `split`) single faces. Small
+    // gapless blocks are split into their faces (smallest first) while the
+    // list stays within STAD_CAP draws, so loose faces can fill the gaps
+    // between big blocks. paint() keeps whichever layout scores better.
+    function denseItems(order, splitOn) {
+      const items = order.map((t) => Object.assign({ t, j: -1 }, blockGeom(t)));
+      let budget = STAD_CAP - items.length;
+      const small = items.filter((it) => it.t.n > 1 && it.t.n <= STAD_CAP && it.sw && it.sh)
+        .sort((a, b) => a.t.n - b.t.n);
+      const split = new Set();
+      for (const it of small) { if (it.t.n - 1 > budget) break; budget -= it.t.n - 1; split.add(it); }
+      if (!splitOn || !split.size) return items;
+      const out = [];
+      for (const it of items) {
+        if (!split.has(it)) { out.push(it); continue; }
+        for (let j = 0; j < it.t.n; j++) out.push({ t: it.t, j, w: 1, h: 1, sw: it.sw, sh: it.sh, src: faceSrcRect(j, it.t.n, it.t.cols, it.sw, it.sh) });
+      }
+      return out;
+    }
+    const layCache = new Map(); // geometry key -> layout (a churn-free room repaints with no layout work)
+    function denseLayout(geo) {
+      let key = '';
+      for (const g of geo) key += g.w + 'x' + g.h + ',';
+      const fp = footprint();
+      key += fp.w + ':' + fp.h;
+      const hit = layCache.get(key);
+      if (hit) return hit;
+      let area = 0, wmax = 1;
+      for (const g of geo) { area += g.w * g.h; if (g.w > wmax) wmax = g.w; }
+      const g0 = Math.sqrt(area * fp.w / fp.h);
+      let best = null;
+      // Place tall blocks first and single faces last, so faces fill the
+      // gaps blocks leave. Ties keep tile order (deterministic everywhere).
+      const seq = geo.map((g, i) => i).sort((i, j) => (geo[j].h - geo[i].h) || (geo[j].w - geo[i].w) || (i - j));
+      let wsum = 0;
+      for (const g of geo) wsum += g.w;
+      const cands = new Set();
+      for (const k of [0.7, 0.8, 0.9, 1, 1.12, 1.25, 1.4]) cands.add(Math.max(wmax, Math.round(g0 * k)));
+      for (let q = 0; q <= 12; q++) cands.add(Math.round(wmax * Math.pow(Math.max(1, wsum / wmax), q / 12)));
+      for (const Gc of cands) {
+        const sky = new Array(Gc).fill(0), at = [];
+        let Hc = 0;
+        for (const i of seq) {
+          const g = geo[i];
+          // Lowest spot; candidates are x=0 and each skyline step.
+          let bx = 0, by = Infinity;
+          for (let x = 0; x + g.w <= Gc; x++) {
+            if (x > 0 && sky[x] === sky[x - 1]) continue;
+            let y = 0;
+            for (let q = x; q < x + g.w; q++) if (sky[q] > y) y = sky[q];
+            if (y < by) { by = y; bx = x; }
+          }
+          for (let x = bx; x < bx + g.w; x++) sky[x] = by + g.h;
+          at[i] = { x: bx, y: by };
+          if (by + g.h > Hc) Hc = by + g.h;
+        }
+        const c = Math.min(fp.w / Gc, fp.h / Math.max(1, Hc));
+        // Score: face size, weighted hard toward FILL. A hole in this frame
+        // rides inside the block to every level above, so holes compound
+        // with depth; c alone picked roomy layouts (top fill 0.45 at 100k).
+        const sc = c * Math.pow(area / (Gc * Math.max(1, Hc)), 4);
+        if (!best || sc > best.sc) best = { G: Gc, R: Math.max(1, Hc), c, at, sc };
+      }
+      if (layCache.size >= 4) layCache.clear();
+      layCache.set(key, best);
+      return best;
+    }
 
     // Burn identity onto a leaf face cell: a green TALKING frame, the NAME on a
     // bottom strip, a HAND glyph top-right. Baked at the leaf so it travels the
@@ -342,6 +444,21 @@
       }
       return s;
     }
+    function drawLeaf(t, el, sw, sh, dx, dy, cell) {
+      if (t.fit === 'contain') {
+        // A SHARED SCREEN, LETTERBOXED (see fitBox): whole surface, no
+        // crop. The bars are painted first so a re-aspect (a sharer
+        // switching from a window to a monitor) can never leave the
+        // previous source's pixels stranded in the margin.
+        const f = fitBox('contain', sw, sh, cell);
+        ctx.fillStyle = '#07090c'; ctx.fillRect(dx, dy, cell, cell);
+        ctx.drawImage(el, 0, 0, sw, sh, dx + f.dx, dy + f.dy, f.dw, f.dh);
+      } else {
+        const b = coverBox(sw, sh, { w: cell, h: cell });    // leaf camera → centered square
+        ctx.drawImage(el, b.sx, b.sy, b.sw, b.sh, dx, dy, cell, cell);
+      }
+      drawOverlay(dx, dy, cell, t.lbl);                       // BURN IN name/hand/talking (approach A: baked once at the leaf, rides pixels up the tree)
+    }
     function paint() {
       if (!ctx || active === false) return;                                    // demand-gated: a composite nobody ships or shows isn't painted (static canvas ⇒ ~0 encode too)
       const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -358,13 +475,29 @@
       }
       lastNonEmpty = now;
       // Nothing moved and nothing was relabelled ⇒ the frame would be byte-identical.
-      const g = packGrid(T, shape); G = g.cols; R = g.rows;
-      const cell = cellSize(shape, cellPref, maxW, G);
-      // Stad squares use the fixed footprint width. Other shapes use the maxW cap.
-      // The stad canvas then rounds UP to a 4-row step. The dark rows under the
-      // real grid are not faces; faceSrcRect sizes a face from the block width.
-      const rowsDrawn = shape === 'stad' ? stadRows(R, now) : R;
-      const W = Math.max(1, G * cell), H = Math.max(1, rowsDrawn * cell);
+      const order = [...tiles.values()].sort((a, b) => (a.ord < b.ord ? -1 : a.ord > b.ord ? 1 : 0));
+      const dense = DENSE && T > STAD_CAP;
+      let cell, W, H, geo = null, dl = null;
+      if (dense) {
+        // Fixed footprint, one drawImage per tile (see DENSE MODE above).
+        geo = denseItems(order, false);
+        dl = denseLayout(geo);
+        // Split faces only in the stadium itself: splitting inside a 'grid'
+        // product changes the block shapes the next level must fit.
+        const geoS = shape === 'stad' ? denseItems(order, true) : geo;
+        if (geoS !== geo) { const dlS = denseLayout(geoS); if (dlS.sc > dl.sc) { geo = geoS; dl = dlS; } }
+        G = dl.G; R = dl.R; cell = dl.c;
+        W = Math.max(1, Math.round(G * cell)); H = Math.max(1, Math.round(R * cell));
+      } else {
+        const g = packGrid(T, shape); G = g.cols; R = g.rows;
+        cell = cellSize(shape, cellPref, maxW, G);
+        // Stad squares use the fixed footprint width. Other shapes use the maxW cap.
+        // The stad canvas then rounds UP to a 4-row step. The dark rows under the
+        // real grid are not faces; faceSrcRect sizes a face from the block width.
+        const rowsDrawn = shape === 'stad' ? stadRows(R, now) : R;
+        W = Math.max(1, G * cell); H = Math.max(1, rowsDrawn * cell);
+      }
+      denseNow = dense; cellNow = cell;
       const sig = frameSig();
       // A due resize is a different frame even when every source currentTime is frozen.
       const sizeDue = canvas.width !== W || canvas.height !== H;
@@ -373,7 +506,20 @@
       if (canvas.width !== W) canvas.width = W;
       if (canvas.height !== H) canvas.height = H;
       ctx.fillStyle = '#101418'; ctx.fillRect(0, 0, W, H);
-      const order = [...tiles.values()].sort((a, b) => (a.ord < b.ord ? -1 : a.ord > b.ord ? 1 : 0));
+      if (dense) {
+        for (let i = 0; i < geo.length; i++) {
+          const g = geo[i], t = g.t, p = dl.at[i];
+          if (!g.sw || !g.sh) continue; // source not ready — leave dark, next paint fills
+          const dx = p.x * cell, dy = p.y * cell;
+          try {
+            if (t.n === 1 && t.cols === 1) drawLeaf(t, t.el, g.sw, g.sh, dx, dy, cell);
+            else if (g.src) ctx.drawImage(t.el, g.src.sx, g.src.sy, g.src.sw, g.src.sh, dx, dy, cell, cell); // one face of a split block
+            else ctx.drawImage(t.el, 0, 0, g.sw, g.srcH, dx, dy, g.w * cell, g.h * cell); // whole block, one blit
+          } catch (e) {}
+        }
+        last = now; cost = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - now; drawn++;
+        return;
+      }
       let f = 0;
       for (const t of order) {
         const el = t.el;
@@ -384,19 +530,7 @@
           if (!sw || !sh) { continue; } // source not ready — leave dark, next paint fills
           try {
             if (t.n === 1 && t.cols === 1) {
-              if (t.fit === 'contain') {
-                // A SHARED SCREEN, LETTERBOXED (see fitBox): whole surface, no
-                // crop. The bars are painted first so a re-aspect (a sharer
-                // switching from a window to a monitor) can never leave the
-                // previous source's pixels stranded in the margin.
-                const f = fitBox('contain', sw, sh, cell);
-                ctx.fillStyle = '#07090c'; ctx.fillRect(dx, dy, cell, cell);
-                ctx.drawImage(el, 0, 0, sw, sh, dx + f.dx, dy + f.dy, f.dw, f.dh);
-              } else {
-                const b = coverBox(sw, sh, { w: cell, h: cell });    // leaf camera → centered square
-                ctx.drawImage(el, b.sx, b.sy, b.sw, b.sh, dx, dy, cell, cell);
-              }
-              drawOverlay(dx, dy, cell, t.lbl);                       // BURN IN name/hand/talking (approach A: baked once at the leaf, rides pixels up the tree)
+              drawLeaf(t, el, sw, sh, dx, dy, cell);
             } else {
               const s = faceSrcRect(j, t.n, t.cols, sw, sh);         // block face → straight blit (overlay already baked by the sender)
               ctx.drawImage(el, s.sx, s.sy, s.sw, s.sh, dx, dy, cell, cell);
@@ -480,7 +614,7 @@
       // still not know the Stage was going out at 110px. The cross-device
       // harnesses (test/README.md, "ONE BOX CANNOT ANSWER…") are where stage
       // sizing has to be confirmed, and they can only report what stats() says.
-      stats() { return { drawn, dropped, still, cost: Math.round(cost * 10) / 10, faces: total(), cols: G, rows: R, fps, active, w: canvas ? canvas.width : 0, h: canvas ? canvas.height : 0 }; },
+      stats() { return { drawn, dropped, still, cost: Math.round(cost * 10) / 10, faces: total(), cols: G, rows: R, fps, active, dense: denseNow, cell: Math.round(cellNow * 100) / 100, w: canvas ? canvas.width : 0, h: canvas ? canvas.height : 0 }; },
     };
     return pk;
   }
