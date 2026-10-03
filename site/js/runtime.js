@@ -2012,9 +2012,90 @@
     try { root.localStorage.setItem(AI_KEY, JSON.stringify(cfg)); } catch (e) {}
     return cfg[role];
   }
+  // ---- installing a provider from a page WITHOUT a desktop ------------------
+  // The App Store installs by navigation (index.html#place=…), which a meeting
+  // cannot do mid-call. This is the store's verified-download path — the
+  // catalog record, the byte-exact sha256, the gifos.app signature, the
+  // manifest's own appId, the provider rules — ending in the Providers folder
+  // the way a stolen app ends in Stolen Apps (ensureStolenFolder /
+  // freeFolderCell above): the folder is created if this desktop predates it,
+  // and the cell is the first free one on the desktop's own grid. Idempotent:
+  // an app already in the folder is found and reused, never downloaded twice.
+  const PROVIDERS_ID = 'sys_providers';
+  function ensureProvidersFolder() {
+    return store.allItems().then((all) => {
+      if (all.find((i) => i.id === PROVIDERS_ID)) return all;
+      return store.putItem({ id: PROVIDERS_ID, kind: 'folder', name: 'Providers', parent: null, x: 12, y: 12 + 5 * 104, iconSize: 64 }).then(() => store.allItems());
+    });
+  }
+  function installProvider(slug, onProgress) {
+    const note = (text, frac) => { if (typeof onProgress === 'function') { try { onProgress(text, frac); } catch (e) {} } };
+    slug = String(slug || '').replace(/[^a-z0-9-]/gi, '');
+    if (!slug) return Promise.reject(new Error('No app named.'));
+    return root.fetch('/apps/' + slug + '/app.json', { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('The App Store has no listing for ' + slug + ' (' + r.status + ').'); return r.json(); })
+      .then((app) => {
+        if (!app || !app.appId || !app.gif) throw new Error('The listing for ' + slug + ' is incomplete.');
+        if (app.minBuild && Number(root.GIFOS_BUILD) && Number(root.GIFOS_BUILD) < Number(app.minBuild)) throw new Error((app.name || slug) + ' needs a newer GifOS than this page is running.');
+        return ensureProvidersFolder().then((all) => {
+          const here = all.filter((i) => (i.parent || null) === PROVIDERS_ID && i.kind === 'file' && i.fileId);
+          let p = Promise.resolve(null);
+          for (const it of here) {
+            p = p.then((found) => found || providerArchive(it.fileId).then((arc) =>
+              (arc && arc.manifest && arc.manifest.appId === app.appId) ? { fileId: it.fileId, appId: app.appId, name: arc.manifest.name || app.name || app.appId, existing: true } : null).catch(() => null));
+          }
+          return p.then((found) => found || downloadAndFileProvider(app, note));
+        });
+      });
+  }
+  function downloadAndFileProvider(app, note) {
+    const label = app.name || app.appId;
+    note('Downloading ' + label + '…', 0);
+    return root.fetch(app.gif, { cache: 'no-store', redirect: 'follow' }).then((r) => {
+      if (!r.ok) throw new Error('the download returned ' + r.status);
+      const total = Number(r.headers.get('content-length')) || app.bytes || 0;
+      if (!r.body || !r.body.getReader) return r.arrayBuffer().then((b) => new Uint8Array(b));
+      const reader = r.body.getReader(); const chunks = []; let got = 0;
+      const pump = () => reader.read().then(({ done, value }) => {
+        if (done) { const out = new Uint8Array(got); let off = 0; for (const c of chunks) { out.set(c, off); off += c.length; } return out; }
+        chunks.push(value); got += value.length;
+        if (total) note('Downloading ' + label + '… ' + Math.round(got / 1e6) + ' of ' + Math.round(total / 1e6) + ' MB', Math.min(1, got / total));
+        return pump();
+      });
+      return pump();
+    }).then((bytes) => {
+      note('Checking ' + label + '…', null);
+      const hashP = (app.sha256 && root.crypto && root.crypto.subtle)
+        ? root.crypto.subtle.digest('SHA-256', bytes).then((d) => {
+          let hex = ''; for (const b of new Uint8Array(d)) hex += b.toString(16).padStart(2, '0');
+          if (hex !== app.sha256) throw new Error('The download does not match the catalog. Nothing was installed.');
+        }, () => null) // no subtle crypto (an insecure origin): the structural checks below still run
+        : Promise.resolve();
+      return hashP
+        .then(() => (app.signature && GifOS.sign && GifOS.sign.verify)
+          ? GifOS.sign.verify(bytes).then((v) => { if (v && (v.status === 'tampered' || v.status === 'unsigned')) throw new Error('This app is listed as signed by ' + (app.signature.id || 'its author') + ', but the signature did not verify. Nothing was installed.'); }, () => null)
+          : null)
+        .then(() => gif.readManifestFrom(bytes).catch(() => null))
+        .then((m) => m || gif.decode(bytes).then((arc) => arc ? (gif.readManifest(arc) || null) : null).catch(() => null))
+        .then((m) => {
+          if (!m || !m.appId) throw new Error('That file is not a GifOS app.');
+          if (m.appId !== app.appId) throw new Error('That file is a different app than the listing. Nothing was installed.');
+          if (!providesRoles(m).length) throw new Error((m.name || label) + ' is not a Provider app.');
+          if (providerNetworky(m)) throw new Error((m.name || label) + ' declares network access, and a provider must be network-less. Refused.');
+          const fileId = store.uid('file');
+          const name = (m.name || label) + '.gif';
+          note('Filing ' + (m.name || label) + ' into your Providers folder…', null);
+          return store.putFile({ id: fileId, name, bytes, kind: 'gif', isApp: true, appId: m.appId, mime: 'image/gif' })
+            .then(() => store.allItems())
+            .then((all) => { const at = freeFolderCell(all, PROVIDERS_ID); return store.putItem({ id: store.uid('item'), kind: 'file', fileId, name, parent: PROVIDERS_ID, x: at.x, y: at.y, iconSize: 64 }); })
+            .then(() => ({ fileId, appId: m.appId, name: m.name || label, existing: false }));
+        });
+    });
+  }
   GifOS.providers = {
     scan: scanProviders,
     assign: assignProvider,
+    install: installProvider,
     assigned: (role) => { const c = aiConfig()[role]; return (c && c.app) ? c : null; },
     call: (role, req) => {
       const c = aiConfig()[role];

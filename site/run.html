@@ -1289,8 +1289,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             <div id="ccwhisper-state" class="set-help" style="margin-bottom:.4rem"></div>
             <label class="rec-opt inline"><input type="checkbox" id="cctranslate"><span>Write everything in English</span></label>
             <textarea id="ccwords" rows="2" placeholder="Names and words to recognise: Nano AG, Boreal, Lima, Plant Defender…" style="width:100%;margin-top:.4rem;padding:.4rem .5rem;border-radius:.4rem;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);font:inherit;font-size:.85rem"></textarea>
+            <label class="rec-opt" id="ccscribe-row" style="margin-top:.4rem"><input type="checkbox" id="ccscribe"><span><b>Write down everyone here (scribe)</b><small>Your device transcribes every voice it hears and offers the lines to the others, who choose whether to use them. The most work a device can do here — best on a strong computer.</small></span></label>
           </div>
         </div>
+        <div id="ccsource" style="margin-top:.5rem;display:none"></div>
         <p class="set-help" id="ccall-row" style="display:none;margin-top:.5rem"><button id="ccall" class="seg" style="border:1px solid var(--border,#2a2a3f);border-radius:.4rem">Captions for everyone: off</button> <span>Admins only — every unmuted device starts writing down its own person. Anyone can tap CC to opt out.</span></p>
       </div>
       <div id="mixpanel">
@@ -1869,7 +1871,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // their own tile and letterboxes their own cell and buys them no seat, no
     // reach and no fanout (healing-laws S — harm ≈ fanout). Nobody can ever
     // set anyone else's.
-    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0, pwEp: 0, scr: 0 };
+    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0, pwEp: 0, scr: 0, scribe: false };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur, scr }
     // IS THIS SEAT DARK? Not the same question as "is its camera off".
     // Sharing a screen with the camera off is the COMMON case — nobody puts
@@ -3164,6 +3166,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       if (st.hand) chips.push('<span class="warn">✋ hand raised</span>');
       if (st.rec) chips.push('<span class="warn">⏺ recording this meeting</span>');
+      if (st.scribe) chips.push('<span>✍ writing everyone down</span>');
       if (st.cc) chips.push('<span>📝 transcribing</span>');
       if (gMute) chips.push('<span class="warn">🔇 muted for everyone by ' + esc(mod.mute.by) + '</span>');
       else if (st.muted) chips.push('<span>🎤 muted</span>');
@@ -11885,24 +11888,36 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     //     different device within 8s are one utterance. The earlier line wins
     //     — the real speaker's engine fires first, the echo lags by the
     //     speaker path — and a late-arriving earlier line replaces the echo.
+    // A SCRIBE writes down OTHER people: a line then carries byId (who spoke)
+    // and scribe (whose device wrote it). Two devices writing the same voice —
+    // the speaker's own and a scribe's — are told apart by src, the writing
+    // device, so the dedupe below treats them as one utterance.
     const trNorm = (t) => String(t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-    const trSeen = new Map(); // normalized text -> { at, byId, id } of the line that holds it
+    const trSrc = (m) => String(m.scribe || m.byId);
+    const trSeen = new Map(); // normalized text -> { at, src, id } of the line that holds it
     let trDrops = 0;
+    var ccSourceId = null; // the scribe whose lines I chose to take instead of my own device's (per meeting)
     function trEcho(m) { // -> false (new), true (drop: an echo), or the entry this earlier line should replace
       const n = trNorm(m.text);
       if (n.length < 12) return false; // "yes", "okay", "can you hear me" legitimately repeat
-      const s = trSeen.get(n);
-      if (s && s.byId !== m.byId && Math.abs((m.at || 0) - s.at) < 8000) {
-        if ((m.at || 0) + 300 < s.at) { trs.delete(s.id); trSeen.set(n, { at: m.at || 0, byId: m.byId, id: m.id }); return s; }
+      const s = trSeen.get(n), src = trSrc(m);
+      if (s && s.src !== src && Math.abs((m.at || 0) - s.at) < 8000) {
+        if ((m.at || 0) + 300 < s.at) { trs.delete(s.id); trSeen.set(n, { at: m.at || 0, src, id: m.id }); return s; }
         trDrops++; return true;
       }
-      if (!s || s.byId === m.byId) { trSeen.set(n, { at: m.at || 0, byId: m.byId, id: m.id }); trimMap(trSeen, CHAT_MAX); }
+      if (!s || s.src === src) { trSeen.set(n, { at: m.at || 0, src, id: m.id }); trimMap(trSeen, CHAT_MAX); }
       return false;
     }
     function takeTr(m) {
       if (!m || !m.id || trs.has(m.id)) return false;
-      if (m.byId !== myId && !chatRateOk('tr:' + m.byId)) return false;
+      const writer = String(m.scribe || m.byId);
+      if (writer !== myId && !chatRateOk('tr:' + writer)) return false;
+      // A scribe can OFFER lines, never impose them: another device's scribed
+      // line is kept only if I chose that scribe under Settings → Captions.
+      if (m.scribe && m.scribe !== myId && ccSourceId !== m.scribe) return false;
+      if (m.scribe && m.scribe === m.byId) return false; // a scribe's own voice rides as their own plain line
       const line = { id: m.id, byId: m.byId, by: String(m.by || '?').slice(0, 40), at: m.at || 0, text: String(m.text || '').slice(0, 400) };
+      if (m.scribe) { line.scribe = String(m.scribe); line.scribeBy = String(m.scribeBy || '?').slice(0, 40); }
       if (trEcho(line) === true) return false;
       trs.set(m.id, line);
       trimMap(trs, CHAT_MAX);
@@ -11916,8 +11931,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const out = [];
       for (const l of lines) {
         const last = out[out.length - 1];
-        if (last && last.byId === l.byId && l.at - last.end < 5000 && last.text.length + l.text.length < 700) { last.text += ' ' + l.text; last.end = l.at; }
-        else out.push({ byId: l.byId, by: l.by, at: l.at, end: l.at, text: l.text });
+        if (last && last.byId === l.byId && (last.scribeBy || '') === (l.scribeBy || '') && l.at - last.end < 5000 && last.text.length + l.text.length < 700) { last.text += ' ' + l.text; last.end = l.at; }
+        else out.push({ byId: l.byId, by: l.by, at: l.at, end: l.at, text: l.text, scribeBy: l.scribeBy });
       }
       return out;
     }
@@ -11933,19 +11948,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const log = document.getElementById('trlog');
       const lines = trBlocks();
       log.innerHTML = lines.length
-        ? lines.map((l) => '<div class="trline"><b>' + esc(l.by) + '</b>' + esc(l.text) + '</div>').join('')
+        ? lines.map((l) => '<div class="trline"><b>' + esc(l.by) + '</b>' + esc(l.text) + (l.scribeBy ? ' <small style="color:var(--muted,#8888aa)">✍ ' + esc(l.scribeBy) + '</small>' : '') + '</div>').join('')
         : '<small style="color:#667">Tap CC in the bar and each phone writes down what its own person says — the lines gather here with names. Muted phones do not caption: unmute to be written down.</small>';
       log.scrollTop = log.scrollHeight;
     }
-    function addTranscriptLine(text, at) {
+    function addTranscriptLine(text, at, forId) { // forId: a scribe writing down THAT person
       text = String(text || '').trim();
       if (!text) return;
       const m = { id: uid('t'), byId: myId, by: myName(), at: at || Date.now(), text: text.slice(0, 400) };
+      if (forId && forId !== myId) { m.byId = forId; m.by = String(rosterNames[forId] || (peers.get(forId) || {}).name || '…').slice(0, 40); m.scribe = myId; m.scribeBy = myName(); }
       if (trEcho(m) === true) return; // I only HEARD this — another device already wrote it down
       trs.set(m.id, m);
       sendAll({ k: 'tr', m });
       renderTranscript();
-      showCaption(myId, m.text);
+      showCaption(m.byId, m.text);
     }
     // THE LANGUAGE IS A CHOICE, NOT A GUESS. The engine listens for ONE
     // language and cannot detect it; navigator.language was the silent
@@ -11990,25 +12006,33 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const ccEngine = () => (lsGet(CC_ENGINE_KEY) === 'whisper' ? 'whisper' : 'browser');
     const WHISPER_APP_ID = 'offline-stt-whisper';
     const whisperReady = () => !!(window.GifOS && GifOS.providers && GifOS.providers.assigned('stt'));
-    const WSP_PRE_MS = 400, WSP_GAP_MS = 700, WSP_MAX_S = 15, WSP_MIN_S = 0.4, WSP_BACKLOG = 3;
-    let wsp = null; // the live capture
-    function startWhisper() {
-      if (wsp) return true;
-      if (!localStream || !localStream.getAudioTracks()[0]) return false;
-      if (!whisperReady()) { setStatus('Whisper captions need the Offline Captions app — open Settings → Captions to install it. Browser captions are on meanwhile.', 10000); return false; }
+    const WSP_PRE_MS = 400, WSP_GAP_MS = 700, WSP_MAX_S = 15, WSP_MIN_S = 0.4, WSP_BACKLOG = 3, WSP_SCRIBE_MAX = 8;
+    const WHISPER_SEED_KEY = 'gifos_whisper_seed';
+    // One capture per VOICE: 'me' (my own echo-cancelled track) and, for a
+    // scribe, each direct-link neighbour whose audio already feeds a meter.
+    // Every capture cuts its own utterances; one shared queue hands them to
+    // the provider one at a time.
+    const wspCaps = new Map(); // 'me' | pid -> capture
+    const wspQ = { items: [], busy: false, sent: 0, dropped: 0 };
+    let wsp = null; // my own capture, by the name the older call sites use
+    function wspSource(id) { const m = meters.get(id); return (m && m.src) ? m.src : null; }
+    function wspStart(id) {
+      if (wspCaps.has(id)) return true;
+      if (!whisperReady()) { if (id === 'me') setStatus('Whisper captions need the Offline Captions app — open Settings → Captions to install it. Browser captions are on meanwhile.', 10000); return false; }
       if (!ensureAc()) return false;
-      let src, node;
-      try {
-        src = ac.createMediaStreamSource(new MediaStream([localStream.getAudioTracks()[0]]));
-        node = ac.createScriptProcessor(4096, 1, 1);
-      } catch (e) { return false; }
+      let src = wspSource(id), node, own = false;
+      if (!src && id === 'me' && localStream && localStream.getAudioTracks()[0]) {
+        try { src = ac.createMediaStreamSource(new MediaStream([localStream.getAudioTracks()[0]])); own = true; } catch (e) { return false; }
+      }
+      if (!src) return false;
+      try { node = ac.createScriptProcessor(4096, 1, 1); } catch (e) { return false; }
       const rate = ac.sampleRate;
-      const w = { src, node, rate, pre: [], preMs: 0, utt: null, uttStart: 0, lastVoice: 0, queue: [], busy: false, dropped: 0, sent: 0 };
+      const w = { id, src, node, own, rate, pre: [], preMs: 0, utt: null, uttStart: 0, lastVoice: 0 };
       node.onaudioprocess = (e) => {
-        if (wsp !== w) return;
+        if (wspCaps.get(id) !== w) return;
         const chunk = new Float32Array(e.inputBuffer.getChannelData(0)); // the browser reuses its buffer
         const ms = chunk.length / rate * 1000, now = Date.now();
-        const talking = !!speakingOf.get('me') || (now - myVoiceAt < 250);
+        const talking = !!speakingOf.get(id) || (id === 'me' && now - myVoiceAt < 250);
         if (w.utt) {
           w.utt.push(chunk);
           if (talking) w.lastVoice = now;
@@ -12027,16 +12051,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         }
       };
       src.connect(node); node.connect(ac.destination); // a ScriptProcessor only ticks on the way to the destination; it outputs silence
-      wsp = w;
+      wspCaps.set(id, w);
+      if (id === 'me') wsp = w;
       return true;
     }
-    function stopWhisper() {
-      const w = wsp; wsp = null;
-      if (!w) return;
+    function wspStop(id) {
+      const w = wspCaps.get(id); if (!w) return;
+      wspCaps.delete(id); if (id === 'me') wsp = null;
       w.node.onaudioprocess = null;
+      try { w.src.disconnect(w.node); } catch (e) {}
+      if (w.own) { try { w.src.disconnect(); } catch (e) {} }
       try { w.node.disconnect(); } catch (e) {}
-      try { w.src.disconnect(); } catch (e) {}
     }
+    function startWhisper() { return wspStart('me'); }
+    function stopWhisper() { for (const id of Array.from(wspCaps.keys())) wspStop(id); wspQ.items.length = 0; }
     function wspPcm16k(chunks, rate) { // concatenate, then a box-filter resample to 16 kHz
       let n = 0; for (const c of chunks) n += c.length;
       const all = new Float32Array(n); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
@@ -12046,68 +12074,184 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return out;
     }
     function wspEnqueue(w, chunks, at, rate) {
-      if (w.queue.length >= WSP_BACKLOG) { w.queue.shift(); w.dropped++; setStatus('Captions are behind — this device cannot keep up, so a sentence was skipped.', 6000); }
-      w.queue.push({ chunks, at, rate: rate || w.rate });
-      wspDrain(w);
+      const cap = WSP_BACKLOG + 2 * Math.max(0, wspCaps.size - 1);
+      if (wspQ.items.length >= cap) { wspQ.items.shift(); wspQ.dropped++; setStatus('Captions are behind — this device cannot keep up, so a sentence was skipped.', 6000); }
+      wspQ.items.push({ id: w.id, chunks, at, rate: rate || w.rate });
+      wspDrain();
     }
-    function wspDrain(w) {
-      if (w.busy || !w.queue.length || wsp !== w) return;
-      w.busy = true;
-      const job = w.queue.shift();
+    function wspDrain() {
+      if (wspQ.busy || !wspQ.items.length) return;
+      const job = wspQ.items.shift();
+      if (!wspCaps.has(job.id)) { wspDrain(); return; } // its voice left while it waited
+      wspQ.busy = true;
       const pcm = wspPcm16k(job.chunks, job.rate);
       const lang = ccLang();
       const req = { bytes: pcm.buffer, mime: 'audio/pcm;rate=16000;bits=32', language: lang === 'auto' ? 'auto' : lang,
         task: lsGet(CC_TRANSLATE_KEY) === '1' ? 'translate' : 'transcribe', prompt: lsGet(CC_WORDS_KEY).slice(0, 400), model: IS_MOBILE ? 'tiny' : 'base' };
-      w.sent++;
+      wspQ.sent++;
       GifOS.providers.call('stt', req).then((r) => {
         const text = r && r.text ? String(r.text).trim() : '';
-        if (text && wsp === w && myStatus.cc) addTranscriptLine(text, job.at);
+        if (!text || !wspCaps.has(job.id)) return;
+        if (job.id === 'me') { if (myStatus.cc) addTranscriptLine(text, job.at); }
+        else if (scribeOn() && peers.has(job.id)) addTranscriptLine(text, job.at, job.id);
       }).catch((e) => {
         const msg = (e && e.message) || String(e);
         setStatus('Whisper captions failed: ' + msg.slice(0, 160), 10000);
         if (/NOT_CONFIGURED|PROVIDER_MISSING|PROVIDER_NOT_IN_FOLDER/.test(msg)) { stopWhisper(); syncSpeech(); }
-      }).then(() => { w.busy = false; wspDrain(w); });
+      }).then(() => { wspQ.busy = false; wspDrain(); });
+    }
+    // THE SCRIBE: one strong device writes down every voice it hears, so the
+    // others need no engine of their own. Each direct-link neighbour's audio
+    // already feeds a meter (meterFor); the same source node feeds a capture
+    // here, cut by that neighbour's own talking verdict. Lines go out
+    // attributed to the SPEAKER and stamped with the scribe; a receiver keeps
+    // them only if it chose this scribe (takeTr) — a scribe can offer, never
+    // impose, because a scribe could also lie.
+    function scribeOn() { return !!myStatus.scribe && ccEngine() === 'whisper' && whisperReady(); }
+    function wspSync() {
+      const want = new Set();
+      if (myStatus.cc && !myStatus.muted && ccEngine() === 'whisper' && !ccSourceId && whisperReady()) want.add('me');
+      if (scribeOn()) {
+        for (const [pid, p] of peers) {
+          if (want.size >= WSP_SCRIBE_MAX + 1) break;
+          const st = statusOf.get(pid) || {};
+          if (!p.connected || st.muted || (modOf(pid).mute && modOf(pid).mute.on) || !wspSource(pid)) continue;
+          want.add(pid);
+        }
+      }
+      for (const id of Array.from(wspCaps.keys())) if (!want.has(id)) wspStop(id);
+      for (const id of want) if (!wspCaps.has(id)) wspStart(id);
+    }
+    const scribeSeen = new Set();
+    function ccScribes() {
+      const out = [];
+      for (const [pid, st] of statusOf) if (st && st.scribe && peers.has(pid)) out.push({ id: pid, name: rosterNames[pid] || (peers.get(pid) || {}).name || '…' });
+      return out;
+    }
+    function scribeWatch() {
+      const list = ccScribes();
+      for (const sc of list) {
+        if (scribeSeen.has(sc.id)) continue;
+        scribeSeen.add(sc.id);
+        if (!ccSourceId) setStatus('✍ ' + sc.name + ' offers captions for everyone — Settings → Captions → Use ' + sc.name + '’s captions.', 10000);
+      }
+      if (ccSourceId && !list.some((sc) => sc.id === ccSourceId)) {
+        const nm = rosterNames[ccSourceId] || 'The scribe'; ccSourceId = null;
+        setStatus(nm + ' stopped writing captions — your own device takes over.', 8000);
+        syncSpeech();
+      }
+      paintCcSource();
+    }
+    function paintCcSource() {
+      const box = document.getElementById('ccsource'); if (!box) return;
+      const list = ccScribes();
+      const key = list.map((sc) => sc.id + ':' + sc.name).join('|') + '#' + (ccSourceId || '');
+      if (box.dataset.key === key) return;
+      box.dataset.key = key;
+      if (!list.length && !ccSourceId) { box.style.display = 'none'; box.innerHTML = ''; return; }
+      box.style.display = '';
+      box.innerHTML = '<b>Captions source</b>'
+        + '<label class="rec-opt"><input type="radio" name="ccsource" value=""' + (!ccSourceId ? ' checked' : '') + '><span>My own device writes me down</span></label>'
+        + list.map((sc) => '<label class="rec-opt"><input type="radio" name="ccsource" value="' + esc(sc.id) + '"' + (ccSourceId === sc.id ? ' checked' : '')
+          + '><span>Use <b>' + esc(sc.name) + '</b>’s captions<small>Their device writes down everyone, you included, and yours stops transcribing. Every line they write carries their name — choose this only if you trust them.</small></span></label>').join('');
+      for (const r of box.querySelectorAll('input[name="ccsource"]')) r.onchange = () => {
+        if (!r.checked) return;
+        ccSourceId = r.value || null; box.dataset.key = '';
+        syncSpeech();
+        setStatus(ccSourceId ? 'Using ' + (rosterNames[ccSourceId] || 'their') + '’s captions — your device is no longer transcribing.' : 'Your own device writes you down again.', 6000);
+      };
+    }
+    setInterval(() => { if (wspCaps.size || scribeOn() || ccSourceId) wspSync(); scribeWatch(); }, 2000);
+    // ONE TAP TO INSTALL. The provider is a signed 13 MB GIF on this very site:
+    // GifOS.providers.install downloads, checks the catalog hash and the
+    // gifos.app signature, files it into the Providers folder and we assign it
+    // — no store tab, no Home Screen visit. The same path runs by itself,
+    // quietly, the first time a meeting is up on a computer that lacks it
+    // (WHISPER_SEED_KEY), so the app is simply there when someone picks it.
+    let whisperInstalling = null;
+    function installWhisper(say) {
+      if (whisperInstalling) return whisperInstalling;
+      const note = (t) => { const el = document.getElementById('ccwhisper-prog'); if (el) el.textContent = t || ''; };
+      whisperInstalling = GifOS.providers.install(WHISPER_APP_ID, (t) => note(t)).then((p) => {
+        if (!GifOS.providers.assigned('stt')) GifOS.providers.assign('stt', p);
+        lsSet(WHISPER_SEED_KEY, 'done');
+        if (say) setStatus('✅ Offline Captions (Whisper) is installed and ready — the model itself downloads the first time captions run.', 10000);
+        return p;
+      }).catch((e) => {
+        const msg = (e && e.message) || String(e);
+        note('⚠ ' + msg); lsSet(WHISPER_SEED_KEY, 'tried:' + Date.now());
+        if (say) setStatus('Could not install Whisper captions: ' + msg.slice(0, 160), 10000);
+        throw e;
+      }).then((p) => { whisperInstalling = null; paintCcState(); syncSpeech(); return p; }, (e) => { whisperInstalling = null; paintCcState(); throw e; });
+      return whisperInstalling;
+    }
+    let whisperRescan = null;
+    function armWhisperRescan() { // while the app is missing, look again every few seconds — returning from the store needs no button
+      if (whisperRescan) return;
+      whisperRescan = setInterval(() => {
+        if (whisperReady() || ccEngine() !== 'whisper' || !window.GifOS || !GifOS.providers) { clearInterval(whisperRescan); whisperRescan = null; return; }
+        GifOS.providers.scan().then((list) => {
+          const hit = list.find((p) => p.roles.indexOf('stt') >= 0 && p.appId === WHISPER_APP_ID) || list.find((p) => p.roles.indexOf('stt') >= 0);
+          if (!hit) return;
+          GifOS.providers.assign('stt', hit);
+          clearInterval(whisperRescan); whisperRescan = null;
+          paintCcState(); syncSpeech();
+          setStatus('✅ ' + hit.name + ' found in your Providers folder — Whisper captions are ready.', 8000);
+        }).catch(() => {});
+      }, 4000);
+    }
+    function paintCcState() {
+      const radios = Array.from(document.querySelectorAll('input[name="ccengine"]')); if (!radios.length) return;
+      const box = document.getElementById('ccwhisper'), state = document.getElementById('ccwhisper-state');
+      const on = ccEngine() === 'whisper';
+      for (const r of radios) r.checked = (r.value === 'whisper') === on;
+      box.style.display = on ? '' : 'none';
+      const sc = document.getElementById('ccscribe'); if (sc) sc.checked = !!myStatus.scribe;
+      const scRow = document.getElementById('ccscribe-row');
+      if (!on) return;
+      const a = whisperReady() ? GifOS.providers.assigned('stt') : null;
+      if (scRow) scRow.style.display = a ? '' : 'none';
+      if (a) {
+        state.innerHTML = '✅ Ready: <b>' + esc(a.appName || 'your speech-to-text app') + '</b> answers on this device.'
+          + (IS_MOBILE ? ' <span style="color:#ffd23c">On a phone a sentence can take 5 to 10 seconds to appear, and it uses battery.</span>' : '');
+        return;
+      }
+      state.innerHTML = 'Needs the <b>Offline Captions (Whisper)</b> app — 13 MB, once per computer; the model itself downloads the first time captions run. '
+        + '<button id="ccwhisper-install" class="seg" style="border:1px solid var(--accent,#7b5cff);border-radius:.4rem;color:#fff;background:var(--accent,#7b5cff)"' + (whisperInstalling ? ' disabled' : '') + '>Install it now</button> '
+        + '<span id="ccwhisper-prog"></span> <a href="store.html#app=' + WHISPER_APP_ID + '" target="_blank" rel="noopener" style="color:var(--accent2,#ff5caa);font-size:.8rem">or from the App Store</a>';
+      document.getElementById('ccwhisper-install').onclick = () => { installWhisper(true).catch(() => {}); paintCcState(); };
+      armWhisperRescan();
     }
     (function wireCcEngine() {
       const radios = Array.from(document.querySelectorAll('input[name="ccengine"]')); if (!radios.length) return;
-      const box = document.getElementById('ccwhisper'), state = document.getElementById('ccwhisper-state');
-      const tr = document.getElementById('cctranslate'), words = document.getElementById('ccwords');
+      const tr = document.getElementById('cctranslate'), words = document.getElementById('ccwords'), scribe = document.getElementById('ccscribe');
       tr.checked = lsGet(CC_TRANSLATE_KEY) === '1'; words.value = lsGet(CC_WORDS_KEY);
       tr.onchange = () => lsSet(CC_TRANSLATE_KEY, tr.checked ? '1' : '');
       words.onchange = () => lsSet(CC_WORDS_KEY, words.value.replace(/\s+/g, ' ').trim().slice(0, 400));
-      const paintState = () => {
-        const on = ccEngine() === 'whisper';
-        for (const r of radios) r.checked = (r.value === 'whisper') === on;
-        box.style.display = on ? '' : 'none';
-        if (!on) return;
-        const a = whisperReady() ? GifOS.providers.assigned('stt') : null;
-        if (a) {
-          state.innerHTML = '✅ Ready: <b>' + esc(a.appName || 'your speech-to-text app') + '</b> answers on this device.'
-            + (IS_MOBILE ? ' <span style="color:#ffd23c">On a phone a sentence can take 5 to 10 seconds to appear, and it uses battery.</span>' : '');
-          return;
-        }
-        state.innerHTML = 'Needs the <b>Offline Captions (Whisper)</b> app. <a href="store.html#app=' + WHISPER_APP_ID + '" target="_blank" rel="noopener" style="color:var(--accent2,#ff5caa)">Install it from the App Store</a> (13 MB; the model downloads on first use), then '
-          + '<button id="ccwhisper-use" class="seg" style="border:1px solid var(--border,#2a2a3f);border-radius:.4rem">I installed it — use it</button>';
-        document.getElementById('ccwhisper-use').onclick = () => {
-          state.textContent = 'Looking in your Providers folder…';
-          GifOS.providers.scan().then((list) => {
-            const hit = list.find((p) => p.roles.indexOf('stt') >= 0 && p.appId === WHISPER_APP_ID) || list.find((p) => p.roles.indexOf('stt') >= 0);
-            if (!hit) { state.innerHTML = 'Not found yet. Install it from the App Store, keep its icon in the <b>Providers</b> folder on your Home Screen, then try again.'; return; }
-            GifOS.providers.assign('stt', hit);
-            paintState();
-            syncSpeech();
-          }).catch(() => { state.textContent = 'Could not read your Providers folder.'; });
-        };
+      scribe.onchange = () => {
+        myStatus.scribe = scribe.checked;
+        if (scribe.checked && !myStatus.cc) { myStatus.cc = true; ccByOrder = false; document.getElementById('ccbtn').classList.add('on'); }
+        broadcastStatus(); syncSpeech();
+        setStatus(scribe.checked ? '✍ You are writing everyone down — the others can pick your captions under Settings → Captions.' + (myStatus.muted ? ' (You are muted, so your own voice is not written.)' : '') : 'You stopped writing everyone down.', 8000);
       };
       for (const r of radios) r.onchange = () => {
         if (!r.checked) return;
         lsSet(CC_ENGINE_KEY, r.value === 'whisper' ? 'whisper' : '');
         if (r.value === 'whisper' && IS_MOBILE) setStatus('On a phone, Whisper runs on the processor: a sentence can take 5 to 10 seconds to appear, and it uses battery. Browser captions stay instant.', 12000);
-        paintState();
+        if (r.value !== 'whisper' && myStatus.scribe) { myStatus.scribe = false; broadcastStatus(); }
+        paintCcState();
         syncSpeech();
       };
-      paintState();
-      document.getElementById('setbtn').addEventListener('click', paintState);
+      paintCcState();
+      document.getElementById('setbtn').addEventListener('click', () => { paintCcState(); paintCcSource(); });
+      // The quiet seed: a meeting up for 20 s on a computer without the app, online, once.
+      setTimeout(() => {
+        const seeded = lsGet(WHISPER_SEED_KEY);
+        const triedAt = /^tried:(\d+)$/.test(seeded) ? Number(seeded.slice(6)) : 0;
+        if (seeded === 'done' || (triedAt && Date.now() - triedAt < 86400000)) return;
+        if (!navigator.onLine || whisperReady() || !window.GifOS || !GifOS.providers || !myId || document.body.classList.contains('app-room')) return;
+        installWhisper(false).catch(() => {});
+      }, 20000);
     })();
     let speech = null;
     function speechRunning() { return !!speech; }
@@ -12151,13 +12295,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function syncSpeech() { // CC follows the mic: muted people aren't transcribed
       const want = myStatus.cc && !myStatus.muted;
+      if (ccSourceId) { // somebody else's device writes me down: no engine of my own
+        if (speechRunning()) stopSpeech();
+        wspStop('me'); wspSync();
+        return;
+      }
       if (want && ccEngine() === 'whisper') {
         if (speechRunning()) stopSpeech();
-        if (wsp || startWhisper()) return;
+        if (wspCaps.has('me') || startWhisper()) { wspSync(); return; }
         // Whisper is chosen but cannot run here (no provider yet, no mic
         // track): the browser engine carries on so captions are never silently off.
       }
-      if (wsp) stopWhisper();
+      wspStop('me'); wspSync();
       if (want && !speechRunning()) startSpeech();
       if (!want && speechRunning()) stopSpeech();
     }
@@ -12220,7 +12369,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       document.getElementById('trbtn').style.display = anyCc ? '' : 'none';
     }
     document.getElementById('trdl').onclick = () => {
-      const lines = trBlocks().map((l) => '[' + new Date(l.at).toLocaleTimeString() + '] ' + l.by + ': ' + l.text);
+      const lines = trBlocks().map((l) => '[' + new Date(l.at).toLocaleTimeString() + '] ' + l.by + (l.scribeBy ? ' (written down by ' + l.scribeBy + ')' : '') + ': ' + l.text);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([lines.join('\n') + '\n'], { type: 'text/plain' }));
       a.download = 'gifos-meeting-transcript.txt';
@@ -14652,8 +14801,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       transcriptTexts: () => Array.from(trs.values()).sort((a, b) => a.at - b.at).map((l) => l.by + ': ' + l.text),
       transcriptBlocks: () => trBlocks().map((l) => l.by + ': ' + l.text),
       transcriptDrops: () => trDrops,
-      whisperForTest: () => ({ engine: ccEngine(), live: !!wsp, ready: whisperReady(), queue: wsp ? wsp.queue.length : 0, sent: wsp ? wsp.sent : 0, dropped: wsp ? wsp.dropped : 0, rate: wsp ? wsp.rate : 0 }),
-      whisperFeedForTest: (f32, rate) => { if (!wsp) return false; wspEnqueue(wsp, [Float32Array.from(f32)], Date.now(), rate || 16000); return true; },
+      whisperForTest: () => ({ engine: ccEngine(), live: !!wsp, ready: whisperReady(), queue: wspQ.items.length, sent: wspQ.sent, dropped: wspQ.dropped, rate: wsp ? wsp.rate : 0, captures: Array.from(wspCaps.keys()), scribe: scribeOn(), source: ccSourceId, scribes: ccScribes().map((x) => x.id) }),
+      whisperFeedForTest: (f32, rate, forId) => { const w = wspCaps.get(forId || 'me'); if (!w) return false; wspEnqueue(w, [Float32Array.from(f32)], Date.now(), rate || 16000); return true; },
+      scribeForTest: (on) => { myStatus.scribe = !!on; if (on && !myStatus.cc) { myStatus.cc = true; document.getElementById('ccbtn').classList.add('on'); } broadcastStatus(); syncSpeech(); },
+      ccSourceForTest: (id) => { ccSourceId = id || null; syncSpeech(); scribeWatch(); },
+      installWhisperForTest: () => installWhisper(true),
       whisperEngineForTest: (eng) => { lsSet(CC_ENGINE_KEY, eng === 'whisper' ? 'whisper' : ''); syncSpeech(); },
       audioBlockedForTest: () => blockedAudio.size,
       audioBlockForTest: (el, name) => audioBlocked(el, { name }),

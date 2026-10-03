@@ -32,7 +32,7 @@ check('the transcript block is where the lift expects it', start > 0 && end > st
 const block = html.slice(start, end);
 function makeTranscript() {
   const src = block
-    + '\n return { trs, takeTr, trBlocks, trEcho, drops: () => trDrops };';
+    + '\n return { trs, takeTr, trBlocks, trEcho, drops: () => trDrops, setSource: (id) => { ccSourceId = id; } };';
   const CHAT_MAX = 500;
   const trimMap = (m, max) => { while (m.size > max) m.delete(m.keys().next().value); };
   const chatRateOk = () => true;
@@ -72,6 +72,24 @@ function makeTranscript() {
     T.takeTr({ id: 'echo2', byId: 'alex', by: 'Alexandra', at: t0 + 1800, text: 'everyone else at the bottom your face has got cut off in half' }) === false);
 }
 
+// ---- rule 1b: a scribe can offer, never impose ----
+{
+  const T = makeTranscript();
+  const t0 = 4000000;
+  check('another device\'s scribed line is dropped while I have not chosen that scribe',
+    T.takeTr({ id: 's1', byId: 'oleg', by: 'Oleg', at: t0, text: 'we need to think what to do with this black box', scribe: 'andrew', scribeBy: 'Andrew' }) === false);
+  T.setSource('andrew');
+  check('…and kept, with the scribe\'s name on it, once I chose them',
+    T.takeTr({ id: 's2', byId: 'oleg', by: 'Oleg', at: t0 + 100, text: 'we need to think what to do with this black box', scribe: 'andrew', scribeBy: 'Andrew' }) === true
+    && T.trs.get('s2').scribeBy === 'Andrew' && T.trs.get('s2').by === 'Oleg');
+  check('a scribe writing down THEMSELVES is refused (their own voice rides as their plain line)',
+    T.takeTr({ id: 's3', byId: 'andrew', by: 'Andrew', at: t0 + 200, text: 'and also kansas city camera something longer', scribe: 'andrew', scribeBy: 'Andrew' }) === false);
+  check('the speaker\'s own line and the scribe\'s line for the same words are one utterance',
+    T.takeTr({ id: 'o1', byId: 'oleg', by: 'Oleg', at: t0 + 2500, text: 'We need to think what to do with this black box.' }) === false);
+  const blocks = T.trBlocks();
+  check('a scribed block carries who wrote it', blocks.length === 1 && blocks[0].scribeBy === 'Andrew', JSON.stringify(blocks));
+}
+
 // ---- rule 2: paragraphs ----
 {
   const T = makeTranscript();
@@ -99,7 +117,10 @@ check('the engine listens in the chosen language, not the device default', /spee
 check('a Whisper engine can be chosen, fed from the echo-cancelled track, with a backlog cap', /name="ccengine" value="whisper"/.test(html) && /createMediaStreamSource\(new MediaStream\(\[localStream\.getAudioTracks\(\)\[0\]\]\)\)/.test(html) && /WSP_BACKLOG = 3/.test(html));
 check('Whisper requests ride the OS provider surface as raw 16 kHz PCM', /GifOS\.providers\.call\('stt'/.test(html) && /audio\/pcm;rate=16000;bits=32/.test(html));
 check('a phone is warned that Whisper is slow there', /On a phone, Whisper runs on the processor/.test(html));
-check('choosing Whisper without the app falls back to browser captions, never silence', /if \(wsp \|\| startWhisper\(\)\) return;/.test(html));
+check('choosing Whisper without the app falls back to browser captions, never silence', /if \(wspCaps\.has\('me'\) \|\| startWhisper\(\)\) \{ wspSync\(\); return; \}/.test(html));
+check('one tap installs the provider from the meeting, and a missing app is rescanned', /GifOS\.providers\.install\(WHISPER_APP_ID/.test(html) && /function armWhisperRescan/.test(html));
+check('the provider seeds itself quietly once a meeting is up', /WHISPER_SEED_KEY/.test(html) && /installWhisper\(false\)/.test(html));
+check('a scribe captures neighbours off the meter sources, capped', /WSP_SCRIBE_MAX = 8/.test(html) && /function wspSync/.test(html) && /wspSource\(pid\)/.test(html));
 check('Settings offers a rename', /id="set-rename"/.test(html) && /function renameFlow\(after\)/.test(html));
 check('admins get a captions-for-everyone switch that rides the signed mod table',
   /id="ccall"/.test(html) && /\['mute', 'blur', 'cam', 'app', 'chat', 'cc'\]/.test(html));
