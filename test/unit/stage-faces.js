@@ -70,13 +70,22 @@ function world(opts) {
     MM, MediaStream: FakeStream, myId: opts.myId || 'deep1',
     meTile: { video: { srcObject: opts.mine || null } },
     mosIn: opts.mosIn || new Map(),
+    peers: opts.peers || new Map(),
     forcedCamOff: (id) => !!(opts.off && opts.off.includes(id)),
     modBlurOn: (id) => !!(opts.blurred && opts.blurred.includes(id)),
-    blurLevelFor: (id) => (opts.blurred && opts.blurred.includes(id) ? 2 : 1),
+    // The room rule as blurLevelFor answers it: a moderator's block is Max
+    // here; otherwise opts.room (0 = a clear room, 2 = the Max-blur start).
+    blurLevelFor: (id) => (opts.blurred && opts.blurred.includes(id) ? 2 : (opts.room | 0)),
     OUT: null,
   };
   vm.createContext(ctx);
-  vm.runInContext(facesSrc + '\n' + downSrc + '\nOUT = { stageFaceSet, stageStripOrder, stageRawFace, stageFaceBlur, stgDownShip, STAGE_FACE_PX };', ctx);
+  vm.runInContext(facesSrc + '\n' + downSrc + '\nOUT = { stageFaceSet, stageStripOrder, stageRawFace, stageFaceBlur, stageFaceCss, stgDownShip, STAGE_FACE_PX, STAGE_FACE_SETTLE_MS };', ctx);
+  // A deep seat trusts a strip order only once it has held still; settled()
+  // shows it the strip once, then asks again after the settle time.
+  ctx.OUT.settled = (sid, stagers, strip) => {
+    ctx.OUT.stageFaceSet(sid, stagers, strip, 1000);
+    return ctx.OUT.stageFaceSet(sid, stagers, strip, 1000 + ctx.OUT.STAGE_FACE_SETTLE_MS);
+  };
   return ctx.OUT;
 }
 if (facesSrc && downSrc) {
@@ -96,55 +105,109 @@ if (facesSrc && downSrc) {
 
   // THE BUG, AND ITS FIX: a deep seat shows Ada's screen with Ben's face on it.
   const W = world({ mosIn: deepIn() });
-  const f1 = W.stageFaceSet(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480));
+  const f1 = W.settled(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480));
   check('a deep seat puts every co-presenter on the shared screen', Array.isArray(f1) && f1.length === 1 && f1[0].id === B, f1 && f1.map((f) => f.id));
   check('…cut out of the strip it already receives (cell 1 of 2, the strip track)', !!(f1 && f1[0] && f1[0].crop && f1[0].vt === stripTrack && f1[0].crop.x === -96 && f1[0].crop.w === 192 && f1[0].crop.h === 96), f1 && f1[0] && f1[0].crop);
-  const fLegacy = W.stageFaceSet(A, [A, B], strip({ n: 2, cols: 2 }, 960, 480));
+  check('…and the box keeps the cell, so a resize can re-cut it', !!(f1 && f1[0] && f1[0].cell && f1[0].cell.j === 1 && f1[0].cell.n === 2 && f1[0].cell.cols === 2), f1 && f1[0] && f1[0].cell);
+  const fLegacy = W.settled(A, [A, B], strip({ n: 2, cols: 2 }, 960, 480));
   check('an older relay that drops the order: the stage order stands in when the counts agree', Array.isArray(fLegacy) && fLegacy.length === 1 && fLegacy[0].crop && fLegacy[0].crop.x === -96);
-  const fOrder = W.stageFaceSet(A, [A, B], strip({ n: 2, cols: 2, ids: [B, A] }, 960, 480));
+  const fOrder = W.settled(A, [A, B], strip({ n: 2, cols: 2, ids: [B, A] }, 960, 480));
   check('the packed order decides the cell, not this seat\'s stage order', !!(fOrder && fOrder[0] && fOrder[0].crop && fOrder[0].crop.x === 0), fOrder && fOrder[0] && fOrder[0].crop);
 
+  // A NEW ORDER IS NOT TRUSTED AT ONCE (verifier round 1, problem 4). Ben
+  // leaves and Cy joins in one sweep: n stays 2, the announce says [A, C]
+  // before the re-packed frame arrives, and a crop would show Ben in Cy's box.
+  {
+    const Wo = world({ mosIn: new Map([['stg:' + A, { stream: heldA }], ['stg:' + C3, { stream: new FakeStream([trk('audio', 'micC')]), meta: { ao: 1 } }], ['stg:' + B, { stream: heldB, meta: { ao: 1 } }]]) });
+    const sAB = strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480), sAC = strip({ n: 2, cols: 2, ids: [A, C3] }, 960, 480);
+    check('the first sight of a strip order shows the strip', Wo.stageFaceSet(A, [A, B], sAB, 0) === null);
+    check('…and the same order, held still past the settle time, shows the screen', Array.isArray(Wo.stageFaceSet(A, [A, B], sAB, Wo.STAGE_FACE_SETTLE_MS)));
+    check('an order change at the same count shows the strip again', Wo.stageFaceSet(A, [A, C3], sAC, Wo.STAGE_FACE_SETTLE_MS + 100) === null);
+    check('…until it has held still', Wo.stageFaceSet(A, [A, C3], sAC, Wo.STAGE_FACE_SETTLE_MS + 1000) === null);
+    const back = Wo.stageFaceSet(A, [A, C3], sAC, 2 * Wo.STAGE_FACE_SETTLE_MS + 200);
+    check('…then the new face is cut from the new cell', !!(back && back[0] && back[0].id === C3 && back[0].cell.j === 1), back && back.map((f) => f.id));
+  }
+
   // Geometry unknown: the strip, never a screen with people missing.
-  check('no strip meta → show the strip', W.stageFaceSet(A, [A, B], strip(null, 960, 480)) === null);
-  check('counts disagree and no order → show the strip', W.stageFaceSet(A, [A, B], strip({ n: 1, cols: 1 }, 480, 480)) === null);
-  check('an order whose length is not n → show the strip', W.stageFaceSet(A, [A, B], strip({ n: 2, cols: 2, ids: [A] }, 960, 480)) === null);
-  check('a frame that disagrees with the meta → show the strip', W.stageFaceSet(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 1440, 480)) === null);
-  check('no decoded strip frame yet → show the strip', W.stageFaceSet(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 0, 0)) === null);
-  check('a strip with no live video track → show the strip', W.stageFaceSet(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480, [])) === null);
+  check('no strip meta → show the strip', W.settled(A, [A, B], strip(null, 960, 480)) === null);
+  check('counts disagree and no order → show the strip', W.settled(A, [A, B], strip({ n: 1, cols: 1 }, 480, 480)) === null);
+  check('an order whose length is not n → show the strip', W.settled(A, [A, B], strip({ n: 2, cols: 2, ids: [A] }, 960, 480)) === null);
+  check('a frame that disagrees with the meta → show the strip', W.settled(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 1440, 480)) === null);
+  check('no decoded strip frame yet → show the strip', W.settled(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 0, 0)) === null);
+  check('a strip with no live video track → show the strip', W.settled(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480, [])) === null);
   const W3 = world({ mosIn: new Map([['stg:' + A, { stream: heldA }], ['stg:' + B, { stream: heldB, meta: { ao: 1 } }], ['stg:' + C3, { stream: new FakeStream([trk('audio', 'micC')]), meta: { ao: 1 } }]]) });
-  const fMissing = W3.stageFaceSet(A, [A, B, C3], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480));
-  check('the compositing seat packed no cell for someone: its strip lacks them too, the screen stays', Array.isArray(fMissing) && fMissing.length === 1 && fMissing[0].id === B, fMissing && fMissing.map((f) => f.id));
+  check('a co-presenter the strip order lacks (stale or never packed) → show the strip, not a screen without them',
+    W3.settled(A, [A, B, C3], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480)) === null);
 
   // A seat that holds a co-presenter's real video uses it.
   const Wr = world({ mosIn: new Map([['stg:' + A, { stream: heldA }], ['stg:' + B, { stream: fullB, meta: { h: 1 } }]]) });
-  const fRaw = Wr.stageFaceSet(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480));
+  const fRaw = Wr.settled(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480));
   check('a relay holding the face itself shows it raw', !!(fRaw && fRaw[0] && fRaw[0].crop === null && fRaw[0].vt === fullB.getVideoTracks()[0]));
   const Wao = world({ mosIn: new Map([['stg:' + B, { stream: fullB, meta: { ao: 1 } }]]) });
-  check('a copy announced audio-only is never a face source', Wao.stageRawFace(B) === null);
+  check('a copy announced audio-only is never a face source', Wao.stageRawFace(B, true) === null && Wao.stageRawFace(B, false) === null);
   const Wme = world({ myId: B, mine: new FakeStream([trk('video', 'myBroadcast')]) });
   check('my own face is my broadcast track', !!Wme.stageRawFace(B) && Wme.stageRawFace(B).id === 'myBroadcast');
 
-  // Section 1 keeps the screen: its own strip has nobody it cannot show.
+  // SECTION 1 NEVER SHOWS THE SCREEN WITH SOMEONE MISSING (verifier round 1,
+  // problem 3). Its strip packs a cell for every stager it has a source for,
+  // by srcFor: the stg feed, else the direct peer's <video>, a named dark cell
+  // when that has no picture. The face boxes follow the same rule.
   const S1 = world({ myId: 's1', mosIn: new Map([['stg:' + A, { stream: fullA }], ['stg:' + B, { stream: fullB }]]) });
   const fS1 = S1.stageFaceSet(A, [A, B], null);
-  check('Section 1 shows the raw face', !!(fS1 && fS1.length === 1 && fS1[0].crop === null));
+  check('Section 1 shows the raw face', !!(fS1 && fS1.length === 1 && fS1[0].crop === null && fS1[0].vt));
+  const camB = new FakeStream([trk('video', 'mainB')]);
+  const S1peer = world({ myId: 's1', mosIn: new Map([['stg:' + A, { stream: fullA }]]), peers: new Map([[B, { video: { srcObject: camB } }]]) });
+  const fPeer = S1peer.stageFaceSet(A, [A, B], null);
+  check('Section 1, stg feed not here yet: the direct peer\'s picture, the same source its strip packs', !!(fPeer && fPeer[0] && fPeer[0].vt === camB.getVideoTracks()[0]), fPeer);
+  check('…a deeper seat never takes a parked main link (it cuts the strip)', S1peer.stageRawFace(B, false) === null);
   const S1gap = world({ myId: 's1', mosIn: new Map([['stg:' + A, { stream: fullA }]]) });
   const fGap = S1gap.stageFaceSet(A, [A, B], null);
-  check('Section 1 without a feed yet keeps the screen (never null there)', Array.isArray(fGap) && fGap.length === 0);
+  check('Section 1 with no picture of a co-presenter shows a named dark box, never nobody',
+    Array.isArray(fGap) && fGap.length === 1 && fGap[0].id === B && fGap[0].vt === null, fGap);
+  const S1camOff = world({ myId: 's1', mosIn: new Map([['stg:' + A, { stream: fullA }], ['stg:' + B, { stream: new FakeStream([trk('audio', 'micB')]) }]]) });
+  const fCamOff = S1camOff.stageFaceSet(A, [A, B], null);
+  check('…the same for a co-presenter whose camera is off (video track gone)', Array.isArray(fCamOff) && fCamOff.length === 1 && fCamOff[0].vt === null);
 
   // Moderation reaches the face boxes.
   const Woff = world({ mosIn: deepIn(), off: [B] });
-  const fOff = Woff.stageFaceSet(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480));
-  check('an admin\'s video-off hides the face at a deep seat', Array.isArray(fOff) && fOff.length === 0);
+  const fOff = Woff.settled(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480));
+  check('an admin\'s video-off: the named dark box, no pixel, at a deep seat', Array.isArray(fOff) && fOff.length === 1 && fOff[0].vt === null && fOff[0].crop === null);
   const S1off = world({ myId: 's1', mosIn: new Map([['stg:' + B, { stream: fullB }]]), off: [B] });
-  check('…and at Section 1, where the raw face is held', (S1off.stageFaceSet(A, [A, B], null) || [1]).length === 0);
+  const fS1off = S1off.stageFaceSet(A, [A, B], null);
+  check('…and at Section 1, where the raw face is held', Array.isArray(fS1off) && fS1off.length === 1 && fS1off[0].vt === null);
   const Wbl = world({ mosIn: deepIn(), blurred: [B] });
-  const fBl = Wbl.stageFaceSet(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480));
+  const fBl = Wbl.settled(A, [A, B], strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480));
   check('a moderator\'s blur blurs the face box', !!(fBl && fBl[0] && fBl[0].bl === 2), fBl && fBl[0] && fBl[0].bl);
-  const Wnb = world({ mosIn: deepIn() });
-  check('no block, no receiver blur on the box (the sender bakes its own, as in the strip)', Wnb.stageFaceBlur(B) === 0);
-  const Wself = world({ myId: B, blurred: [B] });
+  // THE ROOM RULE (verifier round 1, problem 1): no block, but the room is not
+  // clear (no password, not all consent, no admin): the box blurs, as the grid
+  // tile does, so a sender that does not bake its blur is still blurred.
+  const S1room = world({ myId: 's1', mosIn: new Map([['stg:' + B, { stream: fullB }]]), room: 2 });
+  check('no block, room not clear: the box wears the room rule\'s blur (blurLevelFor)', S1room.stageFaceBlur(B) === 2);
+  const fRoom = S1room.stageFaceSet(A, [A, B], null);
+  check('…on the raw face at Section 1', !!(fRoom && fRoom[0] && fRoom[0].vt && fRoom[0].bl === 2));
+  const S1clear = world({ myId: 's1', room: 0 });
+  check('a clear room (blurLevelFor 0) leaves the box clear', S1clear.stageFaceBlur(B) === 0);
+  const S1blk = world({ myId: 's1', room: 0, blurred: [B] });
+  check('a block is at least Min blur even if the room is clear', S1blk.stageFaceBlur(B) >= 1);
+  const Wself = world({ myId: B, blurred: [B], room: 2 });
   check('my own face is never blurred twice', Wself.stageFaceBlur(B) === 0);
+
+  // THE CROP FOLLOWS THE FRAME (verifier round 1, problem 4): the box re-cuts
+  // from the frame its own <video> shows, on every 'resize' and every paint.
+  {
+    const Wc = world({});
+    const nm = { style: { display: '' } };
+    const v = { _vt: stripTrack, _cell: { j: 1, n: 2, cols: 2 }, videoWidth: 960, videoHeight: 480, style: {}, dataset: {}, parentNode: { querySelector: () => nm } };
+    check('a frame that fits: the cell is shown', Wc.stageFaceCss(v) === true && /left:-96\.0px/.test(v.style.cssText) && nm.style.display === 'none' && v.dataset.cell === '1', v.style.cssText);
+    v.videoWidth = 1440; // a third person was packed: the frame is 3 cells wide, the meta not yet
+    check('a frame that changed shape: no crop, the name on dark instead of a slice of a neighbour', Wc.stageFaceCss(v) === false && v.style.cssText === 'display:none' && nm.style.display === 'flex');
+    v.videoWidth = 960;
+    check('…and the cell returns when the frame fits again', Wc.stageFaceCss(v) === true && nm.style.display === 'none');
+    const raw = { _vt: fullB.getVideoTracks()[0], _cell: null, videoWidth: 640, videoHeight: 480, style: {}, dataset: {}, parentNode: { querySelector: () => nm } };
+    check('a raw face fills its box', Wc.stageFaceCss(raw) === true && /width:100%/.test(raw.style.cssText));
+    const none = { _vt: null, _cell: null, style: {}, dataset: {}, parentNode: { querySelector: () => nm } };
+    check('no picture: the name on dark', Wc.stageFaceCss(none) === false && nm.style.display === 'flex');
+  }
 }
 
 // ---- 3. sharingScreen knows a sharer in another section ---------------------
@@ -158,6 +221,12 @@ if (facesSrc && downSrc) {
     check('a sharer in my section, by status', ss('near') === true);
     check('a sharer in another section, by the fold (f & 2)', ss('far') === true);
     check('a fresh section status saying "not sharing" beats a stale fold', ss('quiet') === false);
+    // Verifier round 1, problem 2: a STALE scr=true must not outlive the share.
+    const ss2 = make(new Map([['old', { scr: 1 }], ['oldnofold', { scr: 1 }], ['freshon', { scr: 1 }]]), ['freshon'],
+      { old: { id: 'old', f: 0 }, freshon: { id: 'freshon', f: 0 } });
+    check('a stale status saying "sharing" loses to a fold saying it stopped', ss2('old') === false);
+    check('a fresh status saying "sharing" wins over a lagging fold', ss2('freshon') === true);
+    check('a stale status with no fold entry is the only word there is', ss2('oldnofold') === true);
     check('a fold flag that is not the share bit is not a share', ss('sing') === false);
     check('nobody known is not a sharer', ss('nobody') === false);
     if (downSrc) {
@@ -204,9 +273,12 @@ if (facesSrc && downSrc) {
   check('stageDirect refuses a sharer under an admin video-off', /if \(forcedCamOff\(sid\)\) return null;/.test(sd));
   const comp = between('        const stgKeep = new Set();', 'for (const id of stripPack.ids())');
   check('the strip compositor paints an admin video-off dark', /const dark = forcedCamOff\(sid\) \? 1 : 0;/.test(comp));
-  check('…and bakes a moderator blur into a camera cell, never into a shared screen',
-    /const blur = \(!dark && sid !== myId && modBlurOn\(sid\) && !sharingScreen\(sid\)\) \? Math\.max\(1, blurLevelFor\(sid\)\) : 0;/.test(comp)
-    && /fit: fitFor\(sid\), dark, blur \}/.test(comp));
+  // Verifier round 1, problem 2: the share bit is the sender's own claim, so
+  // it must not lift a moderator's blur from the strip cell.
+  check('…and bakes a moderator blur into the cell, a claimed share included',
+    /const blur = \(!dark && sid !== myId && modBlurOn\(sid\)\) \? Math\.max\(1, blurLevelFor\(sid\)\) : 0;/.test(comp)
+    && /fit: fitFor\(sid\), dark, blur \}/.test(comp) && !/sharingScreen/.test(comp.split('const blur =')[1].split('\n')[0]));
+  check('stageDirect never shows a moderator-blurred sharer\'s raw feed (the strip with the baked blur stands)', /if \(modBlurOn\(sid\)\) return null;/.test(sd));
   check('the face boxes wear the receiver blur classes', /\.stagefacebox video\.blur1 \{ filter: blur\(11px\)/.test(html) && /\.stagefacebox video\.blur2 \{ filter: blur\(26px\)/.test(html));
   const pf = between('      const paintStageFaces = (faces) => {', '      // ---- GAPLESS PACKING');
   check('a face box applies its blur class', /face\.classList\.remove\('blur1', 'blur2'\);\s*if \(fc\.bl\) face\.classList\.add\('blur' \+ fc\.bl\);/.test(pf));

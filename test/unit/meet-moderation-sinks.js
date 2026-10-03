@@ -49,5 +49,19 @@ const deliver = fn('function sgaDeliver(m)', '// ---- late-joiner snapshot repla
 check('sgaDeliver no longer retains an unverified app frame (first copy wins only among VERIFIED copies)', !/if \(!sgaApp\.has\(m\.sid\)\) sgaApp\.set\(m\.sid, m\)/.test(deliver));
 check('an app frame goes through the owner verifier (makeVerifier) before sgaApp.set', /makeVerifier/.test(run) && /sgaApp\.set\(m\.sid, m\)/.test(fn('function sgaRetainApp', 'function sgaDeliver')));
 
+// 6. the face boxes on a shared screen (STAGE-FACES) obey the same hammers
+const sf = fn('    // STAGE-FACES\n', '    // END-STAGE-FACES');
+check('the STAGE-FACES block exists', !!sf);
+check('a stage face box wears the grid tile\'s receiver blur (blurLevelFor), not only a moderator block',
+  /function stageFaceBlur\(id\) \{[\s\S]{0,120}const bl = blurLevelFor\(id\) \| 0;\s*return modBlurOn\(id\) \? Math\.max\(1, bl\) : bl;/.test(sf));
+check('a stage face under an admin video-off is a named dark box with no track',
+  /if \(forcedCamOff\(id\)\) \{ faces\.push\(\{ id, vt: null,/.test(sf));
+const pf = fn('const paintStageFaces = (faces) => {', '// ---- GAPLESS PACKING');
+check('paintStageFaces paints the blur class on every face box', /face\.classList\.remove\('blur1', 'blur2'\);\s*if \(fc\.bl\) face\.classList\.add\('blur' \+ fc\.bl\);/.test(pf));
+check('the blur CSS covers .stagefacebox video', /\.stagefacebox video\.blur1/.test(run) && /\.stagefacebox video\.blur2/.test(run));
+const sd = fn('const stageDirect = () => {', '// Grid tiles of stagers are hidden.');
+check('the raw shared screen on the stage refuses a sharer under video-off or a moderator blur',
+  /if \(forcedCamOff\(sid\)\) return null;/.test(sd) && /if \(modBlurOn\(sid\)\) return null;/.test(sd));
+
 console.log(fails ? '\n' + fails + ' FAILURE(S)' : '\nALL PASS');
 process.exit(fails ? 1 : 0);

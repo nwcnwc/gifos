@@ -3604,14 +3604,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // split the room: Section 1 square-cropped a deeper sharer's screen into
     // the strip, a deep relay shipped that sharer's feed down audio-only, and
     // only the sharer's own section saw the screen itself. A fresh section
-    // status still wins over the fold. Every caller is a stage-media choice.
+    // status wins over the fold, either way; a stale one loses to it, so a
+    // share that ended in another section is not kept alive by an old
+    // scr=true. Every caller is a stage-media choice; none of them lifts a
+    // moderator's blur (the strip bakes it on a share too).
     const sharingScreen = (pid) => {
       if (pid === myId) return !!myStatus.scr;
       const st = statusOf.get(pid);
-      if (st && st.scr) return true;
-      if (st && freshSt(pid)) return false;
+      if (st && freshSt(pid)) return !!st.scr;
       const e = digStageEntry(pid);
-      return !!(e && (e.f & 2));
+      if (e) return !!(e.f & 2);
+      return !!(st && st.scr);
     };
     const fitFor = (pid) => (sharingScreen(pid) ? 'contain' : null);
     const labelFor = (pid) => {
@@ -10923,8 +10926,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // faces sit on it in small boxes, or they vanish. A face comes from what
     // this seat already holds:
     //   - for me, my own broadcast track (my blur is already in it);
-    //   - a stage feed that carries video. Every Section 1 seat holds them all
-    //     (the S1 flood), and a relay holds the ones it carries up;
+    //   - the SAME source the Section 1 strip compositor packs (srcFor): the
+    //     stg feed when one is held, else the direct peer's own <video>. Every
+    //     Section 1 seat holds every stage feed (the S1 flood), and a relay
+    //     holds the ones it carries up;
     //   - below Section 1 a co-presenter's stage feed arrives AUDIO-ONLY
     //     (stgDownShip), so the face is cut out of the strip this seat already
     //     receives. The strip is a packed row-major grid of square cells, cell
@@ -10932,70 +10937,106 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     //     stage order when an older relay dropped them and the counts agree),
     //     and a fixed box shows cell j of the strip's own <video>, scaled and
     //     shifted (MM.cellCrop). Same decoded track, zero extra bandwidth.
-    // When a deep seat cannot place a face (no meta, order unknown, counts or
-    // frame disagree), it shows the strip itself: never a screen with people
-    // missing. Section 1 packs its strip from the same feeds it shows, so a
-    // face it lacks is missing from its strip as well, and it keeps the screen.
+    // When a deep seat cannot place a face (no meta, order unknown or just
+    // changed, counts or frame disagree, an id the order lacks), it shows the
+    // strip itself: never a screen with people missing. Section 1 always keeps
+    // the screen, so a co-presenter it holds no live picture of (camera off, a
+    // feed not here yet) gets a named dark box, as the strip gets a named dark
+    // cell: nobody is missing there either.
     // MODERATION REACHES THESE SINKS like the grid tile (meet-moderation-sinks):
-    // an admin's video-off hides the face, a moderator's blur blurs it here.
+    // an admin's video-off shows the named dark box and no pixel; every remote
+    // face wears the grid tile's receiver blur (blurLevelFor: the room rule,
+    // and at least Min blur under a moderator's block).
     const STAGE_FACE_PX = 96;
+    // A strip whose cell order (or count, or grid, or track) just changed is
+    // not trusted until this long has passed: the announce that carries the
+    // order can reach a seat before the re-packed frame does, and a crop then
+    // shows the cell of whoever sat there before.
+    const STAGE_FACE_SETTLE_MS = 2500;
+    let stageStripSeen = { key: '', at: 0 };
     function stageStripOrder(meta, stagers) {
       if (!meta || !(meta.n > 0)) return null;
       if (Array.isArray(meta.ids)) return meta.ids.length === meta.n ? meta.ids.slice() : null;
       return meta.n === stagers.length ? stagers.slice() : null;
     }
-    // The receiver blur on a face box. My own track already carries my blur.
-    // A moderator's block is the hammer this sink must obey; a seat's own
-    // choice is baked in by its sender, the same pixels the strip shows.
+    // The receiver blur on a face box: the grid tile's rule (blurLevelFor), so
+    // a sender that does not bake its blur is still blurred here. My own track
+    // already carries my blur.
     function stageFaceBlur(id) {
-      if (id === myId || !modBlurOn(id)) return 0;
-      return Math.max(1, blurLevelFor(id));
+      if (id === myId) return 0;
+      const bl = blurLevelFor(id) | 0;
+      return modBlurOn(id) ? Math.max(1, bl) : bl;
     }
-    // A face's own video track, or null. Never the MAIN link of a stager: its
-    // main senders are parked, so that track is frozen or black.
-    function stageRawFace(id) {
+    // A face's own video track, or null. A held stg feed decides (an
+    // audio-only copy has no face). At Section 1 (s1) the strip compositor's
+    // own source rule (srcFor) goes on: with no stg feed held, the direct
+    // peer's <video>, the same pixels its strip cell packs. A deeper seat
+    // cuts that face out of its strip instead.
+    function stageRawFace(id, s1) {
       let st = null;
       if (id === myId) st = meTile && meTile.video ? meTile.video.srcObject : null;
       else {
         const f = mosIn.get('stg:' + id);
-        if (!f || (f.meta && f.meta.ao)) return null;
-        st = f.stream;
+        if (f) { if (f.meta && f.meta.ao) return null; st = f.stream; }
+        else if (s1) { const p = peers.get(id); st = p && p.video ? p.video.srcObject : null; }
       }
       const vt = st && typeof st.getVideoTracks === 'function' ? st.getVideoTracks()[0] : null;
       return vt && vt.readyState !== 'ended' ? vt : null;
     }
-    // The faces to put on screenSid's shared screen: [{ id, vt, crop, bl }].
-    // strip is the received 'sgs' claim at a deep seat, null at Section 1.
-    // null means this seat must show the strip instead of the screen.
-    function stageFaceSet(screenSid, stagers, strip) {
+    // The faces to put on screenSid's shared screen: [{ id, vt, crop, cell, bl }].
+    // vt null is a named dark box. strip is the received 'sgs' claim at a deep
+    // seat, null at Section 1. null means this seat must show the strip.
+    function stageFaceSet(screenSid, stagers, strip, now) {
       const faces = [];
-      let order, svt = null;
+      let order, svt = null, cols = 0;
+      if (now === undefined) now = Date.now();
       for (const id of stagers) {
-        if (id === screenSid || forcedCamOff(id)) continue;
+        if (id === screenSid) continue;
+        if (forcedCamOff(id)) { faces.push({ id, vt: null, crop: null, cell: null, bl: 0 }); continue; }
         const bl = stageFaceBlur(id);
-        const vt = stageRawFace(id);
-        if (vt) { faces.push({ id, vt, crop: null, bl }); continue; }
-        if (!strip) continue;
-        if (order === undefined) order = stageStripOrder(strip.meta, stagers);
-        if (!order) return null;
-        const j = order.indexOf(id);
-        if (j < 0) {
-          // The compositing seat packed no cell for them (meta.ids says so):
-          // its strip lacks them too, so the screen hides nobody it shows.
-          if (strip.meta && Array.isArray(strip.meta.ids)) continue;
-          return null;
-        }
-        if (!svt) {
+        const vt = stageRawFace(id, !strip);
+        if (vt) { faces.push({ id, vt, crop: null, cell: null, bl }); continue; }
+        if (!strip) { faces.push({ id, vt: null, crop: null, cell: null, bl }); continue; }
+        if (order === undefined) {
+          order = stageStripOrder(strip.meta, stagers);
+          if (!order) return null;
           const t = strip.stream && typeof strip.stream.getVideoTracks === 'function' ? strip.stream.getVideoTracks()[0] : null;
           if (!t || t.readyState === 'ended') return null;
           svt = t;
+          cols = (strip.meta.cols | 0) || order.length;
+          const key = order.join(',') + '|' + order.length + 'x' + cols + '|' + (t.id || '');
+          if (key !== stageStripSeen.key) stageStripSeen = { key, at: now };
+          if (now - stageStripSeen.at < STAGE_FACE_SETTLE_MS) return null;
         }
+        const j = order.indexOf(id);
+        if (j < 0) return null;
         const el = strip.el;
-        const crop = MM.cellCrop(j, order.length, (strip.meta.cols | 0) || order.length, el ? el.videoWidth : 0, el ? el.videoHeight : 0, STAGE_FACE_PX);
+        const crop = MM.cellCrop(j, order.length, cols, el ? el.videoWidth : 0, el ? el.videoHeight : 0, STAGE_FACE_PX);
         if (!crop) return null;
-        faces.push({ id, vt: svt, crop, bl });
+        faces.push({ id, vt: svt, crop, cell: { j, n: order.length, cols }, bl });
       }
       return faces;
+    }
+    // Place one face box's <video>. A raw face fills the box. A strip cell is
+    // re-cut from the frame this <video> is showing right now (it plays the
+    // strip's own track), so a frame that changed shape since the sweep never
+    // shows the wrong cell: no fit, no pixels, the name instead. No track:
+    // the name alone.
+    function stageFaceCss(v) {
+      const wrap = v.parentNode;
+      const nm = wrap && wrap.querySelector ? wrap.querySelector('.stagefacename') : null;
+      let css = null;
+      if (v._vt && !v._cell) css = 'position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;background:#000';
+      else if (v._vt && v._cell) {
+        const c = MM.cellCrop(v._cell.j, v._cell.n, v._cell.cols, v.videoWidth, v.videoHeight, STAGE_FACE_PX);
+        // No decoded frame yet: hold the box dark until the first one sizes it.
+        if (c) css = 'position:absolute;left:' + c.x.toFixed(1) + 'px;top:' + c.y.toFixed(1) + 'px;width:' + c.w.toFixed(1) + 'px;height:' + c.h.toFixed(1) + 'px;max-width:none;max-height:none;object-fit:fill;background:#000';
+      }
+      const show = css || 'display:none';
+      if (v._css !== show) { v._css = show; v.style.cssText = show; }
+      v.dataset.cell = css && v._cell ? '1' : '';
+      if (nm) nm.style.display = css ? 'none' : 'flex';
+      return !!css;
     }
     // END-STAGE-FACES
     function dropMosIn(rk) {
@@ -11984,6 +12025,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // stopped (enforceForcedCam); a defiant one is shown by nobody honest.
         // The strip stands, and its compositor paints that cell dark.
         if (forcedCamOff(sid)) return null;
+        // A moderator blurred this sharer. The raw feed would show it clear,
+        // and the share bit is the sender's own claim; the strip stands, with
+        // the blur baked into that cell.
+        if (modBlurOn(sid)) return null;
         const sc = srcFor(sid, 'stg:' + sid);
         if (!sc || !sc.el || !sc.stream || !sc.el.videoWidth) return null; // no pixels yet — the strip stands, the next sweep switches
         const vt = sc.stream.getVideoTracks ? sc.stream.getVideoTracks()[0] : null;
@@ -12023,21 +12068,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             v.autoplay = true;
             v.playsInline = true;
             v.setAttribute('playsinline', '');
+            // A strip frame that changes shape re-places the crop at once,
+            // not at the next sweep; a frame the crop no longer fits shows
+            // the named dark box, never a slice of a neighbour's cell.
+            v.addEventListener('resize', () => stageFaceCss(v));
             wrap.appendChild(v);
+            // The named dark box: a co-presenter with no picture here.
+            const nm = document.createElement('div');
+            nm.className = 'stagefacename';
+            nm.style.cssText = 'position:absolute;top:0;right:0;bottom:0;left:0;display:none;align-items:center;justify-content:center;text-align:center;padding:4px;color:#ddd;font:12px/1.2 system-ui,sans-serif;overflow:hidden;word-break:break-word';
+            wrap.appendChild(nm);
             box.appendChild(wrap);
           }
           const face = wrap.querySelector('video');
+          const nm = wrap.querySelector('.stagefacename');
+          const name = displayName(fc.id) || '';
+          if (nm.textContent !== name) nm.textContent = name;
           if (face._vt !== fc.vt) {
             face._vt = fc.vt;
-            face.srcObject = new MediaStream([fc.vt]);
-            const pr = face.play(); if (pr && pr.catch) pr.catch(() => {});
+            if (fc.vt) {
+              face.srcObject = new MediaStream([fc.vt]);
+              const pr = face.play(); if (pr && pr.catch) pr.catch(() => {});
+            } else { try { face.srcObject = null; } catch (e) {} }
           }
-          const c = fc.crop;
-          const css = c
-            ? 'position:absolute;left:' + c.x.toFixed(1) + 'px;top:' + c.y.toFixed(1) + 'px;width:' + c.w.toFixed(1) + 'px;height:' + c.h.toFixed(1) + 'px;max-width:none;max-height:none;object-fit:fill;background:#000'
-            : 'position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;background:#000';
-          if (face._css !== css) { face._css = css; face.style.cssText = css; }
-          face.dataset.cell = c ? '1' : '';
+          face._cell = fc.cell || null;
+          stageFaceCss(face);
           face.classList.remove('blur1', 'blur2');
           if (fc.bl) face.classList.add('blur' + fc.bl);
         }
@@ -12422,14 +12477,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // MODERATION REACHES THE STRIP. This seat's pixels are what every seat
         // below sees, so the room's moderation table is applied here, the same
         // on every Section 1 seat: an admin's video-off paints the cell dark
-        // (name kept, place kept), and a moderator's blur is baked into a
-        // camera cell. A shared screen is never blurred (sentVideoTrack: the
-        // ladder for a share is video-off). My own cell already carries my blur.
+        // (name kept, place kept), and a moderator's blur is baked into the
+        // cell, a shared screen included: the share bit is the sender's own
+        // claim, so it cannot lift the hammer (a sender that claims a share
+        // while sending its camera stays blurred). The grid tile blurs a
+        // blocked sharer the same way. My own cell already carries my blur.
         stagers.forEach((sid, j) => {
           const sc = srcFor(sid, 'stg:' + sid);
           if (sc && sc.el) {
             const dark = forcedCamOff(sid) ? 1 : 0;
-            const blur = (!dark && sid !== myId && modBlurOn(sid) && !sharingScreen(sid)) ? Math.max(1, blurLevelFor(sid)) : 0;
+            const blur = (!dark && sid !== myId && modBlurOn(sid)) ? Math.max(1, blurLevelFor(sid)) : 0;
             stripPack.setTile(sid, j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(sid), fit: fitFor(sid), dark, blur });
             stgKeep.add(sid);
           }
@@ -17368,7 +17425,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               luma = +(sum / (d.length / 4) / 765).toFixed(4);
             }
           } catch (e) {}
+          // named=true: the box shows the name on dark, no picture (camera
+          // off, admin video-off, or a crop the current frame does not fit).
+          const nm = w.querySelector('.stagefacename');
           out.faces.push({ id: w.dataset.face, cell: !!v.dataset.cell, live: v.videoWidth > 0, w: v.videoWidth, h: v.videoHeight,
+            named: !!(nm && nm.style.display !== 'none'), name: nm ? nm.textContent : '',
             bl: v.classList.contains('blur2') ? 2 : v.classList.contains('blur1') ? 1 : 0, luma });
         }
         return out;
