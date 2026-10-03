@@ -3207,28 +3207,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     fsview.appendChild(fsmain); fsview.appendChild(fsstrip); fsview.appendChild(fsclose);
     document.body.appendChild(fsview);
     let fsSel = null, fsTick = null, fsAutoPid = null;
-    // Parked grid sinks while #fsview is open. The stream stays here so a
-    // later refresh can still list the tile after srcObject is detached.
-    const fsParked = new Map();
-    const fsHeld = (v) => !!(v && fsParked.get(v));
-    function fsParkGrid() {
-      if (typeof grid === 'undefined' || !grid) return;
-      for (const v of grid.querySelectorAll('video')) {
-        if (fsParked.has(v)) continue;
-        fsParked.set(v, v.srcObject || null);
-        try { v.pause(); } catch (e) {}
-        v.srcObject = null;
-      }
-    }
-    function fsUnparkGrid() {
-      for (const [v, st] of fsParked) {
-        try {
-          v.srcObject = st || null;
-          if (st && v.play) { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
-        } catch (e) {}
-      }
-      fsParked.clear();
-    }
+    // The grid videos stay attached while #fsview is open; body.fsopen only
+    // hides their paint. busVolume, the row head's packer, selfStageStream
+    // and the recorder all read those elements, so detaching them would
+    // silence row-mates and darken a head's whole section.
     // FOLLOW THE SPEAKER (fsSel === 'auto'): the big view rides whoever is
     // talking. Hysteresis by memory — the last speaker HOLDS the view while
     // nobody (or the same person) talks, so two voices trading lines don't
@@ -3258,22 +3240,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // hides the peer here too (the ORDER, not their status — a sender
         // that ignores it keeps transmitting), and the receiver blur level
         // rides along so the big feed and the thumb paint it.
-        if (p.connected && (pipReady(p.video) || fsHeld(p.video)) && !seatDark(statusOf.get(pid)) && !forcedCamOff(pid)) {
+        if (p.connected && pipReady(p.video) && !seatDark(statusOf.get(pid)) && !forcedCamOff(pid)) {
           out.push({ key: 'peer:' + pid, label: displayName(pid), v: p.video, bl: blurLevelFor(pid) });
         }
       }
       const sd = stadiumEl.querySelector('[data-row="sd"] video');
       if (pipReady(sd)) out.push({ key: 'sd', label: 'The stadium', v: sd });
-      if (meTile && !seatDark(myStatus) && (pipReady(meTile.video) || fsHeld(meTile.video))) out.push({ key: 'me', label: 'You', v: meTile.video });
+      if (meTile && !seatDark(myStatus) && pipReady(meTile.video)) out.push({ key: 'me', label: 'You', v: meTile.video });
       return out;
     }
     function fsPaintSel() { for (const th of fsstrip.children) th.classList.toggle('sel', th.dataset.key === fsSel); }
     function fsRefresh() {
       const src = fsSources();
-      // Snapshot before fsParkGrid detaches the grid element. One live sink
-      // per feed after that: #fsmain, or a thumb, never both, never the grid.
-      for (const s of src) s.stream = (s.v && (s.v.srcObject || fsParked.get(s.v))) || null;
-      if (fsview.classList.contains('on')) fsParkGrid();
+      // Read the live stream every refresh, so a renegotiated feed follows.
+      // One visible sink per feed: #fsmain or a thumb, never both.
+      for (const s of src) s.stream = s.v ? s.v.srcObject : null;
       const main = fsSel === 'auto' ? fsPickAuto(src) : (src.find((s) => s.key === fsSel) || src[0] || null);
       if (main) {
         if (fsSel !== 'auto') fsSel = main.key; // a pin re-anchors; auto stays auto
@@ -3359,7 +3340,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       fsmain.srcObject = null;
       for (const tv of fsstrip.querySelectorAll('video')) tv.srcObject = null; // no leftover sinks — decode work ends with the view
       fsstrip.textContent = ''; fsstrip.dataset.set = '';
-      fsUnparkGrid();
       if (document.fullscreenElement === fsview) document.exitFullscreen().catch(() => {});
     }
     fsclose.onclick = () => closeFsView();

@@ -17,35 +17,32 @@ const between = (a, b) => {
 };
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ---- 1. filmstrip: park the grid, do not thumb the feed already shown big ----
+// ---- 1. filmstrip: hide the grid paint, never detach its streams ----
+// Other code reads the #grid videos while the filmstrip is open: busVolume
+// mirrors el.srcObject into the audio companion, the row head's packer
+// draws from p.video, selfStageStream reads meTile.video.srcObject, and the
+// recorder reads them too. Nulling them silences row-mates and darkens a
+// head's whole section, so the saving is visibility only.
 {
   check('full screen hides the grid videos', html.includes('body.fsopen #grid video { visibility: hidden; }'));
-  check('openFsView marks the body and closeFsView clears it and restores the grid',
+  check('openFsView marks the body and closeFsView clears it',
     /function openFsView[\s\S]*body\.classList\.add\('fsopen'\)/.test(html)
-    && /function closeFsView[\s\S]*body\.classList\.remove\('fsopen'\)[\s\S]*fsUnparkGrid\(/.test(html));
+    && /function closeFsView[\s\S]*body\.classList\.remove\('fsopen'\)/.test(html));
+  check('no grid park/unpark for the filmstrip (no fsParkGrid, fsUnparkGrid, fsParked, fsHeld)',
+    !/\bfs(ParkGrid|UnparkGrid|Parked|Held)\b/.test(html));
+  const block = between("    const fsview = document.createElement('div'); fsview.id = 'fsview';", '    // ---- tiles ----');
+  check('the filmstrip block is liftable', block.includes('function fsRefresh') && block.includes('function closeFsView'));
+  check('the filmstrip block never walks the grid videos',
+    !/grid\.querySelectorAll/.test(block), (block.match(/.*grid\.querySelectorAll.*/) || [''])[0]);
+  const nulled = (block.match(/(\w+)\.srcObject\s*=\s*null/g) || []).map((m) => m.split('.')[0]);
+  check('the filmstrip only nulls its own sinks (fsmain, thumbs)',
+    nulled.every((n) => n === 'fsmain' || n === 'tv'), JSON.stringify(nulled));
   const refresh = between('    function fsRefresh() {', '    function fsBlurClass');
-  check('fsRefresh snapshots the stream, then parks, and skips the big feed as a thumb',
-    refresh.indexOf('s.stream') < refresh.indexOf('fsParkGrid()')
+  check('fsRefresh snapshots the live stream and skips the big feed as a thumb',
+    refresh.includes('s.stream = s.v ? s.v.srcObject : null')
     && refresh.includes("src.filter((s) => !main || s.key !== main.key)")
     && refresh.includes('for (const s of thumbs)')
     && refresh.includes('tv.srcObject = s.stream'));
-  const src = between('    const fsParked = new Map();', '    function fsPickAuto');
-  check('fsParkGrid is liftable', src.indexOf('function fsParkGrid') > 0 && src.indexOf('function fsUnparkGrid') > 0);
-  const v = {
-    srcObject: { id: 'feed' }, paused: false, played: false,
-    pause() { this.paused = true; },
-    play() { this.played = true; return { catch() {} }; },
-  };
-  const grid = { querySelectorAll() { return [v]; } };
-  const api = new Function('grid', src + '\nreturn { fsParkGrid, fsUnparkGrid, fsParked, fsHeld };')(grid);
-  api.fsParkGrid();
-  check('parking detaches and pauses the grid video and remembers the stream',
-    v.srcObject === null && v.paused === true && api.fsHeld(v) === true && api.fsParked.get(v).id === 'feed',
-    JSON.stringify({ src: v.srcObject, paused: v.paused, held: api.fsHeld(v) }));
-  api.fsParkGrid();
-  check('a second park does not forget the stream', api.fsParked.get(v) && api.fsParked.get(v).id === 'feed');
-  api.fsUnparkGrid();
-  check('unpark restores the stream and plays', v.srcObject && v.srcObject.id === 'feed' && v.played === true && api.fsParked.size === 0);
 }
 
 // ---- 2. a stale away pulse does not shrink the vote bar ----
