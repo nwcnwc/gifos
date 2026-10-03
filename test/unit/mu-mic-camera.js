@@ -257,6 +257,43 @@ function fakeStream(kinds) {
       check('a prompt that settles does not leave a 15s timer', clock2.pending() === 0, 'pending=' + clock2.pending());
       clock2.advance(15000);
       check('…and does not overwrite Mic on', L3.statuses[L3.statuses.length - 1] === 'Mic on.', JSON.stringify(L3.statuses));
+
+      // The person was still reading the first prompt at 15s and tapped again.
+      // The first grant lands while the second ask is open: it wins, and the
+      // second grant (or refusal) must not throw it away or overwrite it.
+      const resolvers4 = [];
+      const L4 = makeLate(() => new Promise((res, rej) => { resolvers4.push({ res, rej }); }));
+      L4.lateMedia('cam');
+      clock2.advance(15000);
+      L4.lateMedia('mic');
+      check('after 15s a tap may ask again', resolvers4.length === 2, 'asks=' + resolvers4.length);
+      const streamFirst = fakeStream(['audio', 'video']);
+      resolvers4[0].res(streamFirst);
+      await flush();
+      check('a late first grant is kept while the second ask is open', streamFirst.getVideoTracks()[0].readyState === 'live'
+        && L4.stream() === streamFirst && L4.myStatus.camOff === false, 'camOff=' + L4.myStatus.camOff);
+      check('…and the open ask no longer holds the buttons', clock2.pending() === 0, 'pending=' + clock2.pending());
+      const streamSecond = fakeStream(['audio', 'video']);
+      resolvers4[1].res(streamSecond);
+      await flush();
+      check('the second grant is released, not swapped in', streamSecond.getTracks().every((t) => t.readyState === 'ended')
+        && L4.stream().getAudioTracks()[0] === streamFirst.getAudioTracks()[0]);
+      check('…its tap still turns its own control on', L4.myStatus.muted === false && streamFirst.getAudioTracks()[0].enabled === true
+        && L4.myStatus.camOff === false, JSON.stringify(L4.myStatus));
+
+      const resolvers5 = [];
+      const L5 = makeLate(() => new Promise((res, rej) => { resolvers5.push({ res, rej }); }));
+      L5.lateMedia('mic');
+      clock2.advance(15000);
+      L5.lateMedia('mic');
+      const streamFirst5 = fakeStream(['audio', 'video']);
+      resolvers5[0].res(streamFirst5);
+      await flush();
+      const denied = new Error('NotAllowedError'); denied.name = 'NotAllowedError';
+      resolvers5[1].rej(denied);
+      await flush();
+      check('a refusal of the second prompt does not overwrite the first grant', L5.stream() === streamFirst5
+        && L5.myStatus.muted === false && L5.statuses[L5.statuses.length - 1] === 'Mic on.', JSON.stringify(L5.statuses.slice(-2)));
     } finally {
       clock2.restore();
     }

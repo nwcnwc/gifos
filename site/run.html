@@ -15307,6 +15307,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let lateAsk = false;
     let lateGen = 0;
     const LATE_ASK_MS = 15000; // a permission prompt may never settle; the buttons must not stay dead
+    // FIRST GRANT WINS. After LATE_ASK_MS a tap may ask again (a dismissed
+    // prompt can stay pending for ever, and only a new ask shows it again),
+    // but the first ask is often still on screen: the person was reading it.
+    // So a grant from ANY ask lands if no grant has landed since that ask
+    // began (lateWon); a grant or refusal that comes after one has landed
+    // releases its own tracks and only turns its tapped control on.
+    let lateWon = 0, lateTimer = 0;
     let bootGumPending = null; // knock-first: the boot's own getUserMedia while it is in flight — THE one ask; lateMedia must join it, never race it
     // NO CAMERA IS NOT NO MICROPHONE. A combined camera+mic ask rejects as a
     // whole when the camera is missing, disabled by policy or held by another
@@ -15388,18 +15395,29 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // held mic is never re-taken, and a missing camera then fails on its own.
       const haveMic = !!(localStream && localStream.getAudioTracks()[0]);
       const ask = appRoom ? { audio: true } : (kind === 'cam' && haveMic) ? { video: camVideoConstraints() } : { video: camVideoConstraints(), audio: true };
-      const gen = ++lateGen;
-      const lateTimer = setTimeout(() => {
+      const gen = ++lateGen, won0 = lateWon;
+      lateTimer = setTimeout(() => {
         if (gen !== lateGen || !lateAsk) return;
         lateAsk = false;
         setStatus('The browser has not answered the camera and microphone ask. Check this site\u2019s permissions in the browser settings \u2014 or open this meeting link in Safari or Chrome.');
       }, LATE_ASK_MS);
       gumWithMicFallback(md, ask)
         .then(({ stream: s, camErr }) => {
-          if (gen !== lateGen) {
+          if (lateWon !== won0) {
+            // A grant already landed: keep that stream, release this one.
             try { for (const tr of s.getTracks()) tr.stop(); } catch (e) {}
+            if (gen === lateGen) lateAsk = false;
+            const held = localStream && (kind === 'cam' ? localStream.getVideoTracks() : localStream.getAudioTracks())[0];
+            if (held && !held.enabled) {
+              held.enabled = true;
+              if (kind === 'mic') myStatus.muted = false; else myStatus.camOff = false;
+              paintControls(); refreshOutbound(); broadcastStatus(); reactRoomState(); updateMediaSession();
+              if (typeof syncSpeech === 'function') syncSpeech();
+              setStatus(kind === 'cam' ? 'Camera on.' : 'Mic on.');
+            }
             return;
           }
+          lateWon++;
           clearTimeout(lateTimer);
           lateAsk = false;
           // Quiet-join discipline still holds: only the tapped control goes on.
@@ -15437,7 +15455,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (typeof noteAudioDevices === 'function') noteAudioDevices();
         })
         .catch((err) => {
-          if (gen !== lateGen) return;
+          if (gen !== lateGen || lateWon !== won0) return;
           clearTimeout(lateTimer);
           lateAsk = false;
           const name = (err && err.name) || 'error';
