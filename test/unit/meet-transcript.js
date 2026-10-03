@@ -156,6 +156,14 @@ function makeTranscript() {
 // ---- rule 3: the controls and the layout rule ----
 check('a Leave button sits on the always-visible row, before the collapsible part',
   html.indexOf('<button id="leavebtn"') > 0 && html.indexOf('<button id="leavebtn"') < html.indexOf('<div class="barmore" id="barmore">'));
+// The bar is collapsed by default and nothing expands it on a message, so a
+// status inside .barmore (display:none) was a refusal, a ban, "reconnecting…"
+// and the five-minute host-absence countdown written into an invisible element.
+check('the status line sits on the always-visible row, before the collapsible part',
+  html.indexOf('<span class="status" id="status">') > 0 && html.indexOf('<span class="status" id="status">') < html.indexOf('<div class="barmore" id="barmore">'));
+check('…and so does the host-absence countdown',
+  html.indexOf('<div class="admcount" id="admcount"') > 0 && html.indexOf('<div class="admcount" id="admcount"') < html.indexOf('<div class="barmore" id="barmore">'));
+check('the first status text does not promise a camera (the page joins quiet and hidden)', !/id="status">Starting camera/.test(html) && /id="status">Joining…</.test(html));
 check('leaving shows a card with the way back', /id="left-modal"[\s\S]*id="left-rejoin"/.test(html));
 check('Settings offers a captions-language picker', /<select id="cclang"/.test(html));
 check('the engine listens in the chosen language, not the device default', /speech\.lang = ccLang\(\) === 'auto' \? \(navigator\.language \|\| 'en-US'\) : ccLang\(\);/.test(html) && !/speech\.lang = navigator\.language \|\| 'en-US';/.test(html));

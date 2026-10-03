@@ -524,8 +524,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      button reads as "GifOS has no screen share", a grey one reads as "not
      here" and, pressed, says why. */
   .bar button.dim { opacity: .45; }
-  /* Collapsible header: only mic / camera / blur stay on the always-visible row;
-     everything else — action buttons, status/roster messages, the invite bar —
+  /* Collapsible header: mic / camera / blur, Leave and the status line stay on
+     the always-visible row; everything else — action buttons, the invite bar —
      lives in .barmore (flows inline via display:contents when open, hidden when
      collapsed), so the meeting reclaims that space for video tiles and apps.
      The toggle is a chevron chip parked left of the GifOS logo. */
@@ -1016,7 +1016,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      app has all of it today. */
   body.app-room:not(.audio-on) .bar { display: none !important; }
   body.app-room #cam, body.app-room #flipcam, body.app-room .blurctl, body.app-room #bartoggle,
-  body.app-room #barmore, body.app-room #callbanner { display: none !important; }
+  body.app-room #barmore, body.app-room #status, body.app-room #admcount, body.app-room #callbanner { display: none !important; }
   body.app-room #appaudio.on { border-color: var(--accent, #7b5cff); color: var(--accent, #7b5cff); }
   body.solo-app #feed, body.app-room #feed { display: none !important; }
   body.app-room #appbtn { display: none !important; }  /* the app IS the room — no picker */
@@ -1206,6 +1206,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       </span>
     </span>
     <button id="leavebtn" class="off" title="Leave this meeting — your seat closes at once and your camera and mic stop">Leave</button>
+    <!-- The status line and the host-absence countdown are information, not
+         controls: a refusal, a ban, "reconnecting…", "Just you — send the
+         invite" and "this room closes in 4:59" must be readable while the
+         controls are folded away (collapsed is the default). -->
+    <span class="status" id="status">Joining…</span>
+    <div class="admcount" id="admcount" style="display:none"></div>
     <div class="barmore" id="barmore">
     <button id="invite" title="Friends join you live with one link">Invite</button>
     <button id="appbtn" title="Run an app inside this meeting — everyone here shares and interacts with it live">Run app</button>
@@ -1223,8 +1229,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <button id="setbtn" title="Meeting settings — your sound mix, timing, and the video quality your camera records">Settings</button>
     <button id="trbtn" title="The meeting's live transcript" style="display:none">Transcript</button>
     <button id="helpbtn" title="How this meeting works — the stadium, the sound mix, singing together, and the dream">Help</button>
-    <span class="status" id="status">Starting camera…</span>
-    <div class="admcount" id="admcount" style="display:none"></div>
     </div>
   </div>
   <div class="share" id="share">
@@ -2737,6 +2741,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // modTable['__proto__'] is Object.prototype — one unsigned frame
         // would then put a room-wide order on every object in the page.
         if ((target in Object.prototype) || !incoming[target] || typeof incoming[target] !== 'object') continue;
+        // A BURIED TARGET STAYS BURIED: confirmGone deleted their orders with
+        // them, and a carrier's older copy of the table must not dig them back
+        // up while the tombstone stands (it lifts on proof of life — notTomb).
+        if (target !== '*' && meshGone.has(target)) continue;
         const mine = modTable[target] = modTable[target] || {};
         // 'chat' lives under the pseudo-target '*' — the one ROOM-WIDE mod
         // field (the admin's chat on/off switch). It rides the same signed
@@ -4953,6 +4961,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (tomb !== undefined && Date.now() - tomb <= TOMB_GRACE) return false;
       const cur = statusOf.get(from);
       if (cur && (cur.at || 0) > (st.at || 0)) return false; // stale gossip loses (st.at orders ONE sender's own pulses — the only thing a sender's clock is ever used for)
+      // THE SAME PULSE AGAIN. A section mate's beat reaches me twice over one
+      // link — the pair's DataChannel copy and the section-gossip copy — and
+      // past that the re-fan and the new-neighbour replay. The copy I hold is
+      // the fact: a second copy only moves its receipt stamp forward (proof of
+      // life), and the caller re-derives nothing on it — null, not false,
+      // because nothing was refused. The fingerprint is a non-enumerable
+      // property, so a held status keeps its JSON shape wherever it is read.
+      const raw = JSON.stringify(st);
+      if (cur && (cur.at || 0) === (st.at || 0) && cur.raw === raw) {
+        const rx = Date.now() - gossipAgeMs;
+        if (rx > (cur.rx || 0)) cur.rx = rx;
+        return null;
+      }
       // WHEN IT WAS SAID, ON MY CLOCK: receipt minus the time relays held it.
       // Every freshness test reads this (stSeen), never st.at — st.at is the
       // SENDER's wall clock, and a phone 15 s slow was never fresh to anyone:
@@ -4960,6 +4981,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // who heard it. A second copy of the same pulse keeps the first stamp.
       st.rx = Date.now() - gossipAgeMs; // the departure tombstone (notTomb) trusts only statuses that arrived after its verdict
       if (cur && (cur.at || 0) === (st.at || 0) && (cur.rx || 0) > st.rx) st.rx = cur.rx;
+      Object.defineProperty(st, 'raw', { value: raw });
       statusOf.set(from, st);
       // §LOCK EPOCH FLOOR: a member whose sealed frames I can OPEN is speaking
       // my key generation — so its epoch number is mine too, and adopting the
@@ -5120,7 +5142,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (p.pc.remoteDescription) p.pc.addIceCandidate(msg.candidate).catch(() => {});
         else p.pendingIce.push(msg.candidate);
       } else if (msg.kind === 'status') {
-        takeStatus(from, msg.s || {});
+        const took = takeStatus(from, msg.s || {}); // null: the same pulse again (the DC copy and the section-gossip copy of one beat)
         if (msg.conns) connsOf.set(from, msg.conns);
         // heartbeat re-gossip: moderation + guest-blur re-converge every tick
         // (signature-verified in admin rooms — takeMod, §9)
@@ -5145,9 +5167,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (msg.name && sp.name !== msg.name) { const nm = String(msg.name).slice(0, 40); sp.name = nm; if (sp.label) sp.label.textContent = nm; if (sp.avatar) sp.avatar.textContent = (nm[0] || '?').toUpperCase(); }
           if ('sid' in msg) { sp.ownSid = msg.sid; claimOwnStream(sp); }
         }
-        reactRoomState(); // their agreement (or its withdrawal) can move the whole room's floor
-        if (typeof paintShare === 'function') paintShare(); // someone STARTED sharing: give the stage its height now, not on the next 2s beat (the chip already landed with the tile repaint, and a strip that stays letterbox-small for two seconds beside a chip saying "screen" reads as a bug)
-        if (typeof reconcileApp === 'function') reconcileApp(); // pick up / drop a shared app
+        // ONE PULSE, ONE RE-DERIVATION: every DC-linked section mate hears each
+        // beat twice (viaDc + GSPS over the same link); the second copy changed
+        // nothing, so it repaints nothing — tiles, outbound, stage, app.
+        if (took !== null) {
+          reactRoomState(); // their agreement (or its withdrawal) can move the whole room's floor
+          if (typeof paintShare === 'function') paintShare(); // someone STARTED sharing: give the stage its height now, not on the next 2s beat (the chip already landed with the tile repaint, and a strip that stays letterbox-small for two seconds beside a chip saying "screen" reads as a bug)
+          if (typeof reconcileApp === 'function') reconcileApp(); // pick up / drop a shared app
+        }
       } else if (msg.kind === 'mod') {
         takeMod(from, msg); // signature-verified in admin rooms (§9)
       } else if (msg.kind === 'appstop') {
@@ -5290,6 +5317,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // countdown flash after the 10s grace, and the admin's next verified
       // frame re-proves presence and clears it.
       admSeen.delete(pid);
+      // THE TABLE HOLDS THE ROOM, NOT ITS HISTORY. The mod table rides every
+      // heartbeat of every carrier, so an entry per person ever moderated made
+      // the beat grow for the life of the room (it had no delete site at all).
+      // A confirmed departure takes its orders with it; the room-wide '*'
+      // orders have no target and stay. mergeMod keeps the entry out while
+      // the tombstone stands; a returning peer re-proves life and is an
+      // ordinary target again.
+      delete modTable[pid];
       rosterIds = rosterIds.filter((x) => x !== pid); // the roster view drops them NOW, not next tick
       if (peers.has(pid)) dropPeer(pid);              // tile + meters + consent react inside
       else reactRoomState();                          // far peer: count/consent still re-derive
@@ -5810,11 +5845,29 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // In an admin room, group moderation is honored ONLY from a verified
     // signature — checkable over ANY transport (DC or relay); nobody can
     // spoof an admin. Plain rooms keep the open merge (vote-off model).
+    // ONE VERIFY PER SIGNED TABLE. The admin's signed table rides every
+    // carrier's beat unchanged (25 section mates every 4 s, plus the admin's
+    // room-wide beat), so a seat verified and re-merged the same statement
+    // dozens of times a minute. The memo keys on the whole proof (pub, sig,
+    // statement): a hit re-credits the signer's presence inside the same
+    // 5-minute window admVerify allows and does nothing else — the table it
+    // carries was merged when the signature was first proven. Capped small:
+    // a hit costs a string compare, a miss costs what it always did.
+    const modVer = new Map(); // pub|sig|statement -> the verified statement
+    const MOD_VER_MAX = 8;
     function takeMod(from, msg) {
       if (!hasAdminRoom()) { if (msg.mod) mergeMod(msg.mod); return; }
       if (!msg.modw) return;
+      const key = String(msg.modw.pub) + '|' + String(msg.modw.sig) + '|' + String(msg.modw.sp);
+      const seen = modVer.get(key);
+      if (seen) {
+        if (Math.abs(Date.now() - (+seen.ts || 0)) <= 300000 && seen.by && notTomb(seen.by)) admSeen.set(seen.by, Date.now());
+        return;
+      }
       admVerify(msg.modw, 'mod').then((o) => {
         if (!o || !o.mod) return;
+        if (modVer.size >= MOD_VER_MAX) modVer.delete(modVer.keys().next().value);
+        modVer.set(key, o);
         // admVerify is async, so this resolves AFTER the status handler already
         // ran reconcileApp for this tick. When it FIRST recognizes an admin,
         // refresh the `admins` view and re-reconcile now — otherwise a guest

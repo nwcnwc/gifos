@@ -19,11 +19,13 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME,
     args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
-  const setup = (name) => ({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });
-  const newUser = async (name) => { const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] }); await ctx.addInitScript(setup(name)); return ctx; };
+  // Ada keeps the bar at its DEFAULT (collapsed): leg C reads her status line
+  // through it. Ben expands it (gifos_meet_bar=0) like every other suite.
+  const setup = (name, bar) => ({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');" + (bar === null ? '' : "localStorage.setItem('gifos_meet_bar','0')") + "}catch(e){}" });
+  const newUser = async (name, bar) => { const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] }); await ctx.addInitScript(setup(name, bar)); return ctx; };
 
   // ---- A. heartbeats ride the DataChannel; the relay goes quiet ----
-  const aCtx = await newUser('Ada');
+  const aCtx = await newUser('Ada', null);
   const a = await aCtx.newPage();
   a.on('pageerror', (e) => console.log('  [a] ' + e.message));
   await a.goto(BASE + '/run.html');
@@ -55,6 +57,16 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('the RELAY carries (almost) none of them', dRelay <= 1, dRelay + ' relay beats in 13s');
   check('the room stays converged on the free path', await a.evaluate(() => window.__gifosVideo.liveLinks()) >= 1
     && await b.evaluate(() => window.__gifosVideo.liveLinks()) >= 1);
+
+  // ---- C. the status line is readable through the DEFAULT (collapsed) bar ----
+  // A refusal, a ban, "reconnecting…" and the host-absence countdown all
+  // paint into #status / #admcount; folded into .barmore they were display:none
+  // for everyone who never opened the controls (the default).
+  check('Ada\'s bar is collapsed (the default — no preference stored)', await a.evaluate(() => document.querySelector('.bar').classList.contains('collapsed')));
+  const statBox = await a.evaluate(() => { const r = document.getElementById('status').getBoundingClientRect(); return { w: r.width, h: r.height, text: document.getElementById('status').textContent }; });
+  check('…and her status line has a visible box with the room count in it', statBox.w > 0 && statBox.h > 0 && /\d|you/i.test(statBox.text), JSON.stringify(statBox));
+  const cntBox = await a.evaluate(() => { const el = document.getElementById('admcount'); el.style.display = ''; el.textContent = 'probe'; const r = el.getBoundingClientRect(); el.style.display = 'none'; el.textContent = ''; return { w: r.width, h: r.height }; });
+  check('…and the host-absence countdown, once shown, has a visible box too', cntBox.w > 0 && cntBox.h > 0, JSON.stringify(cntBox));
 
   // ---- B. same-device second tab: ONE eviction, no reconnect war ----
   // Same context ⇒ same localStorage device id, fresh sessionStorage peer id —
