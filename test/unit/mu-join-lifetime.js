@@ -143,7 +143,8 @@ setTimeout(() => {
       src.indexOf('pidFirstSeen.delete(pid); meshRxByPid.delete(pid); tlFiredPid.delete(pid); speakingOf.delete(pid);') >= 0);
     check('the starve sweep uses a roster set', src.indexOf('const rosterSet = new Set(rosterIds);') >= 0 && src.indexOf('rosterSet.has(pid)') >= 0);
     check('updateStatus does not count an unused live total', src.indexOf('const live = Array.from(peers.values()).filter((p) => p.connected).length;') < 0);
-    check('updateStatus writes the status text only when it changes', src.indexOf('if (statusEl.textContent !== nextStatus) statusEl.textContent = nextStatus;') >= 0);
+    // tiles-moderation names the text statusText and also sets the title in the same guarded write.
+    check('updateStatus writes the status text only when it changes', /if \(statusEl\.textContent !== (nextStatus|statusText)\) (statusEl\.textContent = |\{\n\s+statusEl\.textContent = )/.test(src));
     check('the empty app room link opens in a new tab', src.indexOf('<a class="aw-home" href="/" target="_blank" rel="noopener">') >= 0);
     check('the filmstrip and the relay chip share displayName',
       src.indexOf('label: displayName(pid)') >= 0 && src.indexOf('esc(displayName(t.relayed))') >= 0);

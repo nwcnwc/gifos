@@ -518,7 +518,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
          background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); flex-wrap: wrap; }
   .bar .title { font-weight: 800; text-decoration: none; cursor: pointer; background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
          -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .bar .status { color: var(--muted, #8888aa); font-size: .8rem; margin-left: auto; }
+  .bar .status { color: var(--muted, #8888aa); font-size: .8rem; margin-left: auto;
+         flex: 1 1 auto; min-width: 0; max-width: 100%; min-height: 1.3em;
+         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* A refusal is not a status. "Only this room's admin can share" was read as
      grey small print and missed; a message that stops someone wears the warn
      colour and holds for 12s (setStatus). */
@@ -1179,7 +1181,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         <input id="lob-admin-name" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off">
         <label class="lob-pwlab">🔑 <b id="lob-admin-pass-head">Admin password</b> — yours alone — <b>do not share it</b><small id="lob-admin-pass-note">This is what puts you in charge of the room. Guests don’t need it. Anyone you give it to can run the room too.</small></label>
         <input id="lob-admin-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="new-password">
-        <label class="lob-pwlab">🎟 <b id="lob-guest-pass-head">Guest password</b> — the one you <b>do</b> share<small id="lob-guest-pass-note">Optional, but faces stay blurred until you set one. Guests type it to get in. It is not part of the link — send it to them yourself. The Password button changes it later.</small></label>
+        <label class="lob-pwlab">🎟 <b id="lob-guest-pass-head">Guest password</b> — the one you <b>do</b> share<small id="lob-guest-pass-note">Optional, but faces stay fully blurred (Max) until you set one. The Blur slider softens it. Guests type it to get in. It is not part of the link — send it to them yourself. The Password button changes it later.</small></label>
         <input id="lob-guest-pass" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="new-password">
         <div class="lob-row"><button id="lob-admin-cancel" class="lob-ghost">Cancel</button><button id="lob-admin-go">Create &amp; enter</button></div>
         <div id="lob-admin-err" class="lob-err"></div>
@@ -1242,7 +1244,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <button id="appbtn" title="Run an app inside this meeting — everyone here shares and interacts with it live">Run app</button>
     <button id="sharebtn" title="Show the whole room a window, a tab or your desktop. (To share a GifOS app, use Run app — everyone runs it themselves.)" style="display:none">Share screen</button>
     <button id="blurall" title="Blur every guest at once (admins) — same as blocking each of them by hand" style="display:none">Blur guests</button>
-    <button id="camall" title="Turn video OFF for every guest at once (admins) — stronger than blur" style="display:none">Video off</button>
+    <button id="camall" title="Turn video OFF for every guest at once (admins) — stronger than blur" style="display:none">Turn Video off</button>
     <button id="pwbtn" title="Lock this room with a password">Password</button>
     <button id="votebtn" title="Vote someone onto the stage, off the stage, or out of the room — majorities decide">Vote</button>
     <button id="admbtn" title="Room admin controls" style="display:none">Admin</button>
@@ -1564,7 +1566,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           again to step down.</li>
           <li><b>Hand</b> — raise it and you float to the top of a room-wide queue, in order.</li>
           <li><b>Password</b> — the key to <i>clear</i> video. Set one and faces sharpen for
-          those who have it; without one, everyone stays gently blurred.</li>
+          those who have it; without one, everyone stays fully blurred (Max). The Blur slider softens it.</li>
           <li><b>Invite</b> — one link brings people straight in.</li>
           <li><b>Run app</b> — share an app (a Bible, a board, a game) that everyone in the
           room uses together, live.</li>
@@ -1919,7 +1921,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // their own tile and letterboxes their own cell and buys them no seat, no
     // reach and no fanout (healing-laws S — harm ≈ fanout). Nobody can ever
     // set anyone else's.
-    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, pwEp: 0, scr: 0, scribe: false };
+    const BLUR_KEY = 'gifos_blur';
+    function storedBlurLevel() {
+      try {
+        const raw = localStorage.getItem(BLUR_KEY);
+        if (raw == null || raw === '') return 2;
+        if (raw === 'true') return 2;
+        const n = raw | 0;
+        return (n < 0 || n > 2) ? 2 : n;
+      } catch (e) { return 2; }
+    }
+    const myStatus = { muted: true, camOff: true, blur: storedBlurLevel(), hand: null, rec: false, cc: false, pwEp: 0, scr: 0, scribe: false };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur, scr }
     // How many OTHER seats' held statuses advertise captions or a scribe.
     // refreshTrBtn and the scribe interval read the counts. They do not scan
@@ -2102,7 +2114,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // here may evict, seat, or release a camera's blur. An admin's status is
     // its section's too; its signed presence rides a slower room-wide beat.
     const digestMode = () => !(typeof window !== 'undefined' && window.GIFOS_DIGEST === false) && !!meshNode && typeof meshNode.roomDigest === 'function'; // ON by default; GIFOS_DIGEST=false is the pre-plane room flood
-    const roomDig = () => { if (!digestMode()) return null; const d = meshNode.roomDigest(); return d && d.age <= 120 ? d : null; }; // 2 × DIG_TTL: an older fold is not the room
+    let roomDigBox = null;
+    function roomDigNow() { if (!digestMode()) return null; const d = meshNode.roomDigest(); return d && d.age <= 120 ? d : null; } // 2 x DIG_TTL ticks: an older fold is not the room
+    function roomDig() {
+      // roomDigest deep-copies the fold. One copy per turn, not one per roster id.
+      if (passMemo && ('dig' in passMemo)) return passMemo.dig;
+      if (roomDigBox && roomDigBox.on) return roomDigBox.d;
+      const d = roomDigNow();
+      roomDigBox = { on: true, d: d };
+      queueMicrotask(() => { if (roomDigBox) roomDigBox.on = false; });
+      if (passMemo) passMemo.dig = d;
+      return d;
+    }
     const roomPastSection = () => { const d = roomDig(); return !!d && d.n > SCALE.C * SCALE.C; };
     // The fold's LISTS, only where they carry something my section cannot (G8):
     // at or below C² people every status reaches me first-hand, so a small room
@@ -2654,14 +2677,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // while the tab is hidden — the TRACK stays live (others keep seeing
       // you) but the local display never resumes. Re-kick every tile's
       // element on return so the local view catches back up.
-      const kickVideo = (v) => {
-        if (!v || !v.srcObject) return;
-        const s = v.srcObject;
-        try { v.srcObject = null; v.srcObject = s; } catch (e) {}
-        const pr = v.play(); if (pr && pr.catch) pr.catch(() => {});
+      function kickFrozenVideo(v, isMobile, framesNow, framesThen) {
+        if (!isMobile || !v || !v.srcObject) return false;
+        return !(framesThen > framesNow);
+      }
+      const armKick = (v) => {
+        // Desktop keeps a live element. Re-attaching srcObject flashes black.
+        // A phone kicks only when frames have not moved 500 ms after return.
+        if (!v || !v.srcObject || !IS_MOBILE) return;
+        let q0 = 0;
+        try { q0 = v.getVideoPlaybackQuality().totalVideoFrames || 0; } catch (e) { q0 = 0; }
+        setTimeout(() => {
+          if (document.hidden || !v.srcObject) return;
+          let q1 = 0;
+          try { q1 = v.getVideoPlaybackQuality().totalVideoFrames || 0; } catch (e) { q1 = 0; }
+          if (!kickFrozenVideo(v, true, q0, q1)) return;
+          const s = v.srcObject;
+          try { v.srcObject = null; v.srcObject = s; } catch (e) {}
+          const pr = v.play(); if (pr && pr.catch) pr.catch(() => {});
+        }, 500);
       };
-      if (meTile) kickVideo(meTile.video);
-      for (const p of peers.values()) kickVideo(p.video);
+      if (meTile) armKick(meTile.video);
+      for (const p of peers.values()) armKick(p.video);
     });
     // ---- Picture-in-Picture: stepping out to another app must not mean
     // leaving the room — a floating overlay keeps the meeting's best face on
@@ -3000,14 +3037,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // one refusal anywhere, a subtree nobody can hear (part), or no fresh fold
     // at all in a room that was past one section, and I stay blurred. It can
     // never release a blur my own section has not agreed to.
+    const FOLD_HOLD_MS = 120 * 500; // roomDig drops a fold older than 120 ticks, and a tick is 500 ms
     let roomPastAt = 0;
+    function roomConsentFromFold(d, pastAt, now) {
+      // A missing fold keeps the blur. rosterIds is the heard set, not
+      // proof the room shrank, so it cannot release this hold.
+      if (!d) return !(pastAt && now - pastAt < FOLD_HOLD_MS);
+      if (d.n <= SCALE.C * SCALE.C) return true;
+      return d.refuse === 0 && !d.part;
+    }
     function roomConsentOk() {
       if (!digestMode()) return true;
       const d = roomDig();
-      if (!d) return !(roomPastAt && Date.now() - roomPastAt < 300000); // the room was big a moment ago and I cannot hear it now: blurred
-      if (d.n <= SCALE.C * SCALE.C) return true;                        // the room is my section: first-hand unanimity is the whole rule
-      roomPastAt = Date.now();
-      return d.refuse === 0 && !d.part;
+      if (d && d.n > SCALE.C * SCALE.C) roomPastAt = Date.now();
+      return roomConsentFromFold(d, roomPastAt, Date.now());
     }
     function allConsent() { return memoPass('cons', allConsentNow); }
     function allConsentNow() {
@@ -3078,6 +3121,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       reactRoomState();                                                 // their agreement (or its withdrawal) can move the whole room's floor
       if (typeof paintShare === 'function') paintShare();               // someone STARTED sharing: give the stage its height now, not on the next 2s beat
       if (typeof reconcileApp === 'function') reconcileApp();           // pick up / drop a shared app
+      if (typeof fsRefreshIfOpen === 'function') fsRefreshIfOpen();
     }
 
     // ---- admin-absence auto-close --------------------------------------------
@@ -3142,6 +3186,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function adminWatch() {
       if (!hasAdminRoom()) { clearAdminClose(); return; }
       if (admins.length > 0) { clearAdminClose(); return; }
+      // A slow pulse is not a departure. stHold is the seat liveness rule.
+      for (const pid of admSeen.keys()) if (stHold(pid)) { clearAdminClose(); return; }
       if (admGraceT || admCloseT) return;      // already in grace or counting
       admGraceT = setTimeout(startAdminCountdown, ADMIN_GRACE_MS); // silent 10s grace
     }
@@ -3188,9 +3234,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // nobody (or the same person) talks, so two voices trading lines don't
     // strobe the screen; any explicit thumb tap pins again.
     function fsPickAuto(src) {
-      for (const s of src) {
-        if (s.key.indexOf('peer:') !== 0) continue;
-        if (speakingOf.get(s.key.slice(5))) { fsAutoPid = s.key.slice(5); break; }
+      // The person already on the big view keeps it while they are still
+      // talking. A silent moment keeps that same person. A new talker takes
+      // the view only when the holder has stopped.
+      const speakingKey = (key) => key.indexOf('peer:') === 0 && speakingOf.get(key.slice(5));
+      if (!(fsAutoPid && speakingKey('peer:' + fsAutoPid))) {
+        for (const s of src) if (speakingKey(s.key)) { fsAutoPid = s.key.slice(5); break; }
       }
       return (fsAutoPid && src.find((s) => s.key === 'peer:' + fsAutoPid))
         || src.find((s) => s.key.indexOf('stage:') === 0) || src[0] || null;
@@ -3233,44 +3282,67 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         fsmain.dataset.key = main.key;
         fsBlurClass(fsmain, main.bl);
       } else { fsmain.srcObject = null; fsmain.dataset.key = ''; fsBlurClass(fsmain, 0); }
+      // Thumbs are kept BY KEY: a refresh moves and updates a playing thumb
+      // and never tears one down while its feed stays. The big feed is not
+      // also a thumb (one live sink per feed), and every thumb is a keyboard
+      // button with a name a screen reader can say.
       const thumbs = src.filter((s) => !main || s.key !== main.key);
-      const want = thumbs.map((s) => s.key).join('|');
-      if (fsstrip.dataset.set !== want) {
-        fsstrip.dataset.set = want;
-        fsstrip.textContent = '';
-        const chip = document.createElement('div');
-        chip.className = 'fsthumb fsauto'; chip.dataset.key = 'auto';
-        chip.setAttribute('role', 'button'); chip.tabIndex = 0;
-        chip.setAttribute('aria-label', 'Follow speaker');
-        chip.innerHTML = '<span class="fsautoglyph">🗣</span><span class="fslbl">Follow speaker</span>';
-        chip.onclick = () => { fsSel = 'auto'; fsAutoPid = null; fsRefresh(); };
-        chip.onkeydown = (e) => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); chip.onclick(); };
-        fsstrip.appendChild(chip);
-        for (const s of thumbs) {
-          const th = document.createElement('div'); th.className = 'fsthumb'; th.dataset.key = s.key;
-          th.setAttribute('role', 'button'); th.tabIndex = 0;
-          th.setAttribute('aria-label', s.label || 'Show this feed');
-          const tv = document.createElement('video'); tv.autoplay = true; tv.muted = true; tv.setAttribute('playsinline', ''); tv.setAttribute('muted', '');
+      const have = new Map();
+      for (const th of Array.from(fsstrip.children)) have.set(th.dataset.key, th);
+      const asButton = (el, label, act) => {
+        el.setAttribute('role', 'button'); el.tabIndex = 0;
+        if (el.getAttribute('aria-label') !== label) el.setAttribute('aria-label', label);
+        el.onclick = act;
+        el.onkeydown = (e) => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); act(); };
+      };
+      let auto = have.get('auto');
+      if (!auto) {
+        auto = document.createElement('div');
+        auto.className = 'fsthumb fsauto'; auto.dataset.key = 'auto';
+        auto.innerHTML = '<span class="fsautoglyph">🗣</span><span class="fslbl">Follow speaker</span>';
+        asButton(auto, 'Follow speaker', () => { fsSel = 'auto'; fsAutoPid = null; fsRefresh(); });
+      }
+      const keep = new Set(['auto']);
+      const place = (th, pos) => { if (fsstrip.children[pos] !== th) fsstrip.insertBefore(th, fsstrip.children[pos] || null); };
+      place(auto, 0);
+      let pos = 1;
+      for (const s of thumbs) {
+        keep.add(s.key);
+        let th = have.get(s.key);
+        let tv;
+        if (!th) {
+          th = document.createElement('div'); th.className = 'fsthumb'; th.dataset.key = s.key;
+          tv = document.createElement('video'); tv.autoplay = true; tv.muted = true; tv.setAttribute('playsinline', ''); tv.setAttribute('muted', '');
           tv.srcObject = s.stream; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {});
           fsBlurClass(tv, s.bl);
           const lb = document.createElement('span'); lb.className = 'fslbl'; lb.textContent = s.label;
           th.appendChild(tv); th.appendChild(lb);
-          th.onclick = () => { fsSel = s.key; fsRefresh(); };
-          th.onkeydown = (e) => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); th.onclick(); };
-          fsstrip.appendChild(th);
+        } else {
+          // the same feed — re-borrow in place (a renegotiated stream swaps
+          // identity) and follow its blur level and name
+          tv = th.querySelector('video');
+          if (tv && tv.srcObject !== s.stream) { tv.srcObject = s.stream; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {}); }
+          if (tv) fsBlurClass(tv, s.bl);
+          const lb = th.querySelector('.fslbl');
+          if (lb && lb.textContent !== s.label) lb.textContent = s.label;
         }
-      } else {
-        // same set — re-borrow in place (a renegotiated stream swaps identity)
-        for (const th of fsstrip.children) {
-          const s = src.find((x) => x.key === th.dataset.key);
-          const tv = th.querySelector('video');
-          if (s && tv && tv.srcObject !== s.stream) { tv.srcObject = s.stream; const pr = tv.play(); if (pr && pr.catch) pr.catch(() => {}); }
-          if (s && tv) fsBlurClass(tv, s.bl); // the level can change while the set stays (a block lands, the room clears)
-        }
+        const key = s.key;
+        asButton(th, s.label || 'Show this feed', () => { fsSel = key; fsRefresh(); });
+        place(th, pos);
+        pos++;
       }
+      for (const [k, th] of have) {
+        if (keep.has(k)) continue;
+        const tv = th.querySelector('video');
+        if (tv) tv.srcObject = null;
+        th.remove();
+      }
+      fsstrip.dataset.set = thumbs.map((s) => s.key).join('|');
       fsPaintSel();
     }
-    // The same two blur classes the grid tile wears (CSS: #fsmain / .fsthumb video).
+    function fsRefreshIfOpen() {
+      if (fsview.classList.contains('on')) fsRefresh();
+    }
     function fsBlurClass(v, bl) { v.classList.remove('blur1', 'blur2'); if (bl) v.classList.add('blur' + bl); }
     function openFsView(key) {
       fsSel = key || null;
@@ -3605,12 +3677,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // most of the room is exactly that. Stagers keep their meter (their tile
       // hides but the Stage strip frames them); anything I cannot classify
       // keeps its meter too — never go quiet on a face that might be painted.
-      const stgSet = (() => { try { return new Set(stageIds()); } catch (e) { return null; } })();
+      let stgSet = null;
       for (const [id, m] of meters) {
         const t = id === 'me' ? meTile : peers.get(id);
         if (!t) { releaseMeter(id); continue; }
-        const unpainted = id !== 'me' && stgSet && !stgSet.has(id)
-          && !!(t.tile && t.tile.style.display === 'none');
+        const hiddenTile = id !== 'me' && !!(t.tile && t.tile.style.display === 'none');
+        if (hiddenTile && stgSet === null) {
+          try { stgSet = new Set(stageIds()); } catch (e) { stgSet = false; }
+        }
+        const unpainted = hiddenTile && stgSet && !stgSet.has(id);
         if (unpainted) {
           // Don't measure, but don't lie either: a peer nobody paints is not
           // "speaking", and the stale ring must not survive the tile going dark.
@@ -3631,6 +3706,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (id === 'me' && speaking) { lastActive = Date.now(); myVoiceAt = lastActive; } // talking IS activity — a speaker's phone is never "parked"
         speakingOf.set(id, speaking); // fed to the packer overlay (green talking frame on composite faces)
       }
+      if (fsSel === 'auto' && fsview.classList.contains('on')) fsRefresh();
     }, 180);
     function tileNote(t, msg) {
       t.video.style.display = 'none';
@@ -3759,10 +3835,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       try { blurPipe.track.stop(); } catch (e) {}
       blurPipe = null;
     }
+    function blurPipeTune(level) {
+      return { level: level, px: level === 2 ? 26 : 11, capW: level >= 2 ? 320 : 480 };
+    }
+    function blurPipeCanReuse(pipe, camId) {
+      return !!(pipe && pipe.camId === camId && pipe.track && pipe.track.readyState === 'live');
+    }
     function startBlurPipe(level) {
       const cam = localStream && localStream.getVideoTracks()[0];
       if (!cam) return null;
-      if (blurPipe && blurPipe.level === level && blurPipe.camId === cam.id) return blurPipe.track;
+      if (blurPipeCanReuse(blurPipe, cam.id)) {
+        const tune = blurPipeTune(level);
+        blurPipe.level = tune.level;
+        blurPipe.px = tune.px;
+        blurPipe.capW = tune.capW;
+        return blurPipe.track;
+      }
       stopBlurPipe();
       // Feed the pipe its OWN clone of the camera track. Safari (iOS especially)
       // will not render the same MediaStreamTrack in two <video> elements at
@@ -3783,8 +3871,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       document.body.appendChild(src);
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      const px = level === 2 ? 26 : 11;
-      const pipe = { level, camId: cam.id, src, srcTrack, cloned, canvas, ctx, track: null, unsub: null, rvfc: 0, painted: 0 };
+      const tune = blurPipeTune(level);
+      const pipe = { level: tune.level, px: tune.px, capW: tune.capW, camId: cam.id, src, srcTrack, cloned, canvas, ctx, track: null, unsub: null, rvfc: 0, painted: 0 };
       // ADAPTIVE FRAME-DROP: paint is driven by BOTH the metronome and rVFC,
       // and on a software-rendered / overloaded device one filtered drawImage
       // can cost 100ms+. Without a governor the paint tasks queue FASTER than
@@ -3802,7 +3890,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // unchanged. Matters doubly because blurred-by-default is the privacy
       // steady state: outside a fully-consented password room this pipe IS
       // the camera path (a phone died on its charger running it full-size).
-      const capW = level >= 2 ? 320 : 480;
       const paint = () => {
         const now = performance.now();
         // PAINT NO FASTER THAN WE SEND (2026-07-30 power work). The floor was a
@@ -3834,11 +3921,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // constraints never reach the encoder at all; THIS is the size that
         // ships. Scaling by the long side gives 180x320: same pixel budget the
         // rung always meant, ~3.2x less to blur, paint, encode and send.
-        const long = Math.max(sw, sh), sc = Math.min(1, capW / Math.max(1, long));
+        const long = Math.max(sw, sh), sc = Math.min(1, pipe.capW / Math.max(1, long));
         const w = Math.max(2, Math.round(sw * sc)), h = Math.max(2, Math.round(sh * sc));
         if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
         let drew = false;
-        try { blurDraw(ctx, src, 0, 0, w, h, Math.max(4, Math.round(px * w / Math.max(1, sw))), level); drew = true; } catch (e) {}
+        try { blurDraw(ctx, src, 0, 0, w, h, Math.max(4, Math.round(pipe.px * w / Math.max(1, sw))), pipe.level); drew = true; } catch (e) {}
         // painted counts a frame that was DRAWN. A throw used to increment
         // first, so blackCamWatch read a dead pipe as frames flowing.
         const why = noteBlurFrame(pipe, drew);
@@ -4163,8 +4250,34 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (f.contentWindow === e.source) { poke(); return; }
       }
     });
+    function videoIsPlaying(v) {
+      return !!(v && v.srcObject && !v.paused && v.readyState >= 2 && (v.videoWidth || 0) > 0);
+    }
+    function viewerWatching() {
+      if (document.hidden) return false;
+      try {
+        if (typeof stagefeedEl !== 'undefined' && stagefeedEl) {
+          for (const v of stagefeedEl.querySelectorAll('video')) if (videoIsPlaying(v)) return true;
+        }
+        if (typeof stadiumEl !== 'undefined' && stadiumEl) {
+          const sd = stadiumEl.querySelector('video');
+          if (videoIsPlaying(sd)) return true;
+        }
+      } catch (e) {}
+      if (typeof peers === 'undefined' || !peers) return false;
+      for (const p of peers.values()) {
+        if (!p || !p.video) continue;
+        if (p.tile && (p.tile.style.display === 'none' || (p.tile.classList && p.tile.classList.contains('cam-off')))) continue;
+        if (p.video.style && p.video.style.display === 'none') continue;
+        if (videoIsPlaying(p.video)) return true;
+      }
+      return false;
+    }
     setInterval(() => {
-      const idle = IS_MOBILE && Date.now() - lastActive > IDLE_MS;
+      // A playing stage, stadium, or remote tile means someone is watching.
+      // Do not park under that. A cam-off tile does not count: audio-only
+      // is the default, and a live audio track would never release the lock.
+      const idle = IS_MOBILE && !viewerWatching() && Date.now() - lastActive > IDLE_MS;
       if (idle === idleNow) return;
       idleNow = idle;
       adapt();
@@ -4568,9 +4681,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // cannot see. Say it while she is alone — that is exactly when she is
       // waiting for the guest who is being refused.
       const savedLock = (n === 1 && roomPw && pwFromStore) ? ' · 🔒 locked with a password you saved earlier — guests need it' : '';
-      const nextStatus = (n === 1 ? 'Just you — send the invite; the link has no expiry'
+      const statusText = (n === 1 ? 'Just you — send the invite; the link has no expiry'
         : displayCount() + ' in the meeting · ' + q.label) + link + savedLock + extra;
-      if (statusEl.textContent !== nextStatus) statusEl.textContent = nextStatus;
+      if (statusEl.textContent !== statusText) {
+        statusEl.textContent = statusText;
+        statusEl.title = statusText;
+      }
     }
 
     // ---- mesh plumbing ---------------------------------------------------------
@@ -5215,6 +5331,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         claimOwnStream(p);     // proven-own media → their tile
         claimRelayStreams();   // explicitly mapped forwarded media → the target's tile
         claimMos();            // explicitly mapped mosaic hops → bands/frames (3b)
+        fsRefreshIfOpen();
+        if (p.video && fsview.classList.contains('on')) p.video.addEventListener('resize', () => fsRefreshIfOpen(), { once: true });
       };
       pc.onicecandidate = (ev) => { noteIce(p.id, ev.candidate || null); };
       pc.onconnectionstatechange = () => {
@@ -5275,6 +5393,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       layout();
       adapt();
       reactRoomState(); // a departure can complete the room's agreement to go clear
+      fsRefreshIfOpen();
     }
 
     // Prefer H.264 for outgoing video. With no preference set, Chrome↔Chrome
@@ -6141,18 +6260,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!s || !c) return; // pre-seat: show whatever linked (bootstrap)
       const stg = new Set(stageIds());
       const coordOfPeer = new Map(); for (const [k, v] of s.occ) coordOfPeer.set(v, k);
+      const paintDisp = (el, disp) => { if (el.style.display !== disp) el.style.display = disp; };
       for (const [pid, p] of peers) {
         if (p.headless || !p.tile) continue;
         // A STAGER's direct tile hides even for row-mates: they appear in the
         // Stage strip instead ("stagers live on the Stage ONLY",
         // docs/media-plane.md) — their main tracks are parked anyway, so the
         // tile would be a black square. It returns the moment they step down.
-        if (stg.has(pid)) { p.tile.style.display = 'none'; continue; }
+        if (stg.has(pid)) { paintDisp(p.tile, 'none'); continue; }
         const k = coordOfPeer.get(pid);
-        if (!k) { p.tile.style.display = ''; continue; } // unknown coord ⇒ show
+        if (!k) { paintDisp(p.tile, ''); continue; } // unknown coord ⇒ show
         const cc = net.topo.unck(k);
         const rowMate = cc.pc === c.pc && cc.r === c.r; // same section + row (≠ me)
-        p.tile.style.display = rowMate ? '' : 'none';
+        paintDisp(p.tile, rowMate ? '' : 'none');
       }
     }
 
@@ -6404,9 +6524,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // itself in the socket URL).
     let admKeys = null;              // { priv, pub, pubB64, verifier } — set on sign-in / load
     const admSeen = new Map();       // pid -> last time a frame from them VERIFIED as admin
+    function admSeenLive(pid, seenAt, now) {
+      const age = now - seenAt;
+      if (age < 30000) return true;
+      if (age >= HOLDOVER_MS) return false;
+      const st = statusOf.get(pid);
+      const p = peers.get(pid);
+      return !!(st && st.away) || !!(p && p.connected);
+    }
     const adminsNow = () => {
       const now = Date.now(), out = [];
-      for (const [pid, t] of admSeen) if (now - t < 30000) out.push(pid);
+      for (const [pid, t] of admSeen) if (admSeenLive(pid, t, now)) out.push(pid);
       if (amAdmin && myId && !out.includes(myId)) out.push(myId);
       return out;
     };
@@ -8388,7 +8516,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         document.getElementById('lob-admin-pass').placeholder = 'Host password (keep to yourself)';
         document.getElementById('lob-admin-pass-note').textContent = 'This is what puts you in charge of the broadcast. Viewers don’t need it. Anyone you give it to can run your broadcast too.';
         document.getElementById('lob-guest-pass').placeholder = 'Viewer password (optional — share with viewers)';
-        document.getElementById('lob-guest-pass-note').textContent = 'Optional, but the picture stays blurred until you set one. Viewers type it to watch. It is not part of the link — send it to your audience yourself. The Password button changes it later.';
+        document.getElementById('lob-guest-pass-note').textContent = 'Optional, but the picture stays fully blurred (Max) until you set one. The Blur slider softens it. Viewers type it to watch. It is not part of the link — send it to your audience yourself. The Password button changes it later.';
         document.getElementById('lob-join-btn').innerHTML = 'Watch a broadcast<small>Paste a broadcast link someone shared</small>';
         document.getElementById('lob-empty').textContent = 'Broadcasts you start or watch will show up here.';
       }
@@ -14985,21 +15113,77 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
 
     function amGloballyMuted() { const m = modOf('me').mute; return !!(m && m.on); }
 
+    function focusOf(el) {
+      return el.querySelector('input:not([type="hidden"]), select, textarea, button');
+    }
+    function armMeetDialogs() {
+      const modals = document.querySelectorAll('.name-modal');
+      for (const el of modals) {
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-modal', 'true');
+        const h = el.querySelector('h2, h3, h4');
+        if (h) {
+          if (!h.id) h.id = (el.id || 'dlg') + '-title';
+          if (!el.getAttribute('aria-labelledby')) el.setAttribute('aria-labelledby', h.id);
+        }
+        el.addEventListener('click', (e) => { if (e.target === el) el.style.display = 'none'; });
+      }
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const open = [];
+        for (const el of document.querySelectorAll('.name-modal')) if (el.style.display === 'flex') open.push(el);
+        const top = open[open.length - 1];
+        if (!top) return;
+        e.preventDefault();
+        top.style.display = 'none';
+      });
+      const obs = new MutationObserver((recs) => {
+        for (const r of recs) {
+          const el = r.target;
+          if (!el.classList || !el.classList.contains('name-modal')) continue;
+          const on = el.style.display === 'flex';
+          if (on && !el._dlgOn) {
+            el._dlgOn = true;
+            const opener = document.activeElement;
+            if (opener && opener !== document.body && !el.contains(opener)) el._opener = opener;
+            if (!el.contains(document.activeElement)) {
+              const f = focusOf(el);
+              if (f && f.focus) f.focus();
+            }
+          } else if (!on && el._dlgOn) {
+            el._dlgOn = false;
+            const back = el._opener;
+            el._opener = null;
+            const a = document.activeElement;
+            if (back && back.focus && (!a || a === document.body || el.contains(a))) back.focus();
+          }
+        }
+      });
+      for (const el of modals) obs.observe(el, { attributes: true, attributeFilter: ['style'] });
+    }
+    armMeetDialogs();
+
     function paintControls() {
       // mic
       const muted = myStatus.muted, micLocked = amGloballyMuted();
       micBtn.classList.toggle('off', muted);
       micBtn.classList.toggle('locked', micLocked);
+      micBtn.setAttribute('aria-pressed', muted ? 'false' : 'true');
       micBtn.title = micLocked
         ? 'Muted for everyone' + (modOf('me').mute.by ? ' by ' + modOf('me').mute.by : '') + ' — someone else has to lift it'
         : (muted ? 'You are muted — tap to speak' : 'Your mic is on — tap to mute');
       // camera
       camBtn.classList.toggle('off', myStatus.camOff);
+      camBtn.setAttribute('aria-pressed', myStatus.camOff ? 'false' : 'true');
       camBtn.title = myStatus.camOff ? 'Camera off — tap to turn on' : 'Camera on — tap to turn off';
       // blur slider: purely YOUR selection — the room rule (blurLevelFor)
       // decides what actually shows; the slider never locks or grays.
       const lvl = blurLevel(myStatus.blur);
-      for (const seg of blurSegs) seg.classList.toggle('sel', +seg.dataset.blur === lvl);
+      for (const seg of blurSegs) {
+        const segOn = +seg.dataset.blur === lvl;
+        seg.classList.toggle('sel', segOn);
+        seg.setAttribute('aria-pressed', segOn ? 'true' : 'false');
+      }
       paintShare();
     }
 
@@ -15231,6 +15415,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // No blur can't show yet, the status line says exactly why.
     function setPersonalBlur(v) {
       myStatus.blur = v;
+      try { localStorage.setItem(BLUR_KEY, String(v | 0)); } catch (e) {}
       paintControls();
       refreshOutbound(); // sender-side: broadcast blurred (or raw) to match
       broadcastStatus();
@@ -15300,7 +15485,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!amAdmin) return;
       const on = allGuestsCamOff();
       camAllBtn.classList.toggle('on', on);
-      camAllBtn.textContent = on ? 'Video on' : 'Video off';
+      camAllBtn.textContent = on ? 'Turn Video on' : 'Turn Video off';
     }
     camAllBtn.onclick = () => {
       if (!amAdmin) return;
@@ -15546,7 +15731,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             '<input id="inv-adm-room" maxlength="40" placeholder="Room name (anything you like)" autocomplete="off" value="' + esc(room) + '" style="width:100%;box-sizing:border-box;margin-bottom:.5rem">' +
             '<label class="lob-pwlab">🔑 <b>Admin password</b> — yours alone — <b>do not share it</b><small>This is what puts you in charge of the room. Guests don’t need it. Anyone you give it to can run the room too.</small></label>' +
             '<input id="inv-adm-pass" type="password" maxlength="64" placeholder="Admin password (keep to yourself)" autocomplete="new-password" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
-            '<label class="lob-pwlab">🎟 <b>Guest password</b> — the one you <b>do</b> share<small>Optional, but faces stay blurred until you set one. Guests type it to get in. It is not part of the link — send it to them yourself.</small></label>' +
+            '<label class="lob-pwlab">🎟 <b>Guest password</b> — the one you <b>do</b> share<small>Optional, but faces stay fully blurred (Max) until you set one. The Blur slider softens it. Guests type it to get in. It is not part of the link — send it to them yourself.</small></label>' +
             '<input id="inv-adm-guest" type="password" maxlength="64" placeholder="Guest password (optional — share with guests)" autocomplete="new-password" style="width:100%;box-sizing:border-box;margin-bottom:.6rem">' +
             (others ? '<label style="display:flex;gap:.5rem;align-items:flex-start;cursor:pointer;margin-bottom:.7rem;font-size:.9rem"><input type="checkbox" id="inv-adm-post" checked style="margin-top:.2rem"><span>Post the new link to this room\'s chat so the ' + others + ' ' + ppl + ' here can follow me over.</span></label>' : '') +
             '<div style="display:flex;gap:.5rem;justify-content:flex-end"><button id="inv-adm-back" style="' + surfaceBtn + '">Back</button><button id="inv-adm-go">Create &amp; switch</button></div>' +
