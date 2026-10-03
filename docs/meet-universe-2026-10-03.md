@@ -41,6 +41,7 @@ Both boxes were at load 20-24 on 4-6 cores, so these numbers measure contention 
 | `79e11ca0` | gossip repaints are coalesced into one pass per 250 ms window with one derivation and one layout (was: the whole tile/outbound/adapt cascade per received status frame); chips are written only on change (a focused "stop sharing" chip no longer loses focus every beat); the admin-room blur chip names the host | `test/unit/repaint-cascade.js`, `e2e-screen-share.js`, `e2e-meet-mod.js`, `e2e-status-plane.js` quiet leg |
 | `5c509aa1` | stage votes and hands: one verdict per voter (up and down can no longer be held at once), a vote-off is final, a step-up the C cap excludes disarms itself instead of entering the stage later unbidden, stage/hands/votes use the same hold-over liveness rule as consent and the roster (a late hidden-tab beat no longer tears a stager out of every strip) | `e2e-vote-stage.js` leg 3b, `e2e-stage-cap-race.js` (new, C=2), `e2e-stage-holdover.js` (new) |
 | `12f3fddc` | mesh gossip: a gid is bound to its author (a member could pre-poison every seat's seen-set with a neighbour's next ids and silence them room-wide — 0 of 29 seats heard the victim); the beat re-fan hands each link at most two copies of a message instead of five (measured 5.11 → 2.00 copies per link at N=100); the seen-set sweep is O(expired) per receipt instead of a whole-map walk; the wire names the delivering link so the per-link flood budget and the digest want-whole path work in production; the R5 multi-greeter probe resolves 8 ticks after the last HOME instead of waiting 15 s on a silent greeter | `test/mesh/gossip-guard.js` (new, 15), `r5-fork-pick.js`, `status-plane.js`, `test/unit/room-flood-laws.js` |
+| `1b22e23d` | a status pulse claims the sender's stream only when the id is news; every pulse used to end in updateTile and, outside a repaint pass, a whole-grid layout, so a quiet 10-seat room laid out ~2.5× per second (the <gate-host> measured layouts 50 against 20 passes in 20 s) | `e2e-status-plane.js` quiet-room leg |
 | `1ebf0be5`, `36960958` | moderation reaches every sink (filmstrip, PiP, iOS native full screen obey video-off and blur); the stage-app pull-through forgets a departed asker; the stage data lane verifies an app frame before retaining it | `test/unit/meet-moderation-sinks.js`, `room-flood-laws.js` §7, `e2e-meet-mod.js`, `e2e-meeting-app.js` |
 
 Verification of the combined tree, as of 13:45 UTC:
@@ -55,7 +56,11 @@ Verification of the combined tree, as of 13:45 UTC:
 | the <behavior-box>, the <gate-host> | e2e-media-recovery scene C (new: mic-only desktop) | green (14) after the guard's two expectations were corrected: the plain mic toggle flips the track without a status line, and a wholly refused video ask answers "No camera was found on this device (NotFoundError)". The fix in `71a1b392` is proven in a browser: the audio-only boot, the mic reaching the other seat, the camera tap naming the missing camera and keeping the mic. |
 | the <llm-box> | drills/e2e-vanish-browser | CRASH legs 21.8 s on a 4-core box carrying 5 browsers (baseline on the idle 8-core <gate-host>: 6.6 s). Re-queued on the <gate-host> to separate load from a regression. |
 
-The remaining fleet runs (status-plane, status-plane-admin, mosaic, meet-password, meeting-app, media-recovery, knock-first) were still queued when this was written.
+| the <gate-host> | e2e-meet-password, e2e-status-plane-admin | green (24, 18) |
+| the <behavior-box> | e2e-meet-mod, e2e-meeting-app | green (57, 17) |
+| the <gate-host> | e2e-status-plane | 3 red on the first combined run: the quiet-room layout count (fixed in `1b22e23d`), and the two 30-line history legs, which sent their 30 lines in a burst and so tripped the live per-author limiter (20 per 10 s, by design) before the replay was measured — the leg now paces them. Re-run pending. |
+
+Still queued when this was written: e2e-vote-stage, e2e-stage-cap-race, e2e-stage-holdover, e2e-mosaic, the vanish drill on the <gate-host>; the whole mesh tier on the <orchestrator>.
 
 ## Still in flight when this was written
 
