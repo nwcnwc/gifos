@@ -12045,16 +12045,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (let i = 0; i < outN; i++) { const a = Math.floor(i * ratio), b = Math.max(a + 1, Math.floor((i + 1) * ratio)); let sum = 0; for (let j = a; j < b; j++) sum += all[j]; out[i] = sum / (b - a); }
       return out;
     }
-    function wspEnqueue(w, chunks, at) {
+    function wspEnqueue(w, chunks, at, rate) {
       if (w.queue.length >= WSP_BACKLOG) { w.queue.shift(); w.dropped++; setStatus('Captions are behind — this device cannot keep up, so a sentence was skipped.', 6000); }
-      w.queue.push({ chunks, at });
+      w.queue.push({ chunks, at, rate: rate || w.rate });
       wspDrain(w);
     }
     function wspDrain(w) {
       if (w.busy || !w.queue.length || wsp !== w) return;
       w.busy = true;
       const job = w.queue.shift();
-      const pcm = wspPcm16k(job.chunks, w.rate);
+      const pcm = wspPcm16k(job.chunks, job.rate);
       const lang = ccLang();
       const req = { bytes: pcm.buffer, mime: 'audio/pcm;rate=16000;bits=32', language: lang === 'auto' ? 'auto' : lang,
         task: lsGet(CC_TRANSLATE_KEY) === '1' ? 'translate' : 'transcribe', prompt: lsGet(CC_WORDS_KEY).slice(0, 400), model: IS_MOBILE ? 'tiny' : 'base' };
@@ -14653,7 +14653,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       transcriptBlocks: () => trBlocks().map((l) => l.by + ': ' + l.text),
       transcriptDrops: () => trDrops,
       whisperForTest: () => ({ engine: ccEngine(), live: !!wsp, ready: whisperReady(), queue: wsp ? wsp.queue.length : 0, sent: wsp ? wsp.sent : 0, dropped: wsp ? wsp.dropped : 0, rate: wsp ? wsp.rate : 0 }),
-      whisperFeedForTest: (f32, rate) => { if (!wsp) return false; wspEnqueue(wsp, [f32], Date.now()); return true; },
+      whisperFeedForTest: (f32, rate) => { if (!wsp) return false; wspEnqueue(wsp, [Float32Array.from(f32)], Date.now(), rate || 16000); return true; },
       whisperEngineForTest: (eng) => { lsSet(CC_ENGINE_KEY, eng === 'whisper' ? 'whisper' : ''); syncSpeech(); },
       audioBlockedForTest: () => blockedAudio.size,
       audioBlockForTest: (el, name) => audioBlocked(el, { name }),
