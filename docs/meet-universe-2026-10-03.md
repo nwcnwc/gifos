@@ -41,7 +41,19 @@ Both boxes were at load 20-24 on 4-6 cores, so these numbers measure contention 
 | `79e11ca0` | gossip repaints are coalesced into one pass per 250 ms window with one derivation and one layout (was: the whole tile/outbound/adapt cascade per received status frame); chips are written only on change (a focused "stop sharing" chip no longer loses focus every beat); the admin-room blur chip names the host | `test/unit/repaint-cascade.js`, `e2e-screen-share.js`, `e2e-meet-mod.js`, `e2e-status-plane.js` quiet leg |
 | `1ebf0be5`, `36960958` | moderation reaches every sink (filmstrip, PiP, iOS native full screen obey video-off and blur); the stage-app pull-through forgets a departed asker; the stage data lane verifies an app frame before retaining it | `test/unit/meet-moderation-sinks.js`, `room-flood-laws.js` §7, `e2e-meet-mod.js`, `e2e-meeting-app.js` |
 
-Unit, relay and the touched mesh suites are green on the combined tree on this box. The browser guards were run per package on the fleet by the fixers (red on the unfixed tree where they reported it); the combined-tree browser runs are recorded below as they finish.
+Verification of the combined tree, as of 14:00 UTC:
+
+| where | suites | result |
+|---|---|---|
+| the <orchestrator> | whole unit tier | green except `mosaic-route` (120 s timeout on this slow box; green in the baseline gate) |
+| the <orchestrator> | whole relay tier (12 suites, 2 new) | green |
+| the <orchestrator> | mesh: e2e-mesh-identity, e2e-mesh-wire, steady-socket, greeter-expiry, status-plane, flood N=20 | green |
+| the <llm-box> | e2e-meet-mod, e2e-camera, e2e-screen-share, e2e-meet-quiet | green (57, 28, 51, 9 assertions) |
+| the <behavior-box> | e2e-video, e2e-meet-quiet | green (133, 9) |
+| the <behavior-box> | e2e-media-recovery scene C (new: mic-only desktop) | 2 of the 4 new checks RED on the first fleet run ("one tap turns the mic on", "a camera tap names the missing camera"); the boot fallback itself passed. Under investigation; the fix in `71a1b392` is not yet proven in a browser. |
+| the <llm-box> | drills/e2e-vanish-browser | CRASH legs 21.8 s on a 4-core box carrying 5 browsers (baseline on the idle 8-core <gate-host>: 6.6 s). Re-queued on the <gate-host> to separate load from a regression. |
+
+The remaining fleet runs (status-plane, status-plane-admin, mosaic, meet-password, meeting-app, media-recovery, knock-first) were still queued when this was written.
 
 ## Still in flight when this was written
 
