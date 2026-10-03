@@ -185,16 +185,29 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   // ---- 5c. a hostile heartbeat flood dies at its first honest neighbours ---------------
   // RULE 1: a status is heard from my section or my own link, never off the
   // room-wide flood — and what a seat refuses it does not forward.
+  // The attacker's flood goes to its MESH LINKS (gossip rides a link over its
+  // DataChannel when one is open, else over the relay), so the seats that may
+  // refuse it are its link peers — read before and after the flood, since a
+  // heal mid-flood can swap one. Counting open DataChannels instead read 1
+  // against two honest refusers once (the 2026-10-03 flake), which was the
+  // bound's error, not a leak: refused is REFUSED.
   const refused = () => Promise.all(pages.map((pg) => pg.evaluate(() => window.__gifosVideo.rxStats().statusRefused || 0).catch(() => -1)));
+  const linkSeats = async () => (await pages[deepIdx].evaluate(() => window.__gifosVideo.meshLinks())).map((id) => 'P' + pids.indexOf(id));
   const r0 = await refused();
+  const links0 = await linkSeats();
   const pushed = await pages[deepIdx].evaluate(() => window.__gifosVideo.floodForTest(300, 'status'));
   await sleep(8000);
   const r1 = await refused();
+  const links1 = await linkSeats();
+  const linksOfBad = Array.from(new Set(links0.concat(links1)));
   const hit = r1.map((x, i) => x - r0[i]);
   const hitSeats = hit.map((x, i) => (i !== deepIdx && x > 0 ? 'P' + i : null)).filter(Boolean);
-  const dcOfBad = await pages[deepIdx].evaluate(() => window.__gifosVideo.liveDataLinks());
-  check('the attacker pushed ' + pushed + ' room-wide statuses; its direct neighbours refused them', hitSeats.length > 0 && hitSeats.length <= dcOfBad, { hit, dcOfBad });
+  check('the attacker pushed ' + pushed + ' room-wide statuses; its direct neighbours refused them', hitSeats.length > 0 && hitSeats.length <= linksOfBad.length && hitSeats.every((s) => linksOfBad.includes(s)), { hit, links: linksOfBad });
   check('…and NO seat beyond them ever saw one (refused means not forwarded)', hit.filter((x, i) => i !== deepIdx && x === 0).length === N - 1 - hitSeats.length && hitSeats.length < N - 1, { hitSeats });
+  // Refused means NOT TAKEN either: a flood frame names its sender 'flood', and
+  // a taken status would have taught that name to the seat (learn → rosterNames).
+  const calledFlood = (await Promise.all(pages.map((pg, i) => (i === deepIdx ? '' : pg.evaluate((id) => window.__gifosVideo.nameOf(id), pids[deepIdx]).catch(() => '?'))))).map((n, i) => (n === 'flood' ? 'P' + i : null)).filter(Boolean);
+  check('no seat took a flood status as the attacker\'s word (none calls it \'flood\')', calledFlood.length === 0, { calledFlood });
   const calm = await Promise.all(pages.map(sp));
   check('the room is unharmed: every seat still counts ' + N, calm.every((x) => x && x.display === N), calm.map((x) => x && x.display));
 

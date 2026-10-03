@@ -4992,7 +4992,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // This is the whole fix for the roll-back: a joiner that typed the
       // current password now learns it is at generation N from the room, and
       // the ancient ep<N grant is rejected as the replay it is.
-      if (typeof st.pwEp === 'number' && st.pwEp > pwEpoch) storePwEpoch(st.pwEp);
+      // The pulse is ANY member's word (sealed, not admin-signed), so it may
+      // raise the floor only to a safe integer at most PW_EP_MAX: a pulse
+      // carrying 1e20 once set every listener's epoch to a number where
+      // epoch + 1 === epoch, and no grant could ever land again (pwEpInt).
+      if (pwEpInt(st.pwEp) && st.pwEp <= PW_EP_MAX && st.pwEp > pwEpoch) storePwEpoch(st.pwEp);
       return true;
     }
     // One global, ordered hand-raise queue: hands ride the status pulse, and
@@ -5962,7 +5966,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (newer && Array.isArray(rec.bans)) localStorage.setItem('gifos_vban_' + base, JSON.stringify(rec.bans.slice(0, 100)));
           if (newer && rec.banNames && typeof rec.banNames === 'object') localStorage.setItem('gifos_vbannames_' + base, JSON.stringify(rec.banNames));
           const localEp = parseInt(localStorage.getItem('gifos_vpwep_' + base), 10) || 0;
-          if (typeof rec.pwEp === 'number' && rec.pwEp > localEp) localStorage.setItem('gifos_vpwep_' + base, String(rec.pwEp));
+          if (pwEpInt(rec.pwEp) && rec.pwEp > localEp) localStorage.setItem('gifos_vpwep_' + base, String(rec.pwEp));
           if (newer) localStorage.setItem(MIRROR_AT_PFX + base, String(rec.updatedAt || 0));
         } catch (e) {}
         return newer;
@@ -6034,6 +6038,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // generations are monotonic for the room's whole life, or clearing
     // would re-arm every grant that preceded it.
     const pwEpochKey = () => 'gifos_vpwep_' + roomKey();
+    // THE EPOCH IS EXACT ARITHMETIC. Every adoption site (a grant's ep, a
+    // pulse's pwEp, the persisted counter, the admin mirror) takes only a
+    // non-negative safe integer, so `pwEpoch + 1` is always a NEW generation.
+    // A pulse is unsigned by an admin and may floor me only up to PW_EP_MAX;
+    // a signed grant and my own store are bounded by exactness alone, so an
+    // admin floored to PW_EP_MAX by a hostile pulse still mints PW_EP_MAX + 1
+    // and every seat still takes it. A stored value that fails the rule
+    // reads as 0 and the room floors it again.
+    function pwEpInt(n) { return Number.isSafeInteger(n) && n >= 0; }
+    const PW_EP_MAX = 1e9;
     function storePwEpoch(ep) { pwEpoch = ep; try { myStatus.pwEp = ep; } catch (e) {} try { localStorage.setItem(pwEpochKey(), String(ep)); } catch (e) {} mirrorRoomState({ pwEp: ep }); }
     // §LOCK EXPIRY (2026-08-06). The password store is a LAST-USED cache, not a
     // permanent property of a room name. Its clock lives beside it (same idiom
@@ -6065,7 +6079,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       roomPw = stored;
       pwFromStore = !!stored; pwProbe = ''; pwHeld = '';
       if (stored && !at) touchPw(); // age unknown → start the clock now (see PW_TTL)
-      try { pwEpoch = Math.max(pwEpoch, parseInt(localStorage.getItem(pwEpochKey()), 10) || 0); myStatus.pwEp = pwEpoch; } catch (e) {}
+      try { const st = parseInt(localStorage.getItem(pwEpochKey()), 10); pwEpoch = Math.max(pwEpoch, pwEpInt(st) ? st : 0); myStatus.pwEp = pwEpoch; } catch (e) {} // a poisoned store reads as 0 (pwEpInt)
     }
     function storePw(v) {
       roomPw = v || ''; pwProvisional = false; /* every explicit adoption (grant, admin set, typed challenge) ends provisionality */
@@ -8413,6 +8427,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // EPOCH GUARD (§LOCK healing): a grant at or below my own generation
         // is a replay — dead on arrival. Nobody can roll a member backwards;
         // an ep-less grant is a legacy client's, treated as next-generation.
+        if (m.ep != null && !pwEpInt(m.ep)) return; // a generation that is not exact arithmetic is nobody's (pwEpInt)
         if (m.ep != null && m.ep <= pwEpoch) return; // (no `pwEpoch &&`: epoch 0 is a real generation — see myStatus.pwEp)
         if (String(m.pw || '') === String(roomPw || '')) { if (m.ep != null && m.ep > pwEpoch) storePwEpoch(m.ep); return; } // already adopted
         const cleared = !m.pw && roomPw;
@@ -15035,6 +15050,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       chatOffForTest: (on) => setMod('*', 'chat', !!on),
       sayForTest: (text) => { const m = { id: uid('m'), by: myName(), byId: myId, at: Date.now(), text: String(text) }; chat.set(m.id, m); sendAll({ k: 'chat', m }); renderChat(); return m.id; },
       chatHas: (id) => chat.has(id),
+      nameOf: (pid) => rosterNames[pid] || (peers.get(pid) || {}).name || '', // what this seat calls a peer (the sealed pulse teaches it)
+      poisonEpochForTest: (n) => { myStatus.pwEp = n; broadcastStatus(); }, // a hostile client's pulse claiming generation n (its own epoch is untouched)
       floodForTest: (n, kind) => { let k = 0; for (let i = 0; i < (n | 0); i++) { if (meshNode) { meshNode.gossip({ a: 1, msg: kind === 'status' ? { kind: 'status', s: Object.assign({}, myStatus, { at: Date.now() + i }), name: 'flood' } : { k: 'noop', i } }); k++; } } return k; }, // a hostile client's room-wide flood
       gossipStats: () => (meshNode && meshNode.seat ? { dropped: meshNode.seat.gspDropped || 0, refused: meshNode.seat.gspRefused || 0, forged: meshNode.seat.gspForged || 0, inAll: meshNode.seat.gspInAll || 0, roomFlood: txStats.roomFlood || 0 } : null),
       forgeGossipForTest: (src, n) => { if (!meshNode || !meshNode._forgeGossipForTest) return 0; const ps = []; for (let i = 0; i < (n | 0); i++) ps.push({ a: 1, msg: { k: 'chat', m: { id: 'forged_' + i, by: 'Impostor', byId: src, at: Date.now(), text: 'forged line ' + i } } }); return meshNode._forgeGossipForTest(src, ps); }, // a hostile client speaking in someone else's name, with a valid signature of its own
