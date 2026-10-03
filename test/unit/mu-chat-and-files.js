@@ -121,6 +121,59 @@ check('purgeAllFiles announces one ids frame', /sendAll\(msg\)/.test(html) && /k
 check('the unpin glyph is owner or admin', /const unpin = \(amAdmin \|\| mine\)/.test(html));
 check('askFile is the only want', /function askFile\(/.test(html) && /askFile\(known, p\)/.test(html) && !/dcSend\(p, \{ k: 'want'/.test(html.slice(html.indexOf('function takeMeta'), html.indexOf('function askFile'))));
 
+// A stalled source is stopped only when another source is queued. With no
+// next source the asker keeps asking the same one: a middle seat with no
+// bytes yet would hold a lone fc-stop and skip this asker when its copy lands.
+{
+  const timers = [];
+  const sent = [];
+  const peers = new Map([['mid', { id: 'mid', dc: {} }], ['alt', { id: 'alt', dc: {} }]]);
+  const env = {
+    setTimeout: (fn, ms) => { timers.push(fn); return timers.length; },
+    clearTimeout: () => {},
+    peers: peers,
+    dcSend: (q, m) => sent.push(q.id + ':' + m.k),
+  };
+  const fns = new Function(Object.keys(env).join(','), lift('askFile') + '\n' + lift('armFileAsk') + '\nreturn { askFile, armFileAsk };')
+    .apply(null, Object.keys(env).map((k) => env[k]));
+  const f = { id: 'fx', bytes: null };
+  fns.askFile(f, peers.get('mid'));
+  check('the first ask sends one want', sent.join() === 'mid:want' && timers.length === 1, sent.join());
+  sent.length = 0;
+  timers.shift()();
+  check('a stall with no next source sends no fc-stop', !sent.includes('mid:fc-stop'), sent.join());
+  check('a stall with no next source asks the same source again and re-arms',
+    sent.join() === 'mid:want' && f.asking === 'mid' && timers.length === 1, sent.join() + ' asking=' + f.asking + ' timers=' + timers.length);
+  fns.askFile(f, peers.get('alt'));
+  sent.length = 0;
+  timers.shift()();
+  check('a stall with a next source stops the old one and asks the next',
+    sent.join() === 'mid:fc-stop,alt:want' && f.asking === 'alt', sent.join());
+}
+{
+  const i = html.indexOf("} else if (m.k === 'want') {");
+  const seg = html.slice(i, html.indexOf("} else if (m.k === 'fc') {", i));
+  check('a want clears an old fc-stop for that file', /p\.fcStop\.delete\(m\.id\)/.test(seg) || /fcStop[^\n]*delete\(m\.id\)/.test(seg));
+  const k = html.indexOf("} else if (m.k === 'fc-stop') {");
+  const stopSeg = html.slice(k, html.indexOf("} else if (m.k === 'fdel') {", k));
+  check('an fc-stop is kept only while a pump runs for that file', /filePump/.test(stopSeg), stopSeg.slice(0, 160));
+}
+// Reopening the panel on the Transcript tab paints the transcript: renderChat
+// returns early while the transcript is shown.
+{
+  const i = html.indexOf('chatBtn.onclick = () => {');
+  const body = html.slice(html.indexOf('{', i), html.indexOf('\n    };', i) + 6);
+  const run = (shown) => {
+    const calls = [];
+    const chatPanel = { classList: { toggle() {}, contains: () => true } };
+    new Function('chatPanel', 'chatBtn', 'renderChat', 'renderFiles', 'renderTranscript', 'transcriptShown', 'unread', body)(
+      chatPanel, {}, () => calls.push('chat'), () => calls.push('files'), () => calls.push('tr'), () => shown, 0);
+    return calls.join();
+  };
+  check('opening on the Transcript tab renders the transcript', run(true) === 'tr,files', run(true));
+  check('opening on the Chat tab renders the chat', run(false) === 'chat,files', run(false));
+}
+
 const logs = new Function(lift('logNearBottom') + '\n' + lift('paintLog') + '\nreturn { logNearBottom, paintLog };')();
 const logNearBottom = logs.logNearBottom, paintLog = logs.paintLog;
 {

@@ -9139,6 +9139,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // O(links) per seat per file, whatever the room's size.
         if (takeMeta(m.f, p)) { renderFiles(); for (const pid of gossipIds()) { const q = peers.get(pid); if (q && q !== p && q.dc && q.dc.readyState === 'open') dcSend(q, { k: 'fmeta', f: m.f }); } }
       } else if (m.k === 'want') {
+        // A new want cancels an old fc-stop from the same asker.
+        if (p && p.fcStop) p.fcStop.delete(m.id);
         const f = files.get(m.id);
         if (f && f.bytes) sendFileOver(p, m.id);
         else if (f && p && p.id) {
@@ -9155,7 +9157,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         renderFiles();
         for (const w of (f.wanters || []).splice(0)) sendFileOver(w, f.id);
       } else if (m.k === 'fc-stop') {
-        if (m.id && p) (p.fcStop = p.fcStop || new Set()).add(m.id);
+        // A stop ends a running pump. With no pump yet (no bytes here), the
+        // asker leaves the wanters list, so no stop entry outlives its pump.
+        if (m.id && p && p.filePump && p.filePump[m.id]) (p.fcStop = p.fcStop || new Set()).add(m.id);
+        else if (m.id && p) { const f = files.get(m.id); if (f && f.wanters) f.wanters = f.wanters.filter((w) => w !== p && !(w && w.id === p.id)); }
       } else if (m.k === 'fdel') {
         // One flood from its author, never re-broadcast (see chat). An admin
         // room takes the order from a signed fdel, or from the owner unpinning
@@ -9536,8 +9541,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return true;
     }
     // One source at a time. A second announcer waits. No bytes for 8s means
-    // that source is stalled: stop it and ask the next. Bytes landing send
-    // fc-stop to everyone else who was asked.
+    // that source is stalled: stop it and ask the next. With no next source,
+    // ask the same one again: a source with no bytes yet (a middle seat) must
+    // keep this asker as a wanter. Bytes landing send fc-stop to everyone
+    // else who was asked.
     function askFile(f, p) {
       if (!f || f.bytes || !p || !p.id || !p.dc) return;
       f.asked = f.asked || new Set();
@@ -9554,11 +9561,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       f.askT = setTimeout(() => {
         if (f.bytes) return;
         const stalled = f.asking;
-        f.asking = null;
-        if (stalled) { const q = peers.get(stalled); if (q) dcSend(q, { k: 'fc-stop', id: f.id }); }
+        const cur = stalled ? peers.get(stalled) : null;
         let next = null;
         if (f.nextAsk) { for (const id of f.nextAsk) { next = id; break; } }
-        if (next) { f.nextAsk.delete(next); const q = peers.get(next); if (q) askFile(f, q); }
+        if (!next) {
+          if (cur && cur.dc) { dcSend(cur, { k: 'want', id: f.id }); armFileAsk(f); }
+          else f.asking = null;
+          return;
+        }
+        f.asking = null;
+        if (cur) dcSend(cur, { k: 'fc-stop', id: f.id });
+        f.nextAsk.delete(next);
+        const q = peers.get(next);
+        if (q) askFile(f, q);
       }, 8000);
     }
     function stopFileAsks(f, keepId) {
@@ -9756,7 +9771,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     });
     chatBtn.onclick = () => {
       chatPanel.classList.toggle('open');
-      if (chatPanel.classList.contains('open')) { unread = 0; chatBtn.textContent = 'Chat'; renderChat(); renderFiles(); }
+      // renderChat skips while the transcript tab is shown, and the transcript
+      // is not painted while the panel is closed: paint the tab that shows.
+      if (chatPanel.classList.contains('open')) { unread = 0; chatBtn.textContent = 'Chat'; if (transcriptShown()) renderTranscript(); else renderChat(); renderFiles(); }
     };
     document.getElementById('chatclose').onclick = () => chatPanel.classList.remove('open');
 
