@@ -128,6 +128,7 @@ function sliceBetween(a, b) {
   check('the join proof chain reports a rejection', /pwChainFailed\(err, true\)/.test(save));
   check('the manage proof chain reports a rejection', /pwChainFailed\(err, false\)/.test(save));
   check('a password change relay-copies relayCopyTargets, not gossipIds', /relayCopyTargets\(/.test(save) && !/gossipIds\(/.test(save));
+  check('a password change paces its relay copies like the door re-grant', /paceRelayCopies\(relayCopyTargets\(\), env\)/.test(save) && !/for \(const pid of relayCopyTargets\(\)\)/.test(save));
   check('both remembered-password probes report a rejection', (html.match(/pwChainFailed\(err, true\)/g) || []).length >= 3);
   check('adopting a grant reports a rejection', /pwChainFailed\(err, wasBlocked\)/.test(html));
   check('joinRoom names a derivation failure', /Could not join the meeting/.test(html));

@@ -71,6 +71,66 @@ function runFn(name, prelude, call) {
   }
 }
 
+// ---- a former admin does not hold the auto-close (follow-up) ----------------
+// admSeen is pruned only on departure. A demoted admin who stays keeps a fresh
+// plain status, so stHold alone would hold the admin-absence close forever.
+{
+  const watch = extractFn(src, 'adminWatch') || '';
+  const live = extractFn(src, 'admSeenLive') || '';
+  const runWatch = (seenAge, held) => {
+    const ctx = { armed: 0, cleared: 0 };
+    vm.createContext(ctx);
+    vm.runInContext(
+      'var now = 10000000, HOLDOVER_MS = 60000, ADMIN_GRACE_MS = 10000;\n'
+      + 'var Date = { now: () => now };\n'
+      + 'var admins = [], admGraceT = null, admCloseT = null, statusOf = new Map(), peers = new Map();\n'
+      + 'var admSeen = new Map([["x", now - ' + seenAge + ']]);\n'
+      + 'var hasAdminRoom = () => true;\n'
+      + 'var stHold = () => ' + held + ';\n'
+      + 'var clearAdminClose = () => { cleared++; };\n'
+      + 'var startAdminCountdown = () => {};\n'
+      + 'var setTimeout = () => { armed++; return 1; };\n'
+      + live + '\n' + watch + '\nadminWatch();', ctx);
+    return { armed: ctx.armed, cleared: ctx.cleared };
+  };
+  const former = runWatch(600000, true);
+  check('a former admin with a fresh plain status does not hold the close', former.armed === 1 && former.cleared === 0, former);
+  const slow = runWatch(45000, true);
+  check('an admin whose proof is 45 s old and whose seat is held still holds the close', slow.armed === 0 && slow.cleared === 1, slow);
+  const gone = runWatch(45000, false);
+  check('an admin whose seat is not held does not hold the close', gone.armed === 1, gone);
+}
+
+// ---- setStatus keeps the full line readable (follow-up) ----------------------
+// .bar .status is nowrap + ellipsis, so a long refusal is cut on a phone; the
+// title carries the whole line, written only when it changes.
+{
+  const a = src.indexOf('    const setStatus = (m, hold) => {');
+  const b = a < 0 ? -1 : src.indexOf('\n    };', a);
+  check('setStatus is in run.html', a >= 0 && b > a);
+  if (a >= 0 && b > a) {
+    const body = src.slice(a, b + '\n    };'.length);
+    const el = { textContent: '', _title: '', writes: 0, classList: { toggle() {} } };
+    Object.defineProperty(el, 'title', { get() { return this._title; }, set(v) { this._title = v; this.writes++; } });
+    const set = new Function('statusEl', 'Date', 'let statusHoldUntil = 0;\n' + body + '\nreturn setStatus;')(el, { now: () => 1 });
+    const line = '🛡 The room refused your step-up because the stage is full and the admin has not called you up yet.';
+    set(line);
+    check('setStatus copies the line into the title', el.title === line, el.title);
+    set(line);
+    check('setStatus writes the title only when it changes', el.writes === 1, el.writes);
+  }
+  // setStatus writes textContent, so esc() would show '&amp;' for a name with '&'.
+  let bad = [], i = 0;
+  while ((i = src.indexOf('setStatus(', i)) >= 0) {
+    let d = 0, j = i + 9;
+    for (; j < src.length; j++) { if (src[j] === '(') d++; else if (src[j] === ')') { d--; if (!d) break; } }
+    const call = src.slice(i, j + 1);
+    if (/\besc\(/.test(call)) bad.push(call.slice(0, 60));
+    i = j;
+  }
+  check('no setStatus call escapes HTML (it writes textContent)', bad.length === 0, bad);
+}
+
 // ---- lost fold hold (finding 16) --------------------------------------------
 {
   const ctx = runFn('roomConsentFromFold', `

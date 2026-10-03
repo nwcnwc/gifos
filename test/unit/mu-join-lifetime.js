@@ -139,6 +139,21 @@ setTimeout(() => {
     check('stopLocalCapture stops the share, speech, wake lock, and camera idle timer',
       stop.indexOf('stopScreenShare') >= 0 && stop.indexOf('stopSpeech') >= 0 && stop.indexOf('wakeLock') >= 0 && stop.indexOf('camIdleT') >= 0 && stop.indexOf('recRec.stop') >= 0);
     check('leaveMeeting uses the same capture stop', bodyOf('leaveMeeting').indexOf('stopLocalCapture') >= 0);
+    // stopLocalCapture releases the wake lock on Leave and on a hostless
+    // close (both set leaving). The visibilitychange keepAwake must not
+    // take it back for a page that has left.
+    {
+      const ka = 'async ' + bodyOf('keepAwake');
+      const run = (leaving) => {
+        let asks = 0;
+        const nav = { wakeLock: { request: () => { asks++; return Promise.resolve({}); } } };
+        const fn = new Function('navigator', 'document', 'leaving', 'let idleNow = false, wakeLock = null;\n' + ka + '\nreturn keepAwake;')(nav, { hidden: false }, leaving);
+        fn();
+        return asks;
+      };
+      check('keepAwake asks for the wake lock in a live meeting', run(false) === 1);
+      check('keepAwake does not re-take the wake lock after Leave or a hostless close', run(true) === 0);
+    }
 
     check('dropPeer releases the meter', src.indexOf('releaseMeter(peerId)') >= 0);
     check('a gone pid leaves the starve maps',

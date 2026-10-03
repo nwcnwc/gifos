@@ -1838,9 +1838,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // A message that STOPS someone (🛡 a refusal, 📷 an admin's video-off) is
     // the one message that must be read: it holds 12s and wears the warn
     // colour. Ordinary notices keep the 4s beat. An explicit hold wins.
+    // .bar .status is nowrap + ellipsis: the title carries the whole line
+    // (a long refusal on a phone), written only when it changes.
     const setStatus = (m, hold) => {
       const blocking = /^(🛡|📷)/.test(String(m));
       statusEl.textContent = m;
+      if (statusEl.title !== String(m)) statusEl.title = String(m);
       statusEl.classList.toggle('alert', blocking || !!hold);
       statusHoldUntil = Date.now() + (hold || (blocking ? 12000 : 4000));
     };
@@ -3189,7 +3192,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!hasAdminRoom()) { clearAdminClose(); return; }
       if (admins.length > 0) { clearAdminClose(); return; }
       // A slow pulse is not a departure. stHold is the seat liveness rule.
-      for (const pid of admSeen.keys()) if (stHold(pid)) { clearAdminClose(); return; }
+      // stHold vouches for the seat, not the role: admSeen is pruned only on
+      // departure, so a demoted admin who stays would hold the close forever.
+      // The admin proof must still be inside HOLDOVER_MS, admSeenLive's cap.
+      const now = Date.now();
+      for (const [pid, t] of admSeen) if (now - t < HOLDOVER_MS && stHold(pid)) { clearAdminClose(); return; }
       if (admGraceT || admCloseT) return;      // already in grace or counting
       admGraceT = setTimeout(startAdminCountdown, ADMIN_GRACE_MS); // silent 10s grace
     }
@@ -3720,6 +3727,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let lastActive = Date.now(), idleNow = false;
     async function keepAwake() {
       if (idleNow) return; // a parked phone's screen is allowed to rest
+      // Leave and the hostless close set leaving; stopLocalCapture released
+      // the lock then, and a later visibilitychange must not take it back.
+      if (leaving) return;
       try { if (navigator.wakeLock && !document.hidden) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
     }
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastActive = Date.now(); if (idleNow) { idleNow = false; adapt(); } keepAwake(); } });
@@ -7522,11 +7532,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       handqEl.classList.toggle('on', q.length > 0);
       const stageFull = amAdmin && stageIds().length >= SCALE.C;
       const seg = (e, i) => '<span class="hq" data-id="' + esc(e.i) + '">'
-        + (i === 0 ? '<b>' + esc(e.n) + '</b>' : esc(e.n))
-        + (stageFull ? ' (stage full)' : '') + '</span>';
+        + (i === 0 ? '<b>' + esc(e.n) + '</b>' : esc(e.n)) + '</span>';
       const tot = handTotal(q), shown = Math.min(q.length, 8);
+      // The full stage is a fact about the queue, said once after the count.
       const html = !q.length ? ''
-        : '✋ ' + tot + ' waiting: ' + q.slice(0, 8).map(seg).join(', ') + (tot > shown ? ', +' + (tot - shown) : '');
+        : '✋ ' + tot + ' waiting' + (stageFull ? ' (stage full)' : '') + ': ' + q.slice(0, 8).map(seg).join(', ') + (tot > shown ? ', +' + (tot - shown) : '');
       if (html === handqHtml) return;
       handqHtml = html;
       handqEl.innerHTML = html;
@@ -7981,7 +7991,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // flood; the epoch guard absorbs doubles.
           try {
             const env = await net.seal(roomE2E, grant);
-            for (const pid of relayCopyTargets()) net.sendChunked(env, (piece) => relaySendObj({ t: 'peer', to: pid, msg: piece }));
+            // Paced like the door re-grant: one copy per target is one relay
+            // frame, and a large room passes the relay's per-socket burst.
+            paceRelayCopies(relayCopyTargets(), env);
           } catch (e) {}
           storePwEpoch(ep); retainedGrant = grant; // the setter retains its own grant — it heals stale neighbours like anyone else
           // KEY ROTATION (§8): the pwinfo above is sealed under the OLD key —
@@ -13644,7 +13656,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             // speaker without it would feed the leader straight back in.
             setMicMode('sing');
             const knob = (typeof RTCRtpReceiver !== 'undefined') && (('jitterBufferTarget' in RTCRtpReceiver.prototype) || ('playoutDelayHint' in RTCRtpReceiver.prototype));
-            setStatus('🎵 ' + esc(singLeaderName()) + ' is leading a song — sing along! (earbuds make your voice part of the choir)'
+            setStatus('🎵 ' + singLeaderName() + ' is leading a song — sing along! (earbuds make your voice part of the choir)'
               + (knob ? '' : ' This browser can\'t line voices up in time, so they may stagger.'));
           }
         } else {
@@ -16713,7 +16725,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           return GifOS.store.putFile({ id: fid, name: nm + '.gif', bytes: bytes, kind: 'gif', isApp: true, mime: 'image/gif' })
             .then(() => {
               appEv('succession');
-              setStatus('🧩 The host left — you are keeping ' + esc(nm) + ' going from your copy.');
+              setStatus('🧩 The host left — you are keeping ' + nm + ' going from your copy.');
               ROOM.fileId = fid;
               appFrozen = false;
               return runApp(fid, nm);

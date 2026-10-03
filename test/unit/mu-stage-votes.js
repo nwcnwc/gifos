@@ -96,6 +96,18 @@ function between(start, end) {
   open.fn();
   check('an open room does not treat the grant as a call-up', open.calls.length === 0);
   check('the admin queue names a full stage', html.includes("(stage full)") && html.includes('amAdmin && stageIds().length >= SCALE.C'));
+  {
+    // The full-stage note belongs to the queue, not to each name: once, after the count.
+    const body = between('    function renderHandq() {', '\n    }\n') + '\n    }';
+    const el = { innerHTML: '', classList: { toggle() {} } };
+    const q = [{ i: 'a', n: 'Ann' }, { i: 'b', n: 'Bob' }, { i: 'c', n: 'Cy' }];
+    const render = new Function('handQueue', 'handqEl', 'amAdmin', 'stageIds', 'SCALE', 'esc', 'handTotal',
+      'let handqHtml = null;\n' + body + '\nreturn renderHandq;')(
+      () => q, el, true, () => [1, 2, 3, 4, 5], { C: 5 }, (s) => String(s), (x) => x.length);
+    render();
+    check('a full stage is named once in the hand queue', el.innerHTML.split('(stage full)').length === 2, el.innerHTML);
+    check('the full-stage note follows the count', /^✋ 3 waiting \(stage full\): /.test(el.innerHTML), el.innerHTML);
+  }
 }
 
 // ---- broadcast host steps up from the key and the peer id, not a poll ----
