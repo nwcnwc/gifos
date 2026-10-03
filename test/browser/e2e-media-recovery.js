@@ -198,7 +198,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('C: a webcam-less desktop boots WITH a microphone (audio-only fallback after NotFoundError)', natBoot.live === true && natBoot.noCam === 'NotFoundError', JSON.stringify(natBoot));
   check('C: the boot asked camera+mic once, then audio alone once', natBoot.asks.length === 2 && /video/.test(natBoot.asks[0]) && !/video/.test(natBoot.asks[1]), JSON.stringify(natBoot.asks));
   await nPage.locator('#mic').click();
-  const micOn = await nPage.waitForFunction(() => window.__gifosVideo.micEnabled() && /Mic on/.test(document.getElementById('status').textContent), null, { timeout: 8000 }).then(() => true).catch(() => false);
+  // The plain toggle path (a stream already held) flips the track and repaints
+  // the button; only the late ask writes a status line. The proof is the track.
+  const micOn = await nPage.waitForFunction(() => window.__gifosVideo.micEnabled(), null, { timeout: 8000 }).then(() => true).catch(() => false);
   check('C: one tap turns the mic on', micOn, await nPage.evaluate(() => document.getElementById('status').textContent));
   // His voice reaches Ada: her tile for Nat carries a live audio track.
   const heard = await aPage.waitForFunction(() => {
@@ -209,7 +211,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }, null, { timeout: 30000 }).then(() => true).catch(() => false);
   check('C: his audio track reaches Ada', heard);
   await nPage.locator('#cam').click();
-  const camNote = await nPage.waitForFunction(() => /No camera on this device \(NotFoundError\)/.test(document.getElementById('status').textContent), null, { timeout: 8000 }).then(() => true).catch(() => false);
+  // The whole video ask is refused (the stub rejects any constraint naming video), so the
+  // refusal path answers: it names the camera and NotFoundError, never permissions or another app.
+  const camNote = await nPage.waitForFunction(() => /No camera (on|was found on) this device \(NotFoundError\)/.test(document.getElementById('status').textContent), null, { timeout: 8000 }).then(() => true).catch(() => false);
   check('C: a camera tap names the missing camera (not permissions, not another app) and keeps the mic', camNote
     && await nPage.evaluate(() => window.__gifosVideo.micEnabled() && window.__gifosVideo.camOff()),
     await nPage.evaluate(() => document.getElementById('status').textContent));

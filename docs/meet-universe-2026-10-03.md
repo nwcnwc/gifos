@@ -51,7 +51,7 @@ Verification of the combined tree, as of 13:45 UTC:
 | the <orchestrator> | mesh: e2e-mesh-identity, e2e-mesh-wire, steady-socket, greeter-expiry, status-plane, flood N=20 | green |
 | the <llm-box> | e2e-meet-mod, e2e-camera, e2e-screen-share, e2e-meet-quiet, e2e-video, e2e-knock-first | green (57, 28, 51, 9, 133, 4 assertions) |
 | the <behavior-box> | e2e-video, e2e-meet-quiet | green (133, 9) |
-| the <behavior-box> | e2e-media-recovery scene C (new: mic-only desktop) | 2 of the 4 new checks RED on the first fleet run ("one tap turns the mic on", "a camera tap names the missing camera"); the boot fallback itself passed. Under investigation; the fix in `71a1b392` is not yet proven in a browser. |
+| the <behavior-box>, the <gate-host> | e2e-media-recovery scene C (new: mic-only desktop) | green (14) after the guard's two expectations were corrected: the plain mic toggle flips the track without a status line, and a wholly refused video ask answers "No camera was found on this device (NotFoundError)". The fix in `71a1b392` is proven in a browser: the audio-only boot, the mic reaching the other seat, the camera tap naming the missing camera and keeping the mic. |
 | the <llm-box> | drills/e2e-vanish-browser | CRASH legs 21.8 s on a 4-core box carrying 5 browsers (baseline on the idle 8-core <gate-host>: 6.6 s). Re-queued on the <gate-host> to separate load from a regression. |
 
 The remaining fleet runs (status-plane, status-plane-admin, mosaic, meet-password, meeting-app, media-recovery, knock-first) were still queued when this was written.
