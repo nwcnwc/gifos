@@ -85,8 +85,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // frame rate actually is on real hardware is a different question with a
 // different tool, and answering it by making this suite slow enough to time
 // out answers neither. Override to measure something else.
+// The Home Screen seeds its default store apps (the Whisper captions provider)
+// a few seconds after it paints, and checks the GIF's gifos.app signature by
+// fetching https://gifos.app/gifos.key. That is the desktop's own traffic, not
+// the app's; the network count below is about the app, so the seed is marked done.
 const setup = (name, quality) => "try{localStorage.setItem('gifos_relay','" + RELAY + "');" +
-  "localStorage.setItem('gifos_name','" + name + "')}catch(e){};" +
+  "localStorage.setItem('gifos_name','" + name + "');" +
+  "localStorage.setItem('gifos_store_default_offline-stt-whisper','done')}catch(e){};" +
   ((process.env.GIFOS_FPS_QUALITY || quality)
     ? "window.GIFOS_FPS_QUALITY='" + (process.env.GIFOS_FPS_QUALITY || quality) + "';" : '');
 
