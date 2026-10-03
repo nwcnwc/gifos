@@ -9736,7 +9736,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const f = files.get(del);
         if (!f) return;
         const mine = (f.byId && f.byId === myId) || (!f.byId && f.by === myName());
-        if (!(amAdmin || mine)) return;
+        if (hasAdminRoom() && !(amAdmin || mine)) return; // the same rule as the button and fdelAllowed
         const emit = (w) => {
           const t = { by: myName(), at: Date.now() };
           takeTomb(del, t);

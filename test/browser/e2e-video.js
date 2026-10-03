@@ -223,7 +223,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     }
     return null;
   };
-  check('ALL-OR-NONE: every page agrees, every tile clear, every sender raw', (await allClearEverywhere()) === null);
+  // Judged over a few seconds: tiles repaint on the next coalesced pass
+  // (one per 250 ms window) after the consensus flips.
+  let allClear = await allClearEverywhere();
+  for (let i = 0; allClear !== null && i < 20; i++) { await sleep(250); allClear = await allClearEverywhere(); }
+  check('ALL-OR-NONE: every page agrees, every tile clear, every sender raw', allClear === null, allClear);
 
   // ========== A LOST STATUS MESSAGE HEALS (heartbeat) ==========
   // Simulate the exact live failure: one phone misses another's status

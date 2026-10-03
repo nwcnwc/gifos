@@ -219,6 +219,9 @@ check('renderChat and renderTranscript paint through paintLog and skip when hidd
   const body = a > 0 ? html.slice(a, html.indexOf('\n    }\n', a)) : '';
   check('an open room offers every member the unpin button (the receive rule takes anyone\'s unpin there)',
     /const unpin = \(!hasAdminRoom\(\) \|\| amAdmin \|\| mine\)/.test(body));
+  const h = html.indexOf("document.getElementById('cfilelist').addEventListener('click'");
+  const click = h > 0 ? html.slice(h, html.indexOf('\n    });\n', h)) : '';
+  check('…and its tap sends the unpin there (the click handler gates admin rooms only)', /if \(hasAdminRoom\(\) && !\(amAdmin \|\| mine\)\) return;/.test(click) && !/if \(!\(amAdmin \|\| mine\)\) return;/.test(click));
 }
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
