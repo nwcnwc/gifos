@@ -136,13 +136,23 @@ async function until(fn, ms) {
   // one and anything set before the invite belongs to the previous mount.
   // Park the host somewhere identifiable now that the room exists.
   await until(async () => hEval(() => !!(window.WVApp && window.WVData && window.WVData.ready)), 30000);
-  await hEval(() => {
+  const park = () => hEval(() => {
     const b = document.getElementById('wStart');
     if (b && !document.getElementById('welcome').hidden) b.click();
     window.WVApp.setDate('2020-05-05');
     window.WVMap.setView({ lat: 35.7, lon: 139.7, res: 0.03 });   // Tokyo
     window.WVApp.save();
-  });
+  }).catch(() => {});
+  // The app remounts on the room lane after the invite; a park that lands on
+  // the outgoing frame is lost, and a slow box then has the guest converge on
+  // the new frame's (0, 0). Park until the frame that stays holds Tokyo.
+  await park();
+  await until(async () => {
+    const v = await hEval(() => ({ lat: window.WVMap.view.lat, lon: window.WVMap.view.lon, date: window.WVApp.state.date })).catch(() => null);
+    if (v && Math.abs(v.lat - 35.7) < 2 && Math.abs(v.lon - 139.7) < 3 && v.date === '2020-05-05') return true;
+    await park();
+    return false;
+  }, 30000);
 
   // ---- the guest: open the link --------------------------------------------
   const cCtx = await mkCtx('Cleo');
