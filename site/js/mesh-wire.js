@@ -485,7 +485,7 @@
     function REGISTER_MYSELF_AS_A_GREETER(gk) {
       const k = gk || myKey;
       if (!iAmAGreeter()) { KNOCK_FOR_THE_GREETER_LIST(k); return; }
-      net.seal(roomKey, { p: peer, c: seat.coord })
+      net.seal(roomKey, { p: peer, c: seat.coord, fa: 1 })
         .then((b) => { const s = JSON.stringify(b); greeterTrace.push({ t: Date.now(), tick: env.TICK, state: seat.state, post: seat.state, listLen: -1, open: -1, founded: false, action: 'register-blob:' + blobFp(s) }); if (greeterTrace.length > GREETER_TRACE_CAP) greeterTrace.shift(); sendRaw({ t: 'knock', gk: k, gblob: s }); })
         .catch(() => sendRaw({ t: 'knock', gk: k }));
     }
@@ -536,7 +536,7 @@
       // PLACE is dual-use — Q2 compaction (law T) re-seats an ALREADY SEATED
       // leaf with tag==1, which is seat-to-seat and never entry, so it is
       // excluded and must travel the mesh like everything else internal.
-      const isEntryAnswer = m.t === 'HOME' || m.t === 'NOROOM' || (m.t === 'PLACE' && !m.tag);
+      const isEntryAnswer = m.t === 'HOME' || m.t === 'NOROOM' || m.t === 'FINDACK' || (m.t === 'PLACE' && !m.tag);
       if (!isEntryAnswer) return false;
       try { if (typeof window !== 'undefined') { const t = (window.__mwTx = window.__mwTx || {}); t['door:' + m.t] = (t['door:' + m.t] || 0) + 1; } } catch (e) {} // DEBUG-TREE
       net.seal(roomKey, { mw: 1, m }).then((b) => sendRaw({ t: 'peer', to, msg: b })).catch(() => {});
@@ -546,9 +546,9 @@
 
     async function onGreeters(m) {
       const list = m.list || [];
-      const ids = [], sealedFps = [];
+      const ids = [], sealedFps = [], fa = [];
       for (const s of list) {
-        try { const o = await net.open(roomKey, JSON.parse(s)); if (o && o.p && o.p !== peer) ids.push(o.p); else if (o && o.p === peer) sealedFps.push('SELF'); else sealedFps.push('X' + blobFp(s)); /* net.open resolves NULL on wrong key — the sealed-under-a-different-key case */ } catch (e) { sealedFps.push('E' + blobFp(s)); }
+        try { const o = await net.open(roomKey, JSON.parse(s)); if (o && o.p && o.p !== peer) { ids.push(o.p); if (o.fa === 1) fa.push(o.p); } else if (o && o.p === peer) sealedFps.push('SELF'); else sealedFps.push('X' + blobFp(s)); /* net.open resolves NULL on wrong key — the sealed-under-a-different-key case */ } catch (e) { sealedFps.push('E' + blobFp(s)); }
       }
       if (stopped || !seat) return;
       // DEBUG sever (drill lever, mirrors ingest's drop): while a pid is
@@ -632,7 +632,7 @@
         // Non-empty ⇒ deliver greeter ids (gateway pick).
         if (!ids.length && m.founded) action = preState === 0 ? 'MINT' : 'empty-founded-noop';
         else action = 'deliver';
-        seat.recv({ t: 'GREETERS', list: ids });
+        seat.recv({ t: 'GREETERS', list: ids, fa }); // fa: the doors whose build sends FINDACK
       }
       // `adm` is the relay's `admitted`: does my genesis key match the room's?
       // Nothing ACTS on it — but its absence from this trace is why the

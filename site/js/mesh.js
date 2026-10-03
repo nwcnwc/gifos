@@ -71,6 +71,16 @@
   // this long (delivery is bounded per leg, so 15 covers the round trip; a
   // killed tab frees at 25+15=40 — inside the ghost-churn budget).
   const SIT_PING_WAIT = 15;
+  // FINDACK (test/sim/mesh.cpp FIND_ACK_WAIT / PLACE_REPLAY — MUST match): a
+  // lost FIND or PLACE cost a seeker the full 60-tick state-2 window in any
+  // room with two or more greeters, because silence and a slow admitter
+  // hand-off looked the same and re-asking early raced the slow chain into
+  // twin vouches (sim join-patterns N=9 'serial 8' red at 12). The greeter a
+  // seeker asked now acknowledges the FIND on receipt, so silence past
+  // FIND_ACK_WAIT means the FIND never arrived and no chain exists to race.
+  // A lost PLACE is repaired by the admitter that holds the vouch: it replays
+  // the PLACE once when the vouch is still unconfirmed at PLACE_REPLAY.
+  const FIND_ACK_WAIT = 12, PLACE_REPLAY = 12;
   // D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies
   // (DataChannel close / hard pc failure — a FIRST-HAND observation, never
   // gossip), the confirm probe may start immediately instead of waiting out the
@@ -359,6 +369,8 @@
       this.lastChurn = 0;        // Q2 hysteresis: last tick my neighbourhood churned (LEAVE/heal/move nearby) — compaction waits for local quiescence
       this.compactMoves = 0;     // Q2 observability: how many times I have compacted upward (surfaced via __gifosVideo.debugDump for the swarm live test)
       this.roster = []; this.haveRoster = false; this.lastGreeters = [];
+      this.findAckAt = -1;       // FINDACK: the tick lastAsked acknowledged my outstanding FIND (-1 = not yet)
+      this.findAckers = null;    // FINDACK: door ids whose build sends FINDACK (from the greeter list); null = every greeter does (the sim and harness fabrics)
       this.findNc = null;        // 03c: seeker of the serveFind scan in progress (knock-is-evidence phantom scope)
       this.noroomSeen = 0;       // T7: NOROOMs told to my face since I last entered the search (sim mesh.cpp noroomSeen) — only an EXPLICIT NOROOM counts, never a timeout
       // V7 THE DEEP-ROW LEDGER (sim mesh.cpp rowLedgerAt, 2026-09-17): the tick I
@@ -553,6 +565,7 @@
       for (const [k, s] of this.sitting) {
         if (s.assigner !== this.id) continue;
         if (this.occGet(k) === s.joiner && this.firstHandLive(k)) { del.push(k); continue; }
+        if (!s.replayed && s.pl && this.TICK - s.at >= PLACE_REPLAY && this.occGet(k) !== s.joiner) { s.replayed = true; this.emit(s.joiner, s.pl); } // FINDACK: a lost PLACE — replay it once (a seated or re-seated joiner ignores an untagged PLACE)
         if (this.TICK - s.at < SIT_RECHECK) continue;
         // V4 PROBE-GATED CHECK-BACK (confirmed absence, the ghost-law
         // discipline): "never heard in 25 ticks" is NOT evidence of death —
@@ -852,7 +865,7 @@
       this.forkOpts = new Map(); this.forkPending = 0;
       this.emitRelay(this.myKey); this.wake();
     }
-    askSeat(target) { if (this.askTick === this.TICK) { if (!this.hasCoord) { this.state = 2; this.retryAt = this.TICK; } this.reAsk = true; this.wake(); return; } this.askTick = this.TICK; this.state = 2; this.retryAt = this.TICK; (this.triedSilent = this.triedSilent || new Set()).add(target); this.lastAsked = target; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200, spread: (SPREAD && this.noroomSeen >= 1) }); this.wake(); } // ENTRY PACING: one ask per tick (paced-out ⇒ defer the SEND, never the STATE — see join())
+    askSeat(target) { if (this.askTick === this.TICK) { if (!this.hasCoord) { this.state = 2; this.retryAt = this.TICK; } this.reAsk = true; this.wake(); return; } this.askTick = this.TICK; this.state = 2; this.retryAt = this.TICK; this.findAckAt = -1; (this.triedSilent = this.triedSilent || new Set()).add(target); this.lastAsked = target; this.emit(target, { t: 'FIND', nc: this.id, ttl: 200, spread: (SPREAD && this.noroomSeen >= 1) }); this.wake(); } // ENTRY PACING: one ask per tick (paced-out ⇒ defer the SEND, never the STATE — see join())
     // ENTRY RESUME (2026-08-04 plane incident; test/tools/seat-flap-repro.js).
     // The dance is three door round trips — knock→GREETERS, WHOHOME→HOME,
     // FIND→PLACE — and a retry used to restart it from the knock, so a socket
@@ -1109,7 +1122,7 @@
         this.occ.set(k, nc); this.noteS1(k);
         this.route(f.coord, null, m);
       } else {
-        this.markSitting(k, nc);
+        this.markSitting(k, nc); this.sitting.get(k).pl = m; // FINDACK: kept for the one lost-PLACE replay (recheckSitting)
         this.emit(nc, m); this._gspReplay(nc);
       }
     }
@@ -2269,7 +2282,7 @@
           // competing for a slot in a busy heal — NOT stranded (bug #6).
           if ((this.state === 0 || this.state === 1) && this.joinStart < 0) this.joinStart = TICK; // the strand clock starts at the first list (see the ctor)
           if ((this.state === 0 || this.state === 1) && this.joinStart >= 0 && TICK - this.joinStart > STRAND_TTL && (this.lastReach < 0 || TICK - this.lastReach > STRAND_TTL)) { this.stranded = true; this.strandedAt = TICK; return; }
-          this.lastGreeters = m.list; this.greetersAt = TICK; // stamped: entry-resume trusts this list only while registry-fresh
+          this.lastGreeters = m.list; this.greetersAt = TICK; this.findAckers = Array.isArray(m.fa) ? new Set(m.fa) : null; // FINDACK: which doors' builds acknowledge (a mixed-build room keeps the old windows for the rest) // stamped: entry-resume trusts this list only while registry-fresh
           if (this.state === 0 && !this.forkPaused) {
             // R5: probe SEVERAL greeters. One greeter → classic path. Many →
             // collect HOMEs; cluster by gkey + roster overlap. Two+ clusters
@@ -2409,7 +2422,8 @@
           else if (this.state === 3 && rosterOk(m.roster)) { this.roster = m.roster; this.haveRoster = true; }
           return;
         }
-        case 'FIND': if (m.tag === 1) this.serveCompact(m); else { this.findNc = m.nc; try { this.serveFind(m); } finally { this.findNc = null; } } return; // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission. Untagged: the seeker is at the door for the whole scan (knock-is-evidence phantom scope — 03c)
+        case 'FIND': if (m.tag === 1) this.serveCompact(m); else { if (m.from != null && m.from === m.nc) this.emit(m.nc, { t: 'FINDACK', nc: m.nc }); this.findNc = m.nc; try { this.serveFind(m); } finally { this.findNc = null; } } return; // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission. Untagged: the seeker is at the door for the whole scan (knock-is-evidence phantom scope — 03c)
+        case 'FINDACK': if (this.state === 2 && m.nc === this.id && m.from === this.lastAsked && this.findAckAt < 0) this.findAckAt = TICK; return; // the seeker's own greeter acknowledged on receipt (only the first hop: the seeker knows nobody further down)
         case 'FINDLEAF': if (!this.verifyFill(m)) return; this.findLeaf(m.hole, m.nbrs, m.ttl); return; // S4 identity hook gates fill authorship
         case 'PLACE':
           if (this.state === 2 && this.verifyFill(m)) { this.take(m.coord, m.owner, m.nbrs); return; } // S4 identity hook
@@ -2613,7 +2627,7 @@
           const sit = this.sitting.get(m.ck);
           if (sit && sit.joiner === m.id) {
             if (m.tag === 1) this.confirmSeated(m.ck, m.id);            // the lost CLAIM, replayed first-hand
-            else { sit.at = this.TICK; sit.pingAt = -1; }               // alive and still seeking: restart the clock
+            else { sit.at = this.TICK; sit.pingAt = -1; if (sit.pl) this.emit(m.id, sit.pl); } // alive and still seeking: restart the clock, and re-send the PLACE it has evidently not got
           }
           return;
         }
@@ -2718,7 +2732,10 @@
         // the full window stands: a fast re-pick abandons a merely-SLOW
         // admitter hand-off chain mid-walk and the twin PLACE races leave
         // shape holes (sim join-patterns N=9-11 serial caught exactly that).
-        else if (this.state === 2 && TICK - this.retryAt > ((this.seatTries === 0 && this.roster.filter((e) => e.v !== this.id).length === 1) ? 12 : 60)) { if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) this.askSeat(t); else if (!this.resumeAsk()) this.join(); } else { this.seatTries = 0; if (!this.resumeAsk()) this.join(); } } // ENTRY RESUME on roster exhaustion too: a fresh WHOHOME beats a fresh knock
+        // FINDACK: before the asked greeter acknowledges, silence past
+        // FIND_ACK_WAIT is a lost FIND (no chain exists to race); a greeter
+        // whose build does not acknowledge keeps the windows above.
+        else if (this.state === 2 && TICK - this.retryAt > ((this.findAckAt < 0 && (!this.findAckers || this.findAckers.has(this.lastAsked))) ? FIND_ACK_WAIT : (this.seatTries === 0 && this.roster.filter((e) => e.v !== this.id).length === 1) ? 12 : 60)) { if (this.haveRoster && this.roster.length && ++this.seatTries <= 6) { const t = this.pickRoster(); if (t != null) this.askSeat(t); else if (!this.resumeAsk()) this.join(); } else { this.seatTries = 0; if (!this.resumeAsk()) this.join(); } } // ENTRY RESUME on roster exhaustion too: a fresh WHOHOME beats a fresh knock
         this.wake(); return;
       }
       if (this.evil) this.attack();

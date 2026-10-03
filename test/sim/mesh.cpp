@@ -18,7 +18,7 @@ using namespace std;
 typedef unordered_map<uint64_t,int> Occ;
 
 // ---- message ----
-enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK,TRANSLOST,MOVED,SITPING,SITPONG,SITXFER,OFFER };   // TRANSLOST: a fabric EVENT (from=-1) — "MY transport to seat m.id died" (D5), never a peer message. MOVED: law-T3 forwarding tombstone — a vacated cell answers with where the mover went. SITPING/SITPONG: V4 probe-gated check-back — the assigner falsifies a silent vouch by asking the admittee itself; the pong carries NO occupancy payload beyond the vouched cell.
+enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK,TRANSLOST,MOVED,SITPING,SITPONG,SITXFER,OFFER,FINDACK };   // TRANSLOST: a fabric EVENT (from=-1) — "MY transport to seat m.id died" (D5), never a peer message. MOVED: law-T3 forwarding tombstone — a vacated cell answers with where the mover went. SITPING/SITPONG: V4 probe-gated check-back — the assigner falsifies a silent vouch by asking the admittee itself; the pong carries NO occupancy payload beyond the vouched cell.
 struct KV { uint64_t k; int v; };
 // ---- V1 ROLLUP DIGEST (healing-laws.md § G) ---------------------------------
 // A fixed-size summary of a SCOPE (a seat's subtree, a head's row, or the whole
@@ -292,6 +292,17 @@ static const long long RING_HOLD=220;
 // firstHandLive hand-off gate and never PLACE-TTL alone as the sole fix.
 static const long long SIT_TTL=90;       // soft sitting-down backstop (ticks)
 static const long long SIT_RECHECK=25;   // assigner recheck cadence
+// FINDACK (2026-10-03): a lost FIND or PLACE cost a seeker the full 60-tick
+// state-2 window in any room with two or more greeters — silence and a slow
+// admitter hand-off looked the same, and re-asking early raced the slow chain
+// into twin vouches and shape holes (join-patterns N=9 'serial 8' at 12).
+// Now the greeter a seeker asked acknowledges the FIND on receipt, so silence
+// is evidence: no ack within FIND_ACK_WAIT means the FIND never arrived and no
+// chain exists to race (one first-contact leg <= 8 ticks + the ack leg <= 2).
+// A lost PLACE is the admitter's to repair: it holds the vouch, so it replays
+// the PLACE once when the vouch is still unconfirmed at PLACE_REPLAY.
+static const int FIND_ACK_WAIT=12;
+static const int PLACE_REPLAY=12;
 static const long long SIT_PING_WAIT=15; // V4 probe window: free a silent vouch only after a SITPING went unanswered this long (delivery is bounded ≤9 ticks/leg, so 15 covers the round trip; a killed tab frees at 25+15=40 — inside the ghost-churn budget that the rejected free-at-50 missed)
 // D5 EARLY-PROBE (healing-laws D5): when MY OWN transport to a neighbour dies (a
 // FIRST-HAND observation — the modelled DataChannel close, never gossip), the
@@ -400,7 +411,7 @@ struct Seat {
   Occ occ, live, s1seen, healTry, cousins, holeSince, born; unordered_map<uint64_t,uint8_t> kidful; unordered_map<uint64_t,int> childOf;   // holeSince: when a Section-1 cell I don't hear first-hand first looked like a hole (H1-S1 confirm-window timer, probe-gated)   // cousins: my future owned-link coord -> the heir that will hold it, learned from my owner's PONG (for relay-free promote-up)
   // A three-state soft marks: cell → {joiner, assigner, at}. Empty = no entry in
   // occ/sitting; sitting-down = sitting[]; seated = occ + firstHandLive (or self).
-  struct SoftSit { int joiner; int assigner; int at; int pingAt=-1; };   // pingAt: V4 probe-gated check-back — when I SITPINGed the silent admittee (-1 = not yet)
+  struct SoftSit { int joiner; int assigner; int at; int pingAt=-1; bool replayed=false; Msg pl{}; };   // pl: the PLACE as sent — replayed ONCE if the vouch is still unconfirmed at PLACE_REPLAY (a lost PLACE), and on a still-seeking SITPONG   // pingAt: V4 probe-gated check-back — when I SITPINGed the silent admittee (-1 = not yet)
   unordered_map<uint64_t, SoftSit> sitting;
   // D5 early-probe state (keyed by coord ckey): translost = when MY transport to
   // that coord's occupant died (edge-triggered); tlProbeAt = last re-probe tick;
@@ -491,6 +502,7 @@ struct Seat {
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
   int greetersAt=-1, resumeTries=0;           // ENTRY RESUME: when lastGreeters landed; consecutive knockless retries (mesh.js parity)
   unordered_set<int> triedSilent;             // per-join-attempt silent-target marks (pickRoster) — sim parity with mesh.js
+  int findAckAt=-1;                           // FINDACK: the tick lastAsked acknowledged my outstanding FIND (-1 = not yet) — silence past FIND_ACK_WAIT means the FIND never arrived
   int lastAsked=-1;                            // the target of my outstanding FIND — ANY answer to the ask proves ITS chain alive, not just the chain-tail that authored the reply
   uint32_t rs;
   Seat(int i):id(i){ uint32_t h=2166136261u; char b[16]; int n=snprintf(b,16,"p%08d",i); for(int k=0;k<n;k++){h^=(unsigned char)b[k]; h*=16777619u;} rs=h^0x9e3779b9u;
@@ -709,7 +721,7 @@ struct Seat {
     Msg w;w.t=WHOHOME;w.from=id;w.ttl=60; emit(g,w);
     state=1; retryAt=(int)TICK; wake(id); return true;
   }
-  void askSeat(int target){ if(askTick==(int)TICK){ if(!hasCoord){ state=2; retryAt=(int)TICK; } reAsk=true; wake(id); return; } askTick=(int)TICK; state=2; retryAt=(int)TICK; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; m.spread=(SPREAD && noroomSeen>=1); emit(target,m); wake(id); }
+  void askSeat(int target){ if(askTick==(int)TICK){ if(!hasCoord){ state=2; retryAt=(int)TICK; } reAsk=true; wake(id); return; } askTick=(int)TICK; state=2; retryAt=(int)TICK; findAckAt=-1; triedSilent.insert(target); lastAsked=target; Msg m; m.t=FIND; m.nc=id; m.ttl=200; m.spread=(SPREAD && noroomSeen>=1); emit(target,m); wake(id); }
   // Random pick spreads door load — but never re-pick a target that has already
   // proven SILENT this join (a dark member's cell costs a full retry window per
   // void FIND). Any answer lifts the mark; all-marked falls back to the full set.
@@ -786,7 +798,7 @@ static inline uint64_t pairKey(int a,int b){ return a<b? ((uint64_t)a<<32|(uint3
 static long long EMIT_NEIGHBOR=0, EMIT_TELEPORT=0, EMIT_BOOTSTRAP=0, EMIT_RELAY=0;
 static long long TELE_BY_T[32]={0};   // teleports tallied by message type — pinpoints call sites to convert
 static long long TELE_SRC[4]={0};   // teleport source: [0]=plain [1]=direct [2]=routing [3]=direct+routing
-static const char* MT_NAME(int t){ static const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK","TRANSLOST","MOVED","SITPING","SITPONG","SITXFER"}; return (t>=0&&t<26)?NM[t]:"?"; }
+static const char* MT_NAME(int t){ static const char* NM[]={"GREETERS","WHOHOME","HOME","FIND","FINDLEAF","PLACE","NOROOM","HELLO","YIELD","CLAIM","LEAVE","GREETWALK","S1SYNC","DRAIN","CHALLENGE","CONFIRM","PHONE","PONG","ROUTE","ROUTED","KNOCK","TRANSLOST","MOVED","SITPING","SITPONG","SITXFER","OFFER","FINDACK"}; return (t>=0&&t<28)?NM[t]:"?"; }
 // A TELEPORT must be IMPOSSIBLE. If a frame is ever about to be delivered to a
 // seat the sender has no honest path to (no owned link, not a socketed greeting
 // pair), the mesh has a routing bug — so we do NOT quietly count it: we detonate,
@@ -840,9 +852,13 @@ static void classifyEmit(int from,int to,const Msg& m){
 // a severed DataChannel with BOTH endpoints alive). Checked unconditionally,
 // unlike NET_SEVER's random severance which is gated on the conditions model.
 static unordered_map<uint64_t,long long> forcedSever;
+// `losefirst FIND|PLACE <seeker>` (repro-lost-find.sh): the fabric swallows the
+// seeker's NEXT own FIND, or the next newcomer PLACE addressed to it — one frame.
+static int LOSE_T=-1, LOSE_NC=-1;
 static void schedule(int from,int to,Msg m){
   uint64_t pk=pairKey(from,to);
   classifyEmit(from,to,m);
+  if(LOSE_T>=0 && (int)m.t==LOSE_T && m.tag==0 && ((m.t==FIND && from==LOSE_NC && m.nc==LOSE_NC) || (m.t==PLACE && to==LOSE_NC))){ LOSE_T=-1; return; }
   if(cutBetween(from,to)) return;   // TOTAL PARTITION: endpoints are on opposite sides of the cut — the transport drops it
   if(!forcedSever.empty() && from>=0 && to>=0){ auto it=forcedSever.find(pk); if(it!=forcedSever.end()){ if(it->second>TICK) return; forcedSever.erase(it); } }   // scenario severance: the link is dead, both seats live
 
@@ -1454,6 +1470,7 @@ int main(int argc,char**argv){
       if(who<0){ printf("ERR killat: nobody at %s\n",a.c_str()); continue; }
       if(silent){ alive[who]=0; active.erase(who); } else seats[who]->leave();
       N--; printf("OK killat %s -> killed seat %d (%s), N now %d\n",a.c_str(),who,silent?"silent":"leave",N); }
+    else if(op=="losefirst"){ string a=tk.size()>1?tk[1]:""; LOSE_T = a=="FIND"?(int)FIND : a=="PLACE"?(int)PLACE : -1; LOSE_NC=tk.size()>2?atoi(tk[2].c_str()):-1; printf("OK losefirst %s seat %d\n",a.c_str(),LOSE_NC); }
     else if(op=="spawn"){ int k=tk.size()>1?atoi(tk[1].c_str()):1; for(int q=0;q<k;q++){ int id=nextId++; if(id>=(int)seats.size()){ seats.resize(id+1); alive.resize(id+1); } seats[id]=new Seat(id); alive[id]=1; seats[id]->join(); } N+=k; printf("OK spawned %d (ids %d..%d), N now %d\n",k,nextId-k,nextId-1,N); }
     else if(op=="where"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; if(id<0||id>=nextId||!alive[id]) printf("WHERE %d dead\n",id); else printf("WHERE %d state=%d coord=%s\n",id,seats[id]->state,seats[id]->hasCoord?coordStr(seats[id]->coord).c_str():"-"); }
     else if(op=="isactive"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; printf("ACTIVE seat%d inActive=%d inNext=%d\n",id,(int)active.count(id),(int)nextActive.count(id)); }

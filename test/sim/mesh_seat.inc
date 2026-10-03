@@ -64,6 +64,7 @@ void Seat::recheckSitting(){
     if(s.assigner!=id) continue;
     // Confirmed seated by first-hand contact with the joiner at this cell.
     if(occGet(e.first)==s.joiner && firstHandLive(e.first)){ sitLog("SIT-",e.first,s.joiner,"recheck-confirmed"); del.push_back(e.first); continue; }
+    if(!s.replayed && s.pl.t==PLACE && TICK-s.at>=PLACE_REPLAY && occGet(e.first)!=s.joiner){ s.replayed=true; emit(s.joiner,s.pl); }   // FINDACK: a lost PLACE — replay it once (a seated or re-seated joiner ignores an untagged PLACE)
     if(TICK-s.at < SIT_RECHECK) continue;
     // The check-back: never heard from the joiner at this cell — free it.
     // (A PROBE GATE was tried here and REJECTED both ways: freeing late, at
@@ -142,6 +143,7 @@ void Seat::admit(Coord c,Msg& f){
     COMPACT_ADMITS++; route(f.coord,-1,m);
   } else {
     markSitting(k, nc);   // sitting-down: assigner wrote PLACE, not yet seated
+    sitting[k].pl=m;      // FINDACK: kept for the one lost-PLACE replay (recheckSitting)
     emit(nc,m);
   }
 }
@@ -1445,7 +1447,8 @@ void Seat::recv(Msg& m){
       if(state==1){ if(m.roster.empty()){ retryAt=(int)TICK-10; return; } roster=m.roster; haveRoster=true; lastReach=(int)TICK; seatTries=0; resumeTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }   // reached a greeter (HOME roster came back): note it for R6; a landed HOME re-arms the resume budget. genesis is ONLY via an empty greeter LIST.
       else if(state==3&&m.roster.size()){ roster=m.roster; haveRoster=true; }   // E3 stripped: store the roster (a draining DEEP seat re-seats against it via E1) but do NO Section-1 self-audit
       return; }
-    case FIND: if(m.tag==1) serveCompact(m); else { findNc=m.nc; serveFind(m); findNc=-1; } return;
+    case FIND: if(m.tag==1) serveCompact(m); else { if(m.from>=0 && m.from==m.nc){ Msg a; a.t=FINDACK; a.nc=m.nc; emit(m.nc,a); } findNc=m.nc; serveFind(m); findNc=-1; } return;   // FINDACK: the seeker's own greeter acknowledges on receipt (only the first hop: the seeker knows nobody further down)
+    case FINDACK: if(state==2 && m.nc==id && m.from==lastAsked && findAckAt<0) findAckAt=(int)TICK; return;
     case OFFER: serveOffer(m); return;   // V5: a head's free-slot invitation walking down (`offeron`)   // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission. Untagged: the seeker is at the door for the whole scan (knock-is-evidence phantom scope — 03c)
     case FINDLEAF: findLeaf(m.hole,m.nbrs,m.ttl); return;
     case PLACE:
@@ -1629,7 +1632,7 @@ void Seat::recv(Msg& m){
       auto sit=sitting.find(m.ck);
       if(sit!=sitting.end() && sit->second.joiner==m.id){
         if(m.tag==1){ confirmSeated(m.ck,m.id); }               // the lost CLAIM, replayed first-hand
-        else { sit->second.at=(int)TICK; sit->second.pingAt=-1; } // alive and still seeking: restart the clock
+        else { sit->second.at=(int)TICK; sit->second.pingAt=-1; if(sit->second.pl.t==PLACE) emit(m.id,sit->second.pl); } // alive and still seeking: restart the clock, and re-send the PLACE it has evidently not got
       }
       return; }
     case PHONE: onPhone(m); return;
@@ -1699,7 +1702,7 @@ void Seat::tick(){
     if(reAsk||reJoin){ bool a=reAsk; reAsk=false; reJoin=false;   // ENTRY PACING: fire the ask/knock deferred from a same-tick repeat
       if(a&&haveRoster&&roster.size()){ int t=pickRoster(); if(t>=0){ askSeat(t); wake(id); return; } }
       join(); wake(id); return; }
-    if((state==0||state==1)&&TICK-retryAt>20){ if(!resumeAsk()) join(); } else if(state==2){ int rc=0; for(auto&e:roster) if(e.v!=id) rc++; if(TICK-retryAt>((seatTries==0&&rc==1)?12:60)){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else if(!resumeAsk()) join(); } else { seatTries=0; if(!resumeAsk()) join(); } } } wake(id); return; }   // ENTRY RESUME: re-enter at WHOHOME while the greeter list is registry-fresh; full knock only when it isn't
+    if((state==0||state==1)&&TICK-retryAt>20){ if(!resumeAsk()) join(); } else if(state==2){ int rc=0; for(auto&e:roster) if(e.v!=id) rc++; if(TICK-retryAt>(findAckAt<0 ? FIND_ACK_WAIT : (seatTries==0&&rc==1)?12:60)){ if(haveRoster&&roster.size()&&++seatTries<=6){int t=pickRoster(); if(t>=0)askSeat(t); else if(!resumeAsk()) join(); } else { seatTries=0; if(!resumeAsk()) join(); } } } wake(id); return; }   // ENTRY RESUME: re-enter at WHOHOME while the greeter list is registry-fresh; full knock only when it isn't
   if(evil) attack();
   // T: transit bookkeeping — a claim window that closes with NO contradiction
   // CONFIRMS (a wiped region has nobody to answer; a contradiction would have
