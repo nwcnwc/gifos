@@ -299,8 +299,11 @@ const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
   // (a) re-flooded every learned line room-wide — a join cost O(history × N)
   // frames, 30 floods here — and (b) ran through the live per-author limiter,
   // so of 30 lines by one author the newcomer kept 20 and never saw the rest.
+  // Paced under the LIVE per-author limiter (20 per 10 s, by design — a burst
+  // from one member is slowed, not relayed): 30 lines over ~18 s reach every
+  // seat live; the replay to a newcomer then carries all 30 in one frame.
   const hist = [];
-  for (let i = 0; i < 30; i++) hist.push(await pages[0].evaluate((t) => window.__gifosVideo.sayForTest(t), 'history line ' + i));
+  for (let i = 0; i < 30; i++) { hist.push(await pages[0].evaluate((t) => window.__gifosVideo.sayForTest(t), 'history line ' + i)); await sleep(600); }
   const heldAll = await eventually(() => Promise.all(pages.map((pg) => pg.evaluate((ids) => ids.every((id) => window.__gifosVideo.chatHas(id)), hist).catch(() => false))), (v) => v.every(Boolean), 30000);
   check('30 lines by one author reach every seated member (the author\'s own floods)', heldAll.ok, heldAll.v);
   const h0 = await floods();

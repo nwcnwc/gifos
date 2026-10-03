@@ -4697,6 +4697,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // NO guessing and NO "first stream wins": an unproven stream waits in
     // p.incoming (the tile shows the avatar) until gossip proves who it is.
     // This is what makes "your tile is showing someone else's face" impossible.
+    // A status pulse carries the sender's own stream id every beat. Claiming is
+    // only work when that id is NEWS: it changed (a reload), or the announced
+    // stream has arrived (p.incoming) and is not the one on the tile yet. Any
+    // other pulse must not touch the tile — claimOwnStream ends in updateTile,
+    // and an updateTile outside a repaint pass lays the whole grid out, so a
+    // quiet room was laying out once per peer per beat (e2e-status-plane).
+    const sidIsNews = (p, sid) => p.ownSid !== sid
+      || (!(p.stream && p.stream.id === sid) && (p.incoming || []).some((s) => s.id === sid));
     function claimOwnStream(p) {
       if (!p) return;
       // a stale claim lets go: their sid changed (reload) → old stream is void
@@ -5126,8 +5134,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // plain rooms — the transport no longer matters, only the proof.
       takeMod(from, msg);
       if (msg.conns) setConns(from, msg.conns);
-      if ('sid' in msg && p && p.ownSid !== msg.sid) { p.ownSid = msg.sid; claimOwnStream(p); }
-      else if ('sid' in msg && p) claimOwnStream(p);
+      if ('sid' in msg && p && sidIsNews(p, msg.sid)) { p.ownSid = msg.sid; claimOwnStream(p); }
     }
 
     function onSignal(from, msg, adm) {
@@ -5261,7 +5268,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (sp) {
           sp.lastHeard = Date.now();
           if (msg.name && sp.name !== msg.name) { const nm = String(msg.name).slice(0, 40); sp.name = nm; if (sp.label) sp.label.textContent = nm; if (sp.avatar) sp.avatar.textContent = (nm[0] || '?').toUpperCase(); }
-          if ('sid' in msg) { sp.ownSid = msg.sid; claimOwnStream(sp); }
+          if ('sid' in msg && sidIsNews(sp, msg.sid)) { sp.ownSid = msg.sid; claimOwnStream(sp); }
         }
         // ONE PULSE, ONE RE-DERIVATION: every DC-linked section mate hears each
         // beat twice (viaDc + GSPS over the same link); the second copy changed
