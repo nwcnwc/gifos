@@ -135,7 +135,7 @@ const logNearBottom = logs.logNearBottom, paintLog = logs.paintLog;
 }
 check('renderChat and renderTranscript paint through paintLog and skip when hidden',
   /function renderChat\(\) \{\n      if \(!chatPanelOpen\(\) \|\| transcriptShown\(\)\) return;/.test(html)
-  && /function renderTranscript\(\) \{\n      if \(!chatPanelOpen\(\) \|\| !transcriptShown\(\)\) return;/.test(html)
+  && /function renderTranscript\(\) \{\n      if \(!chatPanelOpen\(\) \|\| !transcriptShown\(\)\) (return;|\{ trDirty = true; return; \})/.test(html)
   && /paintLog\(log, html\)/.test(html)
   && !/log\.scrollTop = log\.scrollHeight/.test(html));
 

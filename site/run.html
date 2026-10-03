@@ -296,7 +296,7 @@
   }
 
   /* ---- run it -------------------------------------------------------------- */
-  var API = { ok: true, gaps: [], kind: '', ready: null, MIN: MIN, syncGaps: syncGaps, ua: ua };
+  var API = { ok: true, gaps: [], kind: '', MIN: MIN, syncGaps: syncGaps, ua: ua };
   window.GifOSPreflight = API;
 
   /* A solo entry (#id=<fileId>) is one tab and NO network: it must run on a
@@ -324,27 +324,21 @@
 
   /* The one gate the runtime calls. `fn` runs only if this browser can really
      hold a meeting — so a blocked browser never knocks, never opens a socket,
-     never sets `room`, and therefore can never reach the joining veil. */
+     never sets `room`, and therefore can never reach the joining veil.
+     The Ed25519 probe is retired. There is no async half. */
   API.whenSupported = function (f) {
     if (!API.ok) return;
-    if (!API.ready) { f(); return; }
-    API.ready.then(function (good) { if (good) f(); });
+    f();
   };
 
   /* The DEFERRED half of the solo doctrine: a network act taken from inside a
      working solo app (Share live). Runs `f` only when this browser can hold a
      meeting; otherwise the recorded verdict paints NOW — dismissible, because
      the app underneath still works and the person must be able to go back to
-     it. By Share-live time the Ed25519 probe has long settled (1.5s cap), so
-     the .then() below is effectively synchronous. */
+     it. */
   API.requireMeeting = function (f) {
-    var go = function (good) {
-      if (good) f();
-      else paint(API.kind || 'old', API.gaps, true);
-    };
-    if (!API.ok) { go(false); return; }
-    if (!API.ready) { go(true); return; }
-    API.ready.then(go);
+    if (API.ok) f();
+    else paint(API.kind || 'old', API.gaps, true);
   };
 })();
 </script>
@@ -1687,10 +1681,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   (function () {
     const net = GifOS.net; // the shared transport fabric (also under runtime.js)
     const ICE_SERVERS = net.ICE_SERVERS;
-    // Quality ladder: total participants → per-link video constraints. With a
-    // mesh, upload cost grows with (n-1) links, so both resolution and each
-    // link's bitrate step down to keep total upstream roughly flat.
-    // NOTE: the room-size rung is only the STARTING POINT — adapt() then steps
+    // Quality ladder: live links → per-link video constraints. adapt() passes
+    // n = 1 + peers.size, the direct links, bounded by the row, not the room.
+    // Upload cost grows with those links, so both resolution and each link's
+    // bitrate step down to keep total upstream roughly flat.
+    // NOTE: the link-count rung is only the STARTING POINT — adapt() then steps
     // further down this same ladder by the device's power tier (on battery /
     // battery low / charger losing / phone at all / parked phone). See the
     // battery-tier block above adapt().
@@ -1706,7 +1701,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // 15fps. These two rungs give the tier somewhere to go. Encoder cost
       // tracks pixels x fps, so 240p -> 144p is ~2.8x fewer pixels and 2/3
       // the frames — the deepest cut available without killing the picture.
-      // rung(n) still floors at 240p for room SIZE (find() takes the first
+      // rung(n) still floors at 240p for the link count (find() takes the first
       // max>=n), so these are reachable ONLY by power tier / tune — nobody
       // lands here just for being in a big room.
       { max: 99, w: 320, h: 180, fps: 12, kbps: 150,  label: '180p' },
@@ -1729,7 +1724,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const SCREEN_KBPS = 2500;
     // ---- VIDEO QUALITY (Settings): what YOUR OWN camera records --------------
     // Auto (the default, and the whole behavior until 2026-08-03) = the LADDER
-    // above: room size picks the rung, the power tier and tune cut deeper. A
+    // above: the link count picks the rung, the power tier and tune cut deeper. A
     // MANUAL choice pins capture + encode to that rung instead — the user's
     // deliberate knob, so it overrides the room-size and power stepping. Two
     // laws still apply on top of a manual rung: blur's fps honesty caps (a
@@ -1913,6 +1908,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // set anyone else's.
     const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, pwEp: 0, scr: 0, scribe: false };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur, scr }
+    // How many OTHER seats' held statuses advertise captions or a scribe.
+    // refreshTrBtn and the scribe interval read the counts. They do not scan
+    // statusOf on the hot path.
+    let ccOthers = 0, anyScribeStatus = 0;
+    function noteStatusFlags(prev, next) {
+      const wasCc = !!(prev && prev.cc), nowCc = !!(next && next.cc);
+      if (wasCc !== nowCc) ccOthers += nowCc ? 1 : -1;
+      const wasSc = !!(prev && prev.scribe), nowSc = !!(next && next.scribe);
+      if (wasSc !== nowSc) anyScribeStatus += nowSc ? 1 : -1;
+      if (ccOthers < 0) ccOthers = 0;
+      if (anyScribeStatus < 0) anyScribeStatus = 0;
+    }
+    function dropStatus(pid) {
+      const st = statusOf.get(pid);
+      if (!st) return;
+      const wasScribe = !!st.scribe;
+      noteStatusFlags(st, null);
+      statusOf.delete(pid);
+      if (wasScribe && typeof scribeWatch === 'function') scribeWatch();
+    }
     // IS THIS SEAT DARK? Not the same question as "is its camera off".
     // Sharing a screen with the camera off is the COMMON case — nobody puts
     // their face up to show a deck, and join-quiet means the camera is off by
@@ -2085,8 +2100,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // big one falls back to first-hand statuses, which only hides far facts.
     const digLists = () => (roomPastSection() ? roomDig() : null);
     const stSeen = (st) => (st ? (st.rx || st.at || 0) : 0); // when a status was said, on MY clock (takeStatus)
-    let gossipAgeMs = 0;
-    let admBeatAt = 0;                                        // my last room-wide admin presence beat                                      // set while a relayed gossip message is being handled
+    let gossipAgeMs = 0; // set while a relayed gossip message is being handled
+    let admBeatAt = 0; // my last room-wide admin presence beat
     const freshSt = (id) => { const st = statusOf.get(id); return !!st && Date.now() - stSeen(st) <= 15000; };
     const digStageEntry = (id) => { const d = digLists(); return d ? d.stage.find((e) => e.id === id) || null : null; };
     // devOf entries the RELAY attested (roster / peer-join). A status may carry
@@ -2299,6 +2314,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         fanOut({ kind: 'mod', mod: modTable, modw: gossipModW() }, null, { ephemeral: true });
       }
       if (digestMode()) pushLeaf();
+      if (typeof scribeAdvert === 'function') scribeAdvert();
       updateTile('me');
     }
     // My OWN room-global facts into the fold (healing-laws G9), and my own
@@ -2327,12 +2343,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!v || v === myId) continue;
         // A confirmed departure (D2/D5 — the meshGone tombstone) never counts,
         // even while an occ echo of the freed seat is still settling. And the
-        // raw-occ union is LIVENESS-GATED like the roster: statuses flood the
-        // whole room, so every live participant shows a fresh pulse — a corpse
-        // echo (a dead seat's occ entry gossiping back from seats that never
-        // confirmed the death first-hand) must not hold the count. A JOIN
+        // raw-occ union is LIVENESS-GATED like the roster. Statuses reach the
+        // section, so a far occ seat is vouched by transport or by join grace
+        // only. A fresh pulse is not evidence for a seat outside my section.
+        // A corpse echo (a dead seat's occ entry gossiping back from seats that
+        // never confirmed the death first-hand) must not hold the count. A JOIN
         // GRACE (occFirstSeen, 25s) keeps a just-seated newcomer counted while
-        // its first status is still flooding to me. The horizon here is a
+        // its first status, or its first link, is still on the way. The horizon
+        // here is a
         // DOUBLE freshness window (30s, vs the roster's 15s): the count may
         // briefly carry a silent-but-alive far seat through a gossip flap, but
         // an unconfirmed corpse echo still ages out in half a minute instead
@@ -3590,13 +3608,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastActive = Date.now(); if (idleNow) { idleNow = false; adapt(); } keepAwake(); } });
     keepAwake();
+    // One blob URL for the life of the page. The worker is terminated when
+    // the last subscriber leaves and minted again on the next subscribe (a
+    // visible tab drops the blur subscription). Creating the URL inside that
+    // transition leaked one blob per hide/show.
+    const METRO_SRC = URL.createObjectURL(new Blob(['setInterval(function(){postMessage(1)},66)'], { type: 'text/javascript' }));
     let metro = null;
     const metroSubs = new Set(); // callbacks ticked ~15x/s, background included
     function metroSub(fn) {
       if (!metro) {
         try {
-          const src = URL.createObjectURL(new Blob(['setInterval(function(){postMessage(1)},66)'], { type: 'text/javascript' }));
-          metro = new Worker(src);
+          metro = new Worker(METRO_SRC);
           metro.onmessage = () => { for (const f of Array.from(metroSubs)) { try { f(); } catch (e) {} } };
         } catch (e) { metro = null; }
       }
@@ -5083,7 +5105,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       peers.delete(peerId);
       recSrcDirty = true;
       meters.delete(peerId);
-      statusOf.delete(peerId); // a stale status must not haunt the room's consensus
+      if (typeof dropStatus === 'function') dropStatus(peerId); else statusOf.delete(peerId); // a stale status must not haunt the room's consensus
       forgetConns(peerId);
       if (typeof sgaForgetWaiter === 'function') sgaForgetWaiter(peerId); // a departed asker is no reason to keep chasing
       if (typeof reconcileApp === 'function') reconcileApp(); // a departing host ends the shared app
@@ -5235,7 +5257,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       st.rx = Date.now() - gossipAgeMs; // the departure tombstone (notTomb) trusts only statuses that arrived after its verdict
       if (cur && (cur.at || 0) === (st.at || 0) && (cur.rx || 0) > st.rx) st.rx = cur.rx;
       Object.defineProperty(st, 'raw', { value: raw });
+      const scribeBit = !!(cur && cur.scribe) !== !!st.scribe;
+      if (typeof noteStatusFlags === 'function') noteStatusFlags(cur, st);
       statusOf.set(from, st);
+      if (scribeBit && typeof scribeWatch === 'function') scribeWatch();
       // §LOCK EPOCH FLOOR: a member whose sealed frames I can OPEN is speaking
       // my key generation — so its epoch number is mine too, and adopting the
       // NUMBER (never a password) re-arms the replay guard on a fresh page.
@@ -5674,7 +5699,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!pid || pid === myId || meshGone.has(pid)) return;
       meshGone.set(pid, Date.now());
       occVanish.delete(pid);
-      statusOf.delete(pid); forgetConns(pid); delete rosterNames[pid]; delete ipsOf[pid]; delete devOf[pid];
+      if (typeof dropStatus === 'function') dropStatus(pid); else statusOf.delete(pid); forgetConns(pid); delete rosterNames[pid]; delete ipsOf[pid]; delete devOf[pid];
       // A probe-confirmed departure is ABSENCE EVIDENCE (2026-07-29): without
       // this, a departed admin stayed "present" until the 30s admSeen decay,
       // so the host-absence grace could not even START for half a minute — a
@@ -7050,7 +7075,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         for (const [pid, st] of statusOf) {
           if (pid === myId || peers.has(pid) || occLive.has(pid)) continue;
           const seen = stSeen(st);
-          if (now - seen - starveDebtSince(seen) > HOLDOVER_MS) statusOf.delete(pid);
+          if (now - seen - starveDebtSince(seen) > HOLDOVER_MS) { if (typeof dropStatus === 'function') dropStatus(pid); else statusOf.delete(pid); }
         }
       }
       // The link set follows the seat arithmetic — occupancy gossip settling
@@ -8871,6 +8896,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         }
         const from = p && p.id;
         if (ids.every((id) => { const f = files.get(id); return fdelAllowed(true, false, f && f.byId, from); })) apply();
+      } else if (m.k === 'scribe') {
+        noteScribe(p.id, !!m.on, m.name, m.at);
+        if (m.name && p.id && p.id !== myId) rosterNames[p.id] = String(m.name).slice(0, 40);
+        if (typeof scribeWatch === 'function') scribeWatch();
       } else if (m.k === 'tr') {
         if (takeTr(m.m)) {
           renderTranscript();
@@ -13469,8 +13498,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       clearTimeout(t.capT);
       t.capT = setTimeout(() => t.cap.classList.remove('show'), 6000);
     }
+    let trDirty = false;
     function renderTranscript() {
-      if (!chatPanelOpen() || !transcriptShown()) return;
+      if (!chatPanelOpen() || !transcriptShown()) { trDirty = true; return; } // rebuilt when the transcript is next shown
+      trDirty = false;
       const log = document.getElementById('trlog');
       const lines = trBlocks();
       const html = lines.length
@@ -13569,9 +13600,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     ].join('\n');
     let wspWorkletUrl = null;
     function wspSource(id) { const m = meters.get(id); return (m && m.src) ? m.src : null; }
+    // The stage aux feed (mosIn 'stg:<id>') is the only audio a non-neighbour
+    // stager still sends. Direct main audio is parked while they are on stage.
+    function wspStageStream(id) {
+      if (typeof mosIn === 'undefined' || !mosIn || !mosIn.get) return null;
+      const c = mosIn.get('stg:' + id);
+      const tr = c && c.stream && c.stream.getAudioTracks && c.stream.getAudioTracks()[0];
+      return tr ? c.stream : null;
+    }
+    function wspStageSid(id) { const st = wspStageStream(id); return st ? (st.id || 'stg') : null; }
     function wspOnChunk(w, chunk) {
       const ms = chunk.length / w.rate * 1000, now = Date.now();
-      const talking = !!speakingOf.get(w.id) || (w.id === 'me' && now - myVoiceAt < 250);
+      // A stager's direct meter watches the parked main track, which is
+      // silence. A capture on the stage feed gates on its own samples; a
+      // row-mate keeps the meter verdict.
+      let talking;
+      if (w.stageSid) {
+        let acc = 0, n = 0;
+        for (let i = 0; i < chunk.length; i += 8) { const x = chunk[i]; acc += x * x; n++; }
+        talking = n > 0 && Math.sqrt(acc / n) > 0.04;
+      } else talking = !!speakingOf.get(w.id) || (w.id === 'me' && now - myVoiceAt < 250);
       if (w.utt) {
         w.utt.push(chunk);
         if (talking) w.lastVoice = now;
@@ -13636,12 +13684,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (wspCaps.has(id)) return true;
       if (!whisperReady()) { if (id === 'me') setStatus('Whisper captions need the Offline Captions app — open Settings → Captions to install it. Browser captions are on meanwhile.', 10000); return false; }
       if (!ensureAc()) return false;
-      let src = wspSource(id), own = false;
+      let src = null, own = false, stageSid = null;
+      const stg = wspStageStream(id);
+      if (stg) {
+        try {
+          src = ac.createMediaStreamSource(new MediaStream([stg.getAudioTracks()[0]]));
+          own = true; stageSid = stg.id || 'stg';
+        } catch (e) { src = null; stageSid = null; }
+      }
+      if (!src) src = wspSource(id);
       if (!src && id === 'me' && localStream && localStream.getAudioTracks()[0]) {
         try { src = ac.createMediaStreamSource(new MediaStream([localStream.getAudioTracks()[0]])); own = true; } catch (e) { return false; }
       }
       if (!src) return false;
-      const w = { id, src, node: null, own, rate: ac.sampleRate, pre: [], preMs: 0, utt: null, uttStart: 0, lastVoice: 0, worklet: false };
+      const w = { id, src, node: null, own, rate: ac.sampleRate, stageSid, pre: [], preMs: 0, utt: null, uttStart: 0, lastVoice: 0, worklet: false };
       if (wspUseWorklet(id, w)) return true;
       let node;
       try { node = ac.createScriptProcessor(4096, 1, 1); } catch (e) { return false; }
@@ -13690,7 +13746,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const i = wspQ.items.findIndex((j) => !j.keep); // the oldest ordinary clip goes; a kept one (a test feed) never does
         if (i >= 0) { wspQ.items.splice(i, 1); wspQ.dropped++; setStatus('Captions are behind — this device cannot keep up, so a sentence was skipped.', 6000); }
       }
-      const job = { id: w.id, chunks, at, rate: rate || w.rate, keep: !!keep };
+      const job = { id: w.id, chunks, at, rate: rate || w.rate, keep: !!keep, stage: !!w.stageSid };
       if (keep) wspQ.items.unshift(job); else wspQ.items.push(job);
       wspDrain();
     }
@@ -13750,7 +13806,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const text = r && r.text ? String(r.text).trim() : '';
         if (!text || !wspCaps.has(job.id)) return;
         if (job.id === 'me') { if (myStatus.cc) addTranscriptLine(text, job.at); }
-        else if (scribeOn() && peers.has(job.id)) addTranscriptLine(text, job.at, job.id);
+        else if (scribeOn() && (peers.has(job.id) || job.stage)) addTranscriptLine(text, job.at, job.id);
       }).catch((e) => {
         if (settled) return;
         const msg = (e && e.message) || String(e);
@@ -13770,30 +13826,99 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const want = new Set();
       if (!wspPaused && myStatus.cc && !myStatus.muted && ccEngine() === 'whisper' && !ccSourceId && whisperReady()) want.add('me');
       if (!wspPaused && scribeOn()) {
-        for (const [pid, p] of peers) {
-          if (want.size >= WSP_SCRIBE_MAX + 1) break;
+        const stagers = (typeof stageIds === 'function') ? stageIds() : [];
+        const stageSet = new Set(stagers);
+        const talking = (pid) => (typeof speakingOf !== 'undefined' && speakingOf && speakingOf.get(pid));
+        const queued = [];
+        const consider = (pid) => {
+          if (!pid || (typeof myId !== 'undefined' && pid === myId) || queued.indexOf(pid) >= 0) return;
           const st = statusOf.get(pid) || {};
-          if (!p.connected || st.muted || (modOf(pid).mute && modOf(pid).mute.on) || !wspSource(pid)) continue;
+          if (st.muted || (modOf(pid).mute && modOf(pid).mute.on)) return;
+          const p = peers.get(pid);
+          const onStage = stageSet.has(pid) && !!wspStageSid(pid);
+          if (!onStage && !(p && p.connected && wspSource(pid))) return;
+          queued.push(pid);
+        };
+        for (const pid of stagers) consider(pid);
+        for (const [pid, p] of peers) if (p && p.connected) consider(pid);
+        // Stage first, then a talking voice ahead of a silent one. The cap
+        // used to keep whoever was inserted into peers first, so eight silent
+        // row-mates filled it and the stage speaker never got a slot.
+        queued.sort((a, b) => ((stageSet.has(a) ? 0 : 2) + (talking(a) ? 0 : 1)) - ((stageSet.has(b) ? 0 : 2) + (talking(b) ? 0 : 1)));
+        for (const pid of queued) {
+          if (want.size >= WSP_SCRIBE_MAX + 1) break;
           want.add(pid);
         }
       }
       for (const id of Array.from(wspCaps.keys())) if (!want.has(id)) wspStop(id);
-      for (const id of want) if (!wspCaps.has(id)) wspStart(id);
+      for (const id of want) {
+        const cap = wspCaps.get(id);
+        const sid = wspStageSid(id);
+        if (cap && (cap.stageSid || null) !== (sid || null)) wspStop(id);
+        if (!wspCaps.has(id)) wspStart(id);
+      }
     }
     const scribeSeen = new Set();
+    const scribeOffers = new Map(); // pid -> { name, at, rx } from the room-wide advert
+    let scribeBeatAt = 0;
+    const SCRIBE_OFFER_MS = 30000;
+    function noteScribe(pid, on, name, at) {
+      if (!pid || pid === myId) return;
+      const t = at || 0;
+      const cur = scribeOffers.get(pid);
+      if (cur && t && (cur.at || 0) > t) return;
+      if (!on) { scribeOffers.delete(pid); return; }
+      const age = (typeof gossipAgeMs === 'number' && gossipAgeMs > 0) ? gossipAgeMs : 0;
+      const rx = Date.now() - age;
+      scribeOffers.set(pid, {
+        name: String(name || (cur && cur.name) || '').slice(0, 40),
+        at: t,
+        rx: (cur && cur.at === t) ? Math.max(cur.rx || 0, rx) : rx,
+      });
+    }
+    // One ephemeral room-wide frame while this device is a scribe, about every
+    // 12s. Status heartbeats are section-scoped, so a seat outside the section
+    // never saw the offer. Caption LINES stay on sendAll (that flood is a
+    // separate decision). This frame is the offer only. Gossip is S4-signed.
+    function scribeAdvert(force) {
+      const on = !!myStatus.scribe;
+      const now = Date.now();
+      if (!on) {
+        if (!scribeBeatAt) return;
+        scribeBeatAt = 0;
+      } else if (!force && scribeBeatAt && now - scribeBeatAt < 12000) return;
+      else scribeBeatAt = now;
+      const msg = { k: 'scribe', on: on, name: myName(), at: now };
+      fanOut(msg, (p) => dcSend(p, msg), { ephemeral: true });
+    }
     function ccScribes() {
+      const now = Date.now();
       const out = [];
-      for (const [pid, st] of statusOf) if (st && st.scribe && peers.has(pid)) out.push({ id: pid, name: rosterNames[pid] || (peers.get(pid) || {}).name || '…' });
+      const seen = new Set();
+      for (const [pid, st] of statusOf) {
+        if (!st || !st.scribe || pid === myId) continue;
+        seen.add(pid);
+        out.push({ id: pid, name: rosterNames[pid] || (peers.get(pid) || {}).name || '…' });
+      }
+      for (const [pid, o] of scribeOffers) {
+        if (now - (o.rx || 0) > SCRIBE_OFFER_MS) { scribeOffers.delete(pid); continue; }
+        if (seen.has(pid) || pid === myId) continue;
+        const st = statusOf.get(pid);
+        if (st && !st.scribe) { scribeOffers.delete(pid); continue; }
+        out.push({ id: pid, name: o.name || rosterNames[pid] || '…' });
+      }
       return out;
     }
     function scribeWatch() {
       const list = ccScribes();
+      const live = new Set(list.map((sc) => sc.id));
+      for (const id of Array.from(scribeSeen)) if (!live.has(id)) scribeSeen.delete(id);
       for (const sc of list) {
         if (scribeSeen.has(sc.id)) continue;
         scribeSeen.add(sc.id);
         if (!ccSourceId) setStatus('✍ ' + sc.name + ' offers captions for everyone — Settings → Captions → Use ' + sc.name + '’s captions.', 10000);
       }
-      if (ccSourceId && !list.some((sc) => sc.id === ccSourceId)) {
+      if (ccSourceId && !live.has(ccSourceId)) {
         const nm = rosterNames[ccSourceId] || 'The scribe'; ccSourceId = null;
         setStatus(nm + ' stopped writing captions — your own device takes over.', 8000);
         syncSpeech();
@@ -13802,6 +13927,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function paintCcSource() {
       const box = document.getElementById('ccsource'); if (!box) return;
+      const ccModal = document.getElementById('set-modal');
+      if (ccModal && ccModal.style.display === 'none') return;
       const list = ccScribes();
       const key = list.map((sc) => sc.id + ':' + sc.name).join('|') + '#' + (ccSourceId || '');
       if (box.dataset.key === key) return;
@@ -13819,7 +13946,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         setStatus(ccSourceId ? 'Using ' + (rosterNames[ccSourceId] || 'their') + '’s captions — your device is no longer transcribing.' : 'Your own device writes you down again.', 6000);
       };
     }
-    setInterval(() => { if (wspCaps.size || scribeOn() || ccSourceId) wspSync(); scribeWatch(); }, 2000);
+    setInterval(() => { if (wspCaps.size || scribeOn() || ccSourceId) wspSync(); if (scribeSeen.size || ccSourceId || anyScribeStatus || scribeOffers.size) scribeWatch(); }, 2000);
     // ONE TAP TO INSTALL. The provider is a signed 13 MB GIF on this very site:
     // GifOS.providers.install downloads, checks the catalog hash and the
     // gifos.app signature, files it into the Providers folder and we assign it
@@ -14069,7 +14196,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       setPanelView(true);
     };
     function refreshTrBtn() {
-      const anyCc = myStatus.cc || trs.size > 0 || Array.from(statusOf.values()).some((st) => st && st.cc);
+      const anyCc = myStatus.cc || trs.size > 0 || ccOthers > 0;
       document.getElementById('trbtn').style.display = anyCc ? '' : 'none';
     }
     document.getElementById('trdl').onclick = () => {
@@ -14094,7 +14221,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // records as the same folded mosaic you see. Scope picks which tiers ride
     // along; "match my mix" scales each bus's audio by your own fader.
     let recRec = null, recTimer = null, recDraw = null, recStart = 0, recSrcs = new Map(), recDest = null, recSink = null;
-    let recMode = null, recRestart = null, recMatchMix = true, recQuality = 'std'; // recMode = scope; recRestart = opts after a stop
+    let recMode = null, recRestart = null, recMatchMix = true, recQuality = 'std', recType = 'video/webm'; // recType = the container MediaRecorder writes; recMode = scope; recRestart = opts after a stop
     let recStarting = false, recReloadAfterStop = false;
     const recBtn = document.getElementById('recbtn');
     const REC_QUALITY = { low: { w: 1280, h: 720, v: 1000000 }, std: { w: 1920, h: 1080, v: 3000000 }, high: { w: 1920, h: 1080, v: 6000000 } };
@@ -14149,7 +14276,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         try {
           const handle = await window.showSaveFilePicker({
             suggestedName: name,
-            types: [{ description: 'WebM video', accept: { 'video/webm': ['.webm'] } }],
+            types: String(recType).indexOf('mp4') >= 0 ? [{ description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } }] : [{ description: 'WebM video', accept: { 'video/webm': ['.webm'] } }],
           });
           const writable = await handle.createWritable();
           return recStreamSink('file', writable, async () => ({ saved: true, name: handle.name || name }));
@@ -14174,7 +14301,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         kind: 'ram',
         write(blob) { chunks.push(blob); return Promise.resolve(); },
         finish() {
-          const blob = new Blob(chunks, { type: 'video/webm' });
+          const blob = new Blob(chunks, { type: String(recType || 'video/webm').split(';')[0] });
           chunks.length = 0;
           return Promise.resolve({ href: URL.createObjectURL(blob), name: name });
         },
@@ -14182,7 +14309,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       };
     }
     function recFileName() {
-      return 'gifos-meeting-' + room + '-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.webm';
+      return 'gifos-meeting-' + room + '-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + (String(recType).indexOf('mp4') >= 0 ? '.mp4' : '.webm');
     }
     function recDeliver(saved) {
       if (saved && saved.href) {
@@ -14431,12 +14558,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // opts = { scope:'stage'|'row'|'all'|'app', quality:'low'|'std'|'high', matchMix:bool }.
     // scope 'app' captures this tab via getDisplayMedia so a shared app rides
     // along; the others composite the received tiers on a canvas.
+    function pickRecMime() {
+      const ladder = ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+      try {
+        if (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function') {
+          for (const m of ladder) if (MediaRecorder.isTypeSupported(m)) return m;
+        }
+      } catch (e) {}
+      return '';
+    }
     async function startRec(opts) {
       if (recStarting || (recRec && recRec.state !== 'inactive')) return;
       recStarting = true;
       let armed = false;
       let videoTrack = null;
       let stopVideo = () => {};
+      let armDraw = null;   // the compositor's metronome subscription, armed only once MediaRecorder took the stream
+      let made = null;      // the MediaRecorder this attempt built (unstarted until armed)
       try {
         opts = opts || { scope: 'all', quality: recDefaultQuality(IS_MOBILE), matchMix: true };
         if (!ensureAc()) { setStatus('This browser cannot record sound.'); return; }
@@ -14452,6 +14590,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           setStatus('No one is on the stage yet — nothing to record.');
           return;
         }
+        // The container decides the file name and the save picker's type, so
+        // it is chosen before either. Safari records mp4 only; an empty answer
+        // lets the browser pick and is filed as webm.
+        const askMime = pickRecMime();
+        recType = askMime || 'video/webm';
         let disp = null;
         if (scope === 'app') {
           // The display picker has to run before the save picker: both want
@@ -14476,8 +14619,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (scope === 'app') {
           videoTrack = disp.getVideoTracks()[0];
           if (videoTrack) videoTrack.onended = () => { if (recRec && recRec.state !== 'inactive') { try { recRec.stop(); } catch (e) {} } };
+          // The tab is captured visually; audio still comes from the full mix
+          // (everything you hear, your mic included), honoring your faders.
           const pump = () => { const s = recSources(); recSetGains([...s.stage, ...s.row, ...s.stadium]); };
-          pump(); recDraw = metroSub(pump);
+          pump(); armDraw = () => metroSub(pump);
         } else {
           const canvas = document.createElement('canvas');
           canvas.width = q.w; canvas.height = q.h;
@@ -14488,23 +14633,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             ctx.filter = 'none';
             ctx.fillStyle = '#0a0a0f'; ctx.fillRect(0, 0, canvas.width, canvas.height);
             if (stage.length && grid.length) {
-              const bh = Math.round(canvas.height * 0.42);
+              const bh = Math.round(canvas.height * 0.42); // the stage banners the top, verbatim
               recGrid(ctx, stage, 0, 0, canvas.width, bh);
               recGrid(ctx, grid, 0, bh, canvas.width, canvas.height - bh);
             } else {
-              recGrid(ctx, stage.concat(grid), 0, 0, canvas.width, canvas.height);
+              recGrid(ctx, stage.concat(grid), 0, 0, canvas.width, canvas.height); // one tier fills the frame
             }
             if (![...stage, ...grid].some((s) => s.me)) recBadge(ctx, canvas.width - 130, canvas.height - 34, 236);
           };
           draw();
-          recDraw = metroSub(draw);
+          // The worker metronome (~15 fps) keeps compositing while the tab is
+          // hidden. It is subscribed only once MediaRecorder has accepted the
+          // stream: Safari throws on a webm mime, and a subscribe before that
+          // throw left the compositor and the audio graph running.
+          armDraw = () => metroSub(draw);
           videoTrack = canvas.captureStream(15).getVideoTracks()[0];
         }
         const stream = new MediaStream();
         if (videoTrack) stream.addTrack(videoTrack);
         for (const tr of recDest.stream.getAudioTracks()) stream.addTrack(tr);
-        const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm';
-        recRec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: q.v, audioBitsPerSecond: 96000 });
+        const recOpts = { videoBitsPerSecond: q.v, audioBitsPerSecond: 96000 };
+        if (askMime) recOpts.mimeType = askMime;
+        try { made = new MediaRecorder(stream, recOpts); }
+        catch (e) { setStatus('This browser cannot record the meeting.'); return; }
+        recRec = made;
+        recDraw = armDraw ? armDraw() : null;
         recRec.ondataavailable = (e) => { if (e.data && e.data.size && recSink) recSink.write(e.data); };
         recRec.onstop = async () => {
           // Detach this session before the first await. onstop used to be
@@ -14541,7 +14694,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           }
           if (recRestart) { const o = recRestart; recRestart = null; startRec(o); }
         };
-        recRec.start(1000);
+        try { recRec.start(1000); }
+        catch (e) { setStatus('This browser cannot record the meeting.'); return; }
         armed = true;
         recStart = Date.now();
         recBtn.classList.add('on');
@@ -14554,11 +14708,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         broadcastStatus();
       } finally {
         if (!armed) {
+          // Nothing is recording: release everything this attempt took — the
+          // metronome, the tab capture, the canvas track, the file, and the
+          // audio graph recSetGains wired into recDest.
           if (typeof recDraw === 'function') { try { const u = recDraw; recDraw = null; u(); } catch (e) {} }
           try { stopVideo(); } catch (e) {}
           if (videoTrack) { try { videoTrack.stop(); } catch (e) {} }
           const s = recSink; recSink = null;
           if (s && s.abort) { try { s.abort(); } catch (e) {} }
+          for (const m of recSrcs.values()) { try { m.node.disconnect(); } catch (e) {} }
+          recSrcs = new Map();
+          if (made && recRec === made) { try { made.onstop = null; made.ondataavailable = null; } catch (e) {} recRec = null; }
           recDest = null; recMode = null;
         }
         recStarting = false;
@@ -14759,6 +14919,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           tr.enabled = true;
           if (kind === 'mic') myStatus.muted = false; else myStatus.camOff = false;
           paintControls(); refreshOutbound(); broadcastStatus(); reactRoomState(); updateMediaSession();
+          if (typeof syncSpeech === 'function') syncSpeech();
           setStatus(kind === 'cam' ? 'Camera on.' : 'Mic on.');
         }, () => lateMedia(kind));
         return;
@@ -14821,6 +14982,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           broadcastStatus();
           reactRoomState();
           updateMediaSession();
+          if (typeof syncSpeech === 'function') syncSpeech();
           setStatus(kind === 'cam'
             ? (gotCam ? 'Camera on.' : 'No camera on this device (' + ((camErr && camErr.name) || 'error') + '). Your microphone is ready — tap the mic button to talk.')
             : 'Mic on.');

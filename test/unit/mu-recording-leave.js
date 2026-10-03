@@ -18,7 +18,8 @@ function sliceBetween(start, end) {
   return a >= 0 && b > a ? html.slice(a, b) : '';
 }
 
-const pure = sliceBetween('    function recDefaultQuality(isMobile)', '    function recFileName()');
+// recOpenSink names the picker's file type from the page's recType (the container chosen by pickRecMime).
+const pure = 'let recType = "video/webm";\n' + sliceBetween('    function recDefaultQuality(isMobile)', '    function recFileName()');
 const sinks = new Function('window', 'navigator', 'URL', 'Blob', pure + '\nreturn { recDefaultQuality, recStadiumLabel, recFoldLabel, recFoldBus, recResumePlan, recStreamSink, recOpenSink };')(
   {}, {}, { createObjectURL(b) { return 'blob:' + (b && b.size); } }, typeof Blob === 'function' ? Blob : function Blob() {});
 
