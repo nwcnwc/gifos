@@ -133,6 +133,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('decoded frames advance steadily across the window (>10 in 30 s)',
     advanced, { first: firstF && firstF.frames, last: lastF && lastF.frames });
 
+  // ---- ONE-PIPE AT THE PRODUCER: the stager's camera encoders -------------
+  // The S1 flood announces the stager's own feed to every row-mate (W7), but
+  // only its direct receivers keep that copy hot; the rest ride a one-hop
+  // relay and keep the stager's copy parked (STG-DIRECT in run.html). Count
+  // the stager's own stg jobs that are hot, five samples over ~8 s.
+  const stagerPid = await pages[stagerIdx].evaluate(() => (window.__gifosVideo.debugDump().me || {}).peer).catch(() => null);
+  const hotSamples = [];
+  let announced = 0;
+  for (let k = 0; k < 5; k++) {
+    const j = await pages[stagerIdx].evaluate(() => window.__gifosVideo.mosaic().jobsActive || []).catch(() => []);
+    const own = j.filter((x) => stagerPid && x.indexOf('stg:' + stagerPid + '>') === 0);
+    announced = Math.max(announced, own.length);
+    hotSamples.push(own.filter((x) => x.slice(-1) === '+').length);
+    await sleep(2000);
+  }
+  console.log('   MEASURE stager own-feed jobs announced=' + announced + ' hot per sample=' + hotSamples.join(','));
+  check('every row-mate still gets an announced copy of the stager (the flood is kept)', announced === N - 1, { announced });
+  check('the stager keeps at most 2 of its own copies hot in most samples (unwatched copies park)',
+    hotSamples.filter((n) => n <= 2).length >= 3, { hotSamples });
+
   // ---- THE EAR IS MEMBERSHIP, NOT A PIPE ----------------------------------
   // A second seat steps up, then down. Its stg claim lingers at every
   // receiver through the pipe grace (MOS_GRACE 5 s, then claimRedun) while
