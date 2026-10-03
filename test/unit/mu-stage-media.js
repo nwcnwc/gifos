@@ -205,7 +205,7 @@ function finishDarkAndRest() {
     const shipDn = html.match(/shipMos\((?:key|k), (?:dnP|mate), (?:dnSt|earSt), stgDownMeta\(/g) || [];
     check('the deep down-leg, the head row re-fan and the S1 down-leg tag their copies', shipDn.length === 3, shipDn.length);
     check('the mx receiver keeps the ao tag', /mosAnn\.set\(ak, \{[^\n]*ao: \(m\.ao === 1 \? 1 : undefined\)/.test(html));
-    check('annMeta carries ao onto the claimed slot', /const annMeta = \(ann\) => \(\{[^\n]*ao: ann\.ao \}\)/.test(html));
+    check('annMeta carries ao onto the claimed slot', /const annMeta = \(ann\) => \(\{[^\n]*ao: ann\.ao(?:, sb: ann\.sb)? \}\)/.test(html));
     const rs = between('        const relayStg = (key, stream, via, h, ao) => {', '        if (iAmHead) for (const k of heldStg)');
     check('relayStg ships an ao copy neither up nor across', /if \(!ao && upTgt && !skip\(upTgt\)\)/.test(rs) && /if \(!ao && xUpPid && xUpPid !== upTgt && !skip\(xUpPid\)\)/.test(rs));
     check('relayStg is told when the held copy is ao', /relayStg\(k, f\.stream, f\.via, stgHop\(f\), !!\(f\.meta && f\.meta\.ao\)\)/.test(rs));
@@ -231,7 +231,7 @@ function finishDarkAndRest() {
   check('relay-only claims ask mosNeedsVideo before creating an element', /el: mosNeedsVideo\(rk\) \? mosVideo\(st\) : null/.test(html));
   check('the screen pulse does not jiggle', /if \(sharingScreen\) \{ kfEv\(key2, 'pulse-skip', \{ why: 'screen' \}\); return; \}/.test(html));
   check('the jiggle scale is sr0 times 1.25', /scaleResolutionDownBy = sr0 \* 1\.25/.test(html));
-  check('S1 rook flood still ships the full stream', /for \(const t of s1peers\) \{ if \(skip\(t\)\) continue; const jk = shipMos\(key, t, stream, hm, key\)/.test(html));
+  check('S1 rook flood still ships the full stream', /for \(const t of s1peers\) \{ if \(skip\(t\)\) continue; const jk = shipMos\(key, t, stream, \(direct && !direct\.has\(t\)\) \? hmSb : hm, key\)/.test(html));
   check('the deep down-leg and the S1 down-leg call stgDownShip', (html.match(/stgDownShip\(key, stream, !!\(owner && sharingScreen\(owner\)\), stgAudioMemo\)/g) || []).length === 2);
   check('a deep head row re-fan calls stgDownShip', /stgDownShip\(k, f\.stream, sharingScreen\(owner\), stgAudioMemo\)/.test(html));
   check('an attach failure is logged and remembered per pc generation', /why: 'attach-failed'/.test(html) && /attachFailAt\.get\(to\) === attachGen/.test(html) && /job\.attachErr = \(e && e\.name\) \|\| 'error'/.test(html));

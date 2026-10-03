@@ -9282,7 +9282,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const ak = p.id + '|' + m.key;
         const prevAnn = mosAnn.get(ak);
         const annNew = !prevAnn || prevAnn.streamId !== m.streamId;
-        mosAnn.set(ak, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, mt: m.mt, h: (typeof m.h === 'number' ? m.h : undefined), ao: (m.ao === 1 ? 1 : undefined), at: Date.now() });
+        mosAnn.set(ak, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, mt: m.mt, h: (typeof m.h === 'number' ? m.h : undefined), ao: (m.ao === 1 ? 1 : undefined), sb: (m.sb === 1 ? 1 : undefined), at: Date.now() });
         if (annNew) schedReconcile(); else schedClaim();
       } else if (m.k === 'mx-end' && typeof m.key === 'string') {
         mosAnn.delete(p.id + '|' + m.key);
@@ -9299,7 +9299,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // dead ship must never flip the live one (the dark-primary inversion
         // the redun-drill caught).
         const jw = mosJobs.get(m.key + '>' + p.id);
-        if (jw && (!m.streamId || jw.streamId === m.streamId)) setJobActive(m.key + '>' + p.id, true);
+        if (jw && (!m.streamId || jw.streamId === m.streamId)) { setJobActive(m.key + '>' + p.id, true); chainDemandUp(jw, true); }
         else if (jw && m.streamId && jw.streamId !== m.streamId) {
           // STALE SID ON A WANT — ANSWER IT, DO NOT JUST DROP IT.
           //
@@ -9333,7 +9333,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } else if (m.k === 'mx-idle' && typeof m.key === 'string') {
         // A receiver keeps this spare parked at zero bandwidth (ONE-PIPE law).
         const ji = mosJobs.get(m.key + '>' + p.id);
-        if (ji && (!m.streamId || ji.streamId === m.streamId)) setJobActive(m.key + '>' + p.id, false);
+        if (ji && (!m.streamId || ji.streamId === m.streamId)) { setJobActive(m.key + '>' + p.id, false); chainDemandUp(ji, false); }
         // …and a re-parked mirror hop re-parks its upstream the same way.
         if (m.key.indexOf('sdnm:') === 0) { const up = mosIn.get('sdnmr:' + m.key.slice(5)); if (up) demand(up.via, m.key, up.streamId, false); }
       } else if (m.k === 'mx-kf' && typeof m.key === 'string') {
@@ -10814,7 +10814,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // and the mirror stopped forming on the quiet room (measured: drills
       // tier 2026-08-08, 'E holds sdn PRIMARY + mirror STANDBY' red on a
       // room that renegotiates almost never).
-      if (key.indexOf('sdnm:') === 0) { setJobActive(jk, false); renegotiate(p); }
+      // The x1 -> x2 -> sdrow and sdxc -> sdx^x backup chains are born parked
+      // the same way (chainBornParked below).
+      if (chainBornParked(key, upKey)) { setJobActive(jk, false); renegotiate(p); }
       compKick(to);
       return jk;
     }
@@ -10832,6 +10834,30 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // as death (D5) and answers with evict + re-admit; the peer record then
     // flaps and no preferred candidate ever stays live long enough for
     // MOS_SETTLE, so failback cannot be observed through it at all.)
+    // CHAIN-PARK
+    // Backup relay chains are born parked and woken end to end on demand:
+    // the sdnm mirror, x1 -> x2 -> sdrow (a head's product over the row and
+    // column fabric) and sdxc -> sdx^x (a column ingredient over a carrier
+    // row-mate). x1 and sdxc leave the head from local canvases, so a hot
+    // spare there is a real encoder that nobody watches. Every hop of these
+    // chains has one consumer, so a want or an idle that reaches a hop is
+    // passed to the hop it relays (the sdnm handlers do the same by key).
+    function chainUpKey(upKey) {
+      if (typeof upKey !== 'string') return null;
+      if (upKey === 'x1') return 'x1';
+      if (upKey.indexOf('x2:') === 0) return 'x2';
+      if (upKey.indexOf('sdxc:') === 0) return 'sdxc';
+      return null;
+    }
+    function chainBornParked(key, upKey) {
+      return key.indexOf('sdnm:') === 0 || key === 'x1' || key === 'sdxc' || !!chainUpKey(upKey);
+    }
+    function chainDemandUp(job, want) {
+      const uk = job ? chainUpKey(job.upKey) : null; if (!uk) return;
+      const up = mosIn.get(job.upKey);
+      if (up) demand(up.via, uk, up.streamId, want);
+    }
+    // END-CHAIN-PARK
     const jobPinned = (jk) => DEBUG_ON && window.__parkedJobs && (window.__parkedJobs.get(jk) || 0) > Date.now();
     function setJobActive(jk, on) {
       const job = mosJobs.get(jk); if (!job) return;
@@ -11011,7 +11037,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the row+column fabric, two link-disjoint paths. Structural relay slots
     // (sub/x1/x2) keep the plain single sticky claim.
     const isRedun = (rk) => rk === 'sdm' || rk === 'sdx' || rk === 'sdn' || rk === 'sgs' || rk.indexOf('stg:') === 0 || rk.indexOf('sdrow:') === 0;
-    const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols, mt: ann.mt, h: ann.h, ao: ann.ao });
+    const annMeta = (ann) => ({ col: ann.col, row: ann.row, n: ann.n, cols: ann.cols, mt: ann.mt, h: ann.h, ao: ann.ao, sb: ann.sb });
     // Hop count of a held stg copy for re-flooding: my copy's announced h + 1.
     // A copy with NO h (an old client's announce) re-floods as far (998+1) —
     // claimable when it is the only path, always outranked by a counted chain.
@@ -11331,6 +11357,38 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // The PREFERRED announcer of a redundant slot: the tree-direct path the
     // media plane names as the producer's own leg. Failback aims here; any
     // other live path is a legitimate carrier but only a stand-in.
+    // STG-DIRECT
+    // A Section-1 stager pays one camera encoder per HOT sender. It keeps the
+    // full row+column flood (W7: every neighbour holds an announced,
+    // claimable copy), but only its first linked row-mate and its first
+    // linked column-mate are asked to watch it directly. Every other
+    // neighbour's copy is announced sb:1: that receiver prefers a one-hop
+    // relay from a direct receiver (the pipe lane, no encode) and keeps the
+    // stager's own copy as its parked standby. Every other row-mate shares a
+    // row with the direct row-mate and every other column-mate shares a
+    // column with the direct column-mate, so each has that one-hop relay.
+    // A client that ignores sb watches the stager directly, as before.
+    function stgDirectSet(rowPids, colPids, linked) {
+      const out = new Set();
+      const r = rowPids.find((t) => t && linked(t)); if (r) out.add(r);
+      const k = colPids.find((t) => t && linked(t)); if (k) out.add(k);
+      return out;
+    }
+    // The hop rank of a stg candidate: its announced h (999 when absent); an
+    // sb:1 copy from the stager itself ranks 1.5.
+    function stgRank(x, owner) {
+      if (x.from === owner && x.ann && x.ann.sb === 1) return 1.5;
+      return (x.ann && typeof x.ann.h === 'number') ? x.ann.h : 999;
+    }
+    // The parked standby of a stg slot whose primary is a relay: the stager's
+    // own copy, the one path that shares no seat with the relay.
+    function stgOwnStandby(rk, cand, pri) {
+      if (rk.indexOf('stg:') !== 0) return null;
+      const owner = rk.slice(4).split('^')[0];
+      return cand.find((x) => x.live && x.from === owner && x.key.indexOf('^') < 0
+        && !(pri && x.from === pri.via && x.sid === pri.streamId)) || null;
+    }
+    // END-STG-DIRECT
     function prefCand(rk, cand) {
       const c = meshCoord(); if (!c) return null;
       // IDENTITY, NOT JUST KEY (2026-08-01). These two used to match on the
@@ -11368,7 +11426,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // re-idled it — the 14-24s room-wide stg freeze oscillation.
         const owner = rk.slice(4).split('^')[0];
         const own = cand.find((x) => x.live && x.from === owner && x.key.indexOf('^') < 0);
-        if (own) return own;
+        // ...unless the stager announced this copy sb:1 (STG-DIRECT below):
+        // then a one-hop relay from a direct receiver wins, and the stager's
+        // own copy ranks between one hop and two.
+        if (own && !(own.ann && own.ann.sb === 1)) return own;
         // Not a direct receiver: prefer the SHORTEST live chain (min announced
         // hop count, frza4). "First live non-^x" was Map insertion order, and
         // the failback machinery treated that order as tree-truth — nva1 was
@@ -11378,7 +11439,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // chain by itself; an old client's h-less announce ranks as far (999)
         // — claimable when it is the only path. ^x cross copies stay the last
         // resort as before.
-        const hOf = (x) => (x.ann && typeof x.ann.h === 'number') ? x.ann.h : 999;
+        const hOf = (x) => stgRank(x, owner);
         // TIES ARE STICKY (frza9). mosAnn ages entries out at 12s and re-adds
         // them, so Map order SHUFFLES — "min-h, first found" flipped between
         // h-tied candidates every few sweeps, and each flip ran the whole
@@ -11460,7 +11521,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // it (failback staging), else any live candidate on a DIFFERENT path.
       const wantStd = (pref && pri && !priIsPref && !(pri.via === pref.from && pri.streamId === pref.sid))
         ? pref
-        : cand.find((x) => x.live && !(pri && x.from === pri.via && x.sid === pri.streamId));
+        : (stgOwnStandby(rk, cand, pri) || cand.find((x) => x.live && !(pri && x.from === pri.via && x.sid === pri.streamId)));
       if (pri && wantStd && (!std || std.via !== wantStd.from || std.streamId !== wantStd.sid || std.stream !== wantStd.st)) {
         if (std) dropStandby(rk);
         std = { via: wantStd.from, key: wantStd.key, streamId: wantStd.sid, stream: wantStd.st, el: null, meta: annMeta(wantStd.ann) };
@@ -12254,7 +12315,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const owner = key.indexOf('stg:') === 0 ? key.slice(4).split('^')[0] : null;
           const skip = (t) => !t || (owner && t === owner);
           const hm = { h }; // hop count from the producer — claims prefer min-h (see prefCand)
-          for (const t of s1peers) { if (skip(t)) continue; const jk = shipMos(key, t, stream, hm, key); if (jk) wanted.add(jk); }
+          // My OWN feed: two neighbours watch it directly, the rest get an
+          // sb:1 copy they keep parked (STG-DIRECT).
+          const direct = owner === myId ? stgDirectSet(T.rowMates(c).map((m) => occPid(m)), T.colMates(c).map((m) => occPid(m)),
+            (t) => { const q = peers.get(t); return !!(q && q.pc && q.connected); }) : null;
+          const hmSb = { h, sb: 1 };
+          for (const t of s1peers) { if (skip(t)) continue; const jk = shipMos(key, t, stream, (direct && !direct.has(t)) ? hmSb : hm, key); if (jk) wanted.add(jk); }
           const dnP = occPid(T.down(c)); // and DOWN — Stage audio folds at every ear
           if (!skip(dnP)) {
             const dnSt = stgDownShip(key, stream, !!(owner && sharingScreen(owner)), stgAudioMemo);
