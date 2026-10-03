@@ -187,10 +187,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('a guest cannot blur anyone for everyone (no signed authority)',
     !(await d.evaluate(() => window.__gifosVideo.modOn('me', 'blur'))));
 
+  // ---- the OTHER SINKS obey moderation too (filmstrip / PiP / full screen) ----
+  // Moderation is enforced on every RECEIVER: the grid tile hides an admin
+  // video-off and blurs a blur block, and so must the filmstrip view, the PiP
+  // picker and the big fullscreen feed — a sink that shows the raw <video> is
+  // a one-tap way around the strongest hammers in the room. Eve's camera on,
+  // so Dana's filmstrip has her feed to list.
+  await e.locator('#cam').click();
+  await e.waitForFunction(() => !window.__gifosVideo.camOff(), null, { timeout: 15000 });
+  await d.waitForFunction((id) => window.__gifosVideo.fsSourcesForTest().some((s) => s.key === 'peer:' + id), eId, { timeout: 40000 }).catch(() => {});
+  check('precondition: the admin\'s filmstrip lists the guest\'s live feed',
+    await d.evaluate((id) => window.__gifosVideo.fsSourcesForTest().some((s) => s.key === 'peer:' + id), eId));
+
   // ---- admin hammers: Blur guests / Video off — apply AND release ----
   await d.locator('#blurall').click();
   await e.waitForFunction(() => window.__gifosVideo.modOn('me', 'blur'), null, { timeout: 15000 });
   check('admin "Blur guests" blocks every guest', true);
+  await d.waitForFunction((id) => window.__gifosVideo.blurClassOf(id) >= 1, eId, { timeout: 15000 }).catch(() => {});
+  await d.evaluate((id) => window.__gifosVideo.openFsForTest('peer:' + id), eId);
+  const fsBlur = await d.evaluate((id) => ({ main: window.__gifosVideo.fsMain(), thumb: window.__gifosVideo.fsThumbBlur('peer:' + id) }), eId);
+  check('the filmstrip shows a BLURRED guest blurred (fsmain and her thumb carry the blur class)',
+    fsBlur.main.key === 'peer:' + eId && fsBlur.main.bl >= 1 && fsBlur.thumb >= 1);
+  await d.evaluate(() => window.__gifosVideo.closeFsForTest());
   await d.locator('#blurall').click(); // now reads "Unblur guests"
   await e.waitForFunction(() => !window.__gifosVideo.modOn('me', 'blur'), null, { timeout: 15000 });
   check('admin "Unblur guests" releases the block (undo path)', true);
@@ -200,6 +218,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('admin "Video off" forces every guest\'s camera off', true);
   check('the guest\'s tile is cam-off on the ADMIN\'s screen (receiver-enforced)',
     await d.evaluate((id) => { const t = document.querySelector('.tile[data-peer="' + id + '"]'); return !!t && t.classList.contains('cam-off'); }, eId));
+  // A sender that IGNORES the order keeps transmitting and says "camera on":
+  // the receiver-side rule is what hides her, and it must hold in every sink.
+  check('a defiant guest re-enables her own track (the receiver rule is now the only guard)', await e.evaluate(() => window.__gifosVideo.defyCamOffForTest()));
+  await d.waitForFunction((id) => !window.__gifosVideo.peerCamOff(id), eId, { timeout: 15000 }).catch(() => {});
+  check('precondition: the admin hears the guest claim her camera is on', !(await d.evaluate((id) => window.__gifosVideo.peerCamOff(id), eId)));
+  check('her grid tile stays cam-off (the ORDER hides her, not her word)',
+    await d.evaluate((id) => { const t = document.querySelector('.tile[data-peer="' + id + '"]'); return !!t && t.classList.contains('cam-off'); }, eId));
+  check('the filmstrip never lists a guest whose video an admin turned off',
+    !(await d.evaluate((id) => window.__gifosVideo.fsSourcesForTest().some((s) => s.key === 'peer:' + id), eId)));
+  check('the PiP picker never aims at her', (await d.evaluate(() => window.__gifosVideo.pip().aimed)) !== 'peer:' + eId);
+  await d.evaluate((id) => window.__gifosVideo.openFsForTest('peer:' + id), eId);
+  check('full screen opened ON her tile shows someone else or nothing', (await d.evaluate(() => window.__gifosVideo.fsMain().key)) !== 'peer:' + eId);
+  await d.evaluate(() => window.__gifosVideo.closeFsForTest());
   await d.locator('#camall').click(); // "Video on"
   await e.waitForFunction(() => !window.__gifosVideo.modOn('me', 'cam'), null, { timeout: 15000 });
   check('admin "Video on" releases the camera ban (undo path)', true);

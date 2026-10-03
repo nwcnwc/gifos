@@ -80,5 +80,17 @@ check('e2e-status-plane still carries its tripwire leg (a quiet room originates 
 check('…and its one-message-one-flood leg', has(read('test/browser/e2e-status-plane.js'), 'nobody re-broadcast it'));
 check('status-plane.js still has the flood-guard and forgery legs with their negative controls', has(read('test/mesh/status-plane.js'), 'control, guard OFF') && has(read('test/mesh/status-plane.js'), 'control, unsigned wire'));
 
+// 7. the sga pull-through forgets (2026-10-03). A neighbour's ask registers it
+// as a waiter; the chase ran "while wanted", and nothing but a served frame
+// or the owner's own drop ever removed a waiter — so an ask for an app whose
+// owner left before the bytes spread, or from an asker who then left, chased
+// every open channel every 5 s for the rest of the meeting, each receiver
+// chasing in turn. A waiter now ages out, leaves with its peer, and a sid no
+// one advertises is not wanted at all.
+check('a waiter entry ages out (SGA_WANT_TTL) — an asker refreshes it with every ask', /SGA_WANT_TTL\s*=\s*\d+/.test(run) && /function sgaWanters/.test(run));
+check('dropPeer forgets the departed peer in every sga want map', /function dropPeer[\s\S]{0,2500}sgaForgetWaiter\(peerId\)/.test(run));
+check('a pull-through chase ends when no one advertises the sid (sgaAdvertised)', /function sgaAdvertised\(sid\)/.test(run) && /sgaWanters\(sgaAppWant, sid\)[\s\S]{0,80}sgaAdvertised\(sid\)/.test(run) && /sgaWanters\(sgaWant, sid\)[\s\S]{0,80}sgaAdvertised\(sid\)/.test(run));
+check('a neighbour asking for a sid no one advertises is not registered as a waiter', /function sgaAppServe[\s\S]{0,300}sgaAdvertised\(m\.sid\)/.test(run) && /function sgaServe[\s\S]{0,300}sgaAdvertised\(m\.sid\)/.test(run));
+
 console.log(fails ? `\n${fails} FAIL` : '\nall ok');
 process.exit(fails ? 1 : 0);

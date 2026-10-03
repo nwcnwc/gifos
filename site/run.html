@@ -3064,7 +3064,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (fsSel !== 'auto') fsSel = main.key; // a pin re-anchors; auto stays auto
         const st = main.v.srcObject;
         if (fsmain.srcObject !== st) { fsmain.srcObject = st; const pr = fsmain.play(); if (pr && pr.catch) pr.catch(() => {}); }
-      } else fsmain.srcObject = null;
+        fsmain.dataset.key = main.key;
+      } else { fsmain.srcObject = null; fsmain.dataset.key = ''; }
       const want = src.map((s) => s.key).join('|');
       if (fsstrip.dataset.set !== want) {
         fsstrip.dataset.set = want;
@@ -14548,6 +14549,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // app-in-meeting
       appActive: () => !!appKey,
       sgaIsolateForTest: (on) => { sgaIsolated = !!on; return sgaIsolated; },
+      // the sga pull-through, as a suite sees it (e2e-meeting-app.js): a neighbour's
+      // ask for a sid I lack, the chase it starts, and a raw frame at one peer
+      sgaAskForTest: (sid, fromPid) => sgaAppServe({ id: fromPid, dc: null }, { sid }),
+      sgaChaseState: (sid) => ({ appTimer: sgaAppTimer.has(sid), snapTimer: sgaReqTimer.has(sid), appWant: (sgaAppWant.get(sid) || { size: 0 }).size, want: (sgaWant.get(sid) || { size: 0 }).size }),
+      sgaSendForTest: (pid, msg) => { const p = peers.get(pid); if (!p) return false; dcSend(p, msg); return true; },
+      appSid: () => appKey,
       sgaPullState: (sid) => ({ snap: sgaSnap.has(sid), app: sgaApp.has(sid), reqTries: sgaReqTries.get(sid) || 0, appTries: sgaAppReqTries.get(sid) || 0 }),
       appName: () => document.getElementById('appname').textContent,
       appIsHost: () => appMode === 'host',
@@ -14990,6 +14997,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         btnShown: (() => { const b = document.getElementById('pipbtn'); return !!b && b.style.display !== 'none'; })(),
       }),
       pipEnterForTest: () => enterPip(),
+      // moderation SINKS (e2e-meet-mod.js): what the filmstrip would list and how
+      // blurred, and a sender that defies the admin's video-off — the DOM-hacked
+      // guest the receiver-side rule exists for (it only re-enables MY track).
+      fsSourcesForTest: () => fsSources().map((s) => ({ key: s.key, bl: s.bl || 0 })),
+      openFsForTest: (key) => openFsView(key),
+      closeFsForTest: () => closeFsView(),
+      fsMain: () => ({ key: fsmain.dataset.key || null, bl: fsmain.classList.contains('blur2') ? 2 : fsmain.classList.contains('blur1') ? 1 : 0 }),
+      fsThumbBlur: (key) => { const th = Array.from(fsstrip.children).find((t) => t.dataset.key === key); const tv = th && th.querySelector('video'); if (!tv) return null; return tv.classList.contains('blur2') ? 2 : tv.classList.contains('blur1') ? 1 : 0; },
+      peerCamOff: (pid) => seatDark(statusOf.get(pid)),
+      defyCamOffForTest: () => { const t = localStream && localStream.getVideoTracks()[0]; if (!t) return false; t.enabled = true; myStatus.camOff = false; broadcastStatus(); return true; },
       // freeze my outgoing pulses (throttled-phone simulation for the G1 drill)
       haltPulseForTest: (on) => { pulseHalt = !!on; },
       // backdate the beat clock (renderer-freeze simulation for the resume self-heal drill)
