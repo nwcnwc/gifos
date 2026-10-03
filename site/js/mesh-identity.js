@@ -84,6 +84,7 @@
   }
   const FILL_WINDOW_MS = 10 * 60 * 1000;
   const SEEN_MAX = 4096;
+  const PIN_MAX = 4096;
 
   // Sign a fill frame as `identity`. Returns a {sp, sig, pub} block (mirrors the
   // admin §SIG shape) to attach to the frame as m.s4. `from` is the signer's
@@ -110,12 +111,21 @@
       // pin(id, pub): returns { ok, changed }. ok=false ⇒ this pub CONFLICTS with
       // the one already pinned for id (a key-swap attempt) — reject. changed is
       // reserved for surfacing a key rotation (not used to reject here).
+      // The map is an LRU capped at PIN_MAX. A peer id is H(pub), so a
+      // different key is a different id. Evicting an id and pinning it
+      // again is the same trust as first contact. drop(id) forgets one
+      // departed participant.
       pin(id, pub) {
         const cur = map.get(id);
-        if (cur === undefined) { map.set(id, pub); return { ok: true, changed: false }; }
-        if (cur === pub) return { ok: true, changed: false };
+        if (cur === undefined) {
+          while (map.size >= PIN_MAX) map.delete(map.keys().next().value);
+          map.set(id, pub);
+          return { ok: true, changed: false };
+        }
+        if (cur === pub) { map.delete(id); map.set(id, pub); return { ok: true, changed: false }; }
         return { ok: false, changed: true, first: cur };
       },
+      drop(id) { return map.delete(id); },
       get(id) { const v = map.get(id); return v === undefined ? null : v; },
       size() { return map.size; },
     };
@@ -194,5 +204,5 @@
     return { ok: true, from };
   }
 
-  GifOS.meshIdentity = { mint, peerIdOf, signFill, verifyFill, newPins, statement, signGossip, verifyGossip, GOSSIP_T };
+  GifOS.meshIdentity = { mint, peerIdOf, signFill, verifyFill, newPins, statement, signGossip, verifyGossip, GOSSIP_T, PIN_MAX };
 })(typeof window !== 'undefined' ? window : globalThis);
