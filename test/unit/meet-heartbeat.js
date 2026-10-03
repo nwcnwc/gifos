@@ -38,8 +38,14 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
   const end = html.indexOf('    // One global, ordered hand-raise queue');
   check('takeStatus is where the lift expects it', start > 0 && end > start);
   const statusOf = new Map();
+  // takeStatus bounds the password epoch with pwEpInt + PW_EP_MAX (defined
+  // later in run.html, see test/unit/meet-pw-epoch.js); lift the rule with it.
+  const ruleStart = html.indexOf('    function pwEpInt(');
+  const ruleEnd = ruleStart > 0 ? html.indexOf('\n', html.indexOf('const PW_EP_MAX', ruleStart)) : -1;
+  check('the epoch rule (pwEpInt + PW_EP_MAX) is where the lift expects it', ruleStart > 0 && ruleEnd > ruleStart);
+  const rule = ruleStart > 0 && ruleEnd > ruleStart ? html.slice(ruleStart, ruleEnd) + '\n' : '';
   const takeStatus = new Function('meshGone', 'TOMB_GRACE', 'statusOf', 'gossipAgeMs', 'pwEpoch', 'storePwEpoch',
-    html.slice(start, end) + '\n return takeStatus;')(new Map(), 1500, statusOf, 0, 0, () => {});
+    rule + html.slice(start, end) + '\n return takeStatus;')(new Map(), 1500, statusOf, 0, 0, () => {});
   const at = Date.now();
   const pulse = () => ({ muted: true, camOff: false, blur: 1, hand: null, at });
   check('the first copy of a pulse is taken', takeStatus('p1', pulse()) === true && statusOf.size === 1);
@@ -51,7 +57,7 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
   const rxBefore = statusOf.get('p1').rx;
   const later = Date.now() + 50;
   const dupRx = new Function('meshGone', 'TOMB_GRACE', 'statusOf', 'gossipAgeMs', 'pwEpoch', 'storePwEpoch', 'Date',
-    html.slice(start, end) + '\n return takeStatus;')(new Map(), 1500, statusOf, 0, 0, () => {}, { now: () => later });
+    rule + html.slice(start, end) + '\n return takeStatus;')(new Map(), 1500, statusOf, 0, 0, () => {}, { now: () => later });
   check('a duplicate heard later keeps the LATER receipt stamp (proof of life moves forward)', dupRx('p1', { muted: false, camOff: false, blur: 0, at }) === null && statusOf.get('p1').rx === later && later > rxBefore);
   check('the held status carries no extra enumerable field (JSON shape unchanged)', Object.keys(statusOf.get('p1')).sort().join(',') === 'at,blur,camOff,muted,rx', Object.keys(statusOf.get('p1')).join(','));
 }
@@ -59,10 +65,15 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 {
   const h = html.slice(html.indexOf("} else if (msg.kind === 'status') {"), html.indexOf("} else if (msg.kind === 'mod') {"));
   check('the status handler keeps takeStatus\'s answer', /const took = takeStatus\(from, msg\.s \|\| \{\}\);/.test(h));
-  const gated = h.slice(h.indexOf('if (took !== null) {'), h.indexOf('\n        }', h.indexOf('if (took !== null) {')));
-  check('…and runs reactRoomState / paintShare / reconcileApp only when the pulse was new to me',
-    gated.indexOf('reactRoomState();') > 0 && gated.indexOf('paintShare();') > 0 && gated.indexOf('reconcileApp();') > 0
-    && (h.match(/reactRoomState\(\)/g) || []).length === 1 && (h.match(/paintShare\(\)/g) || []).length === 1 && (h.match(/reconcileApp\(\)/g) || []).length === 1);
+  // The handler asks for ONE coalesced room pass (scheduleRoomReact — tiles,
+  // outbound, share height, shared app) only when the pulse was new; the pass
+  // itself re-derives the three things the old inline cascade did.
+  check('…and schedules the coalesced room pass only when the pulse was new to me (one call site, nothing re-derived inline)',
+    /if \(took !== null\) scheduleRoomReact\(\);/.test(h) && (h.match(/scheduleRoomReact\(\)/g) || []).length === 1
+    && !/reactRoomState\(\)|paintShare\(\)|reconcileApp\(\)/.test(h));
+  const ps = html.indexOf('    function roomReactPass() {'), pe = html.indexOf('\n    }\n', ps);
+  const pass = ps > 0 && pe > ps ? html.slice(ps, pe) : '';
+  check('…and the pass re-derives tiles, share height and the shared app', pass.indexOf('reactRoomState();') > 0 && pass.indexOf('paintShare();') > 0 && pass.indexOf('reconcileApp();') > 0);
 }
 
 // ---- 2. takeMod: one verify per signed table ----
