@@ -4100,6 +4100,9 @@
     }
     return storeDefaultsState;
   }
+  // Armed from the boot chain and NOT awaited there: the chain goes on to the
+  // run/place hand-offs and the orphan sweep at once, while the seed waits
+  // for its idle moment on the side.
   let storeDefaultsP = null;
   function scheduleStoreDefaults() {
     if (storeDefaultsP) return storeDefaultsP;
@@ -4113,7 +4116,7 @@
 
   // ---------- boot ----------
   requestPersistence();
-  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(drainPendingReceipts).then(render).then(scheduleStoreDefaults.bind(null)).then(noteRetiredBuild).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate).then(reclaimOrphanAssets).then(backfillOrnaments);
+  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(drainPendingReceipts).then(render).then(() => { scheduleStoreDefaults(); }).then(noteRetiredBuild).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate).then(reclaimOrphanAssets).then(backfillOrnaments);
 
   GifOS.desktop = { render, load, backfillOrnaments, get stats() { return renderStats; },
     // The lazy seed, awaitable: the promise the boot armed (resolves once it has run), and what it decided.

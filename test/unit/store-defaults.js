@@ -51,6 +51,7 @@ check('the meeting page loads it too, ahead of the runtime', run.indexOf('<scrip
 check('the runtime\'s one-tap install goes through GifOS.install (one verified path)', /GifOS\.install\.listing\(slug\)/.test(runtime) && /GifOS\.install\.fetchApp\(app, note, \{ provider: true \}\)/.test(runtime));
 const bootLine = (desktop.match(/load\(\)\.then\(seedIfEmpty\)[^\n]*/) || [''])[0];
 check('the Home Screen seeds default store apps AFTER render in the boot chain', bootLine.indexOf('.then(render)') > 0 && bootLine.indexOf('scheduleStoreDefaults') > bootLine.indexOf('.then(render)'), bootLine.slice(0, 160));
+check('…and does not hold the chain: the seed is armed, not awaited (the run/place hand-offs and the orphan sweep go on at once)', /\.then\(\(\) => \{ scheduleStoreDefaults\(\); \}\)\.then\(noteRetiredBuild\)/.test(bootLine), bootLine.slice(0, 200));
 check('…lazily: a delay, then an idle callback', /setTimeout\(idle, 6000\)/.test(desktop) && /requestIdleCallback\(go/.test(desktop));
 check('…placed by saveItem into the default\'s folder, never a raw item write', /await saveItem\(\{ id: store\.uid\('item'\), kind: 'file', fileId, name, parent: d\.folder \|\| null, iconSize: 64 \}, \{ into: d\.folder \|\| null \}\)/.test(desktop) && (desktop.match(/store\.putItem\(/g) || []).length === 2);
 check('…assigning the role only where nothing is assigned yet', /if \(!cfg\[d\.role\] \|\| \(!cfg\[d\.role\]\.app && !cfg\[d\.role\]\.url\)\)/.test(desktop));
