@@ -288,7 +288,7 @@ export class Session {
     this.state = state;
     this.env = env;           // for the TRUSTED_IPS test-mode allowlist
     this.meters = new Map();  // ws -> meter; in-memory, rebuilt after hibernation
-    this.joinLog = new Map(); // ip -> [join timestamps]; best-effort, in-memory
+    this.joinLog = new Map(); // salted ip tag -> [join timestamps]; best-effort, in-memory. Never a raw address.
     this.bornAt = Date.now(); // wedge self-heal: age-gates the self-abort below
     this.wedgeStrikes = [];   // timestamps of internal accept-path failures
     this.whoAt = new WeakMap(); // socket -> last full-roster pull (the {t:'who'} rate limit); in-memory, dies with the socket
@@ -691,11 +691,13 @@ export class Session {
     }
     if (mine >= MAX_SOCKETS_PER_IP && !trusted) return reject('too many connections from your network', 1013);
     const now = Date.now();
-    const jk = ipKey(ip);
-    const log = (this.joinLog.get(jk) || []).filter((t) => now - t < 60000);
+    // Same salted tag as the attachment (iph). ipKey() is only the network
+    // prefix inside that hash; storing the prefix would keep a raw IPv4 or an
+    // IPv6 /64 in this object until the map is cleared.
+    const log = (this.joinLog.get(iph) || []).filter((t) => now - t < 60000);
     log.push(now);
     if (this.joinLog.size > 2000) this.joinLog.clear(); // best-effort burst damper; bounded memory while awake
-    this.joinLog.set(jk, log);
+    this.joinLog.set(iph, log);
     if (log.length > MAX_JOINS_PER_IP_MIN && !trusted) return reject('joining too fast — slow down', 1013);
 
     // ONE RUNTIME (docs/one-runtime.md step 6): the app-session STAR is DELETED.
@@ -1066,10 +1068,10 @@ export class Session {
 // Best-effort per-IP upgrade limiter at the edge: per-isolate memory, so it's
 // a burst damper (each PoP isolate counts separately), not a global ledger —
 // the real per-session guards live in the Durable Object above.
-const ipHits = new Map(); // ip -> [timestamps]
-function edgeLimited(ip) {
+const ipHits = new Map(); // salted ip tag -> [timestamps]; never a raw address
+async function edgeLimited(ip, env) {
   const now = Date.now();
-  const k = ipKey(ip);
+  const k = await ipTag(ip, env); // same tag as the door cap; ipKey() stays inside the hash
   const log = (ipHits.get(k) || []).filter((t) => now - t < 60000);
   log.push(now);
   ipHits.set(k, log);
@@ -1115,7 +1117,7 @@ export default {
         return new Response('forbidden origin', { status: 403 });
       }
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-      if (edgeLimited(ip) && !isTrusted(ip, env)) return new Response('rate limited', { status: 429 });
+      if (await edgeLimited(ip, env) && !isTrusted(ip, env)) return new Response('rate limited', { status: 429 });
       const id = env.SESSION.idFromName(parts[1]);
       return env.SESSION.get(id).fetch(request);
     }
