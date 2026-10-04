@@ -200,7 +200,16 @@ echo "=== 5) THE LYING AGGREGATOR — G4/G5 ==="
 #   - the corruption is CONFINED to its own subtree.
 #   - G5: nothing is evicted. CHECK still passes, dups stay 0.
 LIAR=1/0.0
-out=$(MESH_DIGLOG=1 run "det on" "seed 1" "init 600 0" "converge 60000" "refuse frac 0.10" \
+# The liar must have SOMEONE ELSE'S refusal to strip. A refusal the liar itself
+# holds has no checker by design (G4 refutes a contribution its author can
+# vouch for), and the random 10% may put no refusal under the liar at all —
+# then the leg tests nothing (2026-10-03: FINDACK changed seed 1's seating so
+# the liar held the only refusal it stripped, 58 -> 57, and nobody could
+# refute it). So the premise is set, not drawn: the liar's own refusal is
+# cleared and its row-mate 1/0.1 — a designated checker — refuses.
+seat_at(){ run "det on" "seed 1" "${@:2}" "init 600 0" "converge 60000" "find $1" | sed -nE 's/^FIND .* -> seat ([0-9-]+).*/\1/p'; }
+LID=$(seat_at $LIAR); MID=$(seat_at 1/0.1)
+out=$(MESH_DIGLOG=1 run "det on" "seed 1" "init 600 0" "converge 60000" "refuse frac 0.10" "refuse $LID 0" "refuse $MID 1" \
           "tick 400" "digest" "digest reset" "lie $LIAR 1" "tick 400" "digest" "check" "dups")
 mapfile -t dl < <(grep '^DIGEST' <<<"$out")
 honest=$(fld "${dl[0]}" refuseMax); lied=$(fld "${dl[1]}" refuseMax); truth=$(fld "${dl[1]}" trueRefuse)
@@ -346,7 +355,8 @@ d=$(grep '^DIGEST' <<<"$out")
 echo "  negative control (absolute stamps): rootExact $(fld "$d" rootExact)/$(fld "$d" obs), rootMax $(fld "$d" rootMax), mismatch $(fld "$d" mismatch)"
 [ "$(fld "$d" rootExact)" -lt "$(fld "$d" obs)" ] && ok "the control COLLAPSES under skew — the leg measures clocks" \
                                                   || bad "absolute stamps survived skew: this leg cannot see the bug"
-out=$(MESH_DIGLOG=1 run "det on" "seed 1" "net skew=5000" "init 600 0" "converge 60000" "refuse frac 0.10" \
+LID=$(seat_at $LIAR "net skew=5000"); MID=$(seat_at 1/0.1 "net skew=5000")
+out=$(MESH_DIGLOG=1 run "det on" "seed 1" "net skew=5000" "init 600 0" "converge 60000" "refuse frac 0.10" "refuse $LID 0" "refuse $MID 1" \
           "tick 400" "digest" "digest reset" "lie $LIAR 1" "tick 400" "digest" "check")
 mapfile -t dl < <(grep '^DIGEST' <<<"$out")
 chk "skewed clocks: the honest fold's refusals are exact" "$(fld "${dl[0]}" refuseMax)" "$(fld "${dl[0]}" trueRefuse)"
