@@ -128,6 +128,24 @@ if (facesSrc && downSrc) {
     check('…then the new face is cut from the new cell', !!(back && back[0] && back[0].id === C3 && back[0].cell.j === 1), back && back.map((f) => f.id));
   }
 
+  // THE SEAT'S OWN STAGE CHANGE STARTS THE HOLD (verifier round 2, problem 2).
+  // Below the first relay hop the new cell order can reach a seat after the
+  // re-packed frames do. Dee joins the stage with her own video here, and the
+  // strip this seat holds still carries the old order [A, B]: the hold must
+  // start from the seat's own stage change, not wait for the strip's order.
+  {
+    const D = 'dee';
+    const Wh = world({ mosIn: new Map([['stg:' + A, { stream: heldA }], ['stg:' + B, { stream: heldB, meta: { ao: 1 } }], ['stg:' + D, { stream: new FakeStream([trk('video', 'camD')]) }]]) });
+    const sAB = strip({ n: 2, cols: 2, ids: [A, B] }, 960, 480);
+    Wh.stageFaceSet(A, [A, B], sAB, 0);
+    check('a settled order shows the screen with Ben cut from the strip', Array.isArray(Wh.stageFaceSet(A, [A, B], sAB, Wh.STAGE_FACE_SETTLE_MS)));
+    const t1 = Wh.STAGE_FACE_SETTLE_MS + 100;
+    check('the seat\'s own stage list changes while the strip order is old: the strip shows (the hold starts)', Wh.stageFaceSet(A, [A, B, D], sAB, t1) === null);
+    check('…and the hold runs its full time', Wh.stageFaceSet(A, [A, B, D], sAB, t1 + Wh.STAGE_FACE_SETTLE_MS - 100) === null);
+    const late = Wh.stageFaceSet(A, [A, B, D], sAB, t1 + Wh.STAGE_FACE_SETTLE_MS + 10);
+    check('…then the screen returns once nothing has moved', Array.isArray(late) && late.length === 2, late && late.map((f) => f.id));
+  }
+
   // Geometry unknown: the strip, never a screen with people missing.
   check('no strip meta → show the strip', W.settled(A, [A, B], strip(null, 960, 480)) === null);
   check('counts disagree and no order → show the strip', W.settled(A, [A, B], strip({ n: 1, cols: 1 }, 480, 480)) === null);
@@ -250,7 +268,33 @@ if (facesSrc && downSrc) {
     check('an oversized id drops the list', mxIds(['x'.repeat(65)]) === undefined);
     check('an empty list or a non-list is dropped', mxIds([]) === undefined && mxIds('a') === undefined);
   }
-  check('the mx handler keeps the order (mxIds(m.ids))', /mosAnn\.set\(ak, \{[^\n]*ids: mxIds\(m\.ids\)/.test(html));
+  // Verifier round 2, problem 2: a meta-only re-announce of 'sgs' with a new
+  // cell order must make a relay re-ship at once (schedReconcile), not at the
+  // 2s sweep. The page's own mx handler block runs here.
+  {
+    const blk = between("} else if (m.k === 'mx' && typeof m.key === 'string' && m.streamId) {", "} else if (m.k === 'mx-end'");
+    const body = blk.replace(/^\} else if \(m\.k === 'mx' && typeof m\.key === 'string' && m\.streamId\) \{/, '');
+    check('the mx handler block is where the lift expects it', !!blk && body !== blk);
+    if (blk && mx) {
+      const mxIds = new Function('SCALE', mx + '\nreturn mxIds;')({ C: 5 });
+      const run = (mosAnn, m) => {
+        const calls = [];
+        new Function('m', 'p', 'mosAnn', 'mxIds', 'schedReconcile', 'schedClaim', body)(
+          m, { id: 'up1' }, mosAnn, mxIds, () => calls.push('reconcile'), () => calls.push('claim'));
+        return calls;
+      };
+      const ann = new Map();
+      check('a new strip announce reconciles', run(ann, { k: 'mx', key: 'sgs', streamId: 's1', n: 2, cols: 2, ids: ['a', 'b'] }).join() === 'reconcile');
+      check('a repeat of the same strip announce only refreshes the claim', run(ann, { k: 'mx', key: 'sgs', streamId: 's1', n: 2, cols: 2, ids: ['a', 'b'] }).join() === 'claim');
+      check('a meta-only cell order change on the strip reconciles at once', run(ann, { k: 'mx', key: 'sgs', streamId: 's1', n: 2, cols: 2, ids: ['a', 'c'] }).join() === 'reconcile');
+      check('…and the new order is stored', JSON.stringify(ann.get('up1|sgs').ids) === '["a","c"]');
+      check('a strip count change on the same container reconciles', run(ann, { k: 'mx', key: 'sgs', streamId: 's1', n: 3, cols: 2, ids: ['a', 'c', 'd'] }).join() === 'reconcile');
+      const other = new Map();
+      run(other, { k: 'mx', key: 'stg:a', streamId: 's9', n: 1, cols: 1 });
+      check('a meta change on another key keeps the cheap claim refresh', run(other, { k: 'mx', key: 'stg:a', streamId: 's9', n: 2, cols: 1 }).join() === 'claim');
+    }
+  }
+  check('the mx handler keeps the order (mxIds(m.ids))', /const annIds = mxIds\(m\.ids\);/.test(html) && /mosAnn\.set\(ak, \{[^\n]*ids: annIds/.test(html));
   check('annMeta carries the order onto the claim', /const annMeta = \(ann\) => \(\{[^\n]*ids: ann\.ids/.test(html));
   check('Section 1 ships the order it packed', /shipMos\('sgs', occPid\(T\.down\(c\)\), stripPack\.stream, \{ n: stripPack\.count\(\), cols: stripPack\.cols\(\), ids: stripIds \}\)/.test(html));
   const sgsShips = html.match(/shipMos\('sgs', [^\n]*/g) || [];
@@ -302,13 +346,20 @@ if (facesSrc && downSrc) {
   global.document = { createElement() { const tag = 'cv' + (nCanvas++); return { tag, width: 0, height: 0, getContext() { return mkCtx(tag); }, captureStream() { return { getVideoTracks() { return [{ stop() {} }]; } }; } }; } };
   global.MediaStream = FakeStream;
   try {
-    const pk = MM.createPacker({ shape: 'bar', cell: 480, maxW: 2000, fps: 30 }).start();
+    const pk = MM.createPacker({ shape: 'bar', cell: 480, maxW: 3000, fps: 30 }).start();
     const camEl = { tag: 'cam', videoWidth: 640, videoHeight: 480, currentTime: 1 };
     const offEl = { tag: 'off', videoWidth: 640, videoHeight: 480, currentTime: 1 };
     const blurEl = { tag: 'blr', videoWidth: 640, videoHeight: 480, currentTime: 1 };
     pk.setTile('a', 0, camEl, new FakeStream([]), { n: 1, cols: 1, lbl: { name: 'Ada' } });
     pk.setTile('b', 1, offEl, new FakeStream([]), { n: 1, cols: 1, lbl: { name: 'Ben' }, dark: 1 });
     pk.setTile('c', 2, blurEl, new FakeStream([]), { n: 1, cols: 1, lbl: { name: 'Cy' }, blur: 2 });
+    // Verifier round 2, problem 1: a blurred person who claims a screen share
+    // gets fit 'contain' (fitFor reads the sender's own claim). The letterbox
+    // path must blur too. 'shr' is a clear sharer on the same path.
+    const blurShrEl = { tag: 'bshr', videoWidth: 640, videoHeight: 480, currentTime: 1 };
+    const shrEl = { tag: 'shr', videoWidth: 640, videoHeight: 480, currentTime: 1 };
+    pk.setTile('d', 3, blurShrEl, new FakeStream([]), { n: 1, cols: 1, lbl: { name: 'Di' }, fit: 'contain', blur: 2 });
+    pk.setTile('e', 4, shrEl, new FakeStream([]), { n: 1, cols: 1, lbl: { name: 'Ed' }, fit: 'contain' });
     draws.length = 0; texts.length = 0;
     const realNow = Date.now; let t = 1e6; Date.now = () => (t += 1000);
     const perf = global.performance; global.performance = { now: () => (t += 1000) };
@@ -320,7 +371,13 @@ if (facesSrc && downSrc) {
     check('a blurred cell is drawn into a tiny canvas first, never straight at cell size',
       draws.some((d) => d.src === 'blr' && d.dw <= 12) && !draws.some((d) => d.src === 'blr' && d.dw === 480), draws.filter((d) => d.src === 'blr'));
     check('…and the tiny canvas is stretched back over the cell', draws.some((d) => /^cv/.test(d.src || '') && d.dw === 480));
-    check('the packer still counts three cells (the dark one keeps its place)', pk.count() === 3);
+    check('a blurred sharer (fit contain) is drawn into the tiny canvas, never at its letterbox size',
+      draws.some((d) => d.src === 'bshr' && d.dw <= 12) && !draws.some((d) => d.src === 'bshr' && d.dw > 12), draws.filter((d) => d.src === 'bshr'));
+    check('…and the tiny canvas is stretched over the letterbox rect (480x360), not the square cell',
+      draws.some((d) => /^cv/.test(d.src || '') && d.dw === 480 && d.dh === 360));
+    check('a clear sharer (fit contain, no blur) is still drawn whole at its letterbox size',
+      draws.some((d) => d.src === 'shr' && d.dw === 480 && d.dh === 360), draws.filter((d) => d.src === 'shr'));
+    check('the packer still counts every cell (the dark one keeps its place)', pk.count() === 5);
     pk.stop();
   } finally {
     global.setInterval = oldSI; global.clearInterval = oldCI; global.document = oldDoc; global.MediaStream = oldMS;

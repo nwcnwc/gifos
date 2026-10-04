@@ -367,14 +367,18 @@
     // stretched back, so its detail is gone before it reaches the composite.
     // This works on every canvas; ctx.filter does not exist everywhere.
     let blurCv = null, blurCx = null;
-    function blurBlit(el, b, dx, dy, cell, level) {
+    // dw/dh default to the square cell; the letterboxed (contain) path passes
+    // its own fitted rect so a blurred sharer is blurred there too.
+    function blurBlit(el, b, dx, dy, cell, level, dw, dh) {
+      if (dw == null) dw = cell;
+      if (dh == null) dh = cell;
       const q = Math.max(3, Math.round(cell / (level >= 2 ? 40 : 16)));
       if (!blurCv) { blurCv = document.createElement('canvas'); blurCx = blurCv && blurCv.getContext('2d'); }
-      if (!blurCx) { ctx.fillStyle = '#07090c'; ctx.fillRect(dx, dy, cell, cell); return; } // no scratch canvas: no face, never a clear one
+      if (!blurCx) { ctx.fillStyle = '#07090c'; ctx.fillRect(dx, dy, dw, dh); return; } // no scratch canvas: no face, never a clear one
       if (blurCv.width !== q) { blurCv.width = q; blurCv.height = q; }
       blurCx.drawImage(el, b.sx, b.sy, b.sw, b.sh, 0, 0, q, q);
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(blurCv, 0, 0, q, q, dx, dy, cell, cell);
+      ctx.drawImage(blurCv, 0, 0, q, q, dx, dy, dw, dh);
     }
     function paint() {
       if (!ctx || active === false) return;                                    // demand-gated: a composite nobody ships or shows isn't painted (static canvas ⇒ ~0 encode too)
@@ -433,7 +437,11 @@
                 // previous source's pixels stranded in the margin.
                 const f = fitBox('contain', sw, sh, cell);
                 ctx.fillStyle = '#07090c'; ctx.fillRect(dx, dy, cell, cell);
-                ctx.drawImage(el, 0, 0, sw, sh, dx + f.dx, dy + f.dy, f.dw, f.dh);
+                // A moderator's blur reaches this path too: fitFor() turns
+                // 'contain' on from the sender's own share claim, so a blurred
+                // person who claims a share must never be drawn clear here.
+                if (t.blur) blurBlit(el, { sx: 0, sy: 0, sw, sh }, dx + f.dx, dy + f.dy, cell, t.blur, f.dw, f.dh);
+                else ctx.drawImage(el, 0, 0, sw, sh, dx + f.dx, dy + f.dy, f.dw, f.dh);
               } else {
                 const b = coverBox(sw, sh, { w: cell, h: cell });    // leaf camera → centered square
                 if (t.blur) blurBlit(el, b, dx, dy, cell, t.blur);

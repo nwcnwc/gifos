@@ -221,7 +221,7 @@ function finishDarkAndRest() {
   check('ensureAc resumes suspended and interrupted', ac.indexOf("ac.state === 'suspended'") >= 0 && ac.indexOf("ac.state === 'interrupted'") >= 0 && ac.indexOf('onstatechange') >= 0);
   const roles = between('    function endRelayRolesFor(pid)', '    function ensureStageEar');
   check('a leaving requester drops its aux senders', /relayJobs\.delete\(key\)/.test(roles) && /for \(const sd of job\.senders \|\| \[\]\) auxSenders\.delete\(sd\)/.test(roles));
-  check('a new mx reconciles and a repeat only claims', /const annNew = !prevAnn \|\| prevAnn\.streamId !== m\.streamId/.test(html) && /if \(annNew\) schedReconcile\(\); else schedClaim\(\)/.test(html));
+  check('a new mx reconciles and a repeat only claims', /const annNew = !prevAnn \|\| prevAnn\.streamId !== m\.streamId/.test(html) && /if \(annNew( \|\| stripReorder)?\) schedReconcile\(\); else schedClaim\(\)/.test(html)); // stripReorder: a strip cell-order change (stage-faces.js runs the block)
   check('kfNeed keeps a one-argument signature and reads the asker', /function kfNeed\(key\)/.test(html) && /kfAsker = p\.id/.test(html) && /const fromPid = kfAsker/.test(html));
   check('a relay job stores upKey', /upKey: upKey \|\| null/.test(html) && /shipMos\('sub', headPid, subraw\.stream,[\s\S]{0,120}, 'subraw'\)/.test(html) && /shipMos\('x2', xPid,[\s\S]{0,160}, 'x1'\)/.test(html));
   check('sdn, sdrow, sdx^x and sdnm hops name their source slot', /blockMeta\(sdx\), 'sdx'\)/.test(html) && /blockMeta\(xf\)\), mk\)/.test(html) && /blockMeta\(xc\)\), mk\)/.test(html) && /blockMeta\(mf\)\), mk\)/.test(html));

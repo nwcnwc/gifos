@@ -9303,8 +9303,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const ak = p.id + '|' + m.key;
         const prevAnn = mosAnn.get(ak);
         const annNew = !prevAnn || prevAnn.streamId !== m.streamId;
-        mosAnn.set(ak, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, mt: m.mt, h: (typeof m.h === 'number' ? m.h : undefined), ao: (m.ao === 1 ? 1 : undefined), ids: mxIds(m.ids), at: Date.now() });
-        if (annNew) schedReconcile(); else schedClaim();
+        const annIds = mxIds(m.ids);
+        // STAGE-FACES: the strip's cell order (or count, or grid) changed under
+        // the same container. A relay must pass the new order on within one
+        // beat, not at the 2s sweep: the re-packed frames are already flowing
+        // down, and a deeper seat would crop them with the old order.
+        const stripReorder = m.key === 'sgs' && !!prevAnn && !annNew
+          && ((prevAnn.ids || []).join(',') !== (annIds || []).join(',') || prevAnn.n !== m.n || prevAnn.cols !== m.cols);
+        mosAnn.set(ak, { streamId: m.streamId, col: m.col, row: m.row, n: m.n, cols: m.cols, mt: m.mt, h: (typeof m.h === 'number' ? m.h : undefined), ao: (m.ao === 1 ? 1 : undefined), ids: annIds, at: Date.now() });
+        if (annNew || stripReorder) schedReconcile(); else schedClaim();
       } else if (m.k === 'mx-end' && typeof m.key === 'string') {
         mosAnn.delete(p.id + '|' + m.key);
         // Structural slots drop hard; REDUNDANT slots go through claimMos so the
@@ -11004,7 +11011,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (!t || t.readyState === 'ended') return null;
           svt = t;
           cols = (strip.meta.cols | 0) || order.length;
-          const key = order.join(',') + '|' + order.length + 'x' + cols + '|' + (t.id || '');
+          // The seat's own stage list is in the key too: when the stage
+          // changes here, the hold starts even if the strip's new order has
+          // not reached this seat yet (it travels hop by hop, behind frames).
+          const key = order.join(',') + '|' + order.length + 'x' + cols + '|' + (t.id || '') + '|' + stagers.join(',');
           if (key !== stageStripSeen.key) stageStripSeen = { key, at: now };
           if (now - stageStripSeen.at < STAGE_FACE_SETTLE_MS) return null;
         }
