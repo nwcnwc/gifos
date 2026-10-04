@@ -2600,17 +2600,12 @@
           if (!this.hasCoord || this.state !== 3 || ck(this.coord) !== m.ck) return;
           const by = m.id != null ? m.id : m.lk;
           if (by == null || by === this.id || !this.proven(m, by) || !this.arbiterIs(by)) return;
-          // Section 1 has up to 2C-2 arbiters and an honest contest is seen by
-          // every one the rival phones, so ONE rook peer's word is not enough
-          // while two or more of them are live: a single hostile neighbour
-          // cannot evict me alone. A deep cell has exactly one arbiter (C3).
-          if (this.coord.pc === 0) {
-            const Y = this.yieldBy = (this.yieldBy && this.yieldBy.ck === m.ck) ? this.yieldBy : { ck: m.ck, by: new Map() };
-            Y.by.set(by, TICK); for (const [b, t] of Y.by) if (TICK - t > 16) Y.by.delete(b);
-            let liveRook = 0; for (const olc of topo.ownedLinks(this.coord)) if (olc.pc === 0 && this.firstHandLive(ck(olc))) liveRook++;
-            if (Y.by.size < Math.min(2, Math.max(1, liveRook))) return;
-            this.yieldBy = null;
-          }
+          // ONE arbiter's word is enough, on purpose: a contest is often seen
+          // by a single arbiter (an asymmetric partition — a newcomer reaches
+          // a seat its old neighbours cannot). Requiring two left that
+          // duplicate standing forever (repro-adversary's dark seat, measured
+          // 2026-10-03). So a hostile arbiter can YIELD the seats it arbitrates
+          // — its own links, law S — and nothing beyond them.
           if (this.moving) this.rollbackMove(); else this.requeue(); // T1: a mover contradicted at its NEW cell goes home, not homeless
           return;
         }

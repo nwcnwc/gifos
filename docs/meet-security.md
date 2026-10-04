@@ -157,7 +157,7 @@ The rules (mesh.js, twinned in test/sim/mesh_seat.inc):
 |---|---|
 | PHONE / PONG (never signed) | the cell is one of my owned links; the transport names the author; an unproven one may only refresh a pairing I already hold |
 | HELLO / CLAIM (signed) | the cell is mine, an owned link, my owner's, or my vouch for that id (CLAIM: also my child row). Unproven (sponsor/relay), it never displaces an occupant and holds at most one hint cell per claimant |
-| YIELD | from my arbiter — my phone target, or in Section 1 two distinct rook peers within 16 ticks (while two or more are live) — proven the sender |
+| YIELD | from my arbiter — my phone target, or a rook peer in Section 1 — proven the sender (one arbiter suffices: a contest is often seen by one arbiter only) |
 | a claim on an occupied cell | never from a claimant I hear first-hand at another cell: a seat is in ONE place, so a neighbour cannot take the next cell over |
 | CONFIRM | Section 1 only, from the rival I CHALLENGEd for that cell within 40 ticks, proven, not first-hand live elsewhere |
 | LEAVE / MOVED | from the leaver itself (link or signature), freeing only the cell I hold it at |

@@ -426,7 +426,6 @@ struct Seat {
   unordered_map<int,int> strangeSeen;   // two-ring reconciliation: pool-listed ids absent from my occ, by consecutive E3 sightings
   int greetHoldT=0,seatedAt=0,challAt=0,emptyHomes=0;
   int challToId=-1,challToAt=-99999; uint64_t challToCk=0;   // the rival I last CHALLENGEd for my cell: only its CONFIRM can unseat me
-  uint64_t yieldCk=~0ULL; unordered_map<int,int> yieldBy;   // Section 1: the arbiters that YIELDed me for my cell, and when
   Occ probeOut;                                               // probes I have in flight (target cell -> tick): a ROUTED answer counts only for one of them
   int myPlacer=-2;   // DUPMINT forensics: the owner argument of my last take() (-1 = genesis/self, -2 = never seated)
   bool rowLedger=true;   // V4: a VOUCHED-IN Section-1 row head holds its row's admissions until its assigner hands over the row's vouch ledger (SITXFER) — or the handover window passes (a dead assigner's vouches die with it)

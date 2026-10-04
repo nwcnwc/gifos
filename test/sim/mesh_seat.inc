@@ -1571,16 +1571,7 @@ void Seat::recv(Msg& m){
     case YIELD: {   // honoured only from my ARBITER, proven the sender (mesh.js twin)
       if(!hasCoord||state!=3||ckey(coord)!=m.ck) return;
       int by=m.id>=0?m.id:m.lk;
-      if(by<0||by==id||!proven(m,by)||!arbiterIs(by)) return;
-      // Section 1: two distinct arbiters within 16 ticks while two or more rook
-      // peers are live (a single hostile neighbour cannot evict alone); deep: one (C3)
-      if(coord.pc==0){
-        if(yieldCk!=m.ck){ yieldCk=m.ck; yieldBy.clear(); }
-        yieldBy[by]=(int)TICK; { vector<int> old; for(auto&e:yieldBy) if(TICK-e.second>16) old.push_back(e.first); for(int o:old) yieldBy.erase(o); }
-        int liveRook=0; { Coord ol[MAXLINKS]; int n=ownedLinks(coord,ol); for(int q=0;q<n;q++) if(ol[q].pc==0 && firstHandLive(ckey(ol[q]))) liveRook++; }
-        if((int)yieldBy.size() < min(2, max(1,liveRook))) return;
-        yieldBy.clear(); yieldCk=~0ULL;
-      }
+      if(by<0||by==id||!proven(m,by)||!arbiterIs(by)) return;   // one arbiter's word suffices: a contest is often seen by one arbiter only (asymmetric partition — mesh.js twin)
       if(moving) rollbackMove(); else requeue("T1-yield");   // T1: a mover contradicted at its NEW cell goes home, not homeless
       return; }
     case CLAIM: {

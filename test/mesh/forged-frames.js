@@ -219,20 +219,6 @@ function partA() {
     run(r.env, 150);
     check('A10 HELLO for the victim\'s own cell from a higher id (' + (link ? 'H\'s link' : 'relay') + ') is never written into the victim\'s own seat', own !== Hs.id && inRoster === 1 && g.kept(), { own: own === Hs.id ? 'H' : own === V.id ? 'V' : own, inRoster, g });
   }
-  // A11 ONE Section-1 neighbour (a real arbiter of the victim: a rook peer)
-  // YIELDs it, over its own link and signed over the relay. While the victim
-  // hears two or more rook peers, one neighbour's word does not unseat it.
-  for (const how of ['link', 'relay-signed']) {
-    const r = room(); const s1 = r.seats.filter((x) => x.coord.pc === 0).sort((a, b) => (a.id < b.id ? 1 : -1));
-    const V = s1[0]; const vk = ck(V.coord);
-    const rook = new Set(topo.ownedLinks(V.coord).filter((c) => c.pc === 0).map(ck));
-    const Hs = r.seats.filter((x) => rook.has(ck(x.coord))).sort((a, b) => (a.id < b.id ? -1 : 1))[0];
-    const g = guard(V); const hears = [...rook].filter((k) => V.firstHandLive(k)).length;
-    const f = how === 'link' ? { t: 'YIELD', ck: vk } : signed(Hs, { t: 'YIELD', ck: vk, id: Hs.id });
-    inject(r.env, V, f, how === 'link' ? Hs.id : null);
-    run(r.env, 150);
-    check('A11 one rook neighbour\'s YIELD (' + how + ') does not unseat a Section-1 seat that hears ' + hears + ' rook peers', hears >= 2 && g.kept(), g);
-  }
   // A12 a neighbour, live at its OWN cell, claims the victim's cell to a
   // common arbiter in its own name with a lower id (PHONE over its own link).
   {
@@ -323,9 +309,13 @@ async function partB() {
     await sleep(1500);
     check('B setup: ' + N + ' nodes seated over the wire', conv().seated === N, conv());
     const by = nodes.slice().sort((a, b) => (a.peer < b.peer ? -1 : 1));
-    const Hn = by[0];                                         // the lowest id: every lower-id rule favours it
     const V = by[N - 1];                                      // the highest id
     const vk = ck(V.seat.coord);
+    // H: the lowest id that is NOT the victim's arbiter (not a rook peer). An
+    // arbiter's own YIELD is honoured by design (law S: it is its own link);
+    // everything else here is a forgery.
+    const rookV = new Set(topo.ownedLinks(V.seat.coord).filter((c) => c.pc === 0).map(ck));
+    const Hn = by.find((n) => n !== V && !rookV.has(ck(n.seat.coord))) || by[0];
     const linked = nodes.filter((n) => n !== V && n.seat.hasCoord && topo.ownedLinks(n.seat.coord).some((c) => ck(c) === vk) && n.seat.occGet(vk) === V.peer);
     let requeues = 0; const rq = V.seat.requeue.bind(V.seat); V.seat.requeue = (...a) => { requeues++; return rq(...a); };
     // B1 forged frames over H's own DataChannel, in V's name.
